@@ -56,7 +56,10 @@ class TestStepGenerationService:
 
     async def test_baml_failure_raises_generation_error(self, service):
         with (
-            patch("rfnry_rag.retrieval.modules.generation.step.b.GenerateReasoningStep", side_effect=Exception("LLM error")),
+            patch(
+                "rfnry_rag.retrieval.modules.generation.step.b.GenerateReasoningStep",
+                side_effect=Exception("LLM error"),
+            ),
             pytest.raises(GenerationError, match="GenerateReasoningStep failed"),
         ):
             await service.generate_step(query="question", chunks=[_make_chunk("content")])

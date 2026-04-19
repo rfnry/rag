@@ -43,7 +43,8 @@ class TestRetrievalJudgment:
 
     async def test_defaults_to_retrieve_on_failure(self, judge):
         with patch(
-            "rfnry_rag.retrieval.modules.retrieval.judging.b.JudgeRetrievalNecessity", side_effect=Exception("LLM error")
+            "rfnry_rag.retrieval.modules.retrieval.judging.b.JudgeRetrievalNecessity",
+            side_effect=Exception("LLM error"),
         ):
             result = await judge.should_retrieve("Some query")
 

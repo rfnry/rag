@@ -55,7 +55,9 @@ from rfnry_rag.retrieval.modules.retrieval.refinement.abstractive import Abstrac
 from rfnry_rag.retrieval.modules.retrieval.refinement.extractive import ExtractiveRefinement as ExtractiveRefinement
 from rfnry_rag.retrieval.modules.retrieval.search.reranking.facade import Reranking as Reranking
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.hyde import HyDeRewriting as HyDeRewriting
-from rfnry_rag.retrieval.modules.retrieval.search.rewriting.multi_query import MultiQueryRewriting as MultiQueryRewriting
+from rfnry_rag.retrieval.modules.retrieval.search.rewriting.multi_query import (
+    MultiQueryRewriting as MultiQueryRewriting,
+)
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.step_back import StepBackRewriting as StepBackRewriting
 from rfnry_rag.retrieval.server import GenerationConfig as GenerationConfig
 from rfnry_rag.retrieval.server import IngestionConfig as IngestionConfig

@@ -54,24 +54,24 @@ rfnry-rag-reasoning = "rfnry_rag.reasoning.cli:main"
 [tool.mypy]
 python_version = "3.12"
 mypy_path = "src"
-exclude = ["src/rfnry-rag/retrieval/baml/baml_client", "src/rfnry-rag/reasoning/baml/baml_client"]
+exclude = ["src/rfnry_rag/retrieval/baml/baml_client", "src/rfnry_rag/reasoning/baml/baml_client"]
 ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-exclude = ["src/rfnry-rag/retrieval/baml/baml_client", "src/rfnry-rag/reasoning/baml/baml_client"]
+exclude = ["src/rfnry_rag/retrieval/baml/baml_client", "src/rfnry_rag/reasoning/baml/baml_client"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/rfnry-rag/__init__.py" = ["E402", "F401", "F403", "F811"]
-"src/rfnry-rag/cli.py" = ["F401"]
-"src/rfnry-rag/retrieval/__init__.py" = ["E402"]
-"src/rfnry-rag/retrieval/cli/__init__.py" = ["F401"]
-"src/rfnry-rag/reasoning/__init__.py" = ["E402"]
-"src/rfnry-rag/reasoning/cli/__init__.py" = ["F401"]
+"src/rfnry_rag/__init__.py" = ["E402", "F401", "F403", "F811"]
+"src/rfnry_rag/cli.py" = ["F401"]
+"src/rfnry_rag/retrieval/__init__.py" = ["E402"]
+"src/rfnry_rag/retrieval/cli/__init__.py" = ["F401"]
+"src/rfnry_rag/reasoning/__init__.py" = ["E402"]
+"src/rfnry_rag/reasoning/cli/__init__.py" = ["F401"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -83,18 +83,18 @@ check = "ruff check ."
 "check:fix" = "ruff check . --fix"
 typecheck = "mypy src/"
 test = "pytest"
-"test:cov" = "pytest --cov=rfnry-rag --cov-report=term-missing"
-"baml:generate:retrieval" = "baml-cli generate --from src/rfnry-rag/retrieval/baml/baml_src"
-"baml:generate:reasoning" = "baml-cli generate --from src/rfnry-rag/reasoning/baml/baml_src"
-"baml:test:retrieval" = "baml test --from src/rfnry-rag/retrieval/baml/baml_src"
-"baml:test:reasoning" = "baml test --from src/rfnry-rag/reasoning/baml/baml_src"
+"test:cov" = "pytest --cov=rfnry_rag --cov-report=term-missing"
+"baml:generate:retrieval" = "baml-cli generate --from src/rfnry_rag/retrieval/baml/baml_src"
+"baml:generate:reasoning" = "baml-cli generate --from src/rfnry_rag/reasoning/baml/baml_src"
+"baml:test:retrieval" = "baml test --from src/rfnry_rag/retrieval/baml/baml_src"
+"baml:test:reasoning" = "baml test --from src/rfnry_rag/reasoning/baml/baml_src"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/rfnry-rag"]
+packages = ["src/rfnry_rag"]
 
 [tool.hatch.build]
 exclude = ["**/test_*.py", "**/__pycache__", "**/*.pyc"]
