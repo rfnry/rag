@@ -1,0 +1,321 @@
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
+
+
+def _mock_method(name: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        name=name,
+        ingest=AsyncMock(),
+        delete=AsyncMock(),
+    )
+
+
+def _make_service(methods=None, metadata_store=None):
+    chunker = MagicMock()
+    chunker.chunk = MagicMock(
+        return_value=[
+            MagicMock(
+                content="chunk text",
+                embedding_text="chunk text",
+                page_number=1,
+                section=None,
+                chunk_index=0,
+                context="",
+                contextualized="",
+                parent_id=None,
+                chunk_type="child",
+            ),
+        ]
+    )
+    return IngestionService(
+        chunker=chunker,
+        ingestion_methods=methods or [],
+        metadata_store=metadata_store,
+    )
+
+
+async def test_ingest_text_delegates_to_methods():
+    vector = _mock_method("vector")
+    document = _mock_method("document")
+    service = _make_service(methods=[vector, document])
+
+    source = await service.ingest_text(content="Hello world", metadata={"name": "test"})
+    vector.ingest.assert_called_once()
+    document.ingest.assert_called_once()
+    assert source.chunk_count == 1
+
+
+async def test_ingest_text_no_methods():
+    service = _make_service(methods=[])
+    source = await service.ingest_text(content="Hello world")
+    assert source is not None
+    assert source.chunk_count == 1
+
+
+async def test_ingest_text_creates_metadata_source():
+    meta_store = SimpleNamespace(
+        create_source=AsyncMock(),
+        list_sources=AsyncMock(return_value=[]),
+    )
+    service = _make_service(methods=[], metadata_store=meta_store)
+    source = await service.ingest_text(content="Hello world")
+    meta_store.create_source.assert_called_once()
+    created = meta_store.create_source.call_args[0][0]
+    assert created.source_id == source.source_id
+    assert created.chunk_count == 1
+
+
+async def test_ingest_text_fires_on_complete_callback():
+    callback = AsyncMock()
+    chunker = MagicMock()
+    chunker.chunk = MagicMock(
+        return_value=[
+            MagicMock(
+                content="chunk text",
+                embedding_text="chunk text",
+                page_number=1,
+                section=None,
+                chunk_index=0,
+                context="",
+                contextualized="",
+                parent_id=None,
+                chunk_type="child",
+            ),
+        ]
+    )
+    service = IngestionService(
+        chunker=chunker,
+        ingestion_methods=[],
+        on_ingestion_complete=callback,
+    )
+    source = await service.ingest_text(content="Hello world", knowledge_id="k1")
+    callback.assert_called_once_with("k1")
+    assert source is not None
+
+
+async def test_ingest_text_method_receives_correct_args():
+    method = _mock_method("vector")
+    service = _make_service(methods=[method])
+
+    source = await service.ingest_text(
+        content="Hello world",
+        knowledge_id="k1",
+        source_type="document",
+        metadata={"name": "test-doc"},
+    )
+
+    call_kwargs = method.ingest.call_args[1]
+    assert call_kwargs["source_id"] == source.source_id
+    assert call_kwargs["knowledge_id"] == "k1"
+    assert call_kwargs["source_type"] == "document"
+    assert call_kwargs["title"] == "test-doc"
+    assert call_kwargs["full_text"] == "Hello world"
+    assert len(call_kwargs["chunks"]) == 1
+    assert call_kwargs["tags"] == []
+    assert call_kwargs["metadata"] == {"name": "test-doc"}
+
+
+async def test_ingest_text_empty_chunks_raises():
+    chunker = MagicMock()
+    chunker.chunk = MagicMock(return_value=[])
+    service = IngestionService(
+        chunker=chunker,
+        ingestion_methods=[],
+    )
+    import pytest
+
+    from rfnry_rag.retrieval.common.errors import EmptyDocumentError
+
+    with pytest.raises(EmptyDocumentError):
+        await service.ingest_text(content="Hello world")
+
+
+# --- Tests merged from test_fulltext_ingestion.py ---
+
+
+def _make_method_with_store(name="document"):
+    return SimpleNamespace(
+        name=name,
+        ingest=AsyncMock(),
+        delete=AsyncMock(),
+    )
+
+
+def _make_service_with_metadata(ingestion_methods=None):
+    chunker = MagicMock()
+    chunker.chunk = MagicMock(
+        return_value=[
+            MagicMock(content="chunk 1", page_number=1, section=None, chunk_index=0),
+        ]
+    )
+
+    metadata_store = AsyncMock()
+    metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.create_source = AsyncMock()
+
+    if ingestion_methods is None:
+        ingestion_methods = [_make_method_with_store("vector")]
+
+    return IngestionService(
+        chunker=chunker,
+        ingestion_methods=ingestion_methods,
+        embedding_model_name="test:model",
+        metadata_store=metadata_store,
+    )
+
+
+async def test_ingest_calls_document_method(tmp_path):
+    doc_method = _make_method_with_store("document")
+    service = _make_service_with_metadata(ingestion_methods=[doc_method])
+
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("Page one content.\n\nPage two content.")
+
+    await service.ingest(file_path=test_file, knowledge_id="kb-1", source_type="manuals")
+
+    doc_method.ingest.assert_called_once()
+    kwargs = doc_method.ingest.call_args[1]
+    assert kwargs["knowledge_id"] == "kb-1"
+    assert kwargs["source_type"] == "manuals"
+    assert "Page one content" in kwargs["full_text"]
+
+
+async def test_ingest_text_calls_document_method():
+    doc_method = _make_method_with_store("document")
+    service = _make_service_with_metadata(ingestion_methods=[doc_method])
+
+    await service.ingest_text(
+        content="Full manual text with FBD-20254.",
+        knowledge_id="kb-1",
+        source_type="manuals",
+    )
+
+    doc_method.ingest.assert_called_once()
+    kwargs = doc_method.ingest.call_args[1]
+    assert "FBD-20254" in kwargs["full_text"]
+
+
+async def test_ingest_without_methods(tmp_path):
+    """Ingestion succeeds with an empty method list (no methods to dispatch)."""
+    service = _make_service_with_metadata(ingestion_methods=[])
+
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("Some content.")
+
+    source = await service.ingest(file_path=test_file, knowledge_id="kb-1")
+    assert source is not None
+
+
+async def test_structured_ingestion_has_document_method():
+    """AnalyzedIngestionService stores document method in ingestion_methods."""
+    from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
+
+    doc_method = SimpleNamespace(name="document", ingest=AsyncMock(), delete=AsyncMock())
+    metadata_store = AsyncMock()
+    embeddings = AsyncMock()
+    embeddings.model = "test-model"
+
+    service = AnalyzedIngestionService(
+        embeddings=embeddings,
+        vector_store=AsyncMock(),
+        metadata_store=metadata_store,
+        embedding_model_name="test:model",
+        ingestion_methods=[doc_method],
+    )
+    assert doc_method in service._ingestion_methods
+    assert any(m.name == "document" for m in service._ingestion_methods)
+
+
+# --- Tests merged from test_ingestion_advanced.py ---
+
+
+def _make_service_advanced(ingestion_methods=None, contextual_chunking=True):
+    chunker = MagicMock()
+    chunker.chunk = MagicMock(
+        return_value=[
+            MagicMock(
+                content="chunk text",
+                page_number=1,
+                section=None,
+                chunk_index=0,
+                context="",
+                contextualized="",
+                parent_id=None,
+                chunk_type="child",
+            ),
+        ]
+    )
+
+    metadata_store = AsyncMock()
+    metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.create_source = AsyncMock()
+
+    if ingestion_methods is None:
+        ingestion_methods = [_mock_method("vector")]
+
+    return IngestionService(
+        chunker=chunker,
+        ingestion_methods=ingestion_methods,
+        embedding_model_name="test:model",
+        metadata_store=metadata_store,
+        contextual_chunking=contextual_chunking,
+    )
+
+
+async def test_ingestion_creates_source(tmp_path):
+    """The service creates a Source object and stores it via metadata_store."""
+    method = _mock_method("vector")
+    service = _make_service_advanced(ingestion_methods=[method])
+
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("Some content.")
+
+    source = await service.ingest(
+        file_path=test_file,
+        knowledge_id="kb-1",
+        source_type="manuals",
+        metadata={"name": "Test Doc"},
+    )
+
+    assert source.source_id is not None
+    assert source.knowledge_id == "kb-1"
+    assert source.source_type == "manuals"
+    assert source.chunk_count == 1
+    assert source.embedding_model == "test:model"
+
+    service._metadata_store.create_source.assert_called_once()
+
+
+async def test_ingestion_payload_has_context_fields(tmp_path):
+    """Contextual chunking adds context fields to chunks before passing to methods."""
+    method = _mock_method("vector")
+    service = _make_service_advanced(ingestion_methods=[method], contextual_chunking=True)
+
+    test_file = tmp_path / "test.txt"
+    test_file.write_text("Some content.")
+
+    await service.ingest(file_path=test_file, knowledge_id="kb-1", source_type="manuals", metadata={"name": "Test Doc"})
+
+    method.ingest.assert_called_once()
+    kwargs = method.ingest.call_args[1]
+    chunks = kwargs["chunks"]
+    chunk = chunks[0]
+    assert hasattr(chunk, "context")
+    assert hasattr(chunk, "contextualized")
+    assert hasattr(chunk, "chunk_type")
+
+
+# --- Partial failure test ---
+
+
+async def test_method_failure_does_not_abort_pipeline():
+    """If one method raises, others still run."""
+    failing = SimpleNamespace(name="graph", ingest=AsyncMock(side_effect=RuntimeError("boom")), delete=AsyncMock())
+    succeeding = SimpleNamespace(name="document", ingest=AsyncMock(), delete=AsyncMock())
+    service = _make_service(methods=[failing, succeeding])
+    source = await service.ingest_text(content="Hello world")
+    # Graph failed but document still called
+    succeeding.ingest.assert_called_once()
+    assert source is not None

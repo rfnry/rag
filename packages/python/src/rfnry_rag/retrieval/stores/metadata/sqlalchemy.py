@@ -1,0 +1,277 @@
+import json
+from datetime import datetime
+
+from sqlalchemy import (
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    delete,
+    inspect,
+    select,
+    text,
+    update,
+)
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.schema import ColumnDefault
+
+from rfnry_rag.retrieval.common.errors import DuplicateSourceError, SourceNotFoundError
+from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.retrieval.common.models import Source, SourceStats
+
+logger = get_logger(__name__)
+
+
+class _Base(DeclarativeBase):
+    pass
+
+
+class _SourceRow(_Base):
+    __tablename__ = "rag_sources"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    knowledge_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    source_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source_weight: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="completed")
+    metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    tags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    embedding_model: Mapped[str] = mapped_column(String(100), nullable=False)
+    file_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    stale: Mapped[bool] = mapped_column(nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    tree_index_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class _SourceStatsRow(_Base):
+    __tablename__ = "rag_source_stats"
+
+    source_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("rag_sources.id", ondelete="CASCADE"), primary_key=True
+    )
+    total_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_pages: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    avg_chunk_size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processing_time: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    total_hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    grounded_hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ungrounded_hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class SQLAlchemyMetadataStore:
+    def __init__(self, url: str) -> None:
+        parsed = make_url(url)
+        if parsed.drivername == "postgresql":
+            parsed = parsed.set(drivername="postgresql+asyncpg")
+        elif parsed.drivername == "sqlite":
+            parsed = parsed.set(drivername="sqlite+aiosqlite")
+        connection_string = parsed.render_as_string(hide_password=False)
+
+        self._engine = create_async_engine(connection_string, echo=False)
+        self._session_factory = async_sessionmaker(self._engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def initialize(self) -> None:
+        async with self._engine.begin() as conn:
+            await conn.run_sync(_Base.metadata.create_all)
+            await conn.run_sync(self._migrate_missing_columns)
+        logger.info("metadata store tables initialized")
+
+    @staticmethod
+    def _migrate_missing_columns(conn) -> None:
+        """Add any columns that exist in the model but not in the database (schema evolution)."""
+        insp = inspect(conn)
+        for table in _Base.metadata.sorted_tables:
+            if not insp.has_table(table.name):
+                continue
+            existing = {col["name"] for col in insp.get_columns(table.name)}
+            for column in table.columns:
+                if column.name not in existing:
+                    col_type = column.type.compile(conn.dialect)
+                    default = ""
+                    if column.default is not None and isinstance(column.default, ColumnDefault):
+                        val = column.default.arg
+                        if isinstance(val, bool):
+                            default = f" DEFAULT {1 if val else 0}"
+                        elif isinstance(val, str):
+                            default = f" DEFAULT '{val}'"
+                        else:
+                            default = f" DEFAULT {val}"
+                    nullable = "" if column.nullable else " NOT NULL"
+                    sql = f"ALTER TABLE {table.name} ADD COLUMN {column.name} {col_type}{nullable}{default}"
+                    conn.execute(text(sql))
+                    logger.info("migrated column: %s.%s", table.name, column.name)
+
+    async def create_source(self, source: Source) -> None:
+        row = _SourceRow(
+            id=source.source_id,
+            knowledge_id=source.knowledge_id,
+            source_type=source.source_type,
+            source_weight=source.source_weight,
+            status=source.status,
+            metadata_json=json.dumps(source.metadata),
+            tags_json=json.dumps(source.tags),
+            chunk_count=source.chunk_count,
+            embedding_model=source.embedding_model,
+            file_hash=source.file_hash,
+            stale=source.stale,
+            created_at=source.created_at,
+        )
+        async with self._session_factory() as session:
+            try:
+                session.add(row)
+                await session.commit()
+            except IntegrityError as exc:
+                await session.rollback()
+                raise DuplicateSourceError(f"Source {source.source_id} already exists") from exc
+
+    async def get_source(self, source_id: str) -> Source | None:
+        async with self._session_factory() as session:
+            result = await session.execute(select(_SourceRow).where(_SourceRow.id == source_id))
+            row = result.scalar_one_or_none()
+            if row is None:
+                return None
+            return self._row_to_source(row)
+
+    async def list_sources(self, knowledge_id: str | None = None) -> list[Source]:
+        async with self._session_factory() as session:
+            stmt = select(_SourceRow)
+            if knowledge_id is not None:
+                stmt = stmt.where(_SourceRow.knowledge_id == knowledge_id)
+            stmt = stmt.order_by(_SourceRow.created_at.desc())
+            result = await session.execute(stmt)
+            rows = result.scalars().all()
+            return [self._row_to_source(row) for row in rows]
+
+    _ALLOWED_UPDATE_FIELDS = {
+        "metadata",
+        "tags",
+        "chunk_count",
+        "embedding_model",
+        "file_hash",
+        "stale",
+        "knowledge_id",
+        "source_type",
+        "source_weight",
+        "status",
+        "tree_index_json",
+    }
+
+    async def update_source(self, source_id: str, **fields) -> None:
+        unknown = set(fields.keys()) - self._ALLOWED_UPDATE_FIELDS
+        if unknown:
+            raise ValueError(f"Unknown fields for source update: {unknown}")
+
+        update_values = {}
+        if "metadata" in fields:
+            update_values["metadata_json"] = json.dumps(fields.pop("metadata"))
+        if "tags" in fields:
+            update_values["tags_json"] = json.dumps(fields.pop("tags"))
+        update_values.update(fields)
+
+        if not update_values:
+            return
+
+        async with self._session_factory() as session:
+            cursor_result = await session.execute(
+                update(_SourceRow).where(_SourceRow.id == source_id).values(**update_values)
+            )
+            if cursor_result.rowcount == 0:  # type: ignore[attr-defined]
+                raise SourceNotFoundError(f"Source {source_id} not found")
+            await session.commit()
+
+    async def delete_source(self, source_id: str) -> None:
+        async with self._session_factory() as session:
+            await session.execute(delete(_SourceStatsRow).where(_SourceStatsRow.source_id == source_id))
+            await session.execute(delete(_SourceRow).where(_SourceRow.id == source_id))
+            await session.commit()
+
+    async def record_hit(self, source_id: str, chunk_id: str, grounded: bool) -> None:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(_SourceStatsRow).where(_SourceStatsRow.source_id == source_id).with_for_update()
+            )
+            stats_row = result.scalar_one_or_none()
+
+            if stats_row is None:
+                try:
+                    stats_row = _SourceStatsRow(
+                        source_id=source_id,
+                        total_hits=1,
+                        grounded_hits=1 if grounded else 0,
+                        ungrounded_hits=0 if grounded else 1,
+                    )
+                    session.add(stats_row)
+                    await session.commit()
+                except IntegrityError:
+                    await session.rollback()
+                    result = await session.execute(
+                        select(_SourceStatsRow).where(_SourceStatsRow.source_id == source_id).with_for_update()
+                    )
+                    stats_row = result.scalar_one_or_none()
+                    if stats_row is not None:
+                        stats_row.total_hits += 1
+                        if grounded:
+                            stats_row.grounded_hits += 1
+                        else:
+                            stats_row.ungrounded_hits += 1
+                        await session.commit()
+            else:
+                stats_row.total_hits += 1
+                if grounded:
+                    stats_row.grounded_hits += 1
+                else:
+                    stats_row.ungrounded_hits += 1
+                await session.commit()
+
+    async def get_source_stats(self, source_id: str) -> SourceStats | None:
+        async with self._session_factory() as session:
+            result = await session.execute(select(_SourceStatsRow).where(_SourceStatsRow.source_id == source_id))
+            row = result.scalar_one_or_none()
+            if row is None:
+                return None
+            return SourceStats(
+                source_id=row.source_id,
+                total_chunks=row.total_chunks,
+                total_pages=row.total_pages,
+                avg_chunk_size=row.avg_chunk_size,
+                processing_time=row.processing_time,
+                total_hits=row.total_hits,
+                grounded_hits=row.grounded_hits,
+                ungrounded_hits=row.ungrounded_hits,
+            )
+
+    async def save_tree_index(self, source_id: str, tree_index_json: str) -> None:
+        await self.update_source(source_id, tree_index_json=tree_index_json)
+
+    async def get_tree_index(self, source_id: str) -> str | None:
+        async with self._session_factory() as session:
+            row = await session.get(_SourceRow, source_id)
+            if row is None:
+                return None
+            return row.tree_index_json
+
+    async def shutdown(self) -> None:
+        await self._engine.dispose()
+
+    @staticmethod
+    def _row_to_source(row: _SourceRow) -> Source:
+        return Source(
+            source_id=row.id,
+            status=row.status,
+            metadata=json.loads(row.metadata_json),
+            tags=json.loads(row.tags_json),
+            chunk_count=row.chunk_count,
+            embedding_model=row.embedding_model,
+            file_hash=row.file_hash,
+            created_at=row.created_at,
+            stale=row.stale,
+            knowledge_id=row.knowledge_id,
+            source_type=row.source_type,
+            source_weight=row.source_weight,
+        )

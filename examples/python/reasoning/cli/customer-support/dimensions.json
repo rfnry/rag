@@ -1,0 +1,6 @@
+[
+  {"name": "urgency", "description": "How time-sensitive is this request", "scale": "0.0-1.0"},
+  {"name": "sentiment", "description": "Customer emotional state", "scale": "frustrated/neutral/satisfied"},
+  {"name": "escalation_risk", "description": "Likelihood this escalates to a complaint or chargeback", "scale": "0.0-1.0"},
+  {"name": "revenue_impact", "description": "Potential revenue at stake (refund, churn, upsell)", "scale": "low/medium/high"}
+]

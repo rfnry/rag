@@ -1,0 +1,15 @@
+__pycache__/
+dist/
+build/
+.venv/
+venv/
+.env
+.worktrees/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+.claude
+.codex
+/docs/plans

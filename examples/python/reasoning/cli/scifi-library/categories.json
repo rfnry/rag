@@ -1,0 +1,8 @@
+[
+  {"name": "action", "description": "Combat, chase, or physical conflict scenes"},
+  {"name": "political_intrigue", "description": "Power plays, alliances, betrayals, and court machinations"},
+  {"name": "exploration", "description": "Discovery of new places, technologies, or knowledge"},
+  {"name": "character_drama", "description": "Interpersonal conflict, relationships, and emotional arcs"},
+  {"name": "worldbuilding_exposition", "description": "Establishing setting, history, culture, or technology"},
+  {"name": "crisis_and_survival", "description": "Characters facing existential threats or impossible choices"}
+]

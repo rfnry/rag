@@ -1,0 +1,8 @@
+[
+  {"name": "order_issue", "description": "Wrong item shipped, missing items, or order errors"},
+  {"name": "billing_and_refund", "description": "Charges, refunds, subscription billing, or payment disputes"},
+  {"name": "product_defect", "description": "Damaged, broken, or defective product received"},
+  {"name": "shipping_delay", "description": "Late delivery, lost package, or tracking problems"},
+  {"name": "account_management", "description": "Subscription changes, cancellations, or account settings"},
+  {"name": "sales_inquiry", "description": "Pricing questions, bulk orders, or commercial accounts"}
+]
