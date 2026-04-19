@@ -2181,7 +2181,7 @@ wheels = [
 
 [[package]]
 name = "rfnry-rag"
-version = "0.1.0a0"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },
@@ -2220,11 +2220,11 @@ graph = [
 [package.metadata]
 requires-dist = [
     { name = "aiosqlite", specifier = ">=0.22.1" },
-    { name = "anthropic", specifier = ">=0.93.0" },
+    { name = "anthropic", specifier = ">=0.96.0" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "baml-py", specifier = "==0.221.0" },
     { name = "click", marker = "extra == 'cli'", specifier = ">=8.3.2" },
-    { name = "cohere", specifier = ">=6.0.0" },
+    { name = "cohere", specifier = ">=6.1.0" },
     { name = "fastembed", specifier = ">=0.8.0" },
     { name = "lxml", specifier = ">=6.1.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.20.1" },
