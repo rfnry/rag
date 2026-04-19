@@ -132,9 +132,9 @@ All LLM calls go through [BAML](https://docs.boundaryml.com/).
 SDK (read when used as a library):
 
 ```bash
-RRAG_LOG_ENABLED=false    # true / false
-RRAG_LOG_LEVEL=INFO       # DEBUG, INFO, WARNING, ERROR
-RRAG_BAML_LOG=warn        # info, warn, debug — BAML runtime log level
+RFNRY_RAG_LOG_ENABLED=false    # true / false
+RFNRY_RAG_LOG_LEVEL=INFO       # DEBUG, INFO, WARNING, ERROR
+RFNRY_RAG_BAML_LOG=warn        # info, warn, debug — BAML runtime log level
 ```
 
 CLI only (never read by the SDK — pass API keys explicitly via `LanguageModelProvider(api_key=...)`):

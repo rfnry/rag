@@ -38,7 +38,7 @@ src/rfnry-rag/
 ├── common/              # Shared across both SDKs
 │   ├── errors.py        # BaseException, ConfigurationError (base classes)
 │   ├── language_model.py # LanguageModelClient, LanguageModelProvider, build_registry (BAML ClientRegistry)
-│   ├── logging.py       # get_logger (env: RRAG_LOG_ENABLED, RRAG_LOG_LEVEL)
+│   ├── logging.py       # get_logger (env: RFNRY_RAG_LOG_ENABLED, RFNRY_RAG_LOG_LEVEL)
 │   ├── startup.py       # BAML version check (parameterized per SDK)
 │   ├── concurrency.py   # run_concurrent helper
 │   └── cli.py           # ConfigError, CONFIG_DIR, load_dotenv
@@ -146,7 +146,7 @@ All LLM calls go through BAML for structured output parsing, retry/fallback poli
 
 ## Environment Variables
 
-- `RRAG_LOG_ENABLED=true` / `RRAG_LOG_LEVEL=DEBUG` — SDK logging
-- `RRAG_BAML_LOG=info|warn|debug` — BAML runtime logging (SDK sets `BAML_LOG` from this)
+- `RFNRY_RAG_LOG_ENABLED=true` / `RFNRY_RAG_LOG_LEVEL=DEBUG` — SDK logging
+- `RFNRY_RAG_BAML_LOG=info|warn|debug` — BAML runtime logging (SDK sets `BAML_LOG` from this)
 - `BAML_LOG=info|warn|debug` — BAML runtime logging (direct override)
 - Config lives at `~/.config/rfnry-rag/config.toml` + `.env`
