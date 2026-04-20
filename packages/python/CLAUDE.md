@@ -149,4 +149,4 @@ All LLM calls go through BAML for structured output parsing, retry/fallback poli
 - `RFNRY_RAG_LOG_ENABLED=true` / `RFNRY_RAG_LOG_LEVEL=DEBUG` — SDK logging
 - `RFNRY_RAG_BAML_LOG=info|warn|debug` — BAML runtime logging (SDK sets `BAML_LOG` from this)
 - `BAML_LOG=info|warn|debug` — BAML runtime logging (direct override)
-- Config lives at `~/.config/rfnry-rag/config.toml` + `.env`
+- Config lives at `~/.config/rfnry_rag/config.toml` + `.env`

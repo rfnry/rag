@@ -24,14 +24,14 @@ Start Qdrant (if not already running):
 docker run -d -p 6333:6333 qdrant/qdrant
 ```
 
-Edit `~/.config/rfnry-rag/.env`:
+Edit `~/.config/rfnry_rag/.env`:
 
 ```bash
 VOYAGE_API_KEY=pa-...
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Edit `~/.config/rfnry-rag/config.toml`:
+Edit `~/.config/rfnry_rag/config.toml`:
 
 ```toml
 [persistence]

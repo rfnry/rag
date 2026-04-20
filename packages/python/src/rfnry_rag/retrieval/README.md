@@ -339,7 +339,7 @@ rfnry-rag retrieval knowledge remove <source-id>            # Delete source + ch
 
 Output auto-detects TTY: terminal gets human-readable, pipes get JSON. Override with `--json` or `--pretty`.
 
-Config lives in `~/.config/rfnry-rag/config.toml` + `.env`. API keys in `.env`, providers and store URLs in the TOML. Run `rfnry-rag retrieval init` to see all available options.
+Config lives in `~/.config/rfnry_rag/config.toml` + `.env`. API keys in `.env`, providers and store URLs in the TOML. Run `rfnry-rag retrieval init` to see all available options.
 
 See `examples/retrieval/cli/` for complete walkthroughs.
 

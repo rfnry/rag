@@ -11,13 +11,13 @@ uv add "rfnry-rag[cli]"
 rfnry-rag reasoning init
 ```
 
-Edit `~/.config/rfnry-rag/.env`:
+Edit `~/.config/rfnry_rag/.env`:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Edit `~/.config/rfnry-rag/config.toml`:
+Edit `~/.config/rfnry_rag/config.toml`:
 
 ```toml
 [language_model]

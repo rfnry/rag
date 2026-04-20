@@ -11,13 +11,13 @@ uv add "rfnry-rag[cli]"
 rfnry-rag reasoning init
 ```
 
-Edit `~/.config/rfnry-rag/.env`:
+Edit `~/.config/rfnry_rag/.env`:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Edit `~/.config/rfnry-rag/config.toml`:
+Edit `~/.config/rfnry_rag/config.toml`:
 
 ```toml
 [language_model]
@@ -38,8 +38,8 @@ rfnry-rag reasoning status
 ```
 
 ```
-Config: /home/you/.config/rfnry-rag/config.toml
-.env: /home/you/.config/rfnry-rag/.env
+Config: /home/you/.config/rfnry_rag/config.toml
+.env: /home/you/.config/rfnry_rag/.env
 Provider: anthropic
 Model: claude-sonnet-4-5-20250929
 LLM: connected
@@ -405,7 +405,7 @@ rfnry-rag retrieval init
 docker run -d -p 6333:6333 qdrant/qdrant
 ```
 
-Edit `~/.config/rfnry-rag/config.toml` to add the retrieval sections:
+Edit `~/.config/rfnry_rag/config.toml` to add the retrieval sections:
 
 ```toml
 [persistence]
@@ -436,7 +436,7 @@ relevance_gate_provider = "anthropic"
 relevance_gate_model = "claude-haiku-4-5-20251001"
 ```
 
-Add the Voyage API key to `~/.config/rfnry-rag/.env`:
+Add the Voyage API key to `~/.config/rfnry_rag/.env`:
 
 ```bash
 VOYAGE_API_KEY=pa-...

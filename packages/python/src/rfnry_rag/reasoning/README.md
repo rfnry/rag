@@ -288,7 +288,7 @@ Install with `uv add "rfnry-rag[cli]"`.
 ### Setup
 
 ```bash
-rfnry-rag reasoning init      # creates ~/.config/rfnry-rag/config.toml + .env
+rfnry-rag reasoning init      # creates ~/.config/rfnry_rag/config.toml + .env
 rfnry-rag reasoning status    # validates config and tests LLM connection
 ```
 
