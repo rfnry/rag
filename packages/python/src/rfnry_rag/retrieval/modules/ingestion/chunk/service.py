@@ -99,7 +99,7 @@ class IngestionService:
         metadata: dict[str, Any],
         hash_value: str | None = None,
         pages: list[ParsedPage] | None = None,
-        on_progress: Callable[[int, int], Awaitable[None]] | None = None,
+        on_progress: IngestionProgress | None = None,
     ) -> None:
         """Dispatch ingestion to all registered methods.
 
@@ -118,7 +118,7 @@ class IngestionService:
         every optional method raises.
         """
         total = len(self._ingestion_methods)
-        for idx, method in enumerate(self._ingestion_methods, start=1):
+        for done, method in enumerate(self._ingestion_methods, start=1):
             try:
                 await method.ingest(
                     source_id=source_id,
@@ -140,7 +140,7 @@ class IngestionService:
                 logger.warning("optional ingestion method '%s' failed: %s", method.name, exc)
                 continue
             if on_progress is not None:
-                await on_progress(idx, total)
+                await on_progress(done, total)
 
     async def ingest(
         self,

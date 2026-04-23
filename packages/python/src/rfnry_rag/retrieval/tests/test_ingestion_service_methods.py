@@ -4,12 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
 
 
-def _mock_method(name: str) -> SimpleNamespace:
-    return SimpleNamespace(
-        name=name,
-        ingest=AsyncMock(),
-        delete=AsyncMock(),
-    )
+def _mock_method(name: str, required: bool = True) -> SimpleNamespace:
+    return SimpleNamespace(name=name, required=required, ingest=AsyncMock(), delete=AsyncMock())
 
 
 def _make_service(methods=None, metadata_store=None):
@@ -326,15 +322,6 @@ async def test_method_failure_does_not_abort_pipeline():
 # --- on_progress callback tests ---
 
 
-def _stub_method(name: str, required: bool = True) -> SimpleNamespace:
-    return SimpleNamespace(
-        name=name,
-        required=required,
-        ingest=AsyncMock(),
-        delete=AsyncMock(),
-    )
-
-
 async def test_on_progress_called_once_per_method(tmp_path) -> None:
     calls: list[tuple[int, int]] = []
 
@@ -345,10 +332,31 @@ async def test_on_progress_called_once_per_method(tmp_path) -> None:
     file_path.write_text("hello world " * 50)
 
     # Two methods in the list → two progress callbacks after each succeeds.
-    method_a = _stub_method(name="a", required=True)
-    method_b = _stub_method(name="b", required=True)
+    method_a = _mock_method(name="a", required=True)
+    method_b = _mock_method(name="b", required=True)
     service = _make_service_advanced(ingestion_methods=[method_a, method_b])
 
     await service.ingest(file_path=file_path, on_progress=progress)
 
     assert calls == [(1, 2), (2, 2)]
+
+
+async def test_on_progress_skips_failed_optional(tmp_path) -> None:
+    """Failed optional methods must NOT emit a progress event (continue before progress)."""
+    calls: list[tuple[int, int]] = []
+
+    async def progress(done: int, total: int) -> None:
+        calls.append((done, total))
+
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text("hello world " * 50)
+
+    failing_optional = _mock_method(name="opt", required=False)
+    failing_optional.ingest = AsyncMock(side_effect=RuntimeError("boom"))
+    required = _mock_method(name="req", required=True)
+
+    service = _make_service_advanced(ingestion_methods=[failing_optional, required])
+    await service.ingest(file_path=file_path, on_progress=progress)
+
+    # Only the required method succeeded → one callback, not two.
+    assert calls == [(2, 2)]
