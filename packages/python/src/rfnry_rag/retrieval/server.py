@@ -532,8 +532,12 @@ class RagEngine:
                 enrich_cross_references=retrieval.cross_reference_enrichment,
             )
 
-        # Collection-scoped pipelines
+        # Collection-scoped pipelines. Populate both maps symmetrically for every
+        # collection — including the first (which reuses the default services) —
+        # so retrieval/ingestion against a named collection never silently falls
+        # back to the default pipeline.
         self._retrieval_by_collection.clear()
+        self._ingestion_by_collection.clear()
         if persistence.vector_store and hasattr(persistence.vector_store, "collections"):
             store_collections: list[str] = persistence.vector_store.collections
             for coll_name in store_collections:
@@ -542,12 +546,15 @@ class RagEngine:
                         self._retrieval_service,
                         self._structured_retrieval,
                     )
+                    assert self._ingestion_service is not None
+                    self._ingestion_by_collection[coll_name] = self._ingestion_service
                     continue
 
                 scoped_store = persistence.vector_store.scoped(coll_name)  # type: ignore[attr-defined]
                 scoped_retrieval = self._build_retrieval_pipeline(scoped_store, ingestion, retrieval, persistence)
                 self._retrieval_by_collection[coll_name] = scoped_retrieval
-                logger.info("retrieval pipeline built for collection '%s'", coll_name)
+                self._ingestion_by_collection[coll_name] = self._build_ingestion_service(scoped_store)
+                logger.info("pipelines built for collection '%s'", coll_name)
 
         # Generation
         if gen.lm_client:
@@ -1018,29 +1025,38 @@ class RagEngine:
         return all_tree_chunks
 
     def _get_retrieval(self, collection: str | None) -> tuple[RetrievalService, StructuredRetrievalService | None]:
-        """Return retrieval pipeline for *collection* (default if None)."""
-        if collection and collection in self._retrieval_by_collection:
+        """Return retrieval pipeline for *collection* (default if None).
+
+        Raises ValueError when *collection* is specified but unknown — previously
+        this silently fell back to the default pipeline, which could mix data
+        across collections without any warning.
+        """
+        if collection is None:
+            assert self._retrieval_service is not None
+            return self._retrieval_service, self._structured_retrieval
+        if collection in self._retrieval_by_collection:
             return self._retrieval_by_collection[collection]
-        assert self._retrieval_service is not None
-        return self._retrieval_service, self._structured_retrieval
+        raise ValueError(
+            f"unknown collection {collection!r}; known: {sorted(self._retrieval_by_collection.keys())}"
+        )
 
     def _get_ingestion(self, collection: str | None) -> IngestionService:
-        """Return ingestion service for *collection*, lazily building if needed."""
-        if not collection:
+        """Return ingestion service for *collection*.
+
+        Raises ValueError when *collection* is specified but unknown — same
+        reasoning as _get_retrieval: silently falling back would mix data
+        across collections.
+        """
+        if collection is None:
             assert self._ingestion_service is not None
             return self._ingestion_service
 
         if collection in self._ingestion_by_collection:
             return self._ingestion_by_collection[collection]
 
-        store = self._config.persistence.vector_store
-        if not store or not hasattr(store, "scoped"):
-            raise ConfigurationError(f"Vector store does not support multi-collection (requested: {collection!r})")
-
-        scoped_store = store.scoped(collection)  # type: ignore[union-attr]
-        svc = self._build_ingestion_service(scoped_store)
-        self._ingestion_by_collection[collection] = svc
-        return svc
+        raise ValueError(
+            f"unknown collection {collection!r}; known: {sorted(self._ingestion_by_collection.keys())}"
+        )
 
     def _check_initialized(self) -> None:
         if not self._initialized:
