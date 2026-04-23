@@ -120,7 +120,7 @@ class VectorRetrieval:
         return reciprocal_rank_fusion([dense_results, bm25_results])[:top_k]
 
     # ------------------------------------------------------------------
-    # Dense / hybrid search (from VectorSearch)
+    # Dense / hybrid search
     # ------------------------------------------------------------------
 
     async def _vector_search(
