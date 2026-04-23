@@ -91,6 +91,26 @@ class KnowledgeManager:
             return await self._metadata_store.get_source_stats(source_id)
         return None
 
+    async def list_stale(
+        self, knowledge_id: str | None = None
+    ) -> builtins.list[Source]:
+        """List sources whose stored embedding model differs from the current config.
+
+        Stale sources produce embeddings that don't compare meaningfully against
+        the current query embeddings. They should be re-ingested or removed.
+        Requires a metadata store."""
+        if not self._metadata_store:
+            return []
+        sources = await self._metadata_store.list_sources(knowledge_id=knowledge_id)
+        return [s for s in sources if s.stale]
+
+    async def purge_stale(self, knowledge_id: str | None = None) -> int:
+        """Remove all stale sources. Returns the count of removed sources."""
+        stale = await self.list_stale(knowledge_id=knowledge_id)
+        for source in stale:
+            await self.remove(source.source_id)
+        return len(stale)
+
     async def remove(self, source_id: str) -> int:
         """Delete a source and all its chunks from both stores."""
         if not source_id or not source_id.strip():

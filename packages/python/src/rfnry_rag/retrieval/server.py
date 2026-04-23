@@ -323,7 +323,15 @@ class RagEngine:
             raise ConfigurationError("embeddings requires vector_store")
 
         if has_graph and not i.lm_client:
-            raise ConfigurationError("graph_store requires ingestion.lm_client for entity extraction")
+            # Previously raised at init-time which blocked retrieval-only users
+            # with a pre-populated graph. GraphIngestion itself handles the
+            # missing-client case at runtime (warn + skip), so degrade this to
+            # a one-shot warning here rather than a hard failure.
+            logger.warning(
+                "graph_store configured without ingestion.lm_client — entity "
+                "extraction during ingestion will be skipped. Graph retrieval "
+                "still works if the graph is pre-populated."
+            )
 
         if cfg.tree_indexing.enabled and not p.metadata_store:
             raise ConfigurationError("tree_indexing requires metadata_store")
