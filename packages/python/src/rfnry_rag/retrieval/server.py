@@ -345,9 +345,26 @@ class RagEngine:
             )
 
     async def initialize(self) -> None:
-        """Wire all modules and check embedding model consistency."""
-        self._validate_config()
+        """Wire all modules and check embedding model consistency.
 
+        On partial failure, already-opened stores are torn down via
+        ``shutdown()`` before the exception re-raises. This is needed because
+        ``__aexit__`` does not fire when ``__aenter__`` raises, so users
+        relying on ``async with RagEngine(...) as rag:`` would otherwise
+        leak connections on init failure.
+        """
+        self._validate_config()
+        try:
+            await self._initialize_impl()
+        except BaseException:
+            logger.exception("ragengine init failed — rolling back opened stores")
+            try:
+                await self.shutdown()
+            except Exception:
+                logger.exception("error during init-rollback shutdown (continuing)")
+            raise
+
+    async def _initialize_impl(self) -> None:
         cfg = self._config
         persistence = cfg.persistence
         ingestion = cfg.ingestion
