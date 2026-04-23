@@ -1,6 +1,0 @@
-[
-  {"name": "tension", "description": "Level of narrative tension and conflict", "scale": "0.0-1.0"},
-  {"name": "pacing", "description": "Speed of plot progression", "scale": "slow/moderate/fast"},
-  {"name": "worldbuilding", "description": "Density of world details introduced", "scale": "0.0-1.0"},
-  {"name": "character_depth", "description": "Emotional and psychological depth of characters", "scale": "0.0-1.0"}
-]
