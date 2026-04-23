@@ -38,6 +38,9 @@ from rfnry_rag.retrieval.modules.evaluation.retrieval_metrics import RetrievalRe
 from rfnry_rag.retrieval.modules.generation.models import QueryResult as QueryResult
 from rfnry_rag.retrieval.modules.generation.models import StepResult as StepResult
 from rfnry_rag.retrieval.modules.generation.models import StreamEvent as StreamEvent
+from rfnry_rag.retrieval.modules.ingestion.base import BaseIngestionMethod as BaseIngestionMethod
+from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker as SemanticChunker
+from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService as IngestionService
 from rfnry_rag.retrieval.modules.ingestion.embeddings.facade import Embeddings as Embeddings
 from rfnry_rag.retrieval.modules.ingestion.embeddings.sparse.fastembed import (
     FastEmbedSparseEmbeddings as FastEmbedSparseEmbeddings,
@@ -47,6 +50,7 @@ from rfnry_rag.retrieval.modules.ingestion.methods.graph import GraphIngestion a
 from rfnry_rag.retrieval.modules.ingestion.methods.tree import TreeIngestion as TreeIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.vector import VectorIngestion as VectorIngestion
 from rfnry_rag.retrieval.modules.ingestion.vision.facade import Vision as Vision
+from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod as BaseRetrievalMethod
 from rfnry_rag.retrieval.modules.retrieval.judging import RetrievalJudgment as RetrievalJudgment
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval as DocumentRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval as GraphRetrieval
@@ -59,6 +63,7 @@ from rfnry_rag.retrieval.modules.retrieval.search.rewriting.multi_query import (
     MultiQueryRewriting as MultiQueryRewriting,
 )
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.step_back import StepBackRewriting as StepBackRewriting
+from rfnry_rag.retrieval.modules.retrieval.search.service import RetrievalService as RetrievalService
 from rfnry_rag.retrieval.server import GenerationConfig as GenerationConfig
 from rfnry_rag.retrieval.server import IngestionConfig as IngestionConfig
 from rfnry_rag.retrieval.server import PersistenceConfig as PersistenceConfig
@@ -104,6 +109,11 @@ __all__ = [
     "VectorRetrieval",
     "DocumentRetrieval",
     "GraphRetrieval",
+    "RetrievalService",
+    "IngestionService",
+    "SemanticChunker",
+    "BaseRetrievalMethod",
+    "BaseIngestionMethod",
     "HyDeRewriting",
     "MultiQueryRewriting",
     "StepBackRewriting",
