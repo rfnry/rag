@@ -59,9 +59,15 @@ class QdrantVectorStore:
         collections: list[str] | None = None,
         timeout: int = 10,
         api_key: str | None = None,
+        scroll_timeout: int = 30,
+        write_timeout: int = 30,
+        max_scroll_limit: int = 10_000,
     ) -> None:
         self._url = url
         self._timeout = timeout
+        self._scroll_timeout = scroll_timeout
+        self._write_timeout = write_timeout
+        self._max_scroll_limit = max_scroll_limit
         self._api_key = api_key
         self._client_instance: AsyncQdrantClient | None = AsyncQdrantClient(
             url=self._url, timeout=timeout, api_key=api_key
@@ -75,6 +81,12 @@ class QdrantVectorStore:
             self._collections = ["knowledge"]
 
         self._state: dict[str, _CollectionState] = {}
+
+        if url.startswith("http://") and not api_key:
+            logger.warning(
+                "qdrant: plaintext HTTP with no API key at %s — do not use in production",
+                url,
+            )
 
     @property
     def _client(self) -> AsyncQdrantClient:
@@ -158,7 +170,11 @@ class QdrantVectorStore:
         else:
             qdrant_points = [PointStruct(id=p.point_id, vector=p.vector, payload=p.payload) for p in points]
 
-        await self._client.upsert(collection_name=name, points=qdrant_points)
+        await self._client.upsert(
+            collection_name=name,
+            points=qdrant_points,
+            timeout=self._write_timeout,
+        )
         logger.info("upserted %d points to '%s'", len(points), name)
 
     async def search(
@@ -257,12 +273,15 @@ class QdrantVectorStore:
             return [], None
         name, _ = resolved
         query_filter = self._build_filter(filters)
+        # Clamp caller-supplied limit to defend against unbounded scrolls.
+        clamped_limit = min(max(1, limit), self._max_scroll_limit)
 
         points, next_offset = await self._client.scroll(
             collection_name=name,
             scroll_filter=query_filter,
-            limit=limit,
+            limit=clamped_limit,
             offset=offset,
+            timeout=self._scroll_timeout,
         )
 
         results = [VectorResult(point_id=str(p.id), score=0.0, payload=p.payload or {}) for p in points]
@@ -286,6 +305,7 @@ class QdrantVectorStore:
         await self._client.delete(
             collection_name=name,
             points_selector=FilterSelector(filter=query_filter),
+            timeout=self._write_timeout,
         )
 
         logger.info("deleted %d points from '%s'", count_before, name)
