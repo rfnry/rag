@@ -4,6 +4,7 @@ from typing import Any
 
 import numpy as np
 
+from rfnry_rag.common.embeddings import embed_batched
 from rfnry_rag.reasoning.common.errors import ClusteringError
 from rfnry_rag.reasoning.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.reasoning.common.logging import get_logger
@@ -13,8 +14,6 @@ from rfnry_rag.reasoning.modules.clustering.models import Cluster, ClusteringCon
 from rfnry_rag.reasoning.protocols import BaseEmbeddings, BaseSemanticIndex
 
 logger = get_logger("clustering")
-
-EMBED_BATCH_SIZE = 100
 
 
 class ClusteringService:
@@ -163,9 +162,4 @@ class ClusteringService:
         )
 
     async def _embed_batched(self, texts: list[str]) -> list[list[float]]:
-        all_vectors: list[list[float]] = []
-        for i in range(0, len(texts), EMBED_BATCH_SIZE):
-            batch = texts[i : i + EMBED_BATCH_SIZE]
-            vectors = await self._embeddings.embed(batch)
-            all_vectors.extend(vectors)
-        return all_vectors
+        return await embed_batched(self._embeddings, texts)
