@@ -60,11 +60,15 @@ class RetrievalService:
                 logger.exception("query rewriter failed: %s — proceeding with original query", exc)
 
         search_tasks = [self._search_single_query(q, fetch_k, filters, knowledge_id) for q in queries]
-        query_results = await asyncio.gather(*search_tasks)
+        query_results = await asyncio.gather(*search_tasks, return_exceptions=True)
 
         all_result_lists: list[list[RetrievedChunk]] = []
         all_weights: list[float] = []
-        for result_lists, weights in query_results:
+        for idx, outcome in enumerate(query_results):
+            if isinstance(outcome, BaseException):
+                logger.warning("query variant %d failed: %s — skipping", idx, outcome)
+                continue
+            result_lists, weights = outcome
             all_result_lists.extend(result_lists)
             all_weights.extend(weights)
 

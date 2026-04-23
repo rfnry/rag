@@ -128,21 +128,36 @@ class VectorRetrieval:
         filters: dict[str, Any] | None,
     ) -> list[RetrievedChunk]:
         if self._sparse:
-            dense_result, sparse_vector = await asyncio.gather(
+            dense_outcome, sparse_outcome = await asyncio.gather(
                 self._embeddings.embed([query]),
                 self._sparse.embed_sparse_query(query),
+                return_exceptions=True,
             )
-            query_vector = dense_result[0] if dense_result else None
+            if isinstance(dense_outcome, BaseException):
+                logger.warning("dense embedding failed: %s", dense_outcome)
+                return []
+            if isinstance(sparse_outcome, BaseException):
+                logger.warning(
+                    "sparse embedding failed: %s — falling back to dense only", sparse_outcome
+                )
+                sparse_vector = None
+            else:
+                sparse_vector = sparse_outcome
+            query_vector = dense_outcome[0] if dense_outcome else None
             if not query_vector:
                 logger.warning("embedding returned no vectors for query")
                 return []
-            results = await self._store.hybrid_search(
-                vector=query_vector,
-                sparse_vector=sparse_vector,
-                top_k=top_k,
-                filters=filters,
-            )
-            logger.info("%d candidates from hybrid search", len(results))
+            if sparse_vector is not None:
+                results = await self._store.hybrid_search(
+                    vector=query_vector,
+                    sparse_vector=sparse_vector,
+                    top_k=top_k,
+                    filters=filters,
+                )
+                logger.info("%d candidates from hybrid search", len(results))
+            else:
+                results = await self._store.search(vector=query_vector, top_k=top_k, filters=filters)
+                logger.info("%d candidates from dense fallback (sparse failed)", len(results))
         else:
             vectors = await self._embeddings.embed([query])
             if not vectors:
