@@ -58,9 +58,7 @@ class StructuredRetrieval:
         start = time.perf_counter()
         try:
             effective_top_k = self._top_k if self._top_k is not None else top_k
-            results = await self._service.retrieve(
-                query=query, knowledge_id=knowledge_id, top_k=effective_top_k
-            )
+            results = await self._service.retrieve(query=query, knowledge_id=knowledge_id, top_k=effective_top_k)
             elapsed = (time.perf_counter() - start) * 1000
             logger.info("%d results in %.1fms", len(results), elapsed)
             return results

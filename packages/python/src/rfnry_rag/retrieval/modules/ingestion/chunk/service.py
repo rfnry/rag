@@ -129,9 +129,7 @@ class IngestionService:
             except Exception as exc:
                 if getattr(method, "required", True):
                     logger.exception("required ingestion method '%s' failed — aborting", method.name)
-                    raise IngestionError(
-                        f"required ingestion method '{method.name}' failed: {exc}"
-                    ) from exc
+                    raise IngestionError(f"required ingestion method '{method.name}' failed: {exc}") from exc
                 logger.warning("optional ingestion method '%s' failed: %s", method.name, exc)
 
     async def ingest(

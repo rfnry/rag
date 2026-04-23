@@ -91,9 +91,7 @@ class KnowledgeManager:
             return await self._metadata_store.get_source_stats(source_id)
         return None
 
-    async def list_stale(
-        self, knowledge_id: str | None = None
-    ) -> builtins.list[Source]:
+    async def list_stale(self, knowledge_id: str | None = None) -> builtins.list[Source]:
         """List sources whose stored embedding model differs from the current config.
 
         Stale sources produce embeddings that don't compare meaningfully against

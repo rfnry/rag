@@ -144,8 +144,10 @@ async def test_cache_invalidation_fans_out_to_all_scoped_collections():
     for idx, (retrieval_service, _) in enumerate(engine._retrieval_by_collection.values()):
         for method in retrieval_service._retrieval_methods:
             if method.name == "vector":
+
                 async def _capture(knowledge_id, i=idx):
                     invalidated.append((i, knowledge_id))
+
                 method.invalidate_cache = _capture  # type: ignore[method-assign]
 
     await engine._on_source_removed("kb-1")

@@ -53,9 +53,7 @@ async def test_bm25_scroll_stops_at_cap() -> None:
 async def test_bm25_under_cap_reads_to_end() -> None:
     """When corpus is smaller than the cap, scrolling proceeds normally to None."""
     page = [_result(f"p{i}") for i in range(100)]
-    store = SimpleNamespace(
-        scroll=AsyncMock(side_effect=[(page, "next"), (page, None)])
-    )
+    store = SimpleNamespace(scroll=AsyncMock(side_effect=[(page, "next"), (page, None)]))
     embeddings = SimpleNamespace()
 
     retr = VectorRetrieval(

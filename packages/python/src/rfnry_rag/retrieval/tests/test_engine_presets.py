@@ -76,9 +76,7 @@ def test_hybrid_preset_without_optional_stores() -> None:
 
 def test_presets_return_usable_config_for_engine_construction() -> None:
     """Smoke test: the preset configs must satisfy RagEngine._validate_config."""
-    config = RagEngine.vector_only(
-        vector_store=MagicMock(), embeddings=MagicMock(model="m")
-    )
+    config = RagEngine.vector_only(vector_store=MagicMock(), embeddings=MagicMock(model="m"))
     # _validate_config is called in RagEngine.initialize; exercising it ensures
     # the preset satisfies cross-config constraints.
     RagEngine(config)._validate_config()

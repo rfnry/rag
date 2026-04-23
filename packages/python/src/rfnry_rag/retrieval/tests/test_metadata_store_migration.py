@@ -48,6 +48,7 @@ async def test_migrate_adds_column_with_quote_containing_default(tmp_path) -> No
     )
 
     async with engine.begin() as conn:
+
         def migrate(sync_conn):
             insp = inspect(sync_conn)
             table = meta.tables["widgets"]
@@ -58,9 +59,7 @@ async def test_migrate_adds_column_with_quote_containing_default(tmp_path) -> No
                 col_type = column.type.compile(sync_conn.dialect)
                 default = ""
                 if column.default is not None and isinstance(column.default, ColumnDefault):
-                    literal = SQLAlchemyMetadataStore._render_default_literal(
-                        column.default.arg, sync_conn.dialect
-                    )
+                    literal = SQLAlchemyMetadataStore._render_default_literal(column.default.arg, sync_conn.dialect)
                     default = f" DEFAULT {literal}"
                 nullable = "" if column.nullable else " NOT NULL"
                 sync_conn.execute(
@@ -74,7 +73,7 @@ async def test_migrate_adds_column_with_quote_containing_default(tmp_path) -> No
         names = {c["name"] for c in cols}
         assert "note" in names
 
-        await conn.execute(text('INSERT INTO widgets (id) VALUES (1)'))
+        await conn.execute(text("INSERT INTO widgets (id) VALUES (1)"))
         result = await conn.execute(text("SELECT note FROM widgets WHERE id = 1"))
         row = result.fetchone()
         assert row is not None
@@ -92,7 +91,7 @@ def test_migrate_source_does_not_contain_unquoted_fstring_default() -> None:
     src = Path(__file__).parents[1].joinpath("stores/metadata/sqlalchemy.py").read_text()
     # The old, unsafe pattern used bare interpolation inside literal quotes
     assert "f\" DEFAULT '{val}'\"" not in src
-    assert 'f" DEFAULT \'{val}\'"' not in src
+    assert "f\" DEFAULT '{val}'\"" not in src
 
 
 @pytest.mark.asyncio

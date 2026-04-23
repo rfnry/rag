@@ -26,9 +26,7 @@ async def test_tree_chunks_threaded_into_single_unstructured_call() -> None:
     and discarding the first result set."""
     engine = _make_engine(metadata_store=object(), tree_search_service=object())
 
-    unstructured = SimpleNamespace(
-        retrieve=AsyncMock(return_value=[_chunk("u1"), _chunk("u2"), _chunk("t1")])
-    )
+    unstructured = SimpleNamespace(retrieve=AsyncMock(return_value=[_chunk("u1"), _chunk("u2"), _chunk("t1")]))
     engine._get_retrieval = cast(Any, lambda _c: (unstructured, None))  # type: ignore[method-assign]
     engine._build_retrieval_query = cast(Any, lambda text, history: text)  # type: ignore[method-assign]
     engine._run_tree_search = cast(Any, AsyncMock(return_value=[_chunk("t1")]))  # type: ignore[method-assign]
@@ -53,9 +51,7 @@ async def test_no_tree_chunks_passes_no_tree_kwarg() -> None:
     engine._build_retrieval_query = cast(Any, lambda text, history: text)  # type: ignore[method-assign]
     engine._run_tree_search = cast(Any, AsyncMock(return_value=[]))  # type: ignore[method-assign]
 
-    await engine._retrieve_chunks(
-        text="q", history=None, knowledge_id=None, min_score=None, collection="default"
-    )
+    await engine._retrieve_chunks(text="q", history=None, knowledge_id=None, min_score=None, collection="default")
 
     assert unstructured.retrieve.await_count == 1
     call = unstructured.retrieve.await_args

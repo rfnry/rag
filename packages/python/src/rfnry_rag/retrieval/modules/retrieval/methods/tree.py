@@ -67,17 +67,10 @@ class TreeRetrieval:
                 tree_index = TreeIndex.from_dict(json.loads(tree_json))
                 if not tree_index.pages:
                     continue
-                pages = [
-                    PageContent(index=p.index, text=p.text, token_count=p.token_count)
-                    for p in tree_index.pages
-                ]
-                results = await self._service.search(
-                    query=query, tree_index=tree_index, pages=pages
-                )
+                pages = [PageContent(index=p.index, text=p.text, token_count=p.token_count) for p in tree_index.pages]
+                results = await self._service.search(query=query, tree_index=tree_index, pages=pages)
                 if results:
-                    all_chunks.extend(
-                        self._service.to_retrieved_chunks(results, tree_index)
-                    )
+                    all_chunks.extend(self._service.to_retrieved_chunks(results, tree_index))
             elapsed = (time.perf_counter() - start) * 1000
             logger.info("%d results in %.1fms", len(all_chunks), elapsed)
             return all_chunks

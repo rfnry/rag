@@ -133,9 +133,7 @@ class SQLAlchemyMetadataStore:
             if conn.dialect.name == "postgresql"
             else text("INSERT OR IGNORE INTO rag_schema_meta (key, value) VALUES ('schema_version', 0)")
         )
-        current = conn.execute(
-            text("SELECT value FROM rag_schema_meta WHERE key = 'schema_version'")
-        ).scalar_one()
+        current = conn.execute(text("SELECT value FROM rag_schema_meta WHERE key = 'schema_version'")).scalar_one()
 
         if current > _SCHEMA_VERSION:
             raise RuntimeError(
@@ -183,9 +181,7 @@ class SQLAlchemyMetadataStore:
                 col_type = column.type.compile(conn.dialect)
                 default = ""
                 if column.default is not None and isinstance(column.default, ColumnDefault):
-                    literal = SQLAlchemyMetadataStore._render_default_literal(
-                        column.default.arg, conn.dialect
-                    )
+                    literal = SQLAlchemyMetadataStore._render_default_literal(column.default.arg, conn.dialect)
                     default = f" DEFAULT {literal}"
                 nullable = "" if column.nullable else " NOT NULL"
                 safe_table = preparer.quote_identifier(table.name)

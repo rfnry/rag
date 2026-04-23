@@ -9,9 +9,7 @@ from rfnry_rag.retrieval.common.logging import get_logger
 logger = get_logger("analyze/ingestion/analyze")
 
 
-def iter_pdf_page_images(
-    file_path: Path, dpi: int = 300, pages: set[int] | None = None
-) -> Iterator[dict]:
+def iter_pdf_page_images(file_path: Path, dpi: int = 300, pages: set[int] | None = None) -> Iterator[dict]:
     """Yield PDF pages as {"page_number", "image_base64"} one at a time.
 
     Streaming the pages keeps only one rendered image in memory at a time,

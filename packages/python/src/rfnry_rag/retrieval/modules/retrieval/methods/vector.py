@@ -139,9 +139,7 @@ class VectorRetrieval:
                 logger.warning("dense embedding failed: %s", dense_outcome)
                 return []
             if isinstance(sparse_outcome, BaseException):
-                logger.warning(
-                    "sparse embedding failed: %s — falling back to dense only", sparse_outcome
-                )
+                logger.warning("sparse embedding failed: %s — falling back to dense only", sparse_outcome)
                 sparse_vector = None
             else:
                 sparse_vector = sparse_outcome

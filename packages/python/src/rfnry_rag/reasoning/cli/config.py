@@ -109,8 +109,7 @@ def _validate_toml_keys(toml: dict[str, Any]) -> None:
     unknown = set(toml.keys()) - _ALLOWED_TOP_KEYS
     if unknown:
         raise ConfigError(
-            f"Unknown top-level key(s) in config.toml: {sorted(unknown)}. "
-            f"Allowed keys: {sorted(_ALLOWED_TOP_KEYS)}"
+            f"Unknown top-level key(s) in config.toml: {sorted(unknown)}. Allowed keys: {sorted(_ALLOWED_TOP_KEYS)}"
         )
 
 

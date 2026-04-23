@@ -97,9 +97,7 @@ def build_registry(client: LanguageModelClient) -> ClientRegistry:
     registry.add_llm_client(
         _CLIENT_DEFAULT,
         provider=client.provider.provider,
-        options=_build_client_options(
-            client.provider, client.max_tokens, client.temperature, client.timeout_seconds
-        ),
+        options=_build_client_options(client.provider, client.max_tokens, client.temperature, client.timeout_seconds),
         retry_policy=policy,
     )
 

@@ -84,6 +84,7 @@ class RetrievalService:
         # need to distinguish total failure from legitimately empty results.
         if query_results and successes == 0 and not tree_chunks:
             from rfnry_rag.retrieval.common.errors import RetrievalError
+
             raise RetrievalError("all retrieval query variants failed")
 
         if tree_chunks:

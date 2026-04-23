@@ -73,9 +73,8 @@ def _validate_metadata(metadata: dict[str, Any] | None) -> None:
         raise ValueError(f"metadata exceeds {_MAX_METADATA_KEYS} keys (got {len(metadata)})")
     for k, v in metadata.items():
         if isinstance(v, str) and len(v) > _MAX_METADATA_VALUE_CHARS:
-            raise ValueError(
-                f"metadata[{k!r}] value exceeds {_MAX_METADATA_VALUE_CHARS} chars (got {len(v)})"
-            )
+            raise ValueError(f"metadata[{k!r}] value exceeds {_MAX_METADATA_VALUE_CHARS} chars (got {len(v)})")
+
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are a helpful assistant. Use only the provided context to answer questions. "
@@ -147,6 +146,7 @@ class IngestionConfig:
             raise ConfigurationError(f"dpi must be between 72 and 600, got {self.dpi}")
         if self.contextual_chunking is not None:
             import warnings
+
             warnings.warn(
                 "contextual_chunking is deprecated; use chunk_context_headers. "
                 "The old name implied LLM-generated context (Anthropic-style) but "
@@ -177,8 +177,7 @@ class RetrievalConfig:
             raise ConfigurationError("top_k must be positive")
         if self.top_k > 200:
             raise ConfigurationError(
-                f"top_k must be <= 200, got {self.top_k} — "
-                "requesting thousands of results OOMs the reranker"
+                f"top_k must be <= 200, got {self.top_k} — requesting thousands of results OOMs the reranker"
             )
         if self.bm25_max_chunks > 200_000:
             raise ConfigurationError(
@@ -211,9 +210,7 @@ class GenerationConfig:
         # answer (no-op); threshold 1.0 blocks every answer. Either is a
         # misconfiguration, though only 0.0 is outright incoherent.
         if self.grounding_enabled and self.grounding_threshold == 0.0:
-            raise ConfigurationError(
-                "grounding_enabled=True with grounding_threshold=0.0 is a no-op"
-            )
+            raise ConfigurationError("grounding_enabled=True with grounding_threshold=0.0 is a no-op")
 
 
 @dataclass
@@ -284,12 +281,8 @@ class RagEngine:
         """Preset: dense vector search only. Add reranker/rewriter for quality."""
         return RagServerConfig(
             persistence=PersistenceConfig(vector_store=vector_store),
-            ingestion=IngestionConfig(
-                embeddings=embeddings, sparse_embeddings=sparse_embeddings
-            ),
-            retrieval=RetrievalConfig(
-                top_k=top_k, reranker=reranker, query_rewriter=query_rewriter
-            ),
+            ingestion=IngestionConfig(embeddings=embeddings, sparse_embeddings=sparse_embeddings),
+            retrieval=RetrievalConfig(top_k=top_k, reranker=reranker, query_rewriter=query_rewriter),
         )
 
     @classmethod
@@ -327,12 +320,8 @@ class RagEngine:
                 document_store=document_store,
                 graph_store=graph_store,
             ),
-            ingestion=IngestionConfig(
-                embeddings=embeddings, sparse_embeddings=sparse_embeddings
-            ),
-            retrieval=RetrievalConfig(
-                top_k=top_k, reranker=reranker, query_rewriter=query_rewriter
-            ),
+            ingestion=IngestionConfig(embeddings=embeddings, sparse_embeddings=sparse_embeddings),
+            retrieval=RetrievalConfig(top_k=top_k, reranker=reranker, query_rewriter=query_rewriter),
         )
 
     def __init__(self, config: RagServerConfig) -> None:
@@ -1090,9 +1079,7 @@ class RagEngine:
                 logger.warning("structured retrieval failed: %s", results[1])
             chunks = self._merge_retrieval_results(unstructured_chunks, structured_chunks)  # type: ignore[arg-type]
         else:
-            chunks = await unstructured.retrieve(
-                query=retrieval_query, knowledge_id=knowledge_id, **tree_kwargs
-            )
+            chunks = await unstructured.retrieve(query=retrieval_query, knowledge_id=knowledge_id, **tree_kwargs)
 
         if min_score is not None:
             chunks = [c for c in chunks if c.score >= min_score]
@@ -1153,9 +1140,7 @@ class RagEngine:
             return self._retrieval_service, self._structured_retrieval
         if collection in self._retrieval_by_collection:
             return self._retrieval_by_collection[collection]
-        raise ValueError(
-            f"unknown collection {collection!r}; known: {sorted(self._retrieval_by_collection.keys())}"
-        )
+        raise ValueError(f"unknown collection {collection!r}; known: {sorted(self._retrieval_by_collection.keys())}")
 
     def _get_ingestion(self, collection: str | None) -> IngestionService:
         """Return ingestion service for *collection*.
@@ -1171,9 +1156,7 @@ class RagEngine:
         if collection in self._ingestion_by_collection:
             return self._ingestion_by_collection[collection]
 
-        raise ValueError(
-            f"unknown collection {collection!r}; known: {sorted(self._ingestion_by_collection.keys())}"
-        )
+        raise ValueError(f"unknown collection {collection!r}; known: {sorted(self._ingestion_by_collection.keys())}")
 
     def _check_initialized(self) -> None:
         if not self._initialized:
@@ -1211,4 +1194,5 @@ class RagEngine:
         if not unstructured:
             return structured
         from rfnry_rag.retrieval.modules.retrieval.search.fusion import reciprocal_rank_fusion
+
         return reciprocal_rank_fusion([unstructured, structured])

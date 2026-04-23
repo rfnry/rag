@@ -114,6 +114,7 @@ class TestContextualChunkingDeprecation:
         # default was not explicitly overridden. Here, explicit chunk_context_headers
         # must still reflect what the dataclass ends up with.
         import warnings
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             cfg = IngestionConfig(

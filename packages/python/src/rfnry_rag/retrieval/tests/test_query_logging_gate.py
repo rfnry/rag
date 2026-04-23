@@ -18,9 +18,7 @@ def _reset_query_log_env(monkeypatch):
 async def test_query_text_not_logged_without_opt_in(monkeypatch) -> None:
     captured: list[str] = []
 
-    method = SimpleNamespace(
-        name="m", weight=1.0, top_k=None, search=AsyncMock(return_value=[])
-    )
+    method = SimpleNamespace(name="m", weight=1.0, top_k=None, search=AsyncMock(return_value=[]))
     service = RetrievalService(retrieval_methods=[method], top_k=5)
 
     def fake_info(fmt, *args, **kwargs):
@@ -43,9 +41,7 @@ async def test_query_text_logged_when_opted_in(monkeypatch) -> None:
     monkeypatch.setenv("RFNRY_RAG_LOG_QUERIES", "true")
 
     captured: list[str] = []
-    method = SimpleNamespace(
-        name="m", weight=1.0, top_k=None, search=AsyncMock(return_value=[])
-    )
+    method = SimpleNamespace(name="m", weight=1.0, top_k=None, search=AsyncMock(return_value=[]))
     service = RetrievalService(retrieval_methods=[method], top_k=5)
 
     def fake_info(fmt, *args, **kwargs):

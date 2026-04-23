@@ -175,6 +175,7 @@ class Neo4jGraphStore:
         # passwords forces operators to be explicit rather than shipping with
         # the universally-known default string.
         from rfnry_rag.retrieval.common.errors import ConfigurationError
+
         if not self.password:
             raise ConfigurationError("Neo4jGraphStore requires a non-empty password")
 
