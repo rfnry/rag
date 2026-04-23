@@ -1,8 +1,8 @@
-from rfnry_rag.common.errors import BaseException
 from rfnry_rag.common.errors import ConfigurationError as ConfigurationError
+from rfnry_rag.common.errors import SdkBaseError
 
 
-class RagError(BaseException):
+class RagError(SdkBaseError):
     """Base exception for retrieval SDK errors."""
 
 

@@ -1,4 +1,4 @@
-from rfnry_rag.common.errors import BaseException
+from rfnry_rag.common.errors import SdkBaseError
 from rfnry_rag.retrieval.common.errors import (
     IngestionError,
     RagError,
@@ -19,7 +19,7 @@ class TestTreeIndexingError:
 
     def test_is_rfnry_rag_error(self):
         err = TreeIndexingError("build failed")
-        assert isinstance(err, BaseException)
+        assert isinstance(err, SdkBaseError)
 
     def test_message(self):
         err = TreeIndexingError("tree construction failed for node 5")
@@ -41,7 +41,7 @@ class TestTreeSearchError:
 
     def test_is_rfnry_rag_error(self):
         err = TreeSearchError("search failed")
-        assert isinstance(err, BaseException)
+        assert isinstance(err, SdkBaseError)
 
     def test_message(self):
         err = TreeSearchError("no matching nodes found")

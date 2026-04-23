@@ -160,6 +160,6 @@ def test_ace_error_is_base():
     assert issubclass(ClusteringError, ReasoningError)
     assert issubclass(ComplianceError, ReasoningError)
     assert issubclass(EvaluationError, ReasoningError)
-    from rfnry_rag.common.errors import BaseException
+    from rfnry_rag.common.errors import SdkBaseError
 
-    assert issubclass(ConfigurationError, BaseException)
+    assert issubclass(ConfigurationError, SdkBaseError)
