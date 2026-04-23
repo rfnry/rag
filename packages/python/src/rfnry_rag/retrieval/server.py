@@ -264,6 +264,12 @@ class RagEngine:
         if cfg.tree_search.enabled and not p.metadata_store:
             raise ConfigurationError("tree_search requires metadata_store")
 
+        if cfg.retrieval.bm25_enabled and i.sparse_embeddings:
+            raise ConfigurationError(
+                "bm25_enabled cannot be used together with sparse_embeddings — "
+                "sparse embeddings supersede BM25. Disable one."
+            )
+
     async def initialize(self) -> None:
         """Wire all modules and check embedding model consistency."""
         self._validate_config()
@@ -294,9 +300,6 @@ class RagEngine:
 
             self._embedding_model_name = _derive_embedding_model_name(ingestion.embeddings)
 
-            if retrieval.bm25_enabled and ingestion.sparse_embeddings:
-                logger.warning("sparse_embeddings configured — bm25_enabled ignored")
-
             ingestion_methods.append(
                 VectorIngestion(
                     vector_store=persistence.vector_store,
@@ -311,7 +314,7 @@ class RagEngine:
                     embeddings=ingestion.embeddings,
                     sparse_embeddings=ingestion.sparse_embeddings,
                     parent_expansion=retrieval.parent_expansion,
-                    bm25_enabled=retrieval.bm25_enabled and not bool(ingestion.sparse_embeddings),
+                    bm25_enabled=retrieval.bm25_enabled,
                     bm25_max_indexes=retrieval.bm25_max_indexes,
                     bm25_tokenizer=retrieval.bm25_tokenizer,
                     weight=1.0,
@@ -771,7 +774,7 @@ class RagEngine:
                     embeddings=ingestion.embeddings,
                     sparse_embeddings=ingestion.sparse_embeddings,
                     parent_expansion=retrieval.parent_expansion,
-                    bm25_enabled=retrieval.bm25_enabled and not bool(ingestion.sparse_embeddings),
+                    bm25_enabled=retrieval.bm25_enabled,
                     bm25_max_indexes=retrieval.bm25_max_indexes,
                     bm25_tokenizer=retrieval.bm25_tokenizer,
                     weight=1.0,
