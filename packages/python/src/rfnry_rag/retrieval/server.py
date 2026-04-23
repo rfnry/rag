@@ -86,6 +86,10 @@ class IngestionConfig:
             raise ConfigurationError("parent_chunk_size must be non-negative")
         if self.parent_chunk_size > 0 and self.parent_chunk_size <= self.chunk_size:
             raise ConfigurationError("parent_chunk_size must be greater than chunk_size")
+        # dpi upper bound: beyond ~600 the PDF-to-image buffer grows pathologically
+        # (each page can exceed 100MB), causing OOM rather than slow rendering.
+        if not (72 <= self.dpi <= 600):
+            raise ConfigurationError(f"dpi must be between 72 and 600, got {self.dpi}")
 
 
 @dataclass
@@ -106,6 +110,16 @@ class RetrievalConfig:
     def __post_init__(self) -> None:
         if self.top_k < 1:
             raise ConfigurationError("top_k must be positive")
+        if self.top_k > 200:
+            raise ConfigurationError(
+                f"top_k must be <= 200, got {self.top_k} — "
+                "requesting thousands of results OOMs the reranker"
+            )
+        if self.bm25_max_chunks > 200_000:
+            raise ConfigurationError(
+                f"bm25_max_chunks must be <= 200_000, got {self.bm25_max_chunks} — "
+                "in-memory BM25 index at that size risks OOM; use sparse_embeddings instead"
+            )
 
 
 @dataclass
