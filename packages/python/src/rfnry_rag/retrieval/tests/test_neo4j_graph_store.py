@@ -103,7 +103,12 @@ async def test_initialize_creates_driver_and_indexes(mock_neo4j_module, mock_dri
     store = Neo4jGraphStore(uri="bolt://localhost:7687", username="neo4j", password="pass")
     await store.initialize()
 
-    mock_neo4j_module.driver.assert_called_once_with("bolt://localhost:7687", auth=("neo4j", "pass"))
+    mock_neo4j_module.driver.assert_called_once_with(
+        "bolt://localhost:7687",
+        auth=("neo4j", "pass"),
+        max_connection_pool_size=100,
+        connection_acquisition_timeout=60.0,
+    )
     driver.verify_connectivity.assert_called_once()
     assert session.run.call_count > 0
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from typing import Literal
@@ -7,6 +8,9 @@ from typing import Literal
 from baml_py import ClientRegistry
 
 from rfnry_rag.common.errors import ConfigurationError
+
+_boundary_logger = logging.getLogger("rfnry_rag.common.language_model")
+_BOUNDARY_ENV = "BOUNDARY_API_KEY"
 
 _MAX_RETRIES_LIMIT = 5
 
@@ -97,7 +101,24 @@ def build_registry(client: LanguageModelClient) -> ClientRegistry:
     else:
         registry.set_primary(_CLIENT_DEFAULT)
 
-    if client.boundary_api_key:
-        os.environ["BOUNDARY_API_KEY"] = client.boundary_api_key
+    _apply_boundary_api_key(client.boundary_api_key)
 
     return registry
+
+
+def _apply_boundary_api_key(key: str | None) -> None:
+    """Boundary authentication is a process-global env var (BOUNDARY_API_KEY)
+    — BAML's collector reads it at send time. To avoid silent clobbering
+    across multiple LanguageModelClient instances, we first-write-wins and
+    warn when the user attempts to register a different key."""
+    if not key:
+        return
+    existing = os.environ.get(_BOUNDARY_ENV)
+    if existing is None:
+        os.environ[_BOUNDARY_ENV] = key
+        return
+    if existing != key:
+        _boundary_logger.warning(
+            "boundary_api_key already set to a different value — ignoring new key. "
+            "Set BOUNDARY_API_KEY in the environment once at process start to avoid this."
+        )

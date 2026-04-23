@@ -161,6 +161,8 @@ class Neo4jGraphStore:
     password: str = "password"
     database: str = "neo4j"
     query_timeout: float = 5.0
+    max_connection_pool_size: int = 100
+    connection_acquisition_timeout: float = 60.0
 
     _driver: Any = field(default=None, init=False, repr=False)
 
@@ -172,6 +174,8 @@ class Neo4jGraphStore:
         self._driver = AsyncGraphDatabase.driver(
             self.uri,
             auth=(self.username, self.password),
+            max_connection_pool_size=self.max_connection_pool_size,
+            connection_acquisition_timeout=self.connection_acquisition_timeout,
         )
         await self._driver.verify_connectivity()
 

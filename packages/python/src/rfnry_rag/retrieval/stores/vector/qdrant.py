@@ -57,9 +57,15 @@ class QdrantVectorStore:
         url: str = "http://localhost:6333",
         collection: str | None = None,
         collections: list[str] | None = None,
+        timeout: int = 10,
+        api_key: str | None = None,
     ) -> None:
         self._url = url
-        self._client_instance: AsyncQdrantClient | None = AsyncQdrantClient(url=self._url)
+        self._timeout = timeout
+        self._api_key = api_key
+        self._client_instance: AsyncQdrantClient | None = AsyncQdrantClient(
+            url=self._url, timeout=timeout, api_key=api_key
+        )
 
         if collections:
             self._collections = list(collections)
