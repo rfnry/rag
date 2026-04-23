@@ -5,6 +5,14 @@ _BAML_LOG_ENV = "BAML_LOG"
 _RFNRY_RAG_BAML_LOG_ENV = "RFNRY_RAG_BAML_LOG"
 
 
+def query_logging_enabled() -> bool:
+    """True when user queries may be logged verbatim. Defaults False (PII-safe).
+
+    Callers that log raw query text must gate behind this so no module leaks
+    user inputs at INFO when the env var is unset."""
+    return os.environ.get("RFNRY_RAG_LOG_QUERIES", "").lower() == "true"
+
+
 def _propagate_baml_log_env() -> None:
     """Wire RFNRY_RAG_BAML_LOG to BAML_LOG (what BAML actually reads) so users have
     one namespaced env var instead of touching BAML's internal name directly.

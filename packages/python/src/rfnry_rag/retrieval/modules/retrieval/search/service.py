@@ -1,7 +1,7 @@
 import asyncio
-import os
 from typing import Any
 
+from rfnry_rag.common.logging import query_logging_enabled
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievedChunk
 from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod
@@ -46,7 +46,7 @@ class RetrievalService:
 
         # User query text is PII-adjacent; log only when explicitly opted in
         # via RFNRY_RAG_LOG_QUERIES=true. Always log the knowledge_id + length.
-        if os.environ.get("RFNRY_RAG_LOG_QUERIES", "").lower() == "true":
+        if query_logging_enabled():
             logger.info('query: "%s" (knowledge_id=%s)', query[:80], knowledge_id)
         else:
             logger.info("query: (len=%d, knowledge_id=%s)", len(query), knowledge_id)
