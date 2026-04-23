@@ -321,3 +321,34 @@ async def test_method_failure_does_not_abort_pipeline():
     # Graph failed but document still called
     succeeding.ingest.assert_called_once()
     assert source is not None
+
+
+# --- on_progress callback tests ---
+
+
+def _stub_method(name: str, required: bool = True) -> SimpleNamespace:
+    return SimpleNamespace(
+        name=name,
+        required=required,
+        ingest=AsyncMock(),
+        delete=AsyncMock(),
+    )
+
+
+async def test_on_progress_called_once_per_method(tmp_path) -> None:
+    calls: list[tuple[int, int]] = []
+
+    async def progress(done: int, total: int) -> None:
+        calls.append((done, total))
+
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text("hello world " * 50)
+
+    # Two methods in the list → two progress callbacks after each succeeds.
+    method_a = _stub_method(name="a", required=True)
+    method_b = _stub_method(name="b", required=True)
+    service = _make_service_advanced(ingestion_methods=[method_a, method_b])
+
+    await service.ingest(file_path=file_path, on_progress=progress)
+
+    assert calls == [(1, 2), (2, 2)]

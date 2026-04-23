@@ -99,6 +99,7 @@ class IngestionService:
         metadata: dict[str, Any],
         hash_value: str | None = None,
         pages: list[ParsedPage] | None = None,
+        on_progress: Callable[[int, int], Awaitable[None]] | None = None,
     ) -> None:
         """Dispatch ingestion to all registered methods.
 
@@ -110,8 +111,14 @@ class IngestionService:
 
         A method missing the ``required`` attribute is treated as required
         to preserve data integrity by default.
+
+        ``on_progress`` is invoked with ``(done, total)`` after each
+        successful method call. Optional methods that fail are skipped and
+        do NOT emit a progress event, so ``total`` may not be reached if
+        every optional method raises.
         """
-        for method in self._ingestion_methods:
+        total = len(self._ingestion_methods)
+        for idx, method in enumerate(self._ingestion_methods, start=1):
             try:
                 await method.ingest(
                     source_id=source_id,
@@ -131,6 +138,9 @@ class IngestionService:
                     logger.exception("required ingestion method '%s' failed — aborting", method.name)
                     raise IngestionError(f"required ingestion method '{method.name}' failed: {exc}") from exc
                 logger.warning("optional ingestion method '%s' failed: %s", method.name, exc)
+                continue
+            if on_progress is not None:
+                await on_progress(idx, total)
 
     async def ingest(
         self,
@@ -205,6 +215,7 @@ class IngestionService:
             metadata=metadata,
             hash_value=hash_value,
             pages=pages,
+            on_progress=on_progress,
         )
 
         source = Source(
