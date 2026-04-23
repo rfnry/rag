@@ -34,14 +34,32 @@ class _SourceContentRow(_Base):
 class PostgresDocumentStore:
     """Full-text document store backed by PostgreSQL (tsvector + ILIKE) or SQLite (LIKE fallback)."""
 
-    def __init__(self, url: str) -> None:
+    def __init__(
+        self,
+        url: str,
+        *,
+        pool_size: int | None = None,
+        max_overflow: int | None = None,
+        pool_recycle: int = 1800,
+        pool_pre_ping: bool = True,
+        echo: bool = False,
+    ) -> None:
         parsed = make_url(url)
         if parsed.drivername == "postgresql":
             parsed = parsed.set(drivername="postgresql+asyncpg")
         elif parsed.drivername == "sqlite":
             parsed = parsed.set(drivername="sqlite+aiosqlite")
 
-        self._engine = create_async_engine(parsed, echo=False)
+        kwargs: dict[str, Any] = {"echo": echo}
+        if parsed.drivername.startswith("postgresql"):
+            kwargs["pool_pre_ping"] = pool_pre_ping
+            kwargs["pool_recycle"] = pool_recycle
+            if pool_size is not None:
+                kwargs["pool_size"] = pool_size
+            if max_overflow is not None:
+                kwargs["max_overflow"] = max_overflow
+
+        self._engine = create_async_engine(parsed, **kwargs)
         self._session_factory = async_sessionmaker(self._engine, class_=AsyncSession, expire_on_commit=False)
         self._is_postgres = parsed.drivername.startswith("postgresql")
 

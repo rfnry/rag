@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     DateTime,
@@ -65,14 +66,34 @@ class _SourceStatsRow(_Base):
 
 
 class SQLAlchemyMetadataStore:
-    def __init__(self, url: str) -> None:
+    def __init__(
+        self,
+        url: str,
+        *,
+        pool_size: int | None = None,
+        max_overflow: int | None = None,
+        pool_recycle: int = 1800,
+        pool_pre_ping: bool = True,
+        echo: bool = False,
+    ) -> None:
         parsed = make_url(url)
         if parsed.drivername == "postgresql":
             parsed = parsed.set(drivername="postgresql+asyncpg")
         elif parsed.drivername == "sqlite":
             parsed = parsed.set(drivername="sqlite+aiosqlite")
 
-        self._engine = create_async_engine(parsed, echo=False)
+        kwargs: dict[str, Any] = {"echo": echo}
+        # Pool tuning is only meaningful for pooled drivers (e.g. postgresql+asyncpg).
+        # SQLite (aiosqlite) uses StaticPool and rejects pool_size/max_overflow.
+        if parsed.drivername.startswith("postgresql"):
+            kwargs["pool_pre_ping"] = pool_pre_ping
+            kwargs["pool_recycle"] = pool_recycle
+            if pool_size is not None:
+                kwargs["pool_size"] = pool_size
+            if max_overflow is not None:
+                kwargs["max_overflow"] = max_overflow
+
+        self._engine = create_async_engine(parsed, **kwargs)
         self._session_factory = async_sessionmaker(self._engine, class_=AsyncSession, expire_on_commit=False)
 
     async def initialize(self) -> None:
