@@ -122,3 +122,36 @@ async def test_default_collection_uses_unscoped_default_services():
 
     # The first collection should reuse the default service instances, not scoped ones.
     assert engine._ingestion_by_collection["a"] is engine._ingestion_service
+
+
+@pytest.mark.asyncio
+async def test_cache_invalidation_fans_out_to_all_scoped_collections():
+    """_on_source_removed and _on_ingestion_complete must invalidate BM25
+    caches on every scoped collection, not just the default."""
+    vector_store = _make_vector_store(["a", "b", "c"])
+    embeddings = _make_embeddings()
+    engine = RagEngine(
+        RagServerConfig(
+            persistence=PersistenceConfig(vector_store=vector_store),
+            ingestion=IngestionConfig(embeddings=embeddings),
+        )
+    )
+    await engine.initialize()
+
+    # Replace each collection's VectorRetrieval with a spy that records invalidations.
+    invalidated: list[tuple[int, str | None]] = []
+
+    for idx, (retrieval_service, _) in enumerate(engine._retrieval_by_collection.values()):
+        for method in retrieval_service._retrieval_methods:
+            if method.name == "vector":
+                async def _capture(knowledge_id, i=idx):
+                    invalidated.append((i, knowledge_id))
+                method.invalidate_cache = _capture  # type: ignore[method-assign]
+
+    await engine._on_source_removed("kb-1")
+    await engine._on_ingestion_complete("kb-2")
+
+    # Three collections × two callbacks = 6 invalidations
+    assert len(invalidated) == 6
+    seen_indexes = {i for i, _ in invalidated}
+    assert seen_indexes == {0, 1, 2}

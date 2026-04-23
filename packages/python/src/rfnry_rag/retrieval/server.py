@@ -858,19 +858,34 @@ class RagEngine:
         context = " ".join(context_parts)
         return f"{text}\n\nConversation context: {context}"
 
-    async def _on_ingestion_complete(self, knowledge_id: str | None) -> None:
-        """Callback after ingestion — invalidates BM25 cache for the knowledge_id."""
+    async def _invalidate_vector_caches(self, knowledge_id: str | None) -> None:
+        """Invalidate BM25 cache on every scoped collection's VectorRetrieval, not
+        just the default one. Scoped collections carry their own method instances
+        with their own caches — iterate them all so stale BM25 results are not
+        returned after a cross-collection ingest/remove."""
+        seen: set[int] = set()
+        if self._retrieval_by_collection:
+            for retrieval_service, _ in self._retrieval_by_collection.values():
+                for method in retrieval_service._retrieval_methods:
+                    if method.name != "vector" or id(method) in seen:
+                        continue
+                    seen.add(id(method))
+                    if hasattr(method, "invalidate_cache"):
+                        await method.invalidate_cache(knowledge_id)
+            return
+        # No multi-collection wiring — fall back to the default namespace.
         if self._retrieval_namespace and "vector" in self._retrieval_namespace:
             vector = self._retrieval_namespace.vector
             if hasattr(vector, "invalidate_cache"):
                 await vector.invalidate_cache(knowledge_id)
 
+    async def _on_ingestion_complete(self, knowledge_id: str | None) -> None:
+        """Callback after ingestion — invalidates BM25 cache for the knowledge_id."""
+        await self._invalidate_vector_caches(knowledge_id)
+
     async def _on_source_removed(self, knowledge_id: str | None) -> None:
         """Callback after source removal — invalidates BM25 cache for the knowledge_id."""
-        if self._retrieval_namespace and "vector" in self._retrieval_namespace:
-            vector = self._retrieval_namespace.vector
-            if hasattr(vector, "invalidate_cache"):
-                await vector.invalidate_cache(knowledge_id)
+        await self._invalidate_vector_caches(knowledge_id)
 
     def _build_retrieval_pipeline(
         self,
