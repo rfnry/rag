@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -92,7 +93,10 @@ class AnalyzedIngestionService:
             raise IngestionError(f"unsupported structured file extension: {ext}")
 
         source_id = str(uuid4())
-        file_hash_value = compute_file_hash(file_path)
+        # File hashing is CPU/IO-bound and must run off the event loop so a
+        # large PDF doesn't block every other coroutine. chunk/service.py:148
+        # already does this for the unstructured path — analyze must match.
+        file_hash_value = await asyncio.to_thread(compute_file_hash, file_path)
 
         # Delegate document storage to ingestion methods
         if page_analyses:
