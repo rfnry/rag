@@ -56,8 +56,12 @@ from rfnry_rag.reasoning.modules.pipeline.models import EvaluateStep as Evaluate
 from rfnry_rag.reasoning.modules.pipeline.models import PipelineResult as PipelineResult
 from rfnry_rag.reasoning.modules.pipeline.models import PipelineServices as PipelineServices
 from rfnry_rag.reasoning.modules.pipeline.service import Pipeline as Pipeline
+from rfnry_rag.reasoning.protocols import BaseEmbeddings as BaseEmbeddings
+from rfnry_rag.reasoning.protocols import BaseSemanticIndex as BaseSemanticIndex
 
 __all__ = [
+    "BaseEmbeddings",
+    "BaseSemanticIndex",
     "AnalysisError",
     "ClassificationError",
     "ClusteringError",

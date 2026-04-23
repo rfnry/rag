@@ -51,6 +51,7 @@ from rfnry_rag.retrieval.modules.ingestion.methods.tree import TreeIngestion as 
 from rfnry_rag.retrieval.modules.ingestion.methods.vector import VectorIngestion as VectorIngestion
 from rfnry_rag.retrieval.modules.ingestion.vision.facade import Vision as Vision
 from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod as BaseRetrievalMethod
+from rfnry_rag.retrieval.modules.retrieval.judging import BaseRetrievalJudgment as BaseRetrievalJudgment
 from rfnry_rag.retrieval.modules.retrieval.judging import RetrievalJudgment as RetrievalJudgment
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval as DocumentRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.enrich import StructuredRetrieval as StructuredRetrieval
@@ -58,6 +59,7 @@ from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval a
 from rfnry_rag.retrieval.modules.retrieval.methods.tree import TreeRetrieval as TreeRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.vector import VectorRetrieval as VectorRetrieval
 from rfnry_rag.retrieval.modules.retrieval.refinement.abstractive import AbstractiveRefinement as AbstractiveRefinement
+from rfnry_rag.retrieval.modules.retrieval.refinement.base import BaseChunkRefinement as BaseChunkRefinement
 from rfnry_rag.retrieval.modules.retrieval.refinement.extractive import ExtractiveRefinement as ExtractiveRefinement
 from rfnry_rag.retrieval.modules.retrieval.search.reranking.facade import Reranking as Reranking
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.hyde import HyDeRewriting as HyDeRewriting
@@ -118,6 +120,8 @@ __all__ = [
     "SemanticChunker",
     "BaseRetrievalMethod",
     "BaseIngestionMethod",
+    "BaseChunkRefinement",
+    "BaseRetrievalJudgment",
     "HyDeRewriting",
     "MultiQueryRewriting",
     "StepBackRewriting",

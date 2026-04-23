@@ -19,7 +19,12 @@ logger = get_logger("retrieval.methods.enrich")
 
 
 class StructuredRetrieval:
-    """Adapts `StructuredRetrievalService` to the `BaseRetrievalMethod` protocol."""
+    """Adapts `StructuredRetrievalService` to the `BaseRetrievalMethod` protocol.
+
+    The ``.name`` is ``"enrich"`` (not ``"structured"``) for historical reasons —
+    the method was originally called the "enrich" step before it was reframed as
+    a retrieval method in its own right. Dispatch sites and logs use that name.
+    """
 
     def __init__(
         self,
