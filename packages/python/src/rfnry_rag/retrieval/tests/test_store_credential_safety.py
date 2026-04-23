@@ -33,3 +33,25 @@ def test_store_engine_url_hides_password_by_default(store_cls, url) -> None:
     assert "s3cr3t" not in rendered
     assert "s3cr3t" not in repr(store._engine)
     assert store._engine.url.password == "s3cr3t"
+
+
+def test_neo4j_graph_store_repr_does_not_leak_password():
+    from rfnry_rag.retrieval.stores.graph.neo4j import Neo4jGraphStore
+
+    store = Neo4jGraphStore(uri="neo4j://x:7687", username="u", password="TOPSECRET")
+    assert "TOPSECRET" not in repr(store)
+
+
+def test_neo4j_graph_store_rejects_empty_password():
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.stores.graph.neo4j import Neo4jGraphStore
+
+    with pytest.raises(ConfigurationError, match="password"):
+        Neo4jGraphStore(uri="neo4j://x:7687", username="u", password="")
+
+
+def test_language_model_provider_repr_does_not_leak_api_key():
+    from rfnry_rag.common.language_model import LanguageModelProvider
+
+    p = LanguageModelProvider(provider="openai", model="m", api_key="sk-TOPSECRET")
+    assert "TOPSECRET" not in repr(p)

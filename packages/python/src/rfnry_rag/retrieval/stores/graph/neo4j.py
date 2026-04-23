@@ -157,14 +157,22 @@ class Neo4jGraphStore:
     """Graph store backed by Neo4j with async driver."""
 
     uri: str
-    username: str = "neo4j"
-    password: str = "password"
+    username: str = field(default="neo4j", repr=False)
+    password: str = field(default="", repr=False)
     database: str = "neo4j"
     query_timeout: float = 5.0
     max_connection_pool_size: int = 100
     connection_acquisition_timeout: float = 60.0
 
     _driver: Any = field(default=None, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        # The Neo4j community-edition default is "password" — rejecting empty
+        # passwords forces operators to be explicit rather than shipping with
+        # the universally-known default string.
+        from rfnry_rag.retrieval.common.errors import ConfigurationError
+        if not self.password:
+            raise ConfigurationError("Neo4jGraphStore requires a non-empty password")
 
     async def initialize(self) -> None:
         """Create the driver, verify connectivity, and ensure indexes exist."""

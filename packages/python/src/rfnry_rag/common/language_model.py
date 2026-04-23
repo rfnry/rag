@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from baml_py import ClientRegistry
@@ -29,7 +29,7 @@ class LanguageModelProvider:
 
     provider: str
     model: str
-    api_key: str | None = None
+    api_key: str | None = field(default=None, repr=False)
 
 
 @dataclass

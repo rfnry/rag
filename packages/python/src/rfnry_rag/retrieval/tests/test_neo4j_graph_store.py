@@ -120,7 +120,7 @@ async def test_add_entities_calls_merge(mock_neo4j_module, mock_driver):
     driver, session = mock_driver
     mock_neo4j_module.driver.return_value = driver
 
-    store = Neo4jGraphStore(uri="bolt://localhost:7687")
+    store = Neo4jGraphStore(uri="bolt://localhost:7687", password="test-pw")
     await store.initialize()
 
     entities = [
@@ -140,7 +140,7 @@ async def test_add_relations_calls_match_and_merge(mock_neo4j_module, mock_drive
     driver, session = mock_driver
     mock_neo4j_module.driver.return_value = driver
 
-    store = Neo4jGraphStore(uri="bolt://localhost:7687")
+    store = Neo4jGraphStore(uri="bolt://localhost:7687", password="test-pw")
     await store.initialize()
 
     relations = [
@@ -173,7 +173,7 @@ async def test_delete_by_source_runs_cleanup_in_transaction(mock_neo4j_module, m
     tx.rollback = AsyncMock()
     session.begin_transaction = AsyncMock(return_value=tx)
 
-    store = Neo4jGraphStore(uri="bolt://localhost:7687")
+    store = Neo4jGraphStore(uri="bolt://localhost:7687", password="test-pw")
     await store.initialize()
 
     await store.delete_by_source(source_id="src-1")
@@ -199,7 +199,7 @@ async def test_query_graph_returns_empty_on_no_seeds(mock_neo4j_module, mock_dri
 
     session.run.return_value = EmptyAsyncIter()
 
-    store = Neo4jGraphStore(uri="bolt://localhost:7687")
+    store = Neo4jGraphStore(uri="bolt://localhost:7687", password="test-pw")
     await store.initialize()
 
     results = await store.query_graph(query="nonexistent entity", knowledge_id="kb-1")
@@ -213,7 +213,7 @@ async def test_shutdown_closes_driver(mock_neo4j_module, mock_driver):
     driver, session = mock_driver
     mock_neo4j_module.driver.return_value = driver
 
-    store = Neo4jGraphStore(uri="bolt://localhost:7687")
+    store = Neo4jGraphStore(uri="bolt://localhost:7687", password="test-pw")
     await store.initialize()
     await store.shutdown()
 
@@ -224,7 +224,7 @@ async def test_shutdown_closes_driver(mock_neo4j_module, mock_driver):
 async def test_shutdown_noop_when_not_initialized(mock_neo4j_module):
     from rfnry_rag.retrieval.stores.graph.neo4j import Neo4jGraphStore
 
-    store = Neo4jGraphStore(uri="bolt://localhost:7687")
+    store = Neo4jGraphStore(uri="bolt://localhost:7687", password="test-pw")
     await store.shutdown()
 
 
@@ -243,7 +243,7 @@ async def test_add_entities_empty_list_is_noop():
         driver.verify_connectivity = AsyncMock()
         mock_neo4j_module.driver.return_value = driver
 
-        store = Neo4jGraphStore(uri="bolt://localhost:7687")
+        store = Neo4jGraphStore(uri="bolt://localhost:7687", password="test-pw")
         await store.initialize()
 
         init_calls = session.run.call_count
