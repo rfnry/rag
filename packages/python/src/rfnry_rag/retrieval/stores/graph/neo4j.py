@@ -161,8 +161,12 @@ class Neo4jGraphStore:
     password: str = field(default="", repr=False)
     database: str = "neo4j"
     query_timeout: float = 5.0
-    max_connection_pool_size: int = 100
-    connection_acquisition_timeout: float = 60.0
+    # Single-process SDK defaults, not the server-scale defaults lifted from
+    # Neo4j deployment guides (size 100, acquisition 60s). If the pool is
+    # exhausted, a 5s wait is preferable to a 60s event-loop stall.
+    max_connection_pool_size: int = 10
+    connection_acquisition_timeout: float = 5.0
+    connection_timeout: float = 5.0
 
     _driver: Any = field(default=None, init=False, repr=False)
 
@@ -184,6 +188,7 @@ class Neo4jGraphStore:
             auth=(self.username, self.password),
             max_connection_pool_size=self.max_connection_pool_size,
             connection_acquisition_timeout=self.connection_acquisition_timeout,
+            connection_timeout=self.connection_timeout,
         )
         await self._driver.verify_connectivity()
 

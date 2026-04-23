@@ -106,8 +106,9 @@ async def test_initialize_creates_driver_and_indexes(mock_neo4j_module, mock_dri
     mock_neo4j_module.driver.assert_called_once_with(
         "bolt://localhost:7687",
         auth=("neo4j", "pass"),
-        max_connection_pool_size=100,
-        connection_acquisition_timeout=60.0,
+        max_connection_pool_size=10,
+        connection_acquisition_timeout=5.0,
+        connection_timeout=5.0,
     )
     driver.verify_connectivity.assert_called_once()
     assert session.run.call_count > 0
