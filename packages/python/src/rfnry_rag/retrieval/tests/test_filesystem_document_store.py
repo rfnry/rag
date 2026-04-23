@@ -133,3 +133,33 @@ async def test_no_knowledge_id(store, tmp_path):
     assert expected.exists()
     results = await store.search_content(query="without knowledge", knowledge_id=None)
     assert len(results) >= 1
+
+
+@pytest.mark.parametrize("bad_id", ["../etc", "../../outside", "/abs/path", "a/b/c", "..", ".", "  ", ""])
+async def test_rejects_traversal_in_knowledge_id(store, bad_id):
+    with pytest.raises(ValueError, match="invalid.*component"):
+        await store.store_content(
+            source_id="src-bad",
+            knowledge_id=bad_id,
+            source_type="manuals",
+            title="x",
+            content="x",
+        )
+
+
+@pytest.mark.parametrize("bad_type", ["../etc", "cron.d/", "a/b", "..", ".", "  ", ""])
+async def test_rejects_traversal_in_source_type(store, bad_type):
+    with pytest.raises(ValueError, match="invalid.*component"):
+        await store.store_content(
+            source_id="src-bad",
+            knowledge_id="kb",
+            source_type=bad_type,
+            title="x",
+            content="x",
+        )
+
+
+@pytest.mark.parametrize("bad_id", ["../escape", "a/b"])
+async def test_search_rejects_traversal_in_knowledge_id(store, bad_id):
+    with pytest.raises(ValueError, match="invalid.*component"):
+        await store.search_content(query="anything", knowledge_id=bad_id)

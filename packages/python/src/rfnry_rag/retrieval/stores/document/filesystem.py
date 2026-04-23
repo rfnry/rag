@@ -16,6 +16,17 @@ logger = get_logger("stores/document/filesystem")
 _DEFAULT_KB = "_default"
 _UNTYPED = "_untyped"
 
+# Path-component whitelist: letters, digits, _, -, dot. No slashes, no leading/trailing dot,
+# 1-128 chars. Applied to knowledge_id and source_type before they become directory names
+# to prevent traversal outside the store root.
+_SAFE_COMPONENT = re.compile(r"^[A-Za-z0-9_\-][A-Za-z0-9_\-.]{0,127}$")
+
+
+def _safe_path_component(value: str, *, field: str) -> str:
+    if not isinstance(value, str) or not _SAFE_COMPONENT.match(value) or value in {".", ".."}:
+        raise ValueError(f"invalid {field} path component: {value!r}")
+    return value
+
 
 def _tokenize(text: str) -> list[str]:
     return re.findall(r"\w+", text.lower())
@@ -52,14 +63,19 @@ class FilesystemDocumentStore:
         title: str,
         content: str,
     ) -> None:
+        kb_dir = _safe_path_component(knowledge_id, field="knowledge_id") if knowledge_id is not None else _DEFAULT_KB
+        st_dir = _safe_path_component(source_type, field="source_type") if source_type is not None else _UNTYPED
+        _safe_path_component(source_id, field="source_id")
+
         old_file = await self._find_file(source_id)
         if old_file is not None:
             await asyncio.to_thread(old_file.unlink, missing_ok=True)
             await self._clean_empty_parents(old_file)
 
-        kb_dir = knowledge_id if knowledge_id is not None else _DEFAULT_KB
-        st_dir = source_type if source_type is not None else _UNTYPED
         directory = self._base_path / kb_dir / st_dir
+        resolved = directory.resolve()
+        if not resolved.is_relative_to(self._base_path.resolve()):
+            raise ValueError(f"resolved path escapes base_path: {resolved}")
         await asyncio.to_thread(directory.mkdir, parents=True, exist_ok=True)
 
         file_path = directory / f"{source_id}.md"
@@ -83,6 +99,10 @@ class FilesystemDocumentStore:
         source_type: str | None = None,
         top_k: int = 5,
     ) -> list[ContentMatch]:
+        if knowledge_id is not None:
+            _safe_path_component(knowledge_id, field="knowledge_id")
+        if source_type is not None:
+            _safe_path_component(source_type, field="source_type")
         cache_key = self._cache_key(knowledge_id)
 
         if cache_key not in self._cache:
@@ -207,9 +227,10 @@ class FilesystemDocumentStore:
     async def _load_entries(
         self, knowledge_id: str | None = None, source_type: str | None = None
     ) -> list[dict[str, Any]]:
-        kb_dir = knowledge_id if knowledge_id is not None else _DEFAULT_KB
+        kb_dir = _safe_path_component(knowledge_id, field="knowledge_id") if knowledge_id is not None else _DEFAULT_KB
+        st_dir = _safe_path_component(source_type, field="source_type") if source_type is not None else None
 
-        search_dir = self._base_path / kb_dir / source_type if source_type is not None else self._base_path / kb_dir
+        search_dir = self._base_path / kb_dir / st_dir if st_dir is not None else self._base_path / kb_dir
 
         def _load() -> list[dict[str, Any]]:
             if not search_dir.exists():
