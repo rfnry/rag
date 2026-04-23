@@ -23,7 +23,7 @@ from rfnry_rag.retrieval.modules.ingestion.analyze.models import (
 )
 from rfnry_rag.retrieval.modules.ingestion.analyze.parsers.l5x import parse_l5x
 from rfnry_rag.retrieval.modules.ingestion.analyze.parsers.xml import is_l5x, parse_xml
-from rfnry_rag.retrieval.modules.ingestion.analyze.pdf_splitter import split_pdf_to_images
+from rfnry_rag.retrieval.modules.ingestion.analyze.pdf_splitter import iter_pdf_page_images
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.modules.ingestion.embeddings.utils import embed_batched
 from rfnry_rag.retrieval.modules.ingestion.vision.base import BaseVision
@@ -292,12 +292,11 @@ class AnalyzedIngestionService:
                 "Provide a LanguageModelClient with your LLM provider and API key."
             )
 
-        images = split_pdf_to_images(file_path, dpi=self._dpi, pages=page_range)
         analyses: list[PageAnalysis] = []
 
         from rfnry_rag.retrieval.baml.baml_client.async_client import b
 
-        for img in images:
+        for img in iter_pdf_page_images(file_path, dpi=self._dpi, pages=page_range):
             from baml_py import Image
 
             baml_image = Image.from_base64("image/png", img["image_base64"])
@@ -328,9 +327,8 @@ class AnalyzedIngestionService:
             analyses.append(analysis)
 
             logger.info(
-                "[analyze/ingestion/analyze/vision] page %d/%d analyzed (%s, %d entities)",
+                "[analyze/ingestion/analyze/vision] page %d analyzed (%s, %d entities)",
                 img["page_number"],
-                len(images),
                 analysis.page_type,
                 len(analysis.entities),
             )

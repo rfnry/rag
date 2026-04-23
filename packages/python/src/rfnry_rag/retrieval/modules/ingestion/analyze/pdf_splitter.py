@@ -1,4 +1,5 @@
 import base64
+from collections.abc import Iterator
 from pathlib import Path
 
 import pymupdf
@@ -8,19 +9,21 @@ from rfnry_rag.retrieval.common.logging import get_logger
 logger = get_logger("analyze/ingestion/analyze")
 
 
-def split_pdf_to_images(file_path: Path, dpi: int = 300, pages: set[int] | None = None) -> list[dict]:
-    """Split PDF into per-page PNG images as base64.
+def iter_pdf_page_images(
+    file_path: Path, dpi: int = 300, pages: set[int] | None = None
+) -> Iterator[dict]:
+    """Yield PDF pages as {"page_number", "image_base64"} one at a time.
 
-    Returns list of {"page_number": int, "image_base64": str}.
-    """
+    Streaming the pages keeps only one rendered image in memory at a time,
+    instead of materializing every page before any is processed."""
     file_path = Path(file_path)
     if not file_path.exists():
         raise FileNotFoundError(f"PDF not found: {file_path}")
 
     doc = pymupdf.open(str(file_path))
-    images = []
     zoom = dpi / 72.0
     matrix = pymupdf.Matrix(zoom, zoom)
+    emitted = 0
     try:
         for page_num in range(len(doc)):
             page_1based = page_num + 1
@@ -30,8 +33,8 @@ def split_pdf_to_images(file_path: Path, dpi: int = 300, pages: set[int] | None 
             pix = page.get_pixmap(matrix=matrix)
             png_bytes = pix.tobytes("png")
             b64 = base64.standard_b64encode(png_bytes).decode("utf-8")
-            images.append({"page_number": page_1based, "image_base64": b64})
-        logger.info("split pdf into %d page images at %d dpi", len(images), dpi)
+            emitted += 1
+            yield {"page_number": page_1based, "image_base64": b64}
+        logger.info("streamed pdf as %d page images at %d dpi", emitted, dpi)
     finally:
         doc.close()
-    return images

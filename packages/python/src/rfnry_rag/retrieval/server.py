@@ -95,6 +95,7 @@ class RetrievalConfig:
     query_rewriter: BaseQueryRewriting | None = None
     bm25_enabled: bool = False
     bm25_max_indexes: int = 16
+    bm25_max_chunks: int = 50_000
     bm25_tokenizer: Callable[[str], list[str]] | None = None
     source_type_weights: dict[str, float] | None = None
     cross_reference_enrichment: bool = True
@@ -381,6 +382,7 @@ class RagEngine:
                     parent_expansion=retrieval.parent_expansion,
                     bm25_enabled=retrieval.bm25_enabled,
                     bm25_max_indexes=retrieval.bm25_max_indexes,
+                    bm25_max_chunks=retrieval.bm25_max_chunks,
                     bm25_tokenizer=retrieval.bm25_tokenizer,
                     weight=1.0,
                 )
@@ -841,6 +843,7 @@ class RagEngine:
                     parent_expansion=retrieval.parent_expansion,
                     bm25_enabled=retrieval.bm25_enabled,
                     bm25_max_indexes=retrieval.bm25_max_indexes,
+                    bm25_max_chunks=retrieval.bm25_max_chunks,
                     bm25_tokenizer=retrieval.bm25_tokenizer,
                     weight=1.0,
                 )

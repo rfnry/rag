@@ -41,6 +41,7 @@ class VectorRetrieval:
         parent_expansion: bool = False,
         bm25_enabled: bool = False,
         bm25_max_indexes: int = 16,
+        bm25_max_chunks: int = 50_000,
         bm25_tokenizer: Callable[[str], list[str]] | None = None,
         weight: float = 1.0,
         top_k: int | None = None,
@@ -51,6 +52,7 @@ class VectorRetrieval:
         self._parent_expansion = parent_expansion
         self._bm25_enabled = bm25_enabled
         self._bm25_max_indexes = bm25_max_indexes
+        self._bm25_max_chunks = bm25_max_chunks
         self._tokenize_fn = bm25_tokenizer or _tokenize
         self._weight = weight
         self._top_k = top_k
@@ -297,6 +299,7 @@ class VectorRetrieval:
             filters = {"knowledge_id": knowledge_id} if knowledge_id is not None else None
             all_chunks: list[dict[str, Any]] = []
             offset = None
+            capped = False
 
             while True:
                 results, next_offset = await self._store.scroll(filters=filters, limit=500, offset=offset)
@@ -315,9 +318,20 @@ class VectorRetrieval:
                             "tags": r.payload.get("tags", []),
                         }
                     )
-                if next_offset is None or not results:
+                    if len(all_chunks) >= self._bm25_max_chunks:
+                        capped = True
+                        break
+                if capped or next_offset is None or not results:
                     break
                 offset = next_offset
+
+            if capped:
+                logger.warning(
+                    "bm25 index capped at %d chunks for knowledge_id=%s — "
+                    "consider sparse_embeddings for larger corpora",
+                    self._bm25_max_chunks,
+                    knowledge_id,
+                )
 
             self._evict_lru()
 
