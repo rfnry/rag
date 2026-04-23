@@ -71,9 +71,8 @@ class SQLAlchemyMetadataStore:
             parsed = parsed.set(drivername="postgresql+asyncpg")
         elif parsed.drivername == "sqlite":
             parsed = parsed.set(drivername="sqlite+aiosqlite")
-        connection_string = parsed.render_as_string(hide_password=False)
 
-        self._engine = create_async_engine(connection_string, echo=False)
+        self._engine = create_async_engine(parsed, echo=False)
         self._session_factory = async_sessionmaker(self._engine, class_=AsyncSession, expire_on_commit=False)
 
     async def initialize(self) -> None:
