@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import os
 import tomllib
 from pathlib import Path
 from typing import Any
 
+from rfnry_rag.common.cli import get_api_key as _get_api_key
 from rfnry_rag.retrieval.cli.constants import CONFIG_FILE, ENV_FILE, ConfigError, load_dotenv
 from rfnry_rag.retrieval.common.language_model import LanguageModelClient, LanguageModelProvider
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
@@ -26,13 +26,6 @@ from rfnry_rag.retrieval.server import (
 )
 from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
-
-
-def _get_api_key(env_var: str, provider_name: str) -> str:
-    key = os.environ.get(env_var, "")
-    if not key:
-        raise ConfigError(f"{env_var} not set — required for {provider_name}. Add it to {ENV_FILE}")
-    return key
 
 
 def _build_vector_store(cfg: dict[str, Any]) -> QdrantVectorStore:

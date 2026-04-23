@@ -3,28 +3,16 @@ from __future__ import annotations
 import json
 import sys
 from dataclasses import asdict
-from enum import Enum
 from typing import TYPE_CHECKING, Any
+
+from rfnry_rag.common.cli import OutputMode as OutputMode
+from rfnry_rag.common.cli import get_output_mode as get_output_mode
 
 if TYPE_CHECKING:
     from rfnry_rag.reasoning.modules.analysis.models import AnalysisResult
     from rfnry_rag.reasoning.modules.classification.models import Classification
     from rfnry_rag.reasoning.modules.compliance.models import ComplianceResult
     from rfnry_rag.reasoning.modules.evaluation.models import EvaluationResult
-
-
-class OutputMode(Enum):
-    JSON = "json"
-    PRETTY = "pretty"
-
-
-def get_output_mode(explicit: str | None) -> OutputMode:
-    """Determine output mode: explicit flag > TTY detection."""
-    if explicit == "json":
-        return OutputMode.JSON
-    if explicit == "pretty":
-        return OutputMode.PRETTY
-    return OutputMode.PRETTY if sys.stdout.isatty() else OutputMode.JSON
 
 
 def _json_default(obj: Any) -> Any:

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import os
 import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from rfnry_rag.common.cli import get_api_key as _get_api_key
 from rfnry_rag.reasoning.cli.constants import CONFIG_FILE, ENV_FILE, ConfigError, load_dotenv
 from rfnry_rag.reasoning.common.language_model import LanguageModelClient, LanguageModelProvider
 
@@ -24,13 +24,6 @@ _LM_DEFAULTS = {
     "anthropic": "claude-sonnet-4-20250514",
     "openai": "gpt-4o",
 }
-
-
-def _get_api_key(env_var: str, provider_name: str) -> str:
-    key = os.environ.get(env_var, "")
-    if not key:
-        raise ConfigError(f"{env_var} not set — required for {provider_name}. Add it to {ENV_FILE}")
-    return key
 
 
 def _build_lm_provider(cfg: dict[str, Any]) -> LanguageModelProvider:
