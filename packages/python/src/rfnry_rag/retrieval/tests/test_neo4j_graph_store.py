@@ -168,10 +168,14 @@ async def test_delete_by_source_runs_cleanup_in_transaction(mock_neo4j_module, m
     driver, session = mock_driver
     mock_neo4j_module.driver.return_value = driver
 
+    # The store now uses `async with await session.begin_transaction() as tx:`
+    # for automatic commit/rollback, so the test exercises the tx via its
+    # context-manager protocol rather than explicit commit/rollback calls.
     tx = AsyncMock()
     tx.run = AsyncMock()
-    tx.commit = AsyncMock()
-    tx.rollback = AsyncMock()
+    # AsyncMock's default __aenter__ returns a fresh mock; bind it to tx so the
+    # `async with ... as tx:` body uses the same object we track.
+    tx.__aenter__.return_value = tx
     session.begin_transaction = AsyncMock(return_value=tx)
 
     store = Neo4jGraphStore(uri="bolt://localhost:7687", password="test-pw")
@@ -180,8 +184,8 @@ async def test_delete_by_source_runs_cleanup_in_transaction(mock_neo4j_module, m
     await store.delete_by_source(source_id="src-1")
 
     assert tx.run.call_count == 5
-    tx.commit.assert_called_once()
-    tx.rollback.assert_not_called()
+    tx.__aenter__.assert_awaited_once()
+    tx.__aexit__.assert_awaited_once()
 
 
 @patch("rfnry_rag.retrieval.stores.graph.neo4j.AsyncGraphDatabase")

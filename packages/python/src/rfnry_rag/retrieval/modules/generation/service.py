@@ -205,6 +205,10 @@ class GenerationService:
                     yield StreamEvent(type="chunk", content=delta)
                     prev = partial
         except Exception as exc:
+            # Emit a terminal event before raising so consumers iterating the
+            # async generator always see a structured error marker, not just
+            # an unexpected exception out of the for-loop.
+            yield StreamEvent(type="done", content=f"generation error: {exc}", grounded=False)
             raise GenerationError(f"LLM streaming failed: {exc}") from exc
 
         sources = self._build_sources(relevant_chunks)

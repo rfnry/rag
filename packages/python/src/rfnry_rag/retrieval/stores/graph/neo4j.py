@@ -299,19 +299,18 @@ class Neo4jGraphStore:
         """Remove all graph data introduced by a source, handling dedup correctly.
 
         Runs as a single transaction so partial failures don't leave inconsistent state.
+        The async-context-manager form guarantees cleanup even on commit-path
+        server errors, which the manual try/commit pattern cannot.
         """
-        async with self._driver.session(database=self.database) as session:
-            tx = await session.begin_transaction()
-            try:
-                await tx.run(_DELETE_RELATIONS_QUERY, source_id=source_id)
-                await tx.run(_DELETE_SOURCE_FROM_ENTITIES_QUERY, source_id=source_id)
-                await tx.run(_DELETE_ORPHANED_ENTITIES_QUERY)
-                await tx.run(_DELETE_PAGES_QUERY, source_id=source_id)
-                await tx.run(_DELETE_DOCUMENT_QUERY, source_id=source_id)
-                await tx.commit()
-            except Exception:
-                await tx.rollback()
-                raise
+        async with (
+            self._driver.session(database=self.database) as session,
+            await session.begin_transaction() as tx,
+        ):
+            await tx.run(_DELETE_RELATIONS_QUERY, source_id=source_id)
+            await tx.run(_DELETE_SOURCE_FROM_ENTITIES_QUERY, source_id=source_id)
+            await tx.run(_DELETE_ORPHANED_ENTITIES_QUERY)
+            await tx.run(_DELETE_PAGES_QUERY, source_id=source_id)
+            await tx.run(_DELETE_DOCUMENT_QUERY, source_id=source_id)
 
         logger.info("deleted graph data for source %s", source_id)
 

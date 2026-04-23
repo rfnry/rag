@@ -86,6 +86,23 @@ DEFAULT_SYSTEM_PROMPT = (
 
 @dataclass
 class PersistenceConfig:
+    """Storage backends for the RAG engine.
+
+    Two distinct routing concepts coexist in the engine:
+
+    - **collection** (e.g. ``vector_store.collections=["knowledge", "logs"]``):
+      the backend routing key — a Qdrant collection name, filesystem subdir, or
+      Postgres schema. Chosen per-ingest/retrieve call via the ``collection=``
+      argument and maps 1:1 to a pipeline instance.
+    - **knowledge_id** (e.g. ``knowledge_id="tenant-42"``): a per-document
+      partition filter applied at query time. Multiple knowledge_ids share the
+      same collection; retrieval filters to the requested one.
+
+    Use ``collection`` to physically separate data (different Qdrant clusters
+    or schemas); use ``knowledge_id`` to logically partition within one
+    collection.
+    """
+
     vector_store: BaseVectorStore | None = None
     metadata_store: BaseMetadataStore | None = None
     document_store: BaseDocumentStore | None = None
@@ -96,7 +113,9 @@ class PersistenceConfig:
 class IngestionConfig:
     embeddings: BaseEmbeddings | None = None
     vision: BaseVision | None = None
+    # ~100 words per chunk, fits typical 512-1536 token embedding windows.
     chunk_size: int = 500
+    # 10% overlap preserves cross-boundary context without blowing up chunk count.
     chunk_overlap: int = 50
     dpi: int = 300
     lm_client: LanguageModelClient | None = None

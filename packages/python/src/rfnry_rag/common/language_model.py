@@ -130,7 +130,7 @@ def _apply_boundary_api_key(key: str | None) -> None:
     """Boundary authentication is a process-global env var (BOUNDARY_API_KEY)
     — BAML's collector reads it at send time. To avoid silent clobbering
     across multiple LanguageModelClient instances, we first-write-wins and
-    warn when the user attempts to register a different key."""
+    raise on collision so a multi-tenant misconfiguration is never hidden."""
     if not key:
         return
     existing = os.environ.get(_BOUNDARY_ENV)
@@ -138,7 +138,9 @@ def _apply_boundary_api_key(key: str | None) -> None:
         os.environ[_BOUNDARY_ENV] = key
         return
     if existing != key:
-        _boundary_logger.warning(
-            "boundary_api_key already set to a different value — ignoring new key. "
-            "Set BOUNDARY_API_KEY in the environment once at process start to avoid this."
+        raise ConfigurationError(
+            "boundary_api_key collision — a different BOUNDARY_API_KEY is "
+            "already set for this process. Set BOUNDARY_API_KEY in the "
+            "environment once at process start (shared across all "
+            "LanguageModelClient instances) to avoid this."
         )

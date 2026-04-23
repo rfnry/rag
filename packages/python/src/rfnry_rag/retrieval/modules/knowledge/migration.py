@@ -15,6 +15,11 @@ async def check_embedding_migration(
     """
     if metadata_store is None:
         return 0
+    # No embedding model configured (retrieval-only / document-only setups)
+    # means no staleness check applies — otherwise every prior-ingest source
+    # would be marked stale against embedding_model=="", flooding logs.
+    if not embedding_model_name:
+        return 0
 
     sources = await metadata_store.list_sources()
     stale_count = 0

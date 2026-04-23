@@ -1,7 +1,6 @@
 """BOUNDARY_API_KEY handling — first-write-wins, no silent clobbering
 across multiple LanguageModelClient instances."""
 
-import logging
 import os
 
 import pytest
@@ -31,11 +30,12 @@ def test_apply_boundary_api_key_same_value_is_idempotent() -> None:
     assert os.environ["BOUNDARY_API_KEY"] == "same"
 
 
-def test_apply_boundary_api_key_different_value_warns_and_preserves_first(
-    caplog,
-) -> None:
+def test_apply_boundary_api_key_different_value_raises() -> None:
+    """Collision on boundary key now raises so multi-tenant misconfiguration
+    can't be silently hidden."""
+    from rfnry_rag.common.errors import ConfigurationError
+
     _apply_boundary_api_key("first")
-    with caplog.at_level(logging.WARNING, logger="rfnry_rag.common.language_model"):
+    with pytest.raises(ConfigurationError, match="boundary_api_key collision"):
         _apply_boundary_api_key("second")
     assert os.environ["BOUNDARY_API_KEY"] == "first"
-    assert any("boundary_api_key already set" in rec.message for rec in caplog.records)

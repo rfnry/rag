@@ -33,10 +33,15 @@ retry_policy Retry5 {
   }
 }
 
+// Fallback client used only if no ClientRegistry override is supplied.
+// The model name is a sentinel so any unrouted call fails fast with a clear
+// provider error instead of silently proceeding on a specific model that may
+// be deprecated. Production code must always pass `client_registry` built via
+// `build_registry(LanguageModelClient)`.
 client<llm> Default {
   provider openai
   retry_policy Retry3
   options {
-    model "gpt-4o-mini"
+    model "UNCONFIGURED-route-through-build-registry"
   }
 }

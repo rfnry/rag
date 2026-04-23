@@ -70,13 +70,21 @@ class RetrievalService:
 
         all_result_lists: list[list[RetrievedChunk]] = []
         all_weights: list[float] = []
+        successes = 0
         for idx, outcome in enumerate(query_results):
             if isinstance(outcome, BaseException):
                 logger.warning("query variant %d failed: %s — skipping", idx, outcome)
                 continue
+            successes += 1
             result_lists, weights = outcome
             all_result_lists.extend(result_lists)
             all_weights.extend(weights)
+
+        # If every query variant errored, don't silently return [] — callers
+        # need to distinguish total failure from legitimately empty results.
+        if query_results and successes == 0 and not tree_chunks:
+            from rfnry_rag.retrieval.common.errors import RetrievalError
+            raise RetrievalError("all retrieval query variants failed")
 
         if tree_chunks:
             all_result_lists.append(tree_chunks)
