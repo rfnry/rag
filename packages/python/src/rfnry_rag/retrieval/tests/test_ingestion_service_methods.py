@@ -311,9 +311,11 @@ async def test_ingestion_payload_has_context_fields(tmp_path):
 
 
 async def test_method_failure_does_not_abort_pipeline():
-    """If one method raises, others still run."""
-    failing = SimpleNamespace(name="graph", ingest=AsyncMock(side_effect=RuntimeError("boom")), delete=AsyncMock())
-    succeeding = SimpleNamespace(name="document", ingest=AsyncMock(), delete=AsyncMock())
+    """If an OPTIONAL method raises, others still run."""
+    failing = SimpleNamespace(
+        name="graph", required=False, ingest=AsyncMock(side_effect=RuntimeError("boom")), delete=AsyncMock()
+    )
+    succeeding = SimpleNamespace(name="document", required=True, ingest=AsyncMock(), delete=AsyncMock())
     service = _make_service(methods=[failing, succeeding])
     source = await service.ingest_text(content="Hello world")
     # Graph failed but document still called

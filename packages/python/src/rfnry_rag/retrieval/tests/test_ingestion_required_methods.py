@@ -1,0 +1,107 @@
+"""Required-vs-optional ingestion methods.
+
+Regression: when a required method (vector/document) fails, the service must
+raise IngestionError AND skip the metadata commit. Previously every failure
+was caught as a warning and the source row was committed anyway, causing
+silent data loss (e.g. vector upsert failed but user sees a valid source)."""
+
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from rfnry_rag.retrieval.common.errors import IngestionError
+from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker
+from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
+
+
+def _make_method(name: str, *, required: bool, fails: bool) -> MagicMock:
+    m = MagicMock()
+    m.name = name
+    m.required = required
+    m.ingest = AsyncMock(side_effect=RuntimeError("boom") if fails else None)
+    m.delete = AsyncMock()
+    return m
+
+
+@pytest.mark.asyncio
+async def test_required_method_failure_aborts_and_does_not_commit_source(tmp_path):
+    metadata_store = MagicMock()
+    metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.create_source = AsyncMock()
+    svc = IngestionService(
+        chunker=SemanticChunker(chunk_size=100, chunk_overlap=10),
+        ingestion_methods=[
+            _make_method("vector", required=True, fails=True),
+            _make_method("document", required=True, fails=False),
+        ],
+        embedding_model_name="test:model",
+        source_type_weights=None,
+        metadata_store=metadata_store,
+        on_ingestion_complete=None,
+        vision_parser=None,
+        contextual_chunking=False,
+    )
+    fp = tmp_path / "a.txt"
+    fp.write_text("hello world " * 50)
+
+    with pytest.raises(IngestionError, match="vector"):
+        await svc.ingest(file_path=fp)
+
+    metadata_store.create_source.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_optional_method_failure_is_logged_and_ingest_succeeds(tmp_path):
+    metadata_store = MagicMock()
+    metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.create_source = AsyncMock()
+    svc = IngestionService(
+        chunker=SemanticChunker(chunk_size=100, chunk_overlap=10),
+        ingestion_methods=[
+            _make_method("vector", required=True, fails=False),
+            _make_method("graph", required=False, fails=True),
+        ],
+        embedding_model_name="test:model",
+        source_type_weights=None,
+        metadata_store=metadata_store,
+        on_ingestion_complete=None,
+        vision_parser=None,
+        contextual_chunking=False,
+    )
+    fp = tmp_path / "a.txt"
+    fp.write_text("hello world " * 50)
+
+    await svc.ingest(file_path=fp)
+
+    metadata_store.create_source.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_method_without_required_attribute_defaults_to_required(tmp_path):
+    """Back-compat: if a protocol-conforming third-party method doesn't expose
+    `required`, we treat it as required so failures are not silently swallowed."""
+    metadata_store = MagicMock()
+    metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.create_source = AsyncMock()
+
+    legacy_method = MagicMock()
+    legacy_method.name = "legacy"
+    legacy_method.ingest = AsyncMock(side_effect=RuntimeError("boom"))
+    legacy_method.delete = AsyncMock()
+    del legacy_method.required  # MagicMock auto-creates attrs; delete to simulate "missing"
+
+    svc = IngestionService(
+        chunker=SemanticChunker(chunk_size=100, chunk_overlap=10),
+        ingestion_methods=[legacy_method],
+        embedding_model_name="test:model",
+        source_type_weights=None,
+        metadata_store=metadata_store,
+        on_ingestion_complete=None,
+        vision_parser=None,
+        contextual_chunking=False,
+    )
+    fp = tmp_path / "a.txt"
+    fp.write_text("hello world " * 50)
+
+    with pytest.raises(IngestionError):
+        await svc.ingest(file_path=fp)

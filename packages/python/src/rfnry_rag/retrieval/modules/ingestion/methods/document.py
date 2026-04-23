@@ -13,6 +13,8 @@ logger = get_logger("ingestion.methods.document")
 class DocumentIngestion:
     """Store full document text in the document store."""
 
+    required: bool = True
+
     def __init__(self, document_store: BaseDocumentStore) -> None:
         self._store = document_store
 

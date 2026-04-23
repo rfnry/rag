@@ -33,6 +33,8 @@ class GraphIngestion:
     stores via ``graph_store.add_entities()``.
     """
 
+    required: bool = False
+
     def __init__(
         self,
         graph_store: BaseGraphStore,

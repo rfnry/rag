@@ -18,6 +18,8 @@ logger = get_logger("ingestion.methods.vector")
 class VectorIngestion:
     """Embed chunks and store as vector points."""
 
+    required: bool = True
+
     def __init__(
         self,
         vector_store: BaseVectorStore,

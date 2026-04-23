@@ -15,6 +15,8 @@ logger = get_logger("ingestion.methods.tree")
 class TreeIngestion:
     """Build and persist tree index from parsed pages."""
 
+    required: bool = False
+
     def __init__(self, tree_service: TreeIndexingService) -> None:
         self._service = tree_service
 

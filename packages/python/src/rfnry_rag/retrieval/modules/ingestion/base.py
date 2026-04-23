@@ -6,7 +6,16 @@ from rfnry_rag.retrieval.modules.ingestion.models import ChunkedContent, ParsedP
 
 
 class BaseIngestionMethod(Protocol):
-    """Protocol for pluggable ingestion methods."""
+    """Protocol for pluggable ingestion methods.
+
+    Methods declare ``required = True`` when their failure must abort
+    ingestion (no metadata commit, IngestionError raised). ``required = False``
+    means the failure is logged and ingestion continues. If a method omits
+    the attribute, the dispatcher treats it as required to preserve data
+    integrity by default.
+    """
+
+    required: bool
 
     @property
     def name(self) -> str: ...

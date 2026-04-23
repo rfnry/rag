@@ -11,6 +11,7 @@ from rfnry_rag.retrieval.common.errors import (
     ConfigurationError,
     DuplicateSourceError,
     EmptyDocumentError,
+    IngestionError,
 )
 from rfnry_rag.retrieval.common.hashing import file_hash
 from rfnry_rag.retrieval.common.logging import get_logger
@@ -101,10 +102,14 @@ class IngestionService:
     ) -> None:
         """Dispatch ingestion to all registered methods.
 
-        Each method is wrapped in try/except so that a failure in one method
-        (e.g. tree indexing) does not abort the entire pipeline.  Methods that
-        consider themselves critical (vector, document) can still raise — the
-        exception is logged here and then the pipeline continues.
+        Each method declares ``required: bool``. Required methods (vector,
+        document) abort ingestion on failure by raising ``IngestionError`` —
+        the caller uses this to skip the metadata commit so a partially-
+        ingested source is never marked as successful. Optional methods
+        (graph, tree) are logged and the pipeline continues.
+
+        A method missing the ``required`` attribute is treated as required
+        to preserve data integrity by default.
         """
         for method in self._ingestion_methods:
             try:
@@ -122,7 +127,12 @@ class IngestionService:
                     pages=pages,
                 )
             except Exception as exc:
-                logger.warning("ingestion method '%s' failed: %s", method.name, exc)
+                if getattr(method, "required", True):
+                    logger.exception("required ingestion method '%s' failed — aborting", method.name)
+                    raise IngestionError(
+                        f"required ingestion method '{method.name}' failed: {exc}"
+                    ) from exc
+                logger.warning("optional ingestion method '%s' failed: %s", method.name, exc)
 
     async def ingest(
         self,
