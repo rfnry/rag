@@ -183,6 +183,71 @@ def _derive_embedding_model_name(embeddings: BaseEmbeddings) -> str:
 
 
 class RagEngine:
+    @classmethod
+    def vector_only(
+        cls,
+        *,
+        vector_store: BaseVectorStore,
+        embeddings: BaseEmbeddings,
+        top_k: int = 5,
+        reranker: BaseReranking | None = None,
+        query_rewriter: BaseQueryRewriting | None = None,
+        sparse_embeddings: BaseSparseEmbeddings | None = None,
+    ) -> RagServerConfig:
+        """Preset: dense vector search only. Add reranker/rewriter for quality."""
+        return RagServerConfig(
+            persistence=PersistenceConfig(vector_store=vector_store),
+            ingestion=IngestionConfig(
+                embeddings=embeddings, sparse_embeddings=sparse_embeddings
+            ),
+            retrieval=RetrievalConfig(
+                top_k=top_k, reranker=reranker, query_rewriter=query_rewriter
+            ),
+        )
+
+    @classmethod
+    def document_only(
+        cls,
+        *,
+        document_store: BaseDocumentStore,
+        top_k: int = 5,
+        reranker: BaseReranking | None = None,
+    ) -> RagServerConfig:
+        """Preset: full-text / substring search only. No embeddings needed."""
+        return RagServerConfig(
+            persistence=PersistenceConfig(document_store=document_store),
+            ingestion=IngestionConfig(),
+            retrieval=RetrievalConfig(top_k=top_k, reranker=reranker),
+        )
+
+    @classmethod
+    def hybrid(
+        cls,
+        *,
+        vector_store: BaseVectorStore,
+        embeddings: BaseEmbeddings,
+        document_store: BaseDocumentStore | None = None,
+        graph_store: BaseGraphStore | None = None,
+        sparse_embeddings: BaseSparseEmbeddings | None = None,
+        reranker: BaseReranking | None = None,
+        query_rewriter: BaseQueryRewriting | None = None,
+        top_k: int = 5,
+    ) -> RagServerConfig:
+        """Preset: multi-path retrieval with optional document/graph/sparse paths + rerank."""
+        return RagServerConfig(
+            persistence=PersistenceConfig(
+                vector_store=vector_store,
+                document_store=document_store,
+                graph_store=graph_store,
+            ),
+            ingestion=IngestionConfig(
+                embeddings=embeddings, sparse_embeddings=sparse_embeddings
+            ),
+            retrieval=RetrievalConfig(
+                top_k=top_k, reranker=reranker, query_rewriter=query_rewriter
+            ),
+        )
+
     def __init__(self, config: RagServerConfig) -> None:
         self._config = config
         self._initialized = False
