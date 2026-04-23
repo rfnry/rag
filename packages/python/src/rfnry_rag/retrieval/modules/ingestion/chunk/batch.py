@@ -163,7 +163,14 @@ class BatchIngestionService:
             await _schedule(batch)
 
         if in_progress:
-            await asyncio.gather(*in_progress)
+            # return_exceptions=True so a single failure doesn't cancel the rest.
+            # Without it, gather propagates the first exception, cancels other
+            # in-flight tasks, and stats.total would be inconsistent with actual
+            # work done. Mirrors the eager-surface logic above.
+            results = await asyncio.gather(*in_progress, return_exceptions=True)
+            for result in results:
+                if isinstance(result, BaseException):
+                    logger.exception("batch ingestion task failed", exc_info=result)
 
         stats.total = index
         stats.duration_seconds = time.monotonic() - start
