@@ -47,6 +47,36 @@ logger = get_logger("server")
 
 SUPPORTED_STRUCTURED_EXTENSIONS = {".xml", ".l5x"}
 
+# Size guards on user-supplied inputs. These prevent monetary-DoS (huge query
+# sent to every embedding provider) and OOM (unbounded text or metadata). The
+# values are conservative but configurable via construction arguments.
+_MAX_QUERY_CHARS = 32_000
+_MAX_INGEST_CHARS = 5_000_000
+_MAX_METADATA_KEYS = 50
+_MAX_METADATA_VALUE_CHARS = 8_000
+
+
+def _validate_query_text(text: str) -> None:
+    if len(text) > _MAX_QUERY_CHARS:
+        raise ValueError(f"query exceeds {_MAX_QUERY_CHARS} chars (got {len(text)})")
+
+
+def _validate_ingest_content(content: str) -> None:
+    if len(content) > _MAX_INGEST_CHARS:
+        raise ValueError(f"ingest content exceeds {_MAX_INGEST_CHARS} chars (got {len(content)})")
+
+
+def _validate_metadata(metadata: dict[str, Any] | None) -> None:
+    if not metadata:
+        return
+    if len(metadata) > _MAX_METADATA_KEYS:
+        raise ValueError(f"metadata exceeds {_MAX_METADATA_KEYS} keys (got {len(metadata)})")
+    for k, v in metadata.items():
+        if isinstance(v, str) and len(v) > _MAX_METADATA_VALUE_CHARS:
+            raise ValueError(
+                f"metadata[{k!r}] value exceeds {_MAX_METADATA_VALUE_CHARS} chars (got {len(v)})"
+            )
+
 DEFAULT_SYSTEM_PROMPT = (
     "You are a helpful assistant. Use only the provided context to answer questions. "
     "Cite sources with page numbers when available. If the context does not contain "
@@ -158,6 +188,13 @@ class GenerationConfig:
             raise ConfigurationError("relevance_gate_enabled requires relevance_gate_model")
         if self.guiding_enabled and not self.relevance_gate_enabled:
             raise ConfigurationError("guiding_enabled requires relevance_gate_enabled")
+        # Boundary sanity: threshold 0.0 with grounding enabled accepts every
+        # answer (no-op); threshold 1.0 blocks every answer. Either is a
+        # misconfiguration, though only 0.0 is outright incoherent.
+        if self.grounding_enabled and self.grounding_threshold == 0.0:
+            raise ConfigurationError(
+                "grounding_enabled=True with grounding_threshold=0.0 is a no-op"
+            )
 
 
 @dataclass
@@ -367,6 +404,15 @@ class RagEngine:
             raise ConfigurationError("tree_indexing requires metadata_store")
         if cfg.tree_search.enabled and not p.metadata_store:
             raise ConfigurationError("tree_search requires metadata_store")
+        if (
+            cfg.tree_indexing.enabled
+            and cfg.tree_search.enabled
+            and cfg.tree_indexing.max_tokens_per_node > cfg.tree_search.max_context_tokens
+        ):
+            raise ConfigurationError(
+                "tree_indexing.max_tokens_per_node cannot exceed tree_search.max_context_tokens "
+                "(a single indexed node would not fit in the search context window)"
+            )
 
         if cfg.retrieval.bm25_enabled and i.sparse_embeddings:
             raise ConfigurationError(
@@ -512,6 +558,11 @@ class RagEngine:
         # Analyzed ingestion — shares document method from main list, graph store passed directly
         if persistence.metadata_store and persistence.vector_store and ingestion.embeddings:
             analyzed_methods = [m for m in ingestion_methods if m.name == "document"]
+            if not analyzed_methods:
+                logger.warning(
+                    "structured ingestion enabled but no DocumentIngestion configured — "
+                    "analyzed phase 3 will skip document storage"
+                )
 
             self._structured_ingestion = AnalyzedIngestionService(
                 embeddings=ingestion.embeddings,
@@ -662,6 +713,7 @@ class RagEngine:
     ) -> Source:
         """Ingest a file. Routes to unstructured or structured based on extension."""
         self._check_initialized()
+        _validate_metadata(metadata)
         file_path = Path(file_path)
         ext = file_path.suffix.lower()
 
@@ -729,6 +781,8 @@ class RagEngine:
     ) -> Source:
         """Ingest raw text content into the RAG pipeline."""
         self._check_initialized()
+        _validate_ingest_content(content)
+        _validate_metadata(metadata)
         ingestion_svc = self._get_ingestion(collection)
         return await ingestion_svc.ingest_text(
             content=content, knowledge_id=knowledge_id, source_type=source_type, metadata=metadata
@@ -780,6 +834,7 @@ class RagEngine:
     ) -> QueryResult:
         """Full pipeline: retrieval + grounding + LLM generation."""
         self._check_initialized()
+        _validate_query_text(text)
         if not self._generation_service:
             raise RuntimeError("query() requires generation to be configured")
 
@@ -799,6 +854,7 @@ class RagEngine:
     ) -> AsyncIterator[StreamEvent]:
         """Full pipeline with streaming: retrieval + grounding + streamed LLM generation."""
         self._check_initialized()
+        _validate_query_text(text)
         if not self._generation_service:
             raise RuntimeError("query_stream() requires generation to be configured")
 
@@ -817,6 +873,7 @@ class RagEngine:
     ) -> list[RetrievedChunk]:
         """Low-level retrieval only, no LLM generation."""
         self._check_initialized()
+        _validate_query_text(text)
         return await self._retrieve_chunks(text, knowledge_id, None, min_score, collection)
 
     async def generate_step(
@@ -998,11 +1055,21 @@ class RagEngine:
         tree_kwargs: dict[str, Any] = {"tree_chunks": tree_chunks} if tree_chunks else {}
 
         if structured:
-            unstructured_chunks, structured_chunks = await asyncio.gather(
+            # return_exceptions so one path failing doesn't kill the query.
+            # The inner search service already degrades per-variant; this makes
+            # the structured-vs-unstructured merge consistent.
+            results = await asyncio.gather(
                 unstructured.retrieve(query=retrieval_query, knowledge_id=knowledge_id, **tree_kwargs),
                 structured.retrieve(query=retrieval_query, knowledge_id=knowledge_id),
+                return_exceptions=True,
             )
-            chunks = self._merge_retrieval_results(unstructured_chunks, structured_chunks)
+            unstructured_chunks = results[0] if not isinstance(results[0], BaseException) else []
+            structured_chunks = results[1] if not isinstance(results[1], BaseException) else []
+            if isinstance(results[0], BaseException):
+                logger.warning("unstructured retrieval failed: %s", results[0])
+            if isinstance(results[1], BaseException):
+                logger.warning("structured retrieval failed: %s", results[1])
+            chunks = self._merge_retrieval_results(unstructured_chunks, structured_chunks)  # type: ignore[arg-type]
         else:
             chunks = await unstructured.retrieve(
                 query=retrieval_query, knowledge_id=knowledge_id, **tree_kwargs

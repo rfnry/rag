@@ -192,6 +192,12 @@ class FilesystemDocumentStore:
 
         def _search() -> Path | None:
             for p in self._base_path.rglob(filename):
+                # Defense-in-depth against symlink-based escapes: never follow a
+                # symlink inside the store directory. Combined with the path-
+                # component whitelist this prevents any read of files outside
+                # base_path even if a user plants a symlink.
+                if p.is_symlink():
+                    continue
                 return p
             return None
 
@@ -237,6 +243,9 @@ class FilesystemDocumentStore:
                 return []
             entries = []
             for md_file in search_dir.rglob("*.md"):
+                if md_file.is_symlink():
+                    # Skip symlinks — never read through them even inside base_path.
+                    continue
                 parsed = self._parse_file(md_file)
                 entries.append(parsed)
             return entries

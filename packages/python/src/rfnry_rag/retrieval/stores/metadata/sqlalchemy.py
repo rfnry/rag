@@ -86,6 +86,7 @@ class SQLAlchemyMetadataStore:
         max_overflow: int | None = None,
         pool_recycle: int = 1800,
         pool_pre_ping: bool = True,
+        pool_timeout: int = 10,
         echo: bool = False,
     ) -> None:
         parsed = make_url(url)
@@ -100,6 +101,9 @@ class SQLAlchemyMetadataStore:
         if parsed.drivername.startswith("postgresql"):
             kwargs["pool_pre_ping"] = pool_pre_ping
             kwargs["pool_recycle"] = pool_recycle
+            # pool_timeout default in SQLAlchemy is 30s; lower it so pool
+            # exhaustion surfaces as a fast error instead of a hidden stall.
+            kwargs["pool_timeout"] = pool_timeout
             if pool_size is not None:
                 kwargs["pool_size"] = pool_size
             if max_overflow is not None:

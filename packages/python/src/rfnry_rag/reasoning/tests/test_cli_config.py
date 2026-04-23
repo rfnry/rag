@@ -62,7 +62,9 @@ class TestLoadConfig:
 
     def test_missing_language_model_raises(self, tmp_path):
         config = tmp_path / "config.toml"
-        config.write_text("[embeddings]\nprovider = 'openai'\n")
+        # Empty TOML — no [language_model] section. load_config rejects unknown
+        # top-level keys now, so test with a legitimately-empty config.
+        config.write_text("")
         env = tmp_path / ".env"
         env.write_text("")
 

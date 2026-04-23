@@ -75,6 +75,8 @@ class BatchConfig:
             raise ValueError("batch_size must be >= 1")
         if self.concurrency < 1:
             raise ValueError("concurrency must be >= 1")
+        if self.concurrency > 20:
+            raise ValueError("concurrency must be <= 20 — higher values risk overwhelming the vector store")
 
 
 class BatchIngestionService:

@@ -30,6 +30,10 @@ def init() -> None:
         click.echo(f"Config already exists: {CONFIG_FILE}")
     else:
         CONFIG_FILE.write_text(_CONFIG_TEMPLATE)
+        # chmod 0o600 to match retrieval init — owner-only read even though the
+        # reasoning template currently holds no secrets, since provider/model
+        # identifiers can aid reconnaissance and future templates may add keys.
+        CONFIG_FILE.chmod(0o600)
         created.append(str(CONFIG_FILE))
 
     if ENV_FILE.exists():

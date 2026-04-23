@@ -12,7 +12,10 @@ class MethodNamespace[T]:
     def __init__(self, methods: list[T]) -> None:
         self._methods: dict[str, T] = {}
         for method in methods:
-            self._methods[method.name] = method  # type: ignore[attr-defined]
+            name = method.name  # type: ignore[attr-defined]
+            if name in self._methods:
+                raise ValueError(f"duplicate method name in namespace: {name!r}")
+            self._methods[name] = method
 
     def __getattr__(self, name: str) -> T:
         try:

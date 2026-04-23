@@ -101,6 +101,19 @@ def build_evaluation_service(toml: dict[str, Any]) -> EvaluationService:
     return _EvaluationService(lm_client=build_lm_client(toml))
 
 
+_ALLOWED_TOP_KEYS = {"language_model", "analysis", "classification", "compliance", "evaluation"}
+
+
+def _validate_toml_keys(toml: dict[str, Any]) -> None:
+    """Reject unknown top-level keys in config.toml to surface typos early."""
+    unknown = set(toml.keys()) - _ALLOWED_TOP_KEYS
+    if unknown:
+        raise ConfigError(
+            f"Unknown top-level key(s) in config.toml: {sorted(unknown)}. "
+            f"Allowed keys: {sorted(_ALLOWED_TOP_KEYS)}"
+        )
+
+
 def load_config(config_path: str | None = None) -> dict[str, Any]:
     """Load TOML config + .env, return raw TOML dict."""
     path = Path(config_path) if config_path else CONFIG_FILE
@@ -111,4 +124,6 @@ def load_config(config_path: str | None = None) -> dict[str, Any]:
     load_dotenv(env_path)
 
     with open(path, "rb") as f:
-        return tomllib.load(f)
+        toml = tomllib.load(f)
+    _validate_toml_keys(toml)
+    return toml
