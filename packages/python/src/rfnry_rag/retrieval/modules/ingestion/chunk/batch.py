@@ -132,21 +132,38 @@ class BatchIngestionService:
                         )
                     )
 
-        tasks: list[asyncio.Task] = []
+        # Bounded inflight queue: the semaphore throttles concurrent *execution*
+        # but we also need to throttle *task creation* so a million-record stream
+        # does not schedule a million task objects at once.
+        max_inflight = max(self._config.concurrency * 2, 2)
+        in_progress: set[asyncio.Task] = set()
+
+        async def _schedule(current_batch: list[tuple[int, TextRecord]]) -> None:
+            if len(in_progress) >= max_inflight:
+                done, _ = await asyncio.wait(in_progress, return_when=asyncio.FIRST_COMPLETED)
+                for t in done:
+                    in_progress.discard(t)
+                    # surface exceptions eagerly; otherwise failures would only
+                    # appear at final gather and mask which batch failed
+                    exc = t.exception()
+                    if exc is not None:
+                        raise exc
+            task = asyncio.create_task(_process_batch(current_batch))
+            in_progress.add(task)
+
         index = 0
         async for record in stream:
             batch.append((index, record))
             index += 1
             if len(batch) >= self._config.batch_size:
-                current_batch = batch[:]
+                await _schedule(batch[:])
                 batch = []
-                tasks.append(asyncio.create_task(_process_batch(current_batch)))
 
         if batch:
-            tasks.append(asyncio.create_task(_process_batch(batch)))
+            await _schedule(batch)
 
-        if tasks:
-            await asyncio.gather(*tasks)
+        if in_progress:
+            await asyncio.gather(*in_progress)
 
         stats.total = index
         stats.duration_seconds = time.monotonic() - start
