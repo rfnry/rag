@@ -82,29 +82,42 @@ class SQLAlchemyMetadataStore:
         logger.info("metadata store tables initialized")
 
     @staticmethod
+    def _render_default_literal(val: object, dialect) -> str:
+        """Render a Python default value as a SQL literal, dialect-safe."""
+        if isinstance(val, bool):
+            return "1" if val else "0"
+        if val is None:
+            return "NULL"
+        if isinstance(val, (int, float)):
+            return str(val)
+        proc = String().literal_processor(dialect=dialect)
+        return proc(str(val))
+
+    @staticmethod
     def _migrate_missing_columns(conn) -> None:
         """Add any columns that exist in the model but not in the database (schema evolution)."""
         insp = inspect(conn)
+        preparer = conn.dialect.identifier_preparer
         for table in _Base.metadata.sorted_tables:
             if not insp.has_table(table.name):
                 continue
             existing = {col["name"] for col in insp.get_columns(table.name)}
             for column in table.columns:
-                if column.name not in existing:
-                    col_type = column.type.compile(conn.dialect)
-                    default = ""
-                    if column.default is not None and isinstance(column.default, ColumnDefault):
-                        val = column.default.arg
-                        if isinstance(val, bool):
-                            default = f" DEFAULT {1 if val else 0}"
-                        elif isinstance(val, str):
-                            default = f" DEFAULT '{val}'"
-                        else:
-                            default = f" DEFAULT {val}"
-                    nullable = "" if column.nullable else " NOT NULL"
-                    sql = f"ALTER TABLE {table.name} ADD COLUMN {column.name} {col_type}{nullable}{default}"
-                    conn.execute(text(sql))
-                    logger.info("migrated column: %s.%s", table.name, column.name)
+                if column.name in existing:
+                    continue
+                col_type = column.type.compile(conn.dialect)
+                default = ""
+                if column.default is not None and isinstance(column.default, ColumnDefault):
+                    literal = SQLAlchemyMetadataStore._render_default_literal(
+                        column.default.arg, conn.dialect
+                    )
+                    default = f" DEFAULT {literal}"
+                nullable = "" if column.nullable else " NOT NULL"
+                safe_table = preparer.quote_identifier(table.name)
+                safe_col = preparer.quote_identifier(column.name)
+                sql = f"ALTER TABLE {safe_table} ADD COLUMN {safe_col} {col_type}{nullable}{default}"
+                conn.execute(text(sql))
+                logger.info("migrated column: %s.%s", table.name, column.name)
 
     async def create_source(self, source: Source) -> None:
         row = _SourceRow(
