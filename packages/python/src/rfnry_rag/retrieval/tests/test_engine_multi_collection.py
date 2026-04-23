@@ -178,8 +178,6 @@ async def _build_multi_collection_engine() -> RagEngine:
     Requires: metadata_store + vector_store + embeddings (see server.py:567).
     Uses two collections so collection= routing is meaningful.
     """
-    from rfnry_rag.retrieval.server import PersistenceConfig
-
     vector_store = _make_vector_store(["primary", "secondary"])
     embeddings = _make_embeddings()
     metadata_store = _make_metadata_store()
@@ -197,7 +195,6 @@ async def _build_multi_collection_engine() -> RagEngine:
     return engine
 
 
-@pytest.mark.asyncio
 async def test_ingest_structured_path_rejects_non_default_collection(tmp_path) -> None:
     """ingest() with .xml/.l5x + collection= must raise, not silently write to default."""
     rag = await _build_multi_collection_engine()
@@ -208,7 +205,6 @@ async def test_ingest_structured_path_rejects_non_default_collection(tmp_path) -
     await rag.shutdown()
 
 
-@pytest.mark.asyncio
 async def test_analyze_rejects_non_default_collection(tmp_path) -> None:
     rag = await _build_multi_collection_engine()
     xml_file = tmp_path / "sample.xml"

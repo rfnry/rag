@@ -810,7 +810,11 @@ class RagEngine:
         page_range: str | None = None,
         collection: str | None = None,
     ) -> Source:
-        """Structured phase 1: per-page analysis."""
+        """Structured phase 1: per-page analysis.
+
+        ``collection`` must be ``None`` — structured ingestion does not support
+        per-collection routing; a non-None value raises ``ValueError``.
+        """
         self._check_initialized()
         if not self._structured_ingestion:
             raise ConfigurationError("metadata store required for structured ingestion")
