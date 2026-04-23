@@ -284,6 +284,12 @@ def _load_config(config_path: str | Path | None) -> RagServerConfig:
     embeddings = _build_embeddings(ingestion_cfg)
     sparse_embeddings = FastEmbedSparseEmbeddings() if ingestion_cfg.get("sparse_embeddings") else None
 
+    # Accept either the new TOML key or the deprecated legacy one. New key wins
+    # if both are present.
+    chunk_context_headers = ingestion_cfg.get(
+        "chunk_context_headers",
+        ingestion_cfg.get("contextual_chunking", True),
+    )
     ingestion = IngestionConfig(
         embeddings=embeddings,
         vision=_build_vision(ingestion_cfg),
@@ -291,7 +297,7 @@ def _load_config(config_path: str | Path | None) -> RagServerConfig:
         chunk_overlap=ingestion_cfg.get("chunk_overlap", 50),
         parent_chunk_size=ingestion_cfg.get("parent_chunk_size", 0),
         parent_chunk_overlap=ingestion_cfg.get("parent_chunk_overlap", 200),
-        contextual_chunking=ingestion_cfg.get("contextual_chunking", True),
+        chunk_context_headers=chunk_context_headers,
         sparse_embeddings=sparse_embeddings,
     )
 

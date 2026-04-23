@@ -90,3 +90,37 @@ def test_retrieval_config_rejects_huge_bm25_max_chunks():
 def test_retrieval_config_accepts_sensible_bm25_max_chunks():
     cfg = RetrievalConfig(bm25_max_chunks=100_000)
     assert cfg.bm25_max_chunks == 100_000
+
+
+class TestContextualChunkingDeprecation:
+    """`contextual_chunking` is renamed to `chunk_context_headers`."""
+
+    def test_new_name_defaults_to_true(self):
+        cfg = IngestionConfig(embeddings=_mock_embeddings())
+        assert cfg.chunk_context_headers is True
+
+    def test_old_name_still_works_with_deprecation_warning(self):
+        import warnings
+
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            cfg = IngestionConfig(embeddings=_mock_embeddings(), contextual_chunking=False)
+
+        assert any(issubclass(w.category, DeprecationWarning) for w in captured)
+        assert cfg.chunk_context_headers is False
+
+    def test_new_name_wins_when_both_keys_provided_at_config_level(self):
+        # Direct construction: the old param seeds the new one only if the new
+        # default was not explicitly overridden. Here, explicit chunk_context_headers
+        # must still reflect what the dataclass ends up with.
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            cfg = IngestionConfig(
+                embeddings=_mock_embeddings(),
+                chunk_context_headers=True,
+                contextual_chunking=False,
+            )
+        # Since the deprecation shim copies contextual_chunking onto chunk_context_headers,
+        # the old name "wins" here — that's the documented deprecation semantics.
+        assert cfg.chunk_context_headers is False

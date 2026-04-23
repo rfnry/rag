@@ -73,7 +73,13 @@ class IngestionConfig:
     sparse_embeddings: BaseSparseEmbeddings | None = None
     parent_chunk_size: int = 0
     parent_chunk_overlap: int = 200
-    contextual_chunking: bool = True
+    # Whether to prepend a short source/type header string to each chunk before
+    # embedding. This is pure string templating — NOT the LLM-generated
+    # contextual-chunking technique the old name implied.
+    chunk_context_headers: bool = True
+    # Deprecated — use chunk_context_headers. Accepted for one release with a
+    # DeprecationWarning; will be removed next major version.
+    contextual_chunking: bool | None = None
 
     def __post_init__(self) -> None:
         if self.chunk_size < 1:
@@ -90,6 +96,16 @@ class IngestionConfig:
         # (each page can exceed 100MB), causing OOM rather than slow rendering.
         if not (72 <= self.dpi <= 600):
             raise ConfigurationError(f"dpi must be between 72 and 600, got {self.dpi}")
+        if self.contextual_chunking is not None:
+            import warnings
+            warnings.warn(
+                "contextual_chunking is deprecated; use chunk_context_headers. "
+                "The old name implied LLM-generated context (Anthropic-style) but "
+                "the implementation is pure string templating.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.chunk_context_headers = self.contextual_chunking
 
 
 @dataclass
@@ -490,7 +506,7 @@ class RagEngine:
             metadata_store=persistence.metadata_store,
             on_ingestion_complete=self._on_ingestion_complete,
             vision_parser=ingestion.vision,
-            contextual_chunking=ingestion.contextual_chunking,
+            contextual_chunking=ingestion.chunk_context_headers,
         )
 
         # Analyzed ingestion — shares document method from main list, graph store passed directly
@@ -957,7 +973,7 @@ class RagEngine:
             metadata_store=cfg.persistence.metadata_store,
             on_ingestion_complete=self._on_ingestion_complete,
             vision_parser=cfg.ingestion.vision,
-            contextual_chunking=cfg.ingestion.contextual_chunking,
+            contextual_chunking=cfg.ingestion.chunk_context_headers,
         )
 
     async def _retrieve_chunks(
