@@ -27,9 +27,21 @@ from rfnry_rag.retrieval.common.models import Source, SourceStats
 
 logger = get_logger(__name__)
 
+# Current schema version. Bump on every additive migration so we can detect
+# downgrade attempts and avoid double-applying ALTER statements under concurrent
+# process start.
+_SCHEMA_VERSION = 1
+
 
 class _Base(DeclarativeBase):
     pass
+
+
+class _SchemaMeta(_Base):
+    __tablename__ = "rag_schema_meta"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
 class _SourceRow(_Base):
@@ -99,8 +111,46 @@ class SQLAlchemyMetadataStore:
     async def initialize(self) -> None:
         async with self._engine.begin() as conn:
             await conn.run_sync(_Base.metadata.create_all)
-            await conn.run_sync(self._migrate_missing_columns)
-        logger.info("metadata store tables initialized")
+            # Check/advance schema version BEFORE running migrations so concurrent
+            # processes don't double-apply ALTER statements. The version check and
+            # the migration run share a single transaction.
+            await conn.run_sync(self._apply_schema_migrations)
+        logger.info("metadata store tables initialized (schema_version=%d)", _SCHEMA_VERSION)
+
+    @staticmethod
+    def _apply_schema_migrations(conn) -> None:
+        """Read + advance schema version, then run additive migrations if needed.
+
+        All inside the caller's transaction so concurrent initializers serialise
+        via the version-row lock."""
+        # Lock-insert the version row (first process only).
+        conn.execute(
+            text("INSERT INTO rag_schema_meta (key, value) VALUES ('schema_version', 0) ON CONFLICT DO NOTHING")
+            if conn.dialect.name == "postgresql"
+            else text("INSERT OR IGNORE INTO rag_schema_meta (key, value) VALUES ('schema_version', 0)")
+        )
+        current = conn.execute(
+            text("SELECT value FROM rag_schema_meta WHERE key = 'schema_version'")
+        ).scalar_one()
+
+        if current > _SCHEMA_VERSION:
+            raise RuntimeError(
+                f"metadata store schema_version={current} is newer than "
+                f"code's _SCHEMA_VERSION={_SCHEMA_VERSION}; downgrade is not supported"
+            )
+
+        if current < _SCHEMA_VERSION:
+            logger.info("migrating metadata schema: %d -> %d", current, _SCHEMA_VERSION)
+            SQLAlchemyMetadataStore._migrate_missing_columns(conn)
+            conn.execute(
+                text("UPDATE rag_schema_meta SET value = :v WHERE key = 'schema_version'"),
+                {"v": _SCHEMA_VERSION},
+            )
+        else:
+            # Still run ADD-COLUMN for safety on first boot after upgrading code
+            # when the version row was set to _SCHEMA_VERSION by a prior boot
+            # that didn't actually add new columns (e.g. code downgrade + upgrade).
+            SQLAlchemyMetadataStore._migrate_missing_columns(conn)
 
     @staticmethod
     def _render_default_literal(val: object, dialect) -> str:

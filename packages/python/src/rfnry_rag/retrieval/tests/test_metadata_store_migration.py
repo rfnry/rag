@@ -93,3 +93,53 @@ def test_migrate_source_does_not_contain_unquoted_fstring_default() -> None:
     # The old, unsafe pattern used bare interpolation inside literal quotes
     assert "f\" DEFAULT '{val}'\"" not in src
     assert 'f" DEFAULT \'{val}\'"' not in src
+
+
+@pytest.mark.asyncio
+async def test_schema_version_table_populated_on_initialize(tmp_path) -> None:
+    """After initialize, rag_schema_meta contains the current version."""
+    from rfnry_rag.retrieval.stores.metadata.sqlalchemy import _SCHEMA_VERSION
+
+    store = SQLAlchemyMetadataStore(f"sqlite:///{tmp_path}/m.db")
+    await store.initialize()
+
+    async with store._engine.connect() as conn:
+        result = await conn.execute(text("SELECT value FROM rag_schema_meta WHERE key = 'schema_version'"))
+        row = result.fetchone()
+        assert row is not None
+        assert row[0] == _SCHEMA_VERSION
+
+    await store.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_schema_version_refuses_downgrade(tmp_path) -> None:
+    """If the DB has a higher schema_version than code, initialize() must refuse."""
+    from rfnry_rag.retrieval.stores.metadata.sqlalchemy import _SCHEMA_VERSION
+
+    store = SQLAlchemyMetadataStore(f"sqlite:///{tmp_path}/m.db")
+    await store.initialize()
+    # Poison the version row with a future value
+    async with store._engine.begin() as conn:
+        await conn.execute(
+            text("UPDATE rag_schema_meta SET value = :v WHERE key = 'schema_version'"),
+            {"v": _SCHEMA_VERSION + 99},
+        )
+    await store.shutdown()
+
+    store2 = SQLAlchemyMetadataStore(f"sqlite:///{tmp_path}/m.db")
+    with pytest.raises(RuntimeError, match="downgrade is not supported"):
+        await store2.initialize()
+    await store2.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_repeated_initialize_is_idempotent(tmp_path) -> None:
+    """initialize() is safe to call repeatedly (e.g. fresh process starts against
+    an already-migrated DB)."""
+    url = f"sqlite:///{tmp_path}/m.db"
+
+    for _ in range(3):
+        store = SQLAlchemyMetadataStore(url)
+        await store.initialize()
+        await store.shutdown()
