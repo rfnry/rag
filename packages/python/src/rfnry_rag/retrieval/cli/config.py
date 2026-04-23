@@ -228,6 +228,34 @@ def _build_tree_lm(cfg: dict[str, Any], section_name: str) -> LanguageModelClien
 
 def load_config(config_path: str | None = None) -> RagServerConfig:
     """Load TOML config + .env, build RagServerConfig."""
+    return _load_config(config_path)
+
+
+_ALLOWED_TOP_KEYS = {
+    "persistence",
+    "ingestion",
+    "retrieval",
+    "generation",
+    "tree_indexing",
+    "tree_search",
+}
+
+
+def _validate_toml_keys(toml: dict) -> None:
+    """Reject unknown top-level keys in config.toml to surface typos early.
+
+    Prior behavior silently ignored unknown keys, so a typo like
+    `grounding_treshold = 0.7` in [generation] would quietly fall back to
+    the default."""
+    unknown = set(toml.keys()) - _ALLOWED_TOP_KEYS
+    if unknown:
+        raise ConfigError(
+            f"Unknown top-level key(s) in config.toml: {sorted(unknown)}. "
+            f"Allowed keys: {sorted(_ALLOWED_TOP_KEYS)}"
+        )
+
+
+def _load_config(config_path: str | Path | None) -> RagServerConfig:
     path = Path(config_path) if config_path else CONFIG_FILE
     if not path.exists():
         raise ConfigError(f"Config not found: {path}\nRun 'rfnry-rag retrieval init' to create it.")
@@ -237,6 +265,8 @@ def load_config(config_path: str | None = None) -> RagServerConfig:
 
     with open(path, "rb") as f:
         toml = tomllib.load(f)
+
+    _validate_toml_keys(toml)
 
     persistence_cfg = toml.get("persistence", {})
     if not persistence_cfg:

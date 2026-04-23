@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import Any
 
 from rfnry_rag.retrieval.common.logging import get_logger
@@ -43,7 +44,12 @@ class RetrievalService:
         fetch_k = top_k * 4
         filters = self._build_filters(knowledge_id)
 
-        logger.info('query: "%s" (knowledge_id=%s)', query[:80], knowledge_id)
+        # User query text is PII-adjacent; log only when explicitly opted in
+        # via RFNRY_RAG_LOG_QUERIES=true. Always log the knowledge_id + length.
+        if os.environ.get("RFNRY_RAG_LOG_QUERIES", "").lower() == "true":
+            logger.info('query: "%s" (knowledge_id=%s)', query[:80], knowledge_id)
+        else:
+            logger.info("query: (len=%d, knowledge_id=%s)", len(query), knowledge_id)
 
         queries = [query]
         if self._query_rewriter:

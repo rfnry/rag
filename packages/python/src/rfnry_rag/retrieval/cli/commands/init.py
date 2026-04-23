@@ -35,6 +35,9 @@ def init() -> None:
         click.echo(f"Config already exists: {CONFIG_FILE}")
     else:
         CONFIG_FILE.write_text(_CONFIG_TEMPLATE)
+        # config.toml can contain PostgreSQL URLs with embedded credentials;
+        # restrict to user-only read/write like the sibling .env file.
+        CONFIG_FILE.chmod(0o600)
         created.append(str(CONFIG_FILE))
 
     if ENV_FILE.exists():
