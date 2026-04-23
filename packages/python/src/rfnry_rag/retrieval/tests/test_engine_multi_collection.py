@@ -157,3 +157,62 @@ async def test_cache_invalidation_fans_out_to_all_scoped_collections():
     assert len(invalidated) == 6
     seen_indexes = {i for i, _ in invalidated}
     assert seen_indexes == {0, 1, 2}
+
+
+# ---------------------------------------------------------------------------
+# Helpers for structured-ingestion collection-routing tests (C1)
+# ---------------------------------------------------------------------------
+
+
+def _make_metadata_store() -> MagicMock:
+    store = MagicMock()
+    store.initialize = AsyncMock()
+    store.shutdown = AsyncMock()
+    store.list_sources = AsyncMock(return_value=[])
+    return store
+
+
+async def _build_multi_collection_engine() -> RagEngine:
+    """Build a minimal RagEngine that has _structured_ingestion wired up.
+
+    Requires: metadata_store + vector_store + embeddings (see server.py:567).
+    Uses two collections so collection= routing is meaningful.
+    """
+    from rfnry_rag.retrieval.server import PersistenceConfig
+
+    vector_store = _make_vector_store(["primary", "secondary"])
+    embeddings = _make_embeddings()
+    metadata_store = _make_metadata_store()
+
+    engine = RagEngine(
+        RagServerConfig(
+            persistence=PersistenceConfig(
+                vector_store=vector_store,
+                metadata_store=metadata_store,
+            ),
+            ingestion=IngestionConfig(embeddings=embeddings),
+        )
+    )
+    await engine.initialize()
+    return engine
+
+
+@pytest.mark.asyncio
+async def test_ingest_structured_path_rejects_non_default_collection(tmp_path) -> None:
+    """ingest() with .xml/.l5x + collection= must raise, not silently write to default."""
+    rag = await _build_multi_collection_engine()
+    xml_file = tmp_path / "sample.xml"
+    xml_file.write_text("<root/>")
+    with pytest.raises(ValueError, match="structured ingestion does not support collection routing"):
+        await rag.ingest(xml_file, collection="secondary")
+    await rag.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_analyze_rejects_non_default_collection(tmp_path) -> None:
+    rag = await _build_multi_collection_engine()
+    xml_file = tmp_path / "sample.xml"
+    xml_file.write_text("<root/>")
+    with pytest.raises(ValueError, match="structured ingestion does not support collection routing"):
+        await rag.analyze(xml_file, collection="secondary")
+    await rag.shutdown()

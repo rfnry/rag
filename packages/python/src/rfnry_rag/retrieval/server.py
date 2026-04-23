@@ -726,6 +726,11 @@ class RagEngine:
         ext = file_path.suffix.lower()
 
         if ext in SUPPORTED_STRUCTURED_EXTENSIONS and self._structured_ingestion:
+            if collection is not None:
+                raise ValueError(
+                    f"structured ingestion does not support collection routing "
+                    f"(got collection={collection!r}, file type={ext!r})"
+                )
             source = await self._structured_ingestion.analyze(
                 file_path=file_path,
                 knowledge_id=knowledge_id,
@@ -809,6 +814,11 @@ class RagEngine:
         self._check_initialized()
         if not self._structured_ingestion:
             raise ConfigurationError("metadata store required for structured ingestion")
+        if collection is not None:
+            raise ValueError(
+                f"structured ingestion does not support collection routing "
+                f"(got collection={collection!r})"
+            )
         return await self._structured_ingestion.analyze(
             file_path=file_path,
             knowledge_id=knowledge_id,
