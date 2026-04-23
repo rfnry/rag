@@ -1,7 +1,9 @@
 """Preset factory tests — these cover the common pipeline shapes so users
 don't have to hand-assemble RagServerConfig for simple cases."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from rfnry_rag.retrieval.server import RagEngine, RagServerConfig
 
@@ -83,3 +85,21 @@ def test_presets_return_usable_config_for_engine_construction() -> None:
 
     config2 = RagEngine.document_only(document_store=MagicMock())
     RagEngine(config2)._validate_config()
+
+
+@pytest.mark.asyncio
+async def test_vector_only_preset_initializes_without_generation() -> None:
+    """Regression: default grounding_threshold=0.5 must not require an LM client
+    when generation is not enabled — retrieval-only presets must initialize cleanly."""
+    vector_store = MagicMock()
+    vector_store.initialize = AsyncMock()
+    vector_store.collections = ["knowledge"]
+    embeddings = MagicMock()
+    embeddings.model = "test"
+    embeddings.embedding_dimension = AsyncMock(return_value=1536)
+
+    config = RagEngine.vector_only(vector_store=vector_store, embeddings=embeddings)
+    engine = RagEngine(config)
+
+    await engine.initialize()
+    assert engine._initialized

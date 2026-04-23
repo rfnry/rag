@@ -538,8 +538,8 @@ class RagEngine:
             self._step_service = StepGenerationService(lm_client=gen.step_lm_client)
             logger.info("step generation: enabled")
 
-        if gen.grounding_threshold > 0 and not gen.lm_client:
-            raise ConfigurationError("generation provider required for grounding gate")
+        if gen.grounding_enabled and not gen.lm_client:
+            raise ConfigurationError("grounding_enabled requires generation.lm_client")
 
         self._knowledge_manager = KnowledgeManager(
             vector_store=persistence.vector_store,
