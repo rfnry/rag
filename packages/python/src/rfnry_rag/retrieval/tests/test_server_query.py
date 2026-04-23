@@ -100,7 +100,9 @@ class TestServerQueryWithStructured:
         ids = [c.chunk_id for c in chunks]
         assert ids.count("c1") == 1
 
-    async def test_merge_sorts_by_score(self):
+    async def test_merge_gives_rank1_structured_competitive_position(self):
+        """With RRF, rank-1 results from both lists should end up in the top of
+        the merged output — regardless of raw-score scale difference."""
         server = _make_server()
         server._structured_retrieval = AsyncMock()
         server._structured_retrieval.retrieve = AsyncMock(return_value=[_chunk("high", 0.99)])
@@ -109,7 +111,11 @@ class TestServerQueryWithStructured:
 
         gen_call = server._generation_service.generate.call_args
         chunks = gen_call.kwargs["chunks"]
-        assert chunks[0].chunk_id == "high"
+        # Unstructured returned [c1, c2]; structured returned [high].
+        # Under RRF, c1 and high are tied rank-1, both should lead over c2.
+        top_two_ids = {chunks[0].chunk_id, chunks[1].chunk_id}
+        assert "high" in top_two_ids
+        assert "c1" in top_two_ids
 
 
 class TestServerRetrieve:
@@ -214,6 +220,9 @@ class TestBuildRetrievalQuery:
 
 
 class TestMergeRetrievalResults:
+    """Smoke tests for `_merge_retrieval_results` contract. The scoring
+    semantics (RRF) are exercised in test_fusion.py::TestMergeRetrievalResults."""
+
     def test_dedup_by_chunk_id(self):
         merged = RagEngine._merge_retrieval_results(
             [_chunk("a", 0.9)],
@@ -221,16 +230,10 @@ class TestMergeRetrievalResults:
         )
         assert len(merged) == 1
 
-    def test_unstructured_takes_priority(self):
+    def test_returns_all_unique_chunks(self):
         merged = RagEngine._merge_retrieval_results(
-            [_chunk("a", 0.9)],
-            [_chunk("a", 0.5)],
-        )
-        assert merged[0].score == 0.9
-
-    def test_sorted_by_score_descending(self):
-        merged = RagEngine._merge_retrieval_results(
-            [_chunk("a", 0.5)],
+            [_chunk("a", 0.04)],
             [_chunk("b", 0.9)],
         )
-        assert merged[0].chunk_id == "b"
+        ids = {c.chunk_id for c in merged}
+        assert ids == {"a", "b"}

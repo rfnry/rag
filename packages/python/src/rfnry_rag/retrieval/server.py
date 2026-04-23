@@ -1066,16 +1066,16 @@ class RagEngine:
         unstructured: list[RetrievedChunk],
         structured: list[RetrievedChunk],
     ) -> list[RetrievedChunk]:
-        """Merge unstructured and structured results, dedup by chunk_id, sort by score."""
-        seen: set[str] = set()
-        merged: list[RetrievedChunk] = []
-        for c in unstructured:
-            if c.chunk_id not in seen:
-                seen.add(c.chunk_id)
-                merged.append(c)
-        for c in structured:
-            if c.chunk_id not in seen:
-                seen.add(c.chunk_id)
-                merged.append(c)
-        merged.sort(key=lambda x: x.score, reverse=True)
-        return merged
+        """Merge unstructured and structured results via reciprocal rank fusion.
+
+        Raw-score sort is unsafe here because unstructured chunks carry RRF scores
+        (~0.01-0.05) and structured chunks carry cosine scores (0-1). Sorting by
+        the raw value always places structured results first regardless of
+        relevance. RRF is scale-free and uses rank position instead of raw score.
+        """
+        if not structured:
+            return unstructured
+        if not unstructured:
+            return structured
+        from rfnry_rag.retrieval.modules.retrieval.search.fusion import reciprocal_rank_fusion
+        return reciprocal_rank_fusion([unstructured, structured])
