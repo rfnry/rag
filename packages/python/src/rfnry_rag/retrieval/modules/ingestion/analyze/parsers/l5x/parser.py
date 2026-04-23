@@ -30,11 +30,20 @@ logger = get_logger("analyze/ingestion/analyze/l5x")
 
 _FAULT_KEYWORDS = re.compile(r"fault|alarm|error|trip|estop|e_stop|emergency", re.IGNORECASE)
 
+# Hardened parser: never resolve external entities, no DTD loading, no network fetch,
+# no huge-tree expansion. Defends against XXE and billion-laughs regardless of lxml defaults.
+_SAFE_PARSER = etree.XMLParser(
+    resolve_entities=False,
+    no_network=True,
+    load_dtd=False,
+    huge_tree=False,
+)
+
 
 def parse_l5x(file_path: str | Path) -> list[PlcDocument]:
     """Parse an L5X file and return a list of PlcDocument entities."""
     file_path = Path(file_path)
-    tree = etree.parse(str(file_path))
+    tree = etree.parse(str(file_path), _SAFE_PARSER)
     root = tree.getroot()
 
     docs: list[PlcDocument] = []

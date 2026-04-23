@@ -9,11 +9,22 @@ logger = get_logger("analyze/ingestion/analyze/xml")
 
 L5X_ROOT_TAG = "RSLogix5000Content"
 
+# Hardened parser: never resolve external entities, no DTD loading, no network fetch,
+# no huge-tree expansion. Defends against XXE and billion-laughs regardless of lxml defaults.
+_SAFE_PARSER = etree.XMLParser(
+    resolve_entities=False,
+    no_network=True,
+    load_dtd=False,
+    huge_tree=False,
+)
+
 
 def is_l5x(file_path: Path) -> bool:
     """Check if an XML file is L5X format by root element."""
     try:
-        for _event, elem in etree.iterparse(str(file_path), events=("start",)):
+        for _event, elem in etree.iterparse(
+            str(file_path), events=("start",), resolve_entities=False, no_network=True, load_dtd=False, huge_tree=False
+        ):
             return elem.tag == L5X_ROOT_TAG
     except etree.XMLSyntaxError:
         return False
@@ -22,7 +33,7 @@ def is_l5x(file_path: Path) -> bool:
 
 def parse_xml(file_path: Path) -> list[PageAnalysis]:
     """Parse a generic XML file into PageAnalysis objects grouped by top-level elements."""
-    tree = etree.parse(str(file_path))
+    tree = etree.parse(str(file_path), _SAFE_PARSER)
     root = tree.getroot()
     analyses = []
 
