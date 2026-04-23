@@ -1104,42 +1104,49 @@ class RagEngine:
         query: str,
         knowledge_id: str | None,
     ) -> list[RetrievedChunk]:
-        """Load tree indexes for relevant sources and run tree search."""
+        """Load tree indexes for relevant sources and run tree search concurrently across sources."""
         import json
 
         from rfnry_rag.retrieval.common.models import TreeIndex
         from rfnry_rag.retrieval.modules.ingestion.tree.toc import PageContent
 
         assert self._tree_search_service is not None
+        tree_service = self._tree_search_service
         metadata_store = self._config.persistence.metadata_store
         assert metadata_store is not None
 
-        # Get sources that might have tree indexes
         sources = await metadata_store.list_sources(knowledge_id=knowledge_id)
-        all_tree_chunks: list[RetrievedChunk] = []
 
-        for source in sources:
+        async def search_one(source) -> list[RetrievedChunk]:
             tree_json = await metadata_store.get_tree_index(source.source_id)
             if not tree_json:
-                continue
-
+                return []
             tree_index = TreeIndex.from_dict(json.loads(tree_json))
             if not tree_index.pages:
                 logger.warning("tree index for %s has no stored pages, skipping tree search", source.source_id)
-                continue
-
+                return []
             # Convert stored TreePage back to PageContent for the search service
             pages = [PageContent(index=p.index, text=p.text, token_count=p.token_count) for p in tree_index.pages]
-
-            results = await self._tree_search_service.search(
+            results = await tree_service.search(
                 query=query,
                 tree_index=tree_index,
                 pages=pages,
             )
+            if not results:
+                return []
+            return tree_service.to_retrieved_chunks(results, tree_index)
 
-            if results:
-                all_tree_chunks.extend(self._tree_search_service.to_retrieved_chunks(results, tree_index))
+        per_source = await asyncio.gather(
+            *(search_one(s) for s in sources),
+            return_exceptions=True,
+        )
 
+        all_tree_chunks: list[RetrievedChunk] = []
+        for source, outcome in zip(sources, per_source, strict=True):
+            if isinstance(outcome, BaseException):
+                logger.warning("tree search for %s failed: %s — skipping", source.source_id, outcome)
+                continue
+            all_tree_chunks.extend(outcome)
         return all_tree_chunks
 
     def _get_retrieval(self, collection: str | None) -> tuple[RetrievalService, StructuredRetrievalService | None]:
