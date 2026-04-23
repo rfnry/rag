@@ -53,7 +53,9 @@ from rfnry_rag.retrieval.modules.ingestion.vision.facade import Vision as Vision
 from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod as BaseRetrievalMethod
 from rfnry_rag.retrieval.modules.retrieval.judging import RetrievalJudgment as RetrievalJudgment
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval as DocumentRetrieval
+from rfnry_rag.retrieval.modules.retrieval.methods.enrich import StructuredRetrieval as StructuredRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval as GraphRetrieval
+from rfnry_rag.retrieval.modules.retrieval.methods.tree import TreeRetrieval as TreeRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.vector import VectorRetrieval as VectorRetrieval
 from rfnry_rag.retrieval.modules.retrieval.refinement.abstractive import AbstractiveRefinement as AbstractiveRefinement
 from rfnry_rag.retrieval.modules.retrieval.refinement.extractive import ExtractiveRefinement as ExtractiveRefinement
@@ -109,6 +111,8 @@ __all__ = [
     "VectorRetrieval",
     "DocumentRetrieval",
     "GraphRetrieval",
+    "TreeRetrieval",
+    "StructuredRetrieval",
     "RetrievalService",
     "IngestionService",
     "SemanticChunker",
