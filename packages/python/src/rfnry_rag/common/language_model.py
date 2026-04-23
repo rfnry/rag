@@ -46,7 +46,11 @@ class LanguageModelClient:
     strategy: Literal["primary_only", "fallback"] = "primary_only"
     max_tokens: int = 4096
     temperature: float = 0.0
-    boundary_api_key: str | None = None
+    boundary_api_key: str | None = field(default=None, repr=False)
+    # Per-call timeout. BAML's retry loop has no implicit timeout; without this,
+    # a single hung LLM call (rate-limit stall, network partition) blocks the
+    # event loop until the OS kills the socket.
+    timeout_seconds: int = 60
 
     def __post_init__(self) -> None:
         if self.strategy not in ("primary_only", "fallback"):
@@ -55,6 +59,8 @@ class LanguageModelClient:
             raise ConfigurationError(f"max_retries must be 0-{_MAX_RETRIES_LIMIT}, got {self.max_retries}")
         if self.strategy == "fallback" and self.fallback is None:
             raise ConfigurationError("strategy='fallback' requires a fallback client")
+        if self.timeout_seconds <= 0:
+            raise ConfigurationError(f"timeout_seconds must be positive, got {self.timeout_seconds}")
 
 
 def _retry_policy_name(max_retries: int) -> str | None:
@@ -63,14 +69,24 @@ def _retry_policy_name(max_retries: int) -> str | None:
     return f"Retry{max_retries}"
 
 
-def _build_client_options(provider: LanguageModelProvider, max_tokens: int, temperature: float) -> dict:
-    options = {
+def _build_client_options(
+    provider: LanguageModelProvider,
+    max_tokens: int,
+    temperature: float,
+    timeout_seconds: int | None = None,
+) -> dict:
+    options: dict = {
         "model": provider.model,
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
     if provider.api_key:
         options["api_key"] = provider.api_key
+    if timeout_seconds is not None:
+        # BAML passes these through to the underlying provider SDK.
+        # Both keys are accepted by different provider backends — set both.
+        options["timeout"] = timeout_seconds
+        options["request_timeout"] = timeout_seconds
     return options
 
 
@@ -81,7 +97,9 @@ def build_registry(client: LanguageModelClient) -> ClientRegistry:
     registry.add_llm_client(
         _CLIENT_DEFAULT,
         provider=client.provider.provider,
-        options=_build_client_options(client.provider, client.max_tokens, client.temperature),
+        options=_build_client_options(
+            client.provider, client.max_tokens, client.temperature, client.timeout_seconds
+        ),
         retry_policy=policy,
     )
 
@@ -89,7 +107,9 @@ def build_registry(client: LanguageModelClient) -> ClientRegistry:
         registry.add_llm_client(
             _CLIENT_FALLBACK,
             provider=client.fallback.provider,
-            options=_build_client_options(client.fallback, client.max_tokens, client.temperature),
+            options=_build_client_options(
+                client.fallback, client.max_tokens, client.temperature, client.timeout_seconds
+            ),
             retry_policy=policy,
         )
         registry.add_llm_client(

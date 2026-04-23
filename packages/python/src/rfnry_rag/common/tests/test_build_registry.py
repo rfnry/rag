@@ -56,7 +56,7 @@ def test_build_registry_applies_same_generation_params_to_fallback(monkeypatch):
 
     original = lm_module._build_client_options
 
-    def spy(provider, max_tokens, temperature):
+    def spy(provider, max_tokens, temperature, timeout_seconds=None):
         captured_options.append(
             {
                 "provider_model": provider.model,
@@ -64,7 +64,7 @@ def test_build_registry_applies_same_generation_params_to_fallback(monkeypatch):
                 "temperature": temperature,
             }
         )
-        return original(provider, max_tokens, temperature)
+        return original(provider, max_tokens, temperature, timeout_seconds)
 
     monkeypatch.setattr(lm_module, "_build_client_options", spy)
 
@@ -85,3 +85,33 @@ def test_build_registry_applies_same_generation_params_to_fallback(monkeypatch):
     assert captured_options[1]["provider_model"] == "gpt-4o"
     assert captured_options[1]["max_tokens"] == 9999
     assert captured_options[1]["temperature"] == 0.42
+
+
+def test_language_model_client_default_timeout():
+    client = LanguageModelClient(
+        provider=LanguageModelProvider(provider="openai", model="m", api_key="k"),
+    )
+    assert client.timeout_seconds == 60
+
+
+def test_language_model_client_rejects_non_positive_timeout():
+    import pytest
+
+    from rfnry_rag.common.errors import ConfigurationError
+
+    with pytest.raises(ConfigurationError, match="timeout"):
+        LanguageModelClient(
+            provider=LanguageModelProvider(provider="openai", model="m", api_key="k"),
+            timeout_seconds=0,
+        )
+    with pytest.raises(ConfigurationError, match="timeout"):
+        LanguageModelClient(
+            provider=LanguageModelProvider(provider="openai", model="m", api_key="k"),
+            timeout_seconds=-5,
+        )
+
+
+def test_build_client_options_includes_timeout():
+    provider = LanguageModelProvider(provider="openai", model="gpt-4o", api_key="k")
+    options = _build_client_options(provider, max_tokens=4096, temperature=0.0, timeout_seconds=30)
+    assert options.get("timeout") == 30 or options.get("request_timeout") == 30
