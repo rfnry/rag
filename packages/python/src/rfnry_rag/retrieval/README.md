@@ -40,7 +40,7 @@ config = RagServerConfig(
         chunk_size=500,
         chunk_overlap=50,
         parent_chunk_size=1500,
-        contextual_chunking=True,
+        chunk_context_headers=True,
         dpi=300,
     ),
     retrieval=RetrievalConfig(
@@ -401,16 +401,16 @@ Async context manager: `async with RagEngine(config) as rag:`
 | `chunk_overlap` | `int` | `50` | Token overlap between chunks |
 | `parent_chunk_size` | `int` | `0` | Parent chunk size (0 = disabled) |
 | `parent_chunk_overlap` | `int` | `200` | Token overlap between parent chunks |
-| `contextual_chunking` | `bool` | `True` | Prepend document context to each chunk before embedding |
+| `chunk_context_headers` | `bool` | `True` | Prepend `[source/type]` context header to each chunk before embedding (pure string templating). Deprecated alias: `contextual_chunking`. |
 | `sparse_embeddings` | `BaseSparseEmbeddings` | `None` | SPLADE sparse vectors for hybrid search |
 | `lm_client` | `LanguageModelClient` | `None` | LLM config for structured analysis |
-| `dpi` | `int` | `300` | PDF rendering resolution (analyze pipeline) |
+| `dpi` | `int` | `300` | PDF rendering resolution (72–600, analyze pipeline) |
 
 #### `RetrievalConfig`
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `top_k` | `int` | `5` | Results returned |
+| `top_k` | `int` | `5` | Results returned (max 200) |
 | `reranker` | `BaseReranking` | `None` | Cross-encoder reranking |
 | `query_rewriter` | `BaseQueryRewriting` | `None` | Pre-retrieval query rewriting |
 | `parent_expansion` | `bool` | `True` | Return parent chunks when child chunks match |

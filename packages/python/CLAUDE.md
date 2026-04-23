@@ -36,7 +36,7 @@ src/rfnry-rag/
 ├── __init__.py          # Re-exports everything from both SDKs
 ├── cli.py               # Unified CLI: rfnry-rag retrieval ... / rfnry-rag reasoning ...
 ├── common/              # Shared across both SDKs
-│   ├── errors.py        # BaseException, ConfigurationError (base classes)
+│   ├── errors.py        # SdkBaseError, ConfigurationError (base classes)
 │   ├── language_model.py # LanguageModelClient, LanguageModelProvider, build_registry (BAML ClientRegistry)
 │   ├── logging.py       # get_logger (env: RFNRY_RAG_LOG_ENABLED, RFNRY_RAG_LOG_LEVEL)
 │   ├── startup.py       # BAML version check (parameterized per SDK)
@@ -104,7 +104,7 @@ Retrieval and ingestion are protocol-based plugin architectures. No mandatory ve
 ### Error Hierarchy
 
 ```
-BaseException (common base)
+SdkBaseError (common base — not re-exported at top level; catch subclasses)
 ├── ConfigurationError (shared)
 ├── RagError (retrieval)
 │   ├── IngestionError, ParseError, EmptyDocumentError, EmbeddingError, IngestionInterruptedError, TreeIndexingError
@@ -114,6 +114,8 @@ BaseException (common base)
     ├── AnalysisError, ClassificationError, ClusteringError
     ├── ComplianceError, EvaluationError
 ```
+
+Note: `SdkBaseError` was previously named `BaseException`; it was renamed to avoid shadowing the Python builtin. Top-level `rfnry_rag` does NOT re-export it — catch the specific subclasses or import from `rfnry_rag.common.errors` directly.
 
 ### LLM Integration
 
@@ -142,11 +144,40 @@ All LLM calls go through BAML for structured output parsing, retry/fallback poli
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking
 - Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules
-- 548 tests total across both SDKs
+- 689 tests total across both SDKs
+
+## Config defaults and enforced bounds
+
+`__post_init__` validators reject pathological values at construction time, not runtime:
+
+- `IngestionConfig.dpi`: `72 ≤ dpi ≤ 600`
+- `IngestionConfig.chunk_context_headers` (was `contextual_chunking`, old name deprecated)
+- `RetrievalConfig.top_k`: `1 ≤ top_k ≤ 200`
+- `RetrievalConfig.bm25_max_chunks`: `≤ 200_000`
+- `GenerationConfig`: `grounding_enabled=True` requires `grounding_threshold > 0` and an `lm_client`
+- Cross-config: `tree_indexing.max_tokens_per_node ≤ tree_search.max_context_tokens`
+- `BatchConfig.concurrency`: `1 ≤ concurrency ≤ 20`
+- `LanguageModelClient.timeout_seconds`: `> 0`, default `60`
+- `Neo4jGraphStore.password`: required (no default; empty raises)
+- Public-input bounds: query ≤ 32 000 chars, `ingest_text` ≤ 5 000 000 chars, metadata ≤ 50 keys × 8 000 chars
+
+Per-op timeouts (all configurable):
+
+- `LanguageModelClient.timeout_seconds`: 60
+- `QdrantVectorStore.timeout` / `scroll_timeout` / `write_timeout`: 10 / 30 / 30
+- `Neo4jGraphStore.connection_timeout` / `connection_acquisition_timeout`: 5.0 / 5.0
+- `SQLAlchemyMetadataStore.pool_timeout` / `PostgresDocumentStore.pool_timeout`: 10
+- `BOUNDARY_API_KEY` collisions across `LanguageModelClient` instances raise `ConfigurationError` (first-write-wins)
+
+## Ingestion method contract
+
+`BaseIngestionMethod.required: bool` is part of the protocol (not optional). `VectorIngestion` and `DocumentIngestion` default `required=True`; `GraphIngestion` and `TreeIngestion` default `required=False`. Required-method failures abort the ingest with `IngestionError` and skip the metadata commit (no partial-success row written).
 
 ## Environment Variables
 
 - `RFNRY_RAG_LOG_ENABLED=true` / `RFNRY_RAG_LOG_LEVEL=DEBUG` — SDK logging
+- `RFNRY_RAG_LOG_QUERIES=true` — include raw query text in logs (off by default; PII-safe). Use `rfnry_rag.common.logging.query_logging_enabled()` when adding new query-logging sites.
 - `RFNRY_RAG_BAML_LOG=info|warn|debug` — BAML runtime logging (SDK sets `BAML_LOG` from this)
 - `BAML_LOG=info|warn|debug` — BAML runtime logging (direct override)
+- `BOUNDARY_API_KEY` — Boundary collector key, process-global
 - Config lives at `~/.config/rfnry_rag/config.toml` + `.env`
