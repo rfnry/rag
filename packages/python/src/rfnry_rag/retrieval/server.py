@@ -840,27 +840,25 @@ class RagEngine:
         unstructured, structured = self._get_retrieval(collection)
         retrieval_query = self._build_retrieval_query(text, history)
 
-        if structured:
-            unstructured_chunks, structured_chunks = await asyncio.gather(
-                unstructured.retrieve(query=retrieval_query, knowledge_id=knowledge_id),
-                structured.retrieve(query=retrieval_query, knowledge_id=knowledge_id),
-            )
-            chunks = self._merge_retrieval_results(unstructured_chunks, structured_chunks)
-        else:
-            chunks = await unstructured.retrieve(query=retrieval_query, knowledge_id=knowledge_id)
-
-        # Tree search: load tree indexes and run LLM-based tree retrieval
+        tree_chunks: list[RetrievedChunk] = []
         if self._tree_search_service and self._config.persistence.metadata_store:
             tree_chunks = await self._run_tree_search(
                 query=retrieval_query,
                 knowledge_id=knowledge_id,
             )
-            if tree_chunks:
-                chunks = await unstructured.retrieve(
-                    query=retrieval_query,
-                    knowledge_id=knowledge_id,
-                    tree_chunks=tree_chunks,
-                )
+
+        tree_kwargs: dict[str, Any] = {"tree_chunks": tree_chunks} if tree_chunks else {}
+
+        if structured:
+            unstructured_chunks, structured_chunks = await asyncio.gather(
+                unstructured.retrieve(query=retrieval_query, knowledge_id=knowledge_id, **tree_kwargs),
+                structured.retrieve(query=retrieval_query, knowledge_id=knowledge_id),
+            )
+            chunks = self._merge_retrieval_results(unstructured_chunks, structured_chunks)
+        else:
+            chunks = await unstructured.retrieve(
+                query=retrieval_query, knowledge_id=knowledge_id, **tree_kwargs
+            )
 
         if min_score is not None:
             chunks = [c for c in chunks if c.score >= min_score]
