@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 from uuid import uuid4
@@ -53,8 +54,14 @@ class VectorIngestion:
         start = time.perf_counter()
         try:
             texts = [c.embedding_text for c in chunks]
-            vectors = await embed_batched(self._embeddings, texts)
-            sparse_vectors = await self._embed_sparse_safe(texts)
+            if self._sparse is not None:
+                vectors, sparse_vectors = await asyncio.gather(
+                    embed_batched(self._embeddings, texts),
+                    self._embed_sparse_safe(texts),
+                )
+            else:
+                vectors = await embed_batched(self._embeddings, texts)
+                sparse_vectors = None
 
             points = self._build_points(
                 source_id,
