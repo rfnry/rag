@@ -85,6 +85,25 @@ class PostgresDocumentStore:
         self._is_postgres = parsed.drivername.startswith("postgresql")
 
     async def initialize(self) -> None:
+        driver = self._engine.dialect.name
+        if driver == "sqlite":
+            logger.info(
+                "document store initializing: driver=sqlite static pool (pool_size/max_overflow not applicable)"
+            )
+        else:
+            pool = self._engine.sync_engine.pool
+            pool_size = pool.size() if hasattr(pool, "size") else "n/a"
+            overflow = getattr(pool, "_max_overflow", "n/a")
+            recycle = getattr(pool, "_recycle", "n/a")
+            timeout = getattr(pool, "_timeout", "n/a")
+            logger.info(
+                "document store initializing: driver=%s pool_size=%s max_overflow=%s pool_recycle=%ss pool_timeout=%ss",
+                driver,
+                pool_size,
+                overflow,
+                recycle,
+                timeout,
+            )
         async with self._engine.begin() as conn:
             await conn.run_sync(_Base.metadata.create_all)
 
