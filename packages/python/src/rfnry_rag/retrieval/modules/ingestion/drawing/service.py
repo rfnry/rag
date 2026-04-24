@@ -27,7 +27,7 @@ from rfnry_rag.retrieval.common.errors import IngestionError
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 from rfnry_rag.retrieval.common.language_model import build_registry
 from rfnry_rag.retrieval.common.logging import get_logger
-from rfnry_rag.retrieval.common.models import Source
+from rfnry_rag.retrieval.common.models import Source, VectorPoint
 from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.drawing.extract_dxf import extract_dxf_analysis
 from rfnry_rag.retrieval.modules.ingestion.drawing.linker import (
@@ -38,10 +38,16 @@ from rfnry_rag.retrieval.modules.ingestion.drawing.linker import (
     pair_off_page_connectors,
     parse_target_hints,
 )
-from rfnry_rag.retrieval.modules.ingestion.drawing.models import DrawingPageAnalysis
+from rfnry_rag.retrieval.modules.ingestion.drawing.models import (
+    DetectedComponent,
+    DetectedConnection,
+    DrawingPageAnalysis,
+)
 from rfnry_rag.retrieval.modules.ingestion.drawing.render import render_dxf, render_pdf_pages
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
+from rfnry_rag.retrieval.modules.ingestion.embeddings.utils import embed_batched
 from rfnry_rag.retrieval.stores.graph.base import BaseGraphStore
+from rfnry_rag.retrieval.stores.graph.drawing_mapper import drawing_to_graph
 from rfnry_rag.retrieval.stores.metadata.base import BaseMetadataStore
 from rfnry_rag.retrieval.stores.vector.base import BaseVectorStore
 
@@ -294,5 +300,124 @@ class DrawingIngestionService:
         return source
 
     async def ingest(self, source_id: str) -> Source:
-        """Phase 4 - embed + graph write. Idempotent. (C10)"""
-        raise NotImplementedError
+        """Phase 4 - embed + graph write. Idempotent on completed. (C10)"""
+        source = await self._metadata_store.get_source(source_id)
+        if source is None:
+            raise IngestionError(f"source not found: {source_id}")
+        if source.status == "completed":
+            return source
+        if source.status != "linked":
+            raise IngestionError(
+                f"ingest requires status='linked', got {source.status!r}"
+            )
+
+        rows = await self._metadata_store.get_page_analyses(source_id)
+        pages: list[DrawingPageAnalysis] = []
+        for r in rows:
+            analysis = r.get("data", {}).get("analysis")
+            if analysis is None:
+                continue
+            pages.append(DrawingPageAnalysis.from_dict(analysis))
+
+        linking = source.metadata.get("drawing_linking", {}) or {}
+        deterministic_pairings = [
+            DetectedConnection.from_dict(d)
+            for d in linking.get("deterministic_pairings", [])
+        ]
+        llm_residue = list(linking.get("llm_residue", []) or [])
+
+        # Embed one vector per component (type + label + page-local neighbours + domain).
+        component_texts: list[str] = []
+        component_payloads: list[dict[str, Any]] = []
+        for pa in pages:
+            for c in pa.components:
+                text = _describe_component(c, pa)
+                component_texts.append(text)
+                component_payloads.append(
+                    {
+                        "content": text,
+                        "vector_role": "drawing_component",
+                        "source_type": "drawing",
+                        "source_id": source.source_id,
+                        "knowledge_id": source.knowledge_id,
+                        "component_id": c.component_id,
+                        "symbol_class": c.symbol_class,
+                        "page_number": pa.page_number,
+                        "bbox": c.bbox,
+                        "domain": pa.domain,
+                        "source_name": source.metadata.get("file_name", ""),
+                    }
+                )
+
+        if component_texts:
+            vectors = await embed_batched(self._embeddings, component_texts)
+            if vectors:
+                await self._vector_store.initialize(len(vectors[0]))
+                points = [
+                    VectorPoint(point_id=str(uuid4()), vector=v, payload=p)
+                    for v, p in zip(vectors, component_payloads, strict=True)
+                ]
+                await self._vector_store.upsert(points)
+
+        # Graph writes (batched).
+        relations_count = 0
+        if self._graph_store is not None:
+            entities, relations = drawing_to_graph(
+                pages=pages,
+                deterministic_pairings=deterministic_pairings,
+                llm_residue=llm_residue,
+                source_id=source.source_id,
+                config=self._config,
+                knowledge_id=source.knowledge_id,
+            )
+            relations_count = len(relations)
+            if entities:
+                await self._graph_store.add_entities(
+                    source_id=source.source_id,
+                    knowledge_id=source.knowledge_id,
+                    entities=entities,
+                )
+            batch = self._config.graph_write_batch_size
+            for i in range(0, len(relations), batch):
+                await self._graph_store.add_relations(
+                    source_id=source.source_id,
+                    relations=relations[i : i + batch],
+                )
+
+        await self._metadata_store.update_source(
+            source_id,
+            status="completed",
+            chunk_count=len(component_texts),
+        )
+        source.status = "completed"
+        source.chunk_count = len(component_texts)
+        batch_size = self._config.graph_write_batch_size
+        relations_batches = (
+            0
+            if self._graph_store is None
+            else (relations_count + batch_size - 1) // batch_size
+        )
+        logger.info(
+            "[drawing/ingest] source_id=%s components=%d relations_batches=%d",
+            source.source_id,
+            len(component_texts),
+            relations_batches,
+        )
+        return source
+
+
+def _describe_component(c: DetectedComponent, pa: DrawingPageAnalysis) -> str:
+    """Build an embedding-friendly description: type + label + same-page neighbours + domain."""
+    parts: list[str] = [c.symbol_class]
+    if c.label:
+        parts.append(f"labelled {c.label}")
+    neighbours: set[str] = set()
+    for conn in pa.connections:
+        if conn.from_component == c.component_id:
+            neighbours.add(conn.to_component)
+        elif conn.to_component == c.component_id:
+            neighbours.add(conn.from_component)
+    if neighbours:
+        parts.append("connected to " + ", ".join(sorted(neighbours)))
+    parts.append(f"on {pa.domain} drawing page {pa.page_number}")
+    return " ".join(parts)
