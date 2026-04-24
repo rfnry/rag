@@ -137,6 +137,39 @@ class TestContextualChunkingDeprecation:
         assert cfg.chunk_context_headers is False
 
 
+def test_ingestion_config_parent_chunk_overlap_must_be_less_than_parent_chunk_size() -> None:
+    from unittest.mock import MagicMock
+
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.server import IngestionConfig
+
+    # Pass values that satisfy child-split invariant but violate parent's.
+    with pytest.raises(ConfigurationError, match="parent_chunk_overlap"):
+        IngestionConfig(
+            chunk_size=500,
+            chunk_overlap=50,
+            parent_chunk_size=600,
+            parent_chunk_overlap=700,
+            embeddings=MagicMock(),
+        )
+
+
+def test_ingestion_config_parent_chunk_overlap_negative_rejected() -> None:
+    from unittest.mock import MagicMock
+
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.server import IngestionConfig
+
+    with pytest.raises(ConfigurationError, match="parent_chunk_overlap"):
+        IngestionConfig(
+            chunk_size=500,
+            chunk_overlap=50,
+            parent_chunk_size=600,
+            parent_chunk_overlap=-1,
+            embeddings=MagicMock(),
+        )
+
+
 def test_grounding_enabled_without_lm_client_rejected_at_config_time() -> None:
     from rfnry_rag.retrieval.common.errors import ConfigurationError
     from rfnry_rag.retrieval.server import GenerationConfig

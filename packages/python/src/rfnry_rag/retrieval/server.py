@@ -142,6 +142,14 @@ class IngestionConfig:
             raise ConfigurationError("parent_chunk_size must be non-negative")
         if self.parent_chunk_size > 0 and self.parent_chunk_size <= self.chunk_size:
             raise ConfigurationError("parent_chunk_size must be greater than chunk_size")
+        if self.parent_chunk_size > 0:
+            if self.parent_chunk_overlap < 0:
+                raise ConfigurationError("parent_chunk_overlap must be non-negative")
+            if self.parent_chunk_overlap >= self.parent_chunk_size:
+                raise ConfigurationError(
+                    f"parent_chunk_overlap ({self.parent_chunk_overlap}) must be less than "
+                    f"parent_chunk_size ({self.parent_chunk_size})"
+                )
         # dpi upper bound: beyond ~600 the PDF-to-image buffer grows pathologically
         # (each page can exceed 100MB), causing OOM rather than slow rendering.
         if not (72 <= self.dpi <= 600):
