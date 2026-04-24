@@ -1,11 +1,13 @@
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
+    Index,
     Integer,
     String,
     Text,
@@ -75,6 +77,25 @@ class _SourceStatsRow(_Base):
     total_hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     grounded_hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ungrounded_hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class _PageAnalysisRow(_Base):
+    __tablename__ = "rag_page_analyses"
+
+    source_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    page_number: Mapped[int] = mapped_column(Integer, primary_key=True)
+    page_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    data_json: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC),
+    )
+
+    __table_args__ = (
+        Index("ix_page_analyses_source", "source_id"),
+        ForeignKeyConstraint(
+            ["source_id"], ["rag_sources.id"], ondelete="CASCADE",
+        ),
+    )
 
 
 class SQLAlchemyMetadataStore:
@@ -199,6 +220,12 @@ class SQLAlchemyMetadataStore:
     def _migrate_missing_columns(conn) -> None:
         """Add any columns that exist in the model but not in the database (schema evolution)."""
         insp = inspect(conn)
+        # Create rag_page_analyses if it doesn't exist yet (new in Phase B1).
+        if not insp.has_table("rag_page_analyses"):
+            _Base.metadata.create_all(
+                bind=conn, tables=[_PageAnalysisRow.__table__],  # type: ignore[list-item]
+            )
+            logger.info("migrated table: rag_page_analyses")
         preparer = conn.dialect.identifier_preparer
         for table in _Base.metadata.sorted_tables:
             if not insp.has_table(table.name):
@@ -411,6 +438,95 @@ class SQLAlchemyMetadataStore:
         found = {row.id: row.tree_index_json for row in rows}
         # Preserve input order in output; missing source_ids map to None.
         return {sid: found.get(sid) for sid in source_ids}
+
+    async def upsert_page_analyses(
+        self, source_id: str, analyses: list[dict],
+    ) -> None:
+        """Upsert per-page analyses keyed by (source_id, page_number).
+
+        ``analyses`` is a list of ``{"page_number": int, "data": dict}`` entries.
+        If ``data`` contains a ``page_hash`` key, it is hoisted into the indexed
+        ``page_hash`` column for fast lookup; otherwise the column stays NULL.
+        """
+        if not analyses:
+            return
+        async with self._session_factory() as session:
+            dialect = self._engine.dialect.name
+            for a in analyses:
+                data = a["data"]
+                values = dict(
+                    source_id=source_id,
+                    page_number=a["page_number"],
+                    page_hash=data.get("page_hash"),
+                    data_json=json.dumps(data),
+                    updated_at=datetime.now(UTC),
+                )
+                upsert_stmt: Any
+                if dialect == "sqlite":
+                    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+                    upsert_stmt = sqlite_insert(_PageAnalysisRow).values(**values)
+                    upsert_stmt = upsert_stmt.on_conflict_do_update(
+                        index_elements=["source_id", "page_number"],
+                        set_={
+                            "page_hash": upsert_stmt.excluded.page_hash,
+                            "data_json": upsert_stmt.excluded.data_json,
+                            "updated_at": upsert_stmt.excluded.updated_at,
+                        },
+                    )
+                elif dialect == "postgresql":
+                    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+                    upsert_stmt = pg_insert(_PageAnalysisRow).values(**values)
+                    upsert_stmt = upsert_stmt.on_conflict_do_update(
+                        index_elements=["source_id", "page_number"],
+                        set_={
+                            "page_hash": upsert_stmt.excluded.page_hash,
+                            "data_json": upsert_stmt.excluded.data_json,
+                            "updated_at": upsert_stmt.excluded.updated_at,
+                        },
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"upsert_page_analyses not implemented for dialect {dialect!r}"
+                    )
+                await session.execute(upsert_stmt)
+            await session.commit()
+
+    async def get_page_analyses(self, source_id: str) -> list[dict]:
+        """Return all page analyses for a source, ordered by page_number.
+
+        Returns a list of {"page_number": int, "page_hash": str | None, "data": dict}.
+        """
+        async with self._session_factory() as session:
+            stmt = (
+                select(_PageAnalysisRow)
+                .where(_PageAnalysisRow.source_id == source_id)
+                .order_by(_PageAnalysisRow.page_number)
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+        return [
+            {
+                "page_number": r.page_number,
+                "page_hash": r.page_hash,
+                "data": json.loads(r.data_json),
+            }
+            for r in rows
+        ]
+
+    async def get_page_analysis(
+        self, source_id: str, page_number: int,
+    ) -> dict | None:
+        """Return the single page analysis's data dict for (source_id, page_number), or None."""
+        async with self._session_factory() as session:
+            stmt = select(_PageAnalysisRow).where(
+                _PageAnalysisRow.source_id == source_id,
+                _PageAnalysisRow.page_number == page_number,
+            )
+            row = (await session.execute(stmt)).scalar_one_or_none()
+        if row is None:
+            return None
+        return json.loads(row.data_json)
 
     async def shutdown(self) -> None:
         await self._engine.dispose()
