@@ -27,7 +27,6 @@ from rfnry_rag.retrieval.modules.ingestion.analyze.parsers.xml import is_l5x, pa
 from rfnry_rag.retrieval.modules.ingestion.analyze.pdf_splitter import iter_pdf_page_images
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.modules.ingestion.embeddings.utils import embed_batched
-from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
 from rfnry_rag.retrieval.modules.ingestion.vision.base import BaseVision
 from rfnry_rag.retrieval.stores.graph.base import BaseGraphStore
 from rfnry_rag.retrieval.stores.graph.mapper import cross_refs_to_graph_relations, page_entities_to_graph
@@ -98,30 +97,6 @@ class AnalyzedIngestionService:
         # large PDF doesn't block every other coroutine. chunk/service.py:148
         # already does this for the unstructured path — analyze must match.
         file_hash_value = await asyncio.to_thread(compute_file_hash, file_path)
-
-        # Delegate document storage to ingestion methods
-        if page_analyses:
-            doc_methods = [m for m in self._ingestion_methods if isinstance(m, DocumentIngestion)]
-            if doc_methods:
-                full_text = "\n\n".join(
-                    f"[Page {pa.page_number}] ({pa.page_type})\n{pa.description}" for pa in page_analyses
-                )
-                title = (metadata or {}).get("name", file_path.name)
-                for method in doc_methods:
-                    try:
-                        await method.ingest(
-                            source_id=source_id,
-                            knowledge_id=knowledge_id,
-                            source_type=source_type,
-                            source_weight=self._source_type_weights.get(source_type, 1.0) if source_type else 1.0,
-                            title=title,
-                            full_text=full_text,
-                            chunks=[],
-                            tags=[],
-                            metadata=metadata or {},
-                        )
-                    except Exception as exc:
-                        logger.warning("[analyze/ingestion/analyze] document method failed: %s", exc)
 
         source = Source(
             source_id=source_id,
