@@ -48,8 +48,9 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     # ---- retrieval / ingestion ----
     "AnalyzePage": [],  # image type — no text injection risk
     "ExtractEntitiesFromText": ["text"],
-    # domain_hint is operator config; page_image is image type (no text injection)
     "AnalyzeDrawingPage": ["symbol_library", "off_page_patterns"],
+    # page_image is image type; symbol_library + off_page_patterns are fenced;
+    # domain_hint is operator config (from DrawingIngestionConfig.default_domain)
     # per_page_digest and already_linked are pipeline-generated but include
     # document-extracted text (potentially tainted); fence both
     "SynthesizeDrawingSet": ["per_page_digest", "already_linked"],

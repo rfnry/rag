@@ -18,8 +18,6 @@ def build_structured_filters(
         filters["knowledge_id"] = knowledge_id
     if analysis.get("entity_references"):
         filters["entities"] = analysis["entity_references"]
-    if analysis.get("domain_hint"):
-        filters["page_type"] = analysis["domain_hint"]
     return filters
 
 

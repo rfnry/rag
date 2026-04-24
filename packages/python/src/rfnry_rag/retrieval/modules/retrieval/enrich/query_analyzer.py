@@ -12,7 +12,7 @@ logger = get_logger("enrich/retrieval/query")
 
 
 async def analyze_query(query: str, registry: ClientRegistry) -> dict[str, Any]:
-    """Extract entity references, keywords, intent, and domain hint from a query."""
+    """Extract entity references, keywords, and intent from a query."""
     try:
         result = await b.AnalyzeQuery(
             query,
@@ -22,17 +22,16 @@ async def analyze_query(query: str, registry: ClientRegistry) -> dict[str, Any]:
             "entity_references": list(result.entity_references) if result.entity_references else [],
             "keywords": list(result.keywords) if result.keywords else [],
             "intent": result.intent or "",
-            "domain_hint": result.domain_hint,
         }
     except baml_errors.BamlValidationError as exc:
         logger.exception(
             "AnalyzeQuery failed: LLM returned an unparseable response — using empty defaults. Detail: %s",
             exc,
         )
-        return {"entity_references": [], "keywords": [], "intent": "", "domain_hint": None}
+        return {"entity_references": [], "keywords": [], "intent": ""}
     except Exception as exc:
         logger.exception(
             "AnalyzeQuery failed: %s — using empty defaults",
             exc,
         )
-        return {"entity_references": [], "keywords": [], "intent": "", "domain_hint": None}
+        return {"entity_references": [], "keywords": [], "intent": ""}

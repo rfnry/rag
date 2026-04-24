@@ -10,6 +10,29 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-26 Phase E — Remove `QueryAnalysis.domain_hint`
+
+One task (1 commit) deleting the query-side `domain_hint` field entirely.
+The field hardcoded an `electrical/mechanical/plc` enumeration in its
+BAML prompt (finding from Phase D audit) and its only downstream usage —
+`enrich/field_search.py` plumbing it into a `page_type` filter — was
+broken by construction after Phase D4 made `page_type` free-form.
+Consumers who want domain-aware retrieval already have `source_type` +
+`source_type_weights`, `knowledge_id`, and collection partitioning.
+
+Changes:
+- `QueryAnalysis` schema no longer has a `domain_hint` field.
+- `AnalyzeQuery` prompt no longer enumerates domain categories.
+- `StructuredRetrievalService` no longer triggers field-filter search on
+  domain_hint and no longer logs it.
+- `build_structured_filters` no longer emits a `page_type` filter.
+- `test_baml_prompt_domain_agnostic` extended to cover
+  `baml_src/retrieval/functions.baml`; scans both ingestion and retrieval
+  prompts for domain-bias terms.
+
+`AnalyzeDrawingPage.domain_hint` (ingestion-side, Phase C) is unchanged
+— it's a working input parameter, not a broken output field.
+
 ### 2026-04-26 Phase D — Agnostic Graph Mapper + Prompt Neutralization
 
 Four tasks (4 feature commits) removing pre-existing electrical/mechanical

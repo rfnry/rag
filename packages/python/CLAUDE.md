@@ -172,7 +172,7 @@ The following contract tests act as regression guards — they enforce whole-cla
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking
 - Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules
-- 997 tests total across both SDKs
+- 997 tests total across both SDKs (Phase E: retrieval `domain_hint` deletion, no net test-count change)
 
 ## Config defaults and enforced bounds
 

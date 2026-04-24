@@ -126,7 +126,6 @@ class QueryAnalysis(BaseModel):
     keywords: typing.List[str]
     entity_references: typing.List[str]
     intent: typing.Optional[str] = None
-    domain_hint: typing.Optional[str] = None
 
 class QueryVariants(BaseModel):
     variants: typing.List[str] = Field(description='Alternative query formulations')

@@ -1020,7 +1020,7 @@ class QueryAnalysisAst:
     def __init__(self, tb: type_builder.TypeBuilder):
         _tb = tb._tb # type: ignore (we know how to use this private attribute)
         self._bldr = _tb.class_("QueryAnalysis")
-        self._properties: typing.Set[str] = set([  "keywords",  "entity_references",  "intent",  "domain_hint",  ])
+        self._properties: typing.Set[str] = set([  "keywords",  "entity_references",  "intent",  ])
         self._props = QueryAnalysisProperties(self._bldr, self._properties)
 
     def type(self) -> baml_py.FieldType:
@@ -1059,10 +1059,6 @@ class QueryAnalysisProperties:
     @property
     def intent(self) -> type_builder.ClassPropertyViewer:
         return type_builder.ClassPropertyViewer(self.__bldr.property("intent"))
-    
-    @property
-    def domain_hint(self) -> type_builder.ClassPropertyViewer:
-        return type_builder.ClassPropertyViewer(self.__bldr.property("domain_hint"))
     
     
 

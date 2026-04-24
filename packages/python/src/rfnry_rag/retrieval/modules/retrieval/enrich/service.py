@@ -43,9 +43,8 @@ class StructuredRetrievalService:
 
         analysis = await self._analyze_query(query)
         logger.info(
-            "query analysis: entities=%s, hint=%s",
+            "query analysis: entities=%s",
             analysis["entity_references"],
-            analysis["domain_hint"],
         )
 
         vectors = await self._embeddings.embed([query])
@@ -54,7 +53,7 @@ class StructuredRetrievalService:
             semantic_filters["knowledge_id"] = knowledge_id
 
         field_filters = None
-        if analysis["entity_references"] or analysis["domain_hint"]:
+        if analysis["entity_references"]:
             field_filters = build_structured_filters(analysis, knowledge_id)
 
         if field_filters:
@@ -89,7 +88,7 @@ class StructuredRetrievalService:
     async def _analyze_query(self, query: str) -> dict[str, Any]:
         """Use BAML to extract structured search terms from natural language."""
         if not self._registry:
-            return {"entity_references": [], "keywords": [], "intent": "", "domain_hint": None}
+            return {"entity_references": [], "keywords": [], "intent": ""}
         return await analyze_query(query, self._registry)
 
     @staticmethod
