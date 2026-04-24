@@ -8,80 +8,46 @@ baseline so the SDK works out-of-the-box. Every entry here is overridable via
 
 from __future__ import annotations
 
-# IEC 60617 electrical + ISA 5.1 P&ID + common mechanical symbols.
-# The lists are intentionally small and conservative; consumers extend them via
-# ``symbol_library_extensions`` or replace wholesale via ``symbol_library``.
+# IEC 60617 electrical drawing symbols (common subset).
+_ELECTRICAL_SYMBOLS = [
+    "resistor", "capacitor", "inductor", "diode", "led", "transistor_npn",
+    "transistor_pnp", "mosfet_n", "mosfet_p", "opamp", "ic_dip", "ic_soic",
+    "switch_spst", "switch_spdt", "relay", "battery", "voltage_source",
+    "current_source", "ground", "junction", "off_page_connector",
+    "fuse", "transformer", "motor_dc", "motor_ac", "lamp",
+]
+
+# ISA 5.1 P&ID symbols (common subset).
+_P_AND_ID_SYMBOLS = [
+    "valve_ball", "valve_gate", "valve_globe", "valve_check", "valve_control",
+    "pump_centrifugal", "pump_positive_displacement",
+    "tank", "vessel", "heat_exchanger", "compressor", "filter",
+    "instrument_field", "instrument_panel",
+    "flow_transmitter", "pressure_transmitter", "temperature_transmitter",
+    "controller_local", "controller_distributed",
+    "off_page_connector", "pipe_tee", "pipe_reducer",
+]
+
+# Mechanical drawing common call-outs.
+_MECHANICAL_SYMBOLS = [
+    "bolt", "nut", "washer", "gear", "bearing", "shaft",
+    "dimension_line", "leader_line", "section_view", "datum_feature",
+    "surface_finish_symbol", "gd_t_symbol",
+]
+
 DEFAULT_SYMBOL_LIBRARY: dict[str, list[str]] = {
-    "electrical": [
-        "resistor",
-        "capacitor",
-        "inductor",
-        "diode",
-        "transistor",
-        "ground",
-        "battery",
-        "switch",
-        "fuse",
-        "relay",
-        "transformer",
-        "motor",
-        "generator",
-        "lamp",
-        "led",
-        "ic_pack",
-        "connector",
-        "terminal",
-    ],
-    "p_and_id": [
-        "valve_gate",
-        "valve_globe",
-        "valve_ball",
-        "valve_check",
-        "valve_butterfly",
-        "valve_control",
-        "pump_centrifugal",
-        "pump_positive_displacement",
-        "compressor",
-        "heat_exchanger",
-        "tank",
-        "vessel",
-        "reactor",
-        "filter",
-        "instrument_indicator",
-        "instrument_transmitter",
-        "instrument_controller",
-        "pipe",
-        "flange",
-    ],
-    "mechanical": [
-        "bearing",
-        "gear",
-        "shaft",
-        "coupling",
-        "bolt",
-        "nut",
-        "washer",
-        "spring",
-        "pulley",
-        "belt",
-        "chain",
-        "sprocket",
-    ],
+    "electrical": _ELECTRICAL_SYMBOLS,
+    "p_and_id": _P_AND_ID_SYMBOLS,
+    "mechanical": _MECHANICAL_SYMBOLS,
 }
 
-# Off-page-connector regex patterns. Matches idioms like:
-#   "/A2"          — slash-prefixed sheet/zone reference
-#   "OPC-N"        — explicit off-page-connector tag
-#   "to sheet 2 zone A3"
-#   "see sheet 4"
-#   "cont. on 3/B2"
+# Off-page-connector regex patterns.
 DEFAULT_OFF_PAGE_CONNECTOR_PATTERNS: list[str] = [
-    r"/[A-Z]\d+",
-    r"\bOPC-\d+\b",
-    r"(?i)\bto\s+sheet\s+\d+(?:\s+zone\s+[A-Z]?\d+)?",
-    r"(?i)\bsee\s+sheet\s+\d+",
-    r"(?i)\bcont(?:inued|\.)\s+on\s+\d+(?:/[A-Z]?\d+)?",
-    r"(?i)\bfrom\s+sheet\s+\d+",
+    r"/[A-Z]\d+",                          # "/A2", "/B12"
+    r"OPC[-_]\d+",                         # "OPC-1", "OPC_12"
+    r"(?i)to\s+sheet\s+\d+(\s+zone\s+[A-H]\d+)?",   # "to sheet 3", "to sheet 3 zone B2"
+    r"(?i)continues\s+(on|at)\s+sheet\s+\d+",       # "continues on sheet 4"
+    r"Z\d+\.[A-H]\d+",                     # "Z3.B2" style zone refs
 ]
 
 # Wire-style -> Neo4j relation type.
