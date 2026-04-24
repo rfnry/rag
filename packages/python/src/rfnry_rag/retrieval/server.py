@@ -1192,27 +1192,26 @@ class RagEngine:
         metadata_store = self._config.persistence.metadata_store
         assert metadata_store is not None
 
-        sources = await metadata_store.list_sources(knowledge_id=knowledge_id)
+        source_ids_full = await metadata_store.list_source_ids(knowledge_id=knowledge_id)
 
         max_sources = self._config.tree_search.max_sources_per_query
-        if len(sources) > max_sources:
+        if len(source_ids_full) > max_sources:
             logger.warning(
                 "tree search limited to %d of %d sources (max_sources_per_query)",
                 max_sources,
-                len(sources),
+                len(source_ids_full),
             )
-            sources = sources[:max_sources]
+            source_ids_full = source_ids_full[:max_sources]
 
-        source_ids = [s.source_id for s in sources]
-        tree_jsons = await metadata_store.get_tree_indexes(source_ids)
+        tree_jsons = await metadata_store.get_tree_indexes(source_ids_full)
 
-        async def search_one(source: Source) -> list[RetrievedChunk]:
-            tree_json = tree_jsons.get(source.source_id)
+        async def search_one(source_id: str) -> list[RetrievedChunk]:
+            tree_json = tree_jsons.get(source_id)
             if not tree_json:
                 return []
             tree_index = TreeIndex.from_dict(json.loads(tree_json))
             if not tree_index.pages:
-                logger.warning("tree index for %s has no stored pages, skipping tree search", source.source_id)
+                logger.warning("tree index for %s has no stored pages, skipping tree search", source_id)
                 return []
             # Convert stored TreePage back to PageContent for the search service
             pages = [PageContent(index=p.index, text=p.text, token_count=p.token_count) for p in tree_index.pages]
@@ -1226,14 +1225,14 @@ class RagEngine:
             return tree_service.to_retrieved_chunks(results, tree_index)
 
         per_source = await asyncio.gather(
-            *(search_one(s) for s in sources),
+            *(search_one(sid) for sid in source_ids_full),
             return_exceptions=True,
         )
 
         all_tree_chunks: list[RetrievedChunk] = []
-        for source, outcome in zip(sources, per_source, strict=True):
+        for source_id, outcome in zip(source_ids_full, per_source, strict=True):
             if isinstance(outcome, BaseException):
-                logger.warning("tree search for %s failed: %s — skipping", source.source_id, outcome)
+                logger.warning("tree search for %s failed: %s — skipping", source_id, outcome)
                 continue
             all_tree_chunks.extend(outcome)
         return all_tree_chunks

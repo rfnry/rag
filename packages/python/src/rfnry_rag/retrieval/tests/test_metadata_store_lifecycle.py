@@ -120,6 +120,28 @@ async def test_get_tree_indexes_returns_mapping(tmp_path) -> None:
     await store.shutdown()
 
 
+async def test_list_source_ids_returns_only_ids(tmp_path) -> None:
+    store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path / 'db.sqlite'}")
+    await store.initialize()
+
+    # Seed 2 sources in kb1, 1 source in kb2.
+    now = datetime.now(UTC)
+    await store.create_source(Source(source_id="s1", knowledge_id="kb1", embedding_model="m", created_at=now))
+    await store.create_source(Source(source_id="s2", knowledge_id="kb1", embedding_model="m", created_at=now))
+    await store.create_source(Source(source_id="s3", knowledge_id="kb2", embedding_model="m", created_at=now))
+
+    ids_kb1 = await store.list_source_ids(knowledge_id="kb1")
+    assert set(ids_kb1) == {"s1", "s2"}
+
+    ids_all = await store.list_source_ids()
+    assert len(ids_all) == 3
+
+    ids_kb_unknown = await store.list_source_ids(knowledge_id="unknown")
+    assert ids_kb_unknown == []
+
+    await store.shutdown()
+
+
 async def test_file_hash_column_has_index(tmp_path) -> None:
     """find_by_hash must hit an index, not a full scan."""
     import sqlalchemy as sa

@@ -275,6 +275,14 @@ class SQLAlchemyMetadataStore:
             rows = result.scalars().all()
             return [self._row_to_source(row) for row in rows]
 
+    async def list_source_ids(self, knowledge_id: str | None = None) -> list[str]:
+        stmt = select(_SourceRow.id)
+        if knowledge_id is not None:
+            stmt = stmt.where(_SourceRow.knowledge_id == knowledge_id)
+        async with self._session_factory() as session:
+            rows = (await session.execute(stmt)).scalars().all()
+        return list(rows)
+
     async def find_by_hash(self, hash_value: str, knowledge_id: str | None) -> Source | None:
         stmt = select(_SourceRow).where(_SourceRow.file_hash == hash_value)
         if knowledge_id is not None:
