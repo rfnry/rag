@@ -154,3 +154,94 @@ def test_qdrant_hybrid_prefetch_multiplier_defaults_and_validates() -> None:
 
     with pytest.raises(ConfigurationError, match="hybrid_prefetch_multiplier"):
         QdrantVectorStore(url="http://fake", api_key="k", hybrid_prefetch_multiplier=0)
+
+
+# ── T11: reject zero/negative timeouts and pool knobs ────────────────────────
+
+
+def test_sqlalchemy_metadata_store_rejects_nonpositive_pool_timeout() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+
+    with pytest.raises(ConfigurationError, match="pool_timeout"):
+        SQLAlchemyMetadataStore(url="sqlite+aiosqlite:///:memory:", pool_timeout=0)
+
+    with pytest.raises(ConfigurationError, match="pool_timeout"):
+        SQLAlchemyMetadataStore(url="sqlite+aiosqlite:///:memory:", pool_timeout=-1)
+
+
+def test_sqlalchemy_metadata_store_rejects_bad_pool_recycle() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+
+    with pytest.raises(ConfigurationError, match="pool_recycle"):
+        SQLAlchemyMetadataStore(url="sqlite+aiosqlite:///:memory:", pool_recycle=0)
+
+    # -1 is the SQLAlchemy "never recycle" sentinel — must be accepted
+    SQLAlchemyMetadataStore(url="sqlite+aiosqlite:///:memory:", pool_recycle=-1)
+
+
+def test_postgres_document_store_rejects_nonpositive_pool_timeout() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+
+    with pytest.raises(ConfigurationError, match="pool_timeout"):
+        PostgresDocumentStore(url="sqlite+aiosqlite:///:memory:", pool_timeout=0)
+
+    with pytest.raises(ConfigurationError, match="pool_timeout"):
+        PostgresDocumentStore(url="sqlite+aiosqlite:///:memory:", pool_timeout=-5)
+
+
+def test_postgres_document_store_rejects_bad_pool_recycle() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+
+    with pytest.raises(ConfigurationError, match="pool_recycle"):
+        PostgresDocumentStore(url="sqlite+aiosqlite:///:memory:", pool_recycle=0)
+
+    # -1 is the SQLAlchemy "never recycle" sentinel — must be accepted
+    PostgresDocumentStore(url="sqlite+aiosqlite:///:memory:", pool_recycle=-1)
+
+
+def test_qdrant_store_rejects_nonpositive_timeout() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+
+    with pytest.raises(ConfigurationError, match="timeout"):
+        QdrantVectorStore(url="http://fake", api_key="k", timeout=0)
+
+
+def test_qdrant_store_rejects_nonpositive_scroll_timeout() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+
+    with pytest.raises(ConfigurationError, match="scroll_timeout"):
+        QdrantVectorStore(url="http://fake", api_key="k", scroll_timeout=0)
+
+
+def test_qdrant_store_rejects_nonpositive_write_timeout() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+
+    with pytest.raises(ConfigurationError, match="write_timeout"):
+        QdrantVectorStore(url="http://fake", api_key="k", write_timeout=-1)
+
+
+def test_neo4j_store_rejects_nonpositive_query_timeout() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.stores.graph.neo4j import Neo4jGraphStore
+
+    with pytest.raises(ConfigurationError, match="query_timeout"):
+        Neo4jGraphStore(uri="bolt://localhost", password="secret", query_timeout=0)
+
+
+def test_neo4j_store_rejects_nonpositive_connection_timeout() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.stores.graph.neo4j import Neo4jGraphStore
+
+    with pytest.raises(ConfigurationError, match="connection_timeout"):
+        Neo4jGraphStore(uri="bolt://localhost", password="secret", connection_timeout=0.0)
+
+
+def test_neo4j_store_rejects_nonpositive_connection_acquisition_timeout() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.stores.graph.neo4j import Neo4jGraphStore
+
+    with pytest.raises(ConfigurationError, match="connection_acquisition_timeout"):
+        Neo4jGraphStore(uri="bolt://localhost", password="secret", connection_acquisition_timeout=-1.0)

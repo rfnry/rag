@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.schema import ColumnDefault
 
-from rfnry_rag.retrieval.common.errors import DuplicateSourceError, SourceNotFoundError
+from rfnry_rag.retrieval.common.errors import ConfigurationError, DuplicateSourceError, SourceNotFoundError
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import Source, SourceStats
 
@@ -89,6 +89,12 @@ class SQLAlchemyMetadataStore:
         pool_timeout: int = 10,
         echo: bool = False,
     ) -> None:
+        if pool_timeout <= 0:
+            raise ConfigurationError(f"pool_timeout must be > 0, got {pool_timeout}")
+        # SQLAlchemy interprets -1 as "never recycle"; reject 0 or other negatives.
+        if pool_recycle != -1 and pool_recycle <= 0:
+            raise ConfigurationError(f"pool_recycle must be > 0 or -1 (disable), got {pool_recycle}")
+
         parsed = make_url(url)
         if parsed.drivername == "postgresql":
             parsed = parsed.set(drivername="postgresql+asyncpg")

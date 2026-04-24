@@ -66,6 +66,12 @@ class QdrantVectorStore:
     ) -> None:
         if hybrid_prefetch_multiplier < 1:
             raise ConfigurationError("hybrid_prefetch_multiplier must be >= 1")
+        if timeout <= 0:
+            raise ConfigurationError(f"timeout must be > 0, got {timeout}")
+        if scroll_timeout <= 0:
+            raise ConfigurationError(f"scroll_timeout must be > 0, got {scroll_timeout}")
+        if write_timeout <= 0:
+            raise ConfigurationError(f"write_timeout must be > 0, got {write_timeout}")
         self._url = url
         self._timeout = timeout
         self._scroll_timeout = scroll_timeout
