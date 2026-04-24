@@ -135,6 +135,10 @@ class IngestionConfig:
     # Deprecated — use chunk_context_headers. Accepted for one release with a
     # DeprecationWarning; will be removed next major version.
     contextual_chunking: bool | None = None
+    # Text-density pre-filter: pages with >= this many extractable chars AND no embedded
+    # images skip the vision LLM call and are built from raw text directly. Set to 0 to
+    # disable the pre-filter and send every page through vision.
+    analyze_text_skip_threshold_chars: int = 300
 
     def __post_init__(self) -> None:
         if self.chunk_size_unit not in ("chars", "tokens"):
@@ -168,6 +172,11 @@ class IngestionConfig:
         # (each page can exceed 100MB), causing OOM rather than slow rendering.
         if not (72 <= self.dpi <= 600):
             raise ConfigurationError(f"dpi must be between 72 and 600, got {self.dpi}")
+        if not (0 <= self.analyze_text_skip_threshold_chars <= 100_000):
+            raise ConfigurationError(
+                f"analyze_text_skip_threshold_chars={self.analyze_text_skip_threshold_chars} "
+                "out of range [0, 100_000]"
+            )
         if self.contextual_chunking is not None:
             import warnings
 
@@ -645,6 +654,7 @@ class RagEngine:
                 lm_client=ingestion.lm_client,
                 graph_store=persistence.graph_store,
                 ingestion_methods=analyzed_methods,
+                analyze_text_skip_threshold_chars=ingestion.analyze_text_skip_threshold_chars,
             )
             if not ingestion.vision:
                 logger.warning("no vision provider — structured PDF analysis disabled")

@@ -54,6 +54,7 @@ class AnalyzedIngestionService:
         lm_client: LanguageModelClient | None = None,
         graph_store: BaseGraphStore | None = None,
         ingestion_methods: list | None = None,
+        analyze_text_skip_threshold_chars: int = 300,
     ) -> None:
         self._embeddings = embeddings
         self._vector_store = vector_store
@@ -66,6 +67,7 @@ class AnalyzedIngestionService:
         self._registry: ClientRegistry | None = build_registry(lm_client) if lm_client else None
         self._graph_store = graph_store
         self._ingestion_methods = ingestion_methods or []
+        self._analyze_text_skip_threshold_chars = analyze_text_skip_threshold_chars
 
     async def analyze(
         self,
@@ -323,14 +325,21 @@ class AnalyzedIngestionService:
     async def _analyze_pdf_with_cache(
         self, file_path: Path, page_filter: set[int] | None, knowledge_id: str | None,
     ) -> list[PageAnalysis]:
-        """PDF analysis with per-page image-hash caching.
+        """PDF analysis with per-page image-hash caching and text-density pre-filter.
 
         Pages whose rendered-image hash matches an existing ``rag_page_analyses`` row
-        in the same knowledge are reused without an LLM call. Only changed (or new)
-        pages go through the BAML fan-out.
+        are reused without an LLM call (cache hits). Of the remaining pages, those that
+        have ``raw_text_char_count >= analyze_text_skip_threshold_chars`` AND no embedded
+        images are built directly from raw text (``page_type='text'``) without a vision
+        LLM call. The rest go through the BAML fan-out.
+
+        Setting ``analyze_text_skip_threshold_chars=0`` disables the pre-filter entirely
+        so all cache-miss pages go through vision — useful when every page must be
+        visually inspected regardless of extractable text.
         """
         self._require_vision_and_registry()
 
+        threshold = self._analyze_text_skip_threshold_chars
         pages = list(iter_pdf_page_images(file_path, dpi=self._dpi, pages=page_filter))
         # page_hash is empty string when the iterator doesn't provide it (e.g. in tests
         # that patch iter_pdf_page_images with minimal dicts). An empty hash is never
@@ -346,19 +355,47 @@ class AnalyzedIngestionService:
             page_hashes=page_hashes, knowledge_id=None,
         )
 
-        to_analyze = [p for p in pages if not p.get("page_hash") or p.get("page_hash") not in cached]
+        # Classify cache-miss pages into text-only (no vision needed) and vision targets.
+        text_only_pages: list[dict] = []
+        vision_pages: list[dict] = []
+        for p in pages:
+            ph = p.get("page_hash", "")
+            if ph and ph in cached:
+                continue  # cache hit — handled below
+            if (
+                threshold > 0
+                and p.get("raw_text_char_count", 0) >= threshold
+                and not p.get("has_images", False)
+            ):
+                text_only_pages.append(p)
+            else:
+                vision_pages.append(p)
+
         logger.info(
-            "[analyze] page-cache: %d hits / %d misses",
-            len(pages) - len(to_analyze),
-            len(to_analyze),
+            "[analyze] page-cache: %d hits / %d text-only / %d vision",
+            len(pages) - len(text_only_pages) - len(vision_pages),
+            len(text_only_pages),
+            len(vision_pages),
         )
 
-        sem = asyncio.Semaphore(_ANALYZE_PDF_CONCURRENCY)
-
+        # Run vision on targets that are not text-only.
         fresh_by_num: dict[int, PageAnalysis] = {}
-        if to_analyze:
-            fresh = list(await asyncio.gather(*(self._analyze_one(p, sem) for p in to_analyze)))
+        if vision_pages:
+            sem = asyncio.Semaphore(_ANALYZE_PDF_CONCURRENCY)
+            fresh = list(await asyncio.gather(*(self._analyze_one(p, sem) for p in vision_pages)))
             fresh_by_num = {f.page_number: f for f in fresh}
+
+        # Build PageAnalysis for text-only pages directly from raw text.
+        for p in text_only_pages:
+            raw = p.get("raw_text", "")
+            fresh_by_num[p["page_number"]] = PageAnalysis(
+                page_number=p["page_number"],
+                description=raw[:5000],  # cap to protect against pathological pages
+                entities=[],
+                tables=[],
+                annotations=[],
+                page_type="text",
+            )
 
         results: list[PageAnalysis] = []
         for p in pages:
@@ -371,7 +408,7 @@ class AnalyzedIngestionService:
                 pa.page_hash = ph
             else:
                 pa = fresh_by_num[p["page_number"]]
-                # Inject raw_text and page_hash (set after LLM call to keep them canonical)
+                # Inject raw_text and page_hash (set after LLM call or text-only path)
                 pa.raw_text = p.get("raw_text", "")
                 pa.page_hash = ph
             results.append(pa)

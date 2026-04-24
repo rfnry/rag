@@ -11,13 +11,22 @@ logger = get_logger("analyze/ingestion/analyze")
 
 
 def iter_pdf_page_images(file_path: Path, dpi: int = 300, pages: set[int] | None = None) -> Iterator[dict]:
-    """Yield PDF pages as {"page_number", "image_base64", "raw_text", "page_hash"} one at a time.
+    """Yield PDF pages as dicts with page metadata and rendered image.
+
+    Keys yielded per page:
+    - ``page_number``: 1-based page number
+    - ``image_base64``: PNG render of the page as a base64 string
+    - ``raw_text``: plain-text extraction via PyMuPDF (may be empty for scanned pages)
+    - ``raw_text_char_count``: length of stripped raw_text (0 for scanned/image-only pages)
+    - ``has_images``: True when the page contains at least one embedded raster/vector image
+    - ``page_hash``: SHA-256 (first 32 hex chars) of the rendered PNG bytes
 
     Streaming the pages keeps only one rendered image in memory at a time,
     instead of materializing every page before any is processed.
 
-    ``raw_text`` is the plain-text extraction from PyMuPDF — used for BM25
-    ingestion and raw-text vectors. It may be empty for scanned/image-only pages."""
+    ``raw_text_char_count`` and ``has_images`` are used by the text-density
+    pre-filter in ``_analyze_pdf_with_cache`` to skip vision LLM calls for
+    pages that are text-only and image-free."""
     file_path = Path(file_path)
     if not file_path.exists():
         raise FileNotFoundError(f"PDF not found: {file_path}")
@@ -33,6 +42,8 @@ def iter_pdf_page_images(file_path: Path, dpi: int = 300, pages: set[int] | None
                 continue
             page = doc[page_num]
             raw_text = page.get_text()
+            raw_text_char_count = len(raw_text.strip())
+            has_images = bool(page.get_images(full=False))
             pix = page.get_pixmap(matrix=matrix)
             png_bytes = pix.tobytes("png")
             page_hash = hashlib.sha256(png_bytes).hexdigest()[:32]
@@ -42,6 +53,8 @@ def iter_pdf_page_images(file_path: Path, dpi: int = 300, pages: set[int] | None
                 "page_number": page_1based,
                 "image_base64": b64,
                 "raw_text": raw_text,
+                "raw_text_char_count": raw_text_char_count,
+                "has_images": has_images,
                 "page_hash": page_hash,
             }
         logger.info("streamed pdf as %d page images at %d dpi", emitted, dpi)
