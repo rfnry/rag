@@ -139,6 +139,9 @@ class IngestionConfig:
     # images skip the vision LLM call and are built from raw text directly. Set to 0 to
     # disable the pre-filter and send every page through vision.
     analyze_text_skip_threshold_chars: int = 300
+    # Max concurrent vision LLM calls during PDF analysis. Default 5 stays under
+    # Tier-1 rate limits; Tier-2+ accounts can raise this to 8-16 for wall-clock wins.
+    analyze_concurrency: int = 5
 
     def __post_init__(self) -> None:
         if self.chunk_size_unit not in ("chars", "tokens"):
@@ -176,6 +179,10 @@ class IngestionConfig:
             raise ConfigurationError(
                 f"analyze_text_skip_threshold_chars={self.analyze_text_skip_threshold_chars} "
                 "out of range [0, 100_000]"
+            )
+        if not (1 <= self.analyze_concurrency <= 100):
+            raise ConfigurationError(
+                f"IngestionConfig.analyze_concurrency={self.analyze_concurrency} out of range [1, 100]"
             )
         if self.contextual_chunking is not None:
             import warnings
@@ -655,6 +662,7 @@ class RagEngine:
                 graph_store=persistence.graph_store,
                 ingestion_methods=analyzed_methods,
                 analyze_text_skip_threshold_chars=ingestion.analyze_text_skip_threshold_chars,
+                analyze_concurrency=ingestion.analyze_concurrency,
             )
             if not ingestion.vision:
                 logger.warning("no vision provider — structured PDF analysis disabled")

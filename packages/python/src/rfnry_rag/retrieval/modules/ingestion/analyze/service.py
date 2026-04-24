@@ -36,7 +36,6 @@ from rfnry_rag.retrieval.stores.vector.base import BaseVectorStore
 logger = get_logger("analyze/ingestion")
 
 STRUCTURED_EXTENSIONS = {".pdf", ".xml", ".l5x"}
-_ANALYZE_PDF_CONCURRENCY = 5  # bounded to stay under LLM provider rate limits
 _MAX_PAGES_PER_ENTITY = 20  # caps pairwise cross-ref expansion to 190 refs per entity (20*19/2)
 
 
@@ -55,6 +54,7 @@ class AnalyzedIngestionService:
         graph_store: BaseGraphStore | None = None,
         ingestion_methods: list | None = None,
         analyze_text_skip_threshold_chars: int = 300,
+        analyze_concurrency: int = 5,
     ) -> None:
         self._embeddings = embeddings
         self._vector_store = vector_store
@@ -68,6 +68,7 @@ class AnalyzedIngestionService:
         self._graph_store = graph_store
         self._ingestion_methods = ingestion_methods or []
         self._analyze_text_skip_threshold_chars = analyze_text_skip_threshold_chars
+        self._analyze_concurrency = analyze_concurrency
 
     async def analyze(
         self,
@@ -318,7 +319,7 @@ class AnalyzedIngestionService:
     async def _analyze_pdf(self, file_path: Path, page_range: set[int] | None) -> list[PageAnalysis]:
         """Original PDF analysis without per-page cache. Kept for back-compat; internal callers
         now use _analyze_pdf_with_cache instead."""
-        sem = asyncio.Semaphore(_ANALYZE_PDF_CONCURRENCY)
+        sem = asyncio.Semaphore(self._analyze_concurrency)
         pages = list(iter_pdf_page_images(file_path, dpi=self._dpi, pages=page_range))
         return list(await asyncio.gather(*(self._analyze_one(p, sem) for p in pages)))
 
@@ -381,7 +382,7 @@ class AnalyzedIngestionService:
         # Run vision on targets that are not text-only.
         fresh_by_num: dict[int, PageAnalysis] = {}
         if vision_pages:
-            sem = asyncio.Semaphore(_ANALYZE_PDF_CONCURRENCY)
+            sem = asyncio.Semaphore(self._analyze_concurrency)
             fresh = list(await asyncio.gather(*(self._analyze_one(p, sem) for p in vision_pages)))
             fresh_by_num = {f.page_number: f for f in fresh}
 
