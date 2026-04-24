@@ -6,6 +6,9 @@ from typing import Any, Literal
 
 _MAX_TREE_DEPTH = 100
 _MAX_TREE_NODES = 10_000
+# _MAX_PDF_PAGES is 5_000; 100k is 20× generous — still catches a pathological
+# tampered DB row that would OOM before TreeNode recursion guards trigger.
+_MAX_TREE_PAGES = 100_000
 
 
 @dataclass
@@ -192,6 +195,11 @@ class TreeIndex:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TreeIndex:
+        pages_raw = data.get("pages", [])
+        if len(pages_raw) > _MAX_TREE_PAGES:
+            raise ValueError(
+                f"tree index pages count {len(pages_raw)} exceeds {_MAX_TREE_PAGES}"
+            )
         return cls(
             source_id=data["source_id"],
             doc_name=data["doc_name"],
@@ -199,7 +207,7 @@ class TreeIndex:
             structure=[TreeNode.from_dict(n) for n in data["structure"]],
             page_count=data["page_count"],
             created_at=datetime.fromisoformat(data["created_at"]),
-            pages=[TreePage.from_dict(p) for p in data.get("pages", [])],
+            pages=[TreePage.from_dict(p) for p in pages_raw],
         )
 
 

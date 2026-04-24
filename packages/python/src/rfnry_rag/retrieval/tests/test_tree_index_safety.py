@@ -1,6 +1,24 @@
 import pytest
 
 
+def test_tree_index_from_dict_rejects_excessive_pages() -> None:
+    """100_001 pages — one more than the soft cap — must raise ValueError."""
+    from rfnry_rag.retrieval.common.models import TreeIndex
+
+    pages = [{"index": i, "text": "x", "token_count": 1} for i in range(100_001)]
+    tampered = {
+        "source_id": "s1",
+        "doc_name": "x",
+        "doc_description": "",
+        "structure": [],
+        "pages": pages,
+        "page_count": len(pages),
+        "created_at": "2026-01-01T00:00:00",
+    }
+    with pytest.raises(ValueError, match="tree index pages"):
+        TreeIndex.from_dict(tampered)
+
+
 def test_tree_index_from_dict_rejects_excessive_depth() -> None:
     from rfnry_rag.retrieval.common.models import TreeIndex
 
