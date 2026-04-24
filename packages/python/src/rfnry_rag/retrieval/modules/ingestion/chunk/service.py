@@ -79,12 +79,11 @@ class IngestionService:
     async def _check_duplicate(self, hash_value: str, knowledge_id: str | None) -> None:
         if not self._metadata_store:
             return
-        existing = await self._metadata_store.list_sources(knowledge_id=knowledge_id)
-        for source in existing:
-            if source.file_hash == hash_value:
-                raise DuplicateSourceError(
-                    f"File already ingested as source {source.source_id} (hash={hash_value[:12]}...)"
-                )
+        existing = await self._metadata_store.find_by_hash(hash_value, knowledge_id)
+        if existing is not None:
+            raise DuplicateSourceError(
+                f"File already ingested as source {existing.source_id} (hash={hash_value[:12]}...)"
+            )
 
     async def _dispatch_methods(
         self,

@@ -252,6 +252,15 @@ class SQLAlchemyMetadataStore:
             rows = result.scalars().all()
             return [self._row_to_source(row) for row in rows]
 
+    async def find_by_hash(self, hash_value: str, knowledge_id: str | None) -> Source | None:
+        stmt = select(_SourceRow).where(_SourceRow.file_hash == hash_value)
+        if knowledge_id is not None:
+            stmt = stmt.where(_SourceRow.knowledge_id == knowledge_id)
+        stmt = stmt.limit(1)
+        async with self._session_factory() as session:
+            row = (await session.execute(stmt)).scalars().first()
+            return None if row is None else self._row_to_source(row)
+
     _ALLOWED_UPDATE_FIELDS = {
         "metadata",
         "tags",

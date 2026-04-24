@@ -27,6 +27,7 @@ def _make_method(name: str, *, required: bool, fails: bool) -> MagicMock:
 async def test_required_method_failure_aborts_and_does_not_commit_source(tmp_path):
     metadata_store = MagicMock()
     metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.find_by_hash = AsyncMock(return_value=None)
     metadata_store.create_source = AsyncMock()
     svc = IngestionService(
         chunker=SemanticChunker(chunk_size=100, chunk_overlap=10),
@@ -54,6 +55,7 @@ async def test_required_method_failure_aborts_and_does_not_commit_source(tmp_pat
 async def test_optional_method_failure_is_logged_and_ingest_succeeds(tmp_path):
     metadata_store = MagicMock()
     metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.find_by_hash = AsyncMock(return_value=None)
     metadata_store.create_source = AsyncMock()
     svc = IngestionService(
         chunker=SemanticChunker(chunk_size=100, chunk_overlap=10),
@@ -82,6 +84,7 @@ async def test_method_without_required_attribute_defaults_to_required(tmp_path):
     `required`, we treat it as required so failures are not silently swallowed."""
     metadata_store = MagicMock()
     metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.find_by_hash = AsyncMock(return_value=None)
     metadata_store.create_source = AsyncMock()
 
     legacy_method = MagicMock()
@@ -137,6 +140,7 @@ async def test_required_methods_multiple_failures_surface_all_messages(tmp_path)
     )
     metadata_store = MagicMock()
     metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.find_by_hash = AsyncMock(return_value=None)
     metadata_store.create_source = AsyncMock()
 
     a = _mock_method(name="a", required=True)

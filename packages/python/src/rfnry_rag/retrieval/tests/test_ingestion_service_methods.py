@@ -54,6 +54,7 @@ async def test_ingest_text_creates_metadata_source():
     meta_store = SimpleNamespace(
         create_source=AsyncMock(),
         list_sources=AsyncMock(return_value=[]),
+        find_by_hash=AsyncMock(return_value=None),
     )
     service = _make_service(methods=[], metadata_store=meta_store)
     source = await service.ingest_text(content="Hello world")
@@ -149,6 +150,7 @@ def _make_service_with_metadata(ingestion_methods=None):
 
     metadata_store = AsyncMock()
     metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.find_by_hash = AsyncMock(return_value=None)
     metadata_store.create_source = AsyncMock()
 
     if ingestion_methods is None:
@@ -246,6 +248,7 @@ def _make_service_advanced(ingestion_methods=None, chunk_context_headers=True):
 
     metadata_store = AsyncMock()
     metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.find_by_hash = AsyncMock(return_value=None)
     metadata_store.create_source = AsyncMock()
 
     if ingestion_methods is None:
