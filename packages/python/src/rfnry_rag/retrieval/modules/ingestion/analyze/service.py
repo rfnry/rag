@@ -162,48 +162,74 @@ class AnalyzedIngestionService:
         synthesis_data = source.metadata.get("synthesis", {})
         synthesis = _deserialize_synthesis(synthesis_data)
 
-        logger.info("[analyze/ingestion/ingest] embedding %d page descriptions", len(page_analyses))
-
-        texts = []
-        for pa in page_analyses:
-            parts = [pa.description]
-            if pa.entities:
-                parts.append("Entities: " + ", ".join(e.name for e in pa.entities))
-            if pa.annotations:
-                parts.append("Annotations: " + ", ".join(pa.annotations))
-            texts.append("\n".join(parts))
-
-        vectors = await embed_batched(self._embeddings, texts)
-        if vectors:
-            await self._vector_store.initialize(len(vectors[0]))
+        logger.info("[analyze/ingestion/ingest] building multi-vector set for %d pages", len(page_analyses))
 
         xref_map: dict[int, list[int]] = {}
         for xref in synthesis.cross_references:
             xref_map.setdefault(xref.source_page, []).append(xref.target_page)
             xref_map.setdefault(xref.target_page, []).append(xref.source_page)
 
-        points: list[VectorPoint] = []
-        for pa, vector in zip(page_analyses, vectors, strict=True):
-            points.append(
-                VectorPoint(
-                    point_id=str(uuid4()),
-                    vector=vector,
-                    payload={
-                        "content": pa.description,
-                        "source_type": "structured",
-                        "file_type": source.metadata.get("file_type", ""),
-                        "page_number": pa.page_number,
-                        "page_type": pa.page_type,
-                        "entities": [e.name for e in pa.entities],
-                        "entity_categories": [e.category for e in pa.entities],
-                        "cross_references": sorted(set(xref_map.get(pa.page_number, []))),
-                        "source_id": source.source_id,
-                        "knowledge_id": source.knowledge_id,
-                        "source_name": source.metadata.get("file_name", ""),
-                    },
+        texts_to_embed: list[str] = []
+        payloads: list[dict[str, Any]] = []
+
+        for pa in page_analyses:
+            # 1. Description vector (always present)
+            desc_parts = [pa.description]
+            if pa.entities:
+                desc_parts.append("Entities: " + ", ".join(e.name for e in pa.entities))
+            if pa.annotations:
+                desc_parts.append("Annotations: " + ", ".join(pa.annotations))
+            desc_text = "\n".join(desc_parts)
+            texts_to_embed.append(desc_text)
+            payloads.append(
+                _build_payload(
+                    vector_role="description",
+                    content=pa.description,
+                    pa=pa,
+                    source=source,
+                    xref_map=xref_map,
                 )
             )
 
+            # 2. Raw-text vector (only when non-empty — skip silently for scanned/image pages)
+            if pa.raw_text.strip():
+                texts_to_embed.append(pa.raw_text)
+                payloads.append(
+                    _build_payload(
+                        vector_role="raw_text",
+                        content=pa.raw_text,
+                        pa=pa,
+                        source=source,
+                        xref_map=xref_map,
+                    )
+                )
+
+            # 3. Table-row vectors (one per row per table)
+            for table in pa.tables:
+                cols = table.columns or []
+                for row in table.rows or []:
+                    row_text = _format_table_row(table, cols, row)
+                    texts_to_embed.append(row_text)
+                    payloads.append(
+                        _build_payload(
+                            vector_role="table_row",
+                            content=row_text,
+                            pa=pa,
+                            source=source,
+                            xref_map=xref_map,
+                            extra={"table_title": table.title or ""},
+                        )
+                    )
+
+        # Single batched embed call for all texts
+        vectors = await embed_batched(self._embeddings, texts_to_embed)
+        if vectors:
+            await self._vector_store.initialize(len(vectors[0]))
+
+        points: list[VectorPoint] = [
+            VectorPoint(point_id=str(uuid4()), vector=v, payload=p)
+            for v, p in zip(vectors, payloads, strict=True)
+        ]
         await self._vector_store.upsert(points)
 
         # Graph store — entities already extracted in phase 1, use mapper directly
@@ -232,8 +258,8 @@ class AnalyzedIngestionService:
             except Exception as exc:
                 logger.warning("[analyze/ingestion/ingest] graph failed: %s", exc)
 
-        # Delegate to other ingestion methods (document, etc.)
-        full_text = "\n\n".join(texts)
+        # Delegate to other ingestion methods — full_text is raw OCR text, not LLM descriptions
+        full_text = "\n\n".join(pa.raw_text or pa.description for pa in page_analyses)
         for method in self._ingestion_methods:
             try:
                 await method.ingest(
@@ -310,6 +336,7 @@ class AnalyzedIngestionService:
                 tables=[DiscoveredTable(title=t.title, columns=t.columns, rows=t.rows) for t in result.tables],
                 annotations=result.annotations,
                 page_type=result.page_type,
+                raw_text=img.get("raw_text", ""),  # PyMuPDF side-channel extraction
             )
 
             logger.info(
@@ -442,6 +469,58 @@ class AnalyzedIngestionService:
         return DocumentSynthesis(cross_references=xrefs)
 
 
+def _build_payload(
+    *,
+    vector_role: str,
+    content: str,
+    pa: PageAnalysis,
+    source: Source,
+    xref_map: dict[int, list[int]],
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a vector payload dict, tagged with ``vector_role`` for downstream filtering."""
+    payload: dict[str, Any] = {
+        "content": content,
+        "vector_role": vector_role,
+        "source_type": "structured",
+        "file_type": source.metadata.get("file_type", ""),
+        "page_number": pa.page_number,
+        "page_type": pa.page_type,
+        "entities": [e.name for e in pa.entities],
+        "entity_categories": [e.category for e in pa.entities],
+        "cross_references": sorted(set(xref_map.get(pa.page_number, []))),
+        "source_id": source.source_id,
+        "knowledge_id": source.knowledge_id,
+        "source_name": source.metadata.get("file_name", ""),
+    }
+    if extra:
+        payload.update(extra)
+    return payload
+
+
+def _format_table_row(table: DiscoveredTable, cols: list[str], row: dict[str, str] | list[str]) -> str:
+    """Serialise one table row as a string with column-header context.
+
+    Handles both ``dict`` rows (from BAML ``map<string,string>[]``) and
+    ``list`` rows, as well as absent column lists.  The table title is
+    prefixed when present so the vector carries its own column context."""
+    prefix = f"[{table.title}] " if table.title else ""
+    if isinstance(row, dict):
+        # Dict rows: emit key:value pairs preserving column order where possible
+        pairs = [f"{c}: {row.get(c, '')}" for c in cols] if cols else [f"{k}: {v}" for k, v in row.items()]
+        return prefix + " | ".join(pairs)
+    # List rows: zip with column headers
+    if not cols:
+        return prefix + " | ".join(str(cell) for cell in row)
+    pairs = []
+    for i, cell in enumerate(row):
+        if i < len(cols):
+            pairs.append(f"{cols[i]}: {cell}")
+        else:
+            pairs.append(str(cell))
+    return prefix + " | ".join(pairs)
+
+
 def _serialize_analysis(pa: PageAnalysis) -> dict[str, Any]:
     return {
         "page_number": pa.page_number,
@@ -453,6 +532,7 @@ def _serialize_analysis(pa: PageAnalysis) -> dict[str, Any]:
         "annotations": pa.annotations,
         "page_type": pa.page_type,
         "metadata": pa.metadata,
+        "raw_text": pa.raw_text,
     }
 
 
@@ -480,6 +560,7 @@ def _deserialize_analysis(data: dict[str, Any]) -> PageAnalysis:
         annotations=data.get("annotations", []),
         page_type=data.get("page_type", ""),
         metadata=data.get("metadata", {}),
+        raw_text=data.get("raw_text", ""),  # back-compat: older persisted sources lack this field
     )
 
 

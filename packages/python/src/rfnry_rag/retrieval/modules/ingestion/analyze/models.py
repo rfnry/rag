@@ -28,6 +28,7 @@ class PageAnalysis:
     annotations: list[str] = field(default_factory=list)
     page_type: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
+    raw_text: str = ""  # raw extracted text for BM25 / raw-text vectors
 
 
 @dataclass
