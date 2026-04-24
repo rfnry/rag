@@ -14,15 +14,21 @@ phases.
 """
 from __future__ import annotations
 
+import asyncio
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from baml_py import ClientRegistry
 
+from rfnry_rag.retrieval.common.errors import IngestionError
+from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 from rfnry_rag.retrieval.common.language_model import build_registry
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import Source
 from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+from rfnry_rag.retrieval.modules.ingestion.drawing.render import render_dxf, render_pdf_pages
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.stores.graph.base import BaseGraphStore
 from rfnry_rag.retrieval.stores.metadata.base import BaseMetadataStore
@@ -63,7 +69,71 @@ class DrawingIngestionService:
         metadata: dict[str, Any] | None = None,
     ) -> Source:
         """Phase 1 - produce page images. Idempotent on re-entry for the same file_hash. (C4)"""
-        raise NotImplementedError
+        path = Path(file_path)
+        if not path.exists():
+            raise IngestionError(f"drawing file not found: {path}")
+        ext = path.suffix.lower()
+        if ext not in SUPPORTED_DRAWING_EXTENSIONS:
+            raise IngestionError(
+                f"unsupported drawing extension: {ext!r}. "
+                f"Supported: {sorted(SUPPORTED_DRAWING_EXTENSIONS)}"
+            )
+
+        file_hash_value = await asyncio.to_thread(compute_file_hash, path)
+
+        existing = await self._metadata_store.find_by_hash(file_hash_value, knowledge_id)
+        if existing is not None and existing.status in {"rendered", "extracted", "linked", "completed"}:
+            return existing
+
+        if ext == ".pdf":
+            pages = await asyncio.to_thread(
+                lambda: list(render_pdf_pages(path, dpi=self._config.dpi))
+            )
+            source_format = "pdf"
+        else:  # .dxf
+            pages = [await asyncio.to_thread(render_dxf, path, self._config.dpi)]
+            source_format = "dxf"
+
+        source_id = str(uuid4())
+        source = Source(
+            source_id=source_id,
+            knowledge_id=knowledge_id,
+            source_type=source_type,
+            status="rendered",
+            embedding_model=self._embedding_model_name,
+            file_hash=file_hash_value,
+            created_at=datetime.now(UTC),
+            metadata={
+                **(metadata or {}),
+                "source_format": source_format,
+                "file_name": path.name,
+                "file_path": str(path),
+                "page_count": len(pages),
+            },
+        )
+        await self._metadata_store.create_source(source)
+        await self._metadata_store.upsert_page_analyses(
+            source_id,
+            [
+                {
+                    "page_number": p["page_number"],
+                    "data": {
+                        "page_image_b64": p["image_base64"],
+                        "page_hash": p["page_hash"],
+                        "raw_text": p.get("raw_text", ""),
+                        "source_format": source_format,
+                    },
+                }
+                for p in pages
+            ],
+        )
+        logger.info(
+            "[drawing/render] source_id=%s pages=%d format=%s",
+            source_id,
+            len(pages),
+            source_format,
+        )
+        return source
 
     async def extract(self, source_id: str) -> Source:
         """Phase 2 - per-page DrawingPageAnalysis. Idempotent when status != 'rendered'. (C5/C6)"""
