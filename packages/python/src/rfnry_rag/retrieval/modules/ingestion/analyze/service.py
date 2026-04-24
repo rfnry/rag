@@ -258,8 +258,9 @@ class AnalyzedIngestionService:
             except Exception as exc:
                 logger.warning("[analyze/ingestion/ingest] graph failed: %s", exc)
 
-        # Delegate to other ingestion methods — full_text is raw OCR text, not LLM descriptions
-        full_text = "\n\n".join(pa.raw_text or pa.description for pa in page_analyses)
+        # Delegate to other ingestion methods — prefer raw OCR text; fall back to enriched
+        # description (with entity names) for L5X/XML where raw_text is always empty.
+        full_text = "\n\n".join(_page_text_for_document_store(pa) for pa in page_analyses)
         for method in self._ingestion_methods:
             try:
                 await method.ingest(
@@ -469,6 +470,25 @@ class AnalyzedIngestionService:
         return DocumentSynthesis(cross_references=xrefs)
 
 
+def _page_text_for_document_store(pa: PageAnalysis) -> str:
+    """Return the text to feed downstream document/BM25 methods.
+
+    For PDF pages we prefer the raw OCR text (populated via PyMuPDF's
+    ``page.get_text()``). For L5X / XML inputs raw_text is empty, so we
+    fall back to the LLM description enriched with entity names and
+    annotations — preserving the document-store searchability of entity
+    tokens that the analysed pipeline surfaces for structured files.
+    """
+    if pa.raw_text:
+        return pa.raw_text
+    parts = [pa.description]
+    if pa.entities:
+        parts.append("Entities: " + ", ".join(e.name for e in pa.entities))
+    if pa.annotations:
+        parts.append("Annotations: " + ", ".join(pa.annotations))
+    return "\n".join(parts)
+
+
 def _build_payload(
     *,
     vector_role: str,
@@ -507,7 +527,7 @@ def _format_table_row(table: DiscoveredTable, cols: list[str], row: dict[str, st
     prefix = f"[{table.title}] " if table.title else ""
     if isinstance(row, dict):
         # Dict rows: emit key:value pairs preserving column order where possible
-        pairs = [f"{c}: {row.get(c, '')}" for c in cols] if cols else [f"{k}: {v}" for k, v in row.items()]
+        pairs = [f"{c}: {row.get(c) or ''}" for c in cols] if cols else [f"{k}: {v or ''}" for k, v in row.items()]
         return prefix + " | ".join(pairs)
     # List rows: zip with column headers
     if not cols:

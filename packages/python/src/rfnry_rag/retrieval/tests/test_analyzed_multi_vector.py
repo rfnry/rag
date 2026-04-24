@@ -25,7 +25,7 @@ def _serialize_page_for_test(pa: PageAnalysis) -> dict:
         "tables": [{"title": t.title, "columns": t.columns, "rows": t.rows} for t in pa.tables],
         "annotations": pa.annotations,
         "page_type": pa.page_type,
-        "metadata": pa.metadata if hasattr(pa, "metadata") else {},
+        "metadata": pa.metadata,
         "raw_text": pa.raw_text,
     }
 
@@ -201,3 +201,29 @@ async def test_page_without_raw_text_still_produces_description_vector(
     # Only page 1 has a raw_text vector
     raws = [p for p in captured["upserts"] if p.payload.get("vector_role") == "raw_text"]
     assert len(raws) == 1
+
+
+@pytest.mark.asyncio
+async def test_full_text_for_non_pdf_falls_back_to_description_with_entities(
+    fake_analyzed_service,
+) -> None:
+    """L5X/XML pages have empty raw_text; full_text must still include entity names
+    so document-store search on 'Motor M1' still matches.
+    """
+    svc, captured = fake_analyzed_service
+    # Blank out raw_text on both seeded pages to simulate L5X/XML
+    source = await svc._metadata_store.get_source(svc._seeded_source_id)
+    for pa in source.metadata["page_analyses"]:
+        pa["raw_text"] = ""
+    await svc._metadata_store.update_source(
+        source.source_id, metadata=source.metadata,
+    )
+
+    await svc.ingest(source_id=svc._seeded_source_id)
+
+    method_call = captured["method_calls"][0]
+    full_text = method_call["full_text"]
+    # Description is present
+    assert "llm-written description" in full_text
+    # Entity names from page 1 are present (Entities: E1)
+    assert "E1" in full_text
