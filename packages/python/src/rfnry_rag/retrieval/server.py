@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from rfnry_rag.retrieval.common.errors import ConfigurationError
+from rfnry_rag.retrieval.common.errors import ConfigurationError, InputError
 
 if TYPE_CHECKING:
     from rfnry_rag.retrieval.modules.ingestion.tree.service import TreeIndexingService
@@ -60,22 +60,22 @@ _MAX_METADATA_VALUE_CHARS = 8_000
 
 def _validate_query_text(text: str) -> None:
     if len(text) > _MAX_QUERY_CHARS:
-        raise ValueError(f"query exceeds {_MAX_QUERY_CHARS} chars (got {len(text)})")
+        raise InputError(f"query exceeds {_MAX_QUERY_CHARS} chars (got {len(text)})")
 
 
 def _validate_ingest_content(content: str) -> None:
     if len(content) > _MAX_INGEST_CHARS:
-        raise ValueError(f"ingest content exceeds {_MAX_INGEST_CHARS} chars (got {len(content)})")
+        raise InputError(f"ingest content exceeds {_MAX_INGEST_CHARS} chars (got {len(content)})")
 
 
 def _validate_metadata(metadata: dict[str, Any] | None) -> None:
     if not metadata:
         return
     if len(metadata) > _MAX_METADATA_KEYS:
-        raise ValueError(f"metadata exceeds {_MAX_METADATA_KEYS} keys (got {len(metadata)})")
+        raise InputError(f"metadata exceeds {_MAX_METADATA_KEYS} keys (got {len(metadata)})")
     for k, v in metadata.items():
         if isinstance(v, str) and len(v) > _MAX_METADATA_VALUE_CHARS:
-            raise ValueError(f"metadata[{k!r}] value exceeds {_MAX_METADATA_VALUE_CHARS} chars (got {len(v)})")
+            raise InputError(f"metadata[{k!r}] value exceeds {_MAX_METADATA_VALUE_CHARS} chars (got {len(v)})")
 
 
 DEFAULT_SYSTEM_PROMPT = (

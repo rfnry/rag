@@ -70,3 +70,11 @@ class DuplicateSourceError(StoreError):
 
 class SourceNotFoundError(StoreError):
     """Source ID does not exist."""
+
+
+class InputError(RagError, ValueError):
+    """Raised when a public-input guard rejects caller-supplied text or metadata.
+
+    Inherits from both RagError (for catching SDK-specific errors) and
+    ValueError (for back-compat — existing `except ValueError:` still works).
+    """
