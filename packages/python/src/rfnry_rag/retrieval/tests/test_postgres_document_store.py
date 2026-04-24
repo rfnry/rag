@@ -115,3 +115,15 @@ def test_search_postgres_uses_core_expressions() -> None:
     assert "text(f" not in source, "_search_postgres must not use text(f'...') f-string SQL assembly"
     assert "where_sql" not in source, "_search_postgres must not use the old f-string where_sql variable"
     assert "ilike_where_sql" not in source, "_search_postgres must not use the old f-string ilike_where_sql variable"
+
+
+def test_postgres_headline_options_configurable() -> None:
+    store = PostgresDocumentStore(
+        url="sqlite+aiosqlite:///:memory:",
+        headline_max_words=50,
+        headline_min_words=20,
+        headline_max_fragments=1,
+    )
+    assert store._headline_max_words == 50
+    assert store._headline_min_words == 20
+    assert store._headline_max_fragments == 1

@@ -5,6 +5,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from rfnry_rag.retrieval.common.errors import ConfigurationError
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import ContentMatch
 from rfnry_rag.retrieval.stores.document.excerpt import extract_window
@@ -44,7 +45,23 @@ class PostgresDocumentStore:
         pool_pre_ping: bool = True,
         pool_timeout: int = 10,
         echo: bool = False,
+        headline_max_words: int = 200,
+        headline_min_words: int = 80,
+        headline_max_fragments: int = 3,
     ) -> None:
+        if headline_max_words < 1:
+            raise ConfigurationError("headline_max_words must be >= 1")
+        if headline_min_words < 1:
+            raise ConfigurationError("headline_min_words must be >= 1")
+        if headline_max_fragments < 1:
+            raise ConfigurationError("headline_max_fragments must be >= 1")
+        if headline_min_words > headline_max_words:
+            raise ConfigurationError(
+                f"headline_min_words ({headline_min_words}) must be <= headline_max_words ({headline_max_words})"
+            )
+        self._headline_max_words = headline_max_words
+        self._headline_min_words = headline_min_words
+        self._headline_max_fragments = headline_max_fragments
         parsed = make_url(url)
         if parsed.drivername == "postgresql":
             parsed = parsed.set(drivername="postgresql+asyncpg")
@@ -151,11 +168,16 @@ class PostgresDocumentStore:
         tsv_col: ColumnElement[Any] = column("tsv")
         tsq = func.plainto_tsquery(literal("english"), literal(query))
         rank_col = func.ts_rank(tsv_col, tsq).label("rank")
+        headline_opts = (
+            f"MaxWords={self._headline_max_words},"
+            f"MinWords={self._headline_min_words},"
+            f"MaxFragments={self._headline_max_fragments}"
+        )
         headline_col = func.ts_headline(
             literal("english"),
             _SourceContentRow.content,
             tsq,
-            literal("MaxWords=200,MinWords=80,MaxFragments=3"),
+            literal(headline_opts),
         ).label("headline")
 
         stmt = select(
