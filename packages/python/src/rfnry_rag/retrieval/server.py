@@ -23,6 +23,7 @@ from rfnry_rag.retrieval.modules.ingestion.base import BaseIngestionMethod
 from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker
 from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
 from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+from rfnry_rag.retrieval.modules.ingestion.drawing.service import DrawingIngestionService
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.modules.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
 from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
@@ -50,6 +51,7 @@ from rfnry_rag.retrieval.stores.vector.base import BaseVectorStore
 logger = get_logger("server")
 
 SUPPORTED_STRUCTURED_EXTENSIONS = {".xml", ".l5x"}
+SUPPORTED_DRAWING_EXTENSIONS = {".dxf"}  # .pdf is tiebroken via source_type="drawing"
 
 # Size guards on user-supplied inputs. These prevent monetary-DoS (huge query
 # sent to every embedding provider) and OOM (unbounded text or metadata). The
@@ -405,6 +407,7 @@ class RagEngine:
 
         self._ingestion_service: IngestionService | None = None
         self._structured_ingestion: AnalyzedIngestionService | None = None
+        self._drawing_ingestion: DrawingIngestionService | None = None
         self._retrieval_service: RetrievalService | None = None
         self._structured_retrieval: StructuredRetrievalService | None = None
         self._generation_service: GenerationService | None = None
@@ -671,6 +674,28 @@ class RagEngine:
             if not ingestion.vision:
                 logger.warning("no vision provider — structured PDF analysis disabled")
 
+        # Drawing ingestion — sibling of structured. Enabled only if the consumer
+        # explicitly configures IngestionConfig.drawings (opt-in).
+        if ingestion.drawings is not None and ingestion.drawings.enabled:
+            if persistence.metadata_store is None or persistence.vector_store is None:
+                raise ConfigurationError(
+                    "DrawingIngestionConfig.enabled=True requires metadata_store and vector_store"
+                )
+            if ingestion.embeddings is None:
+                raise ConfigurationError(
+                    "DrawingIngestionConfig.enabled=True requires IngestionConfig.embeddings"
+                )
+            self._drawing_ingestion = DrawingIngestionService(
+                config=ingestion.drawings,
+                embeddings=ingestion.embeddings,
+                vector_store=persistence.vector_store,
+                metadata_store=persistence.metadata_store,
+                embedding_model_name=self._embedding_model_name,
+                graph_store=persistence.graph_store,
+                ingestion_methods=list(ingestion_methods),
+            )
+            logger.info("drawing ingestion: enabled")
+
         self._retrieval_service = RetrievalService(
             retrieval_methods=retrieval_methods,
             reranking=retrieval.reranker,
@@ -791,6 +816,7 @@ class RagEngine:
         # Null out service refs so post-shutdown access fails cleanly
         self._ingestion_service = None
         self._structured_ingestion = None
+        self._drawing_ingestion = None
         self._retrieval_service = None
         self._structured_retrieval = None
         self._generation_service = None
@@ -830,6 +856,49 @@ class RagEngine:
         file_path = Path(file_path)
         ext = file_path.suffix.lower()
 
+        # Drawing route: .dxf always; .pdf only when source_type='drawing'.
+        drawing_route = (
+            ext in SUPPORTED_DRAWING_EXTENSIONS
+            or (ext == ".pdf" and source_type == "drawing")
+        )
+        if drawing_route:
+            if self._drawing_ingestion is None:
+                raise ValueError(
+                    "Drawing ingestion not configured. "
+                    "Pass IngestionConfig(drawings=DrawingIngestionConfig(enabled=True, ...))."
+                )
+            if collection is not None:
+                raise ValueError(
+                    "collection routing is not supported with drawing ingestion"
+                )
+
+            # Status-based resume
+            metadata_store = self._config.persistence.metadata_store
+            existing: Source | None = None
+            if metadata_store is not None:
+                file_hash_value = await asyncio.to_thread(compute_file_hash, file_path)
+                existing = await metadata_store.find_by_hash(file_hash_value, knowledge_id)
+            if existing is not None and existing.status == "completed":
+                return existing
+
+            if existing is not None and existing.status in {"rendered", "extracted", "linked"}:
+                # Resume: skip render, let the stepped calls pick up at the right phase
+                source = existing
+            else:
+                source = await self._drawing_ingestion.render(
+                    file_path=file_path,
+                    knowledge_id=knowledge_id,
+                    source_type=source_type,
+                    metadata=metadata,
+                )
+            if source.status == "rendered":
+                source = await self._drawing_ingestion.extract(source.source_id)
+            if source.status == "extracted":
+                source = await self._drawing_ingestion.link(source.source_id)
+            if source.status == "linked":
+                source = await self._drawing_ingestion.ingest(source.source_id)
+            return source
+
         if ext in SUPPORTED_STRUCTURED_EXTENSIONS and self._structured_ingestion:
             if collection is not None:
                 raise ValueError(
@@ -839,7 +908,7 @@ class RagEngine:
 
             # Status-based resume: find any prior ingest for the same file_hash.
             metadata_store = self._config.persistence.metadata_store
-            existing: Source | None = None
+            existing = None
             if metadata_store is not None:
                 file_hash_value = await asyncio.to_thread(compute_file_hash, file_path)
                 existing = await metadata_store.find_by_hash(file_hash_value, knowledge_id)
@@ -970,6 +1039,53 @@ class RagEngine:
         if not self._structured_ingestion:
             raise ConfigurationError("metadata store required for structured ingestion")
         return await self._structured_ingestion.ingest(source_id)
+
+    async def render_drawing(
+        self,
+        file_path: str | Path,
+        knowledge_id: str | None = None,
+        source_type: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> Source:
+        """Drawing phase 1: render page images."""
+        self._check_initialized()
+        if self._drawing_ingestion is None:
+            raise ConfigurationError(
+                "DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...)."
+            )
+        return await self._drawing_ingestion.render(
+            file_path=file_path,
+            knowledge_id=knowledge_id,
+            source_type=source_type,
+            metadata=metadata,
+        )
+
+    async def extract_drawing(self, source_id: str) -> Source:
+        """Drawing phase 2: per-page DrawingPageAnalysis."""
+        self._check_initialized()
+        if self._drawing_ingestion is None:
+            raise ConfigurationError(
+                "DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...)."
+            )
+        return await self._drawing_ingestion.extract(source_id)
+
+    async def link_drawing(self, source_id: str) -> Source:
+        """Drawing phase 3: cross-sheet linking (deterministic + LLM residue)."""
+        self._check_initialized()
+        if self._drawing_ingestion is None:
+            raise ConfigurationError(
+                "DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...)."
+            )
+        return await self._drawing_ingestion.link(source_id)
+
+    async def complete_drawing_ingestion(self, source_id: str) -> Source:
+        """Drawing phase 4: embed + graph write."""
+        self._check_initialized()
+        if self._drawing_ingestion is None:
+            raise ConfigurationError(
+                "DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...)."
+            )
+        return await self._drawing_ingestion.ingest(source_id)
 
     async def query(
         self,
