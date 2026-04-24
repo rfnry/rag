@@ -112,6 +112,13 @@ Retrieval and ingestion are protocol-based plugin architectures. No mandatory ve
   regexes, and wire_style→relation_type mapping are fully consumer-
   configurable via `DrawingIngestionConfig` (ships IEC 60617 + ISA 5.1
   defaults). Phase C (2026-04-25).
+- **Graph ingestion is consumer-agnostic by default.** The analyze-path graph
+  mapper at `stores/graph/mapper.py` takes a `GraphIngestionConfig` so
+  consumers supply their own entity-type regex patterns, relationship
+  keyword map, and fallback edge type. Empty config → type-inference
+  falls through to `DiscoveredEntity.category.lower()`, cross-references
+  with no keyword match become generic `MENTIONS` edges. Phase D
+  (2026-04-26).
 
 ### Error Hierarchy
 
@@ -165,7 +172,7 @@ The following contract tests act as regression guards — they enforce whole-cla
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking
 - Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules
-- 986 tests total across both SDKs
+- 997 tests total across both SDKs
 
 ## Config defaults and enforced bounds
 
@@ -186,6 +193,14 @@ The following contract tests act as regression guards — they enforce whole-cla
   default 500
 - `DrawingIngestionConfig.relation_vocabulary`: every target must be in
   `ALLOWED_RELATION_TYPES` (validated at `__post_init__`)
+- `GraphIngestionConfig.entity_type_patterns`: list of
+  `(regex_str, type_name)`; regex strings compiled at `__post_init__` for
+  fail-fast validation
+- `GraphIngestionConfig.relationship_keyword_map`: all values must be in
+  `ALLOWED_RELATION_TYPES`
+- `GraphIngestionConfig.unclassified_relation_default`: `"MENTIONS"` by
+  default; `None` = drop; any other value must be in
+  `ALLOWED_RELATION_TYPES`
 - `RetrievalConfig.top_k`: `1 ≤ top_k ≤ 200`
 - `RetrievalConfig.bm25_max_chunks`: `≤ 200_000`
 - `RetrievalConfig.bm25_max_indexes`: `1 ≤ n ≤ 1000`, default 16

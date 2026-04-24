@@ -10,6 +10,50 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-26 Phase D — Agnostic Graph Mapper + Prompt Neutralization
+
+Four tasks (4 feature commits) removing pre-existing electrical/mechanical
+domain assumptions from the analyze-path graph mapper and the
+`AnalyzePage` / `ExtractEntitiesFromText` BAML prompts. The SDK now
+ships zero domain assumption by default; consumers supply their own
+vocabulary via `GraphIngestionConfig`. Test count 986 → 997.
+
+**D1 — `GraphIngestionConfig`.** New nested config on `IngestionConfig.graph`
+with three knobs: `entity_type_patterns` (list of `(regex, type_name)`
+pairs, first match wins), `relationship_keyword_map` (keyword → Neo4j
+relation_type; every target validated against `ALLOWED_RELATION_TYPES` at
+`__post_init__`), and `unclassified_relation_default` (fallback edge type
+when no keyword matches; default `"MENTIONS"`, set to `None` for strict
+drop). Registered with `test_config_bounds_contract`.
+Commit: `4639aff`.
+
+**D2 — Mapper refactor.** `page_entities_to_graph` and
+`cross_refs_to_graph_relations` now accept a `GraphIngestionConfig`
+argument. Removed `_ELECTRICAL_PATTERNS`, `_MECHANICAL_PATTERNS`, and
+`_RELATIONSHIP_KEYWORDS` module-level constants. Entity-type inference
+falls back to `category.lower()` → `"entity"` when config patterns don't
+match. Cross-reference classification falls back to
+`unclassified_relation_default` instead of silently dropping — the
+pre-Phase-D silent drop was a correctness bug for any non-electrical
+domain. Tests rewritten to exercise the config mechanism.
+Commit: `5522c85`.
+
+**D3 — Wiring.** `AnalyzedIngestionService` and `GraphIngestion` both
+accept `graph_config: GraphIngestionConfig | None`. `RagEngine` passes
+`IngestionConfig.graph` through. When unset, services construct a
+default empty-vocab + MENTIONS-fallback config, so existing non-drawing
+flows become agnostic by default.
+Commit: `5d7562f`.
+
+**D4 — Neutralized BAML prompts.** `AnalyzePage` and
+`ExtractEntitiesFromText` prompt bodies stripped of "valves, motors,
+wires, terminals" / "480V, 175 PSI, 3450 RPM" / "Motor M1" / "SAE" /
+"RV-2201" / "electrical" / "mechanical" bias terms. Replaced with
+structure-focused instructions that describe the expected shape
+(entities, categories, tables) without seeding the LLM with domain
+vocabulary. New contract test prevents regression.
+Commit: `f7ffdfc`.
+
 ### 2026-04-25 Phase C — DrawingIngestion MVP
 
 Thirteen tasks (13 feature + 2 fix-up commits, plus docs) shipping a first-class SDK
