@@ -932,6 +932,7 @@ class RagEngine:
         owns the loop, stopping conditions, and query enrichment between iterations.
         """
         self._check_initialized()
+        _validate_query_text(query)
         if not self._step_service:
             raise RuntimeError("generate_step() requires step_lm_client in GenerationConfig")
 

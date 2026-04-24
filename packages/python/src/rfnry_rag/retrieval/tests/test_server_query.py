@@ -172,6 +172,12 @@ class TestServerGenerateStep:
         with pytest.raises(RuntimeError, match="step_lm_client"):
             await server.generate_step("query", [])
 
+    async def test_generate_step_rejects_oversize_query(self):
+        server = _make_server()
+        server._step_service = AsyncMock()
+        with pytest.raises(ValueError, match="query exceeds"):
+            await server.generate_step(query="x" * 40_000, chunks=[])
+
 
 class TestMinScore:
     async def test_retrieve_filters_by_min_score(self):
