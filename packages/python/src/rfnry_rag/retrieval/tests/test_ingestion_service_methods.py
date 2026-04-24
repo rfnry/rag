@@ -227,7 +227,7 @@ async def test_structured_ingestion_has_document_method():
 # --- Tests merged from test_ingestion_advanced.py ---
 
 
-def _make_service_advanced(ingestion_methods=None, contextual_chunking=True):
+def _make_service_advanced(ingestion_methods=None, chunk_context_headers=True):
     chunker = MagicMock()
     chunker.chunk = MagicMock(
         return_value=[
@@ -256,7 +256,7 @@ def _make_service_advanced(ingestion_methods=None, contextual_chunking=True):
         ingestion_methods=ingestion_methods,
         embedding_model_name="test:model",
         metadata_store=metadata_store,
-        contextual_chunking=contextual_chunking,
+        chunk_context_headers=chunk_context_headers,
     )
 
 
@@ -287,7 +287,7 @@ async def test_ingestion_creates_source(tmp_path):
 async def test_ingestion_payload_has_context_fields(tmp_path):
     """Contextual chunking adds context fields to chunks before passing to methods."""
     method = _mock_method("vector")
-    service = _make_service_advanced(ingestion_methods=[method], contextual_chunking=True)
+    service = _make_service_advanced(ingestion_methods=[method], chunk_context_headers=True)
 
     test_file = tmp_path / "test.txt"
     test_file.write_text("Some content.")

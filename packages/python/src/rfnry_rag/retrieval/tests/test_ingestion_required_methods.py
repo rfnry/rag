@@ -39,7 +39,7 @@ async def test_required_method_failure_aborts_and_does_not_commit_source(tmp_pat
         metadata_store=metadata_store,
         on_ingestion_complete=None,
         vision_parser=None,
-        contextual_chunking=False,
+        chunk_context_headers=False,
     )
     fp = tmp_path / "a.txt"
     fp.write_text("hello world " * 50)
@@ -66,7 +66,7 @@ async def test_optional_method_failure_is_logged_and_ingest_succeeds(tmp_path):
         metadata_store=metadata_store,
         on_ingestion_complete=None,
         vision_parser=None,
-        contextual_chunking=False,
+        chunk_context_headers=False,
     )
     fp = tmp_path / "a.txt"
     fp.write_text("hello world " * 50)
@@ -98,7 +98,7 @@ async def test_method_without_required_attribute_defaults_to_required(tmp_path):
         metadata_store=metadata_store,
         on_ingestion_complete=None,
         vision_parser=None,
-        contextual_chunking=False,
+        chunk_context_headers=False,
     )
     fp = tmp_path / "a.txt"
     fp.write_text("hello world " * 50)
@@ -149,7 +149,7 @@ async def test_required_methods_multiple_failures_surface_all_messages(tmp_path)
         ingestion_methods=[a, b],
         embedding_model_name="test:model",
         metadata_store=metadata_store,
-        contextual_chunking=False,
+        chunk_context_headers=False,
     )
 
     fp = tmp_path / "sample.txt"

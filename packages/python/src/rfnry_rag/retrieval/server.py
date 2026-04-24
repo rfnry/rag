@@ -566,7 +566,7 @@ class RagEngine:
             metadata_store=persistence.metadata_store,
             on_ingestion_complete=self._on_ingestion_complete,
             vision_parser=ingestion.vision,
-            contextual_chunking=ingestion.chunk_context_headers,
+            chunk_context_headers=ingestion.chunk_context_headers,
         )
 
         # Analyzed ingestion — shares document method from main list, graph store passed directly
@@ -1063,7 +1063,7 @@ class RagEngine:
             metadata_store=cfg.persistence.metadata_store,
             on_ingestion_complete=self._on_ingestion_complete,
             vision_parser=cfg.ingestion.vision,
-            contextual_chunking=cfg.ingestion.chunk_context_headers,
+            chunk_context_headers=cfg.ingestion.chunk_context_headers,
         )
 
     async def _retrieve_chunks(

@@ -53,7 +53,7 @@ class IngestionService:
         metadata_store: BaseMetadataStore | None = None,
         on_ingestion_complete: Callable[[str | None], Awaitable[None]] | None = None,
         vision_parser: BaseVision | None = None,
-        contextual_chunking: bool = True,
+        chunk_context_headers: bool = True,
     ) -> None:
         self._chunker = chunker
         self._ingestion_methods = ingestion_methods
@@ -62,7 +62,7 @@ class IngestionService:
         self._source_type_weights = source_type_weights
         self._on_ingestion_complete = on_ingestion_complete
         self._vision_parser = vision_parser
-        self._contextual_chunking = contextual_chunking
+        self._chunk_context_headers = chunk_context_headers
 
     def _resolve_weight(self, source_type: str | None) -> float:
         if self._source_type_weights is None:
@@ -219,7 +219,7 @@ class IngestionService:
         if not chunks:
             raise EmptyDocumentError(f"Document produced no content to ingest: {file_path.name}")
 
-        if self._contextual_chunking:
+        if self._chunk_context_headers:
             source_name = (metadata or {}).get("name", file_path.name)
             chunks = contextualize_chunks(chunks, source_name=source_name, source_type=source_type)
 
@@ -281,7 +281,7 @@ class IngestionService:
         if not chunks:
             raise EmptyDocumentError("Text content produced no chunks to ingest")
 
-        if self._contextual_chunking:
+        if self._chunk_context_headers:
             source_name = (metadata or {}).get("name", "text-input")
             chunks = contextualize_chunks(chunks, source_name=source_name, source_type=source_type)
 
