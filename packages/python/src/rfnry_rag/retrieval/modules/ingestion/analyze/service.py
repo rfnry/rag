@@ -382,10 +382,14 @@ class AnalyzedIngestionService:
         )
         return synthesis
 
-    def _synthesize_l5x(self, source: Source) -> DocumentSynthesis:
-        """Deterministic cross-reference computation for L5X."""
-        page_analyses = [_deserialize_analysis(a) for a in source.metadata["page_analyses"]]
+    @staticmethod
+    def _synthesize_shared_entities(page_analyses: list[PageAnalysis]) -> list[CrossReference]:
+        """Build cross-references from shared entities across pages.
 
+        Both L5X and XML synthesis use identical logic: collect the pages on
+        which each entity name appears, then emit a pairwise ``CrossReference``
+        for every pair of pages that share the same entity.
+        """
         xrefs: list[CrossReference] = []
         entity_pages: dict[str, list[int]] = {}
 
@@ -406,31 +410,18 @@ class AnalyzedIngestionService:
                             )
                         )
 
+        return xrefs
+
+    def _synthesize_l5x(self, source: Source) -> DocumentSynthesis:
+        """Deterministic cross-reference computation for L5X."""
+        page_analyses = [_deserialize_analysis(a) for a in source.metadata["page_analyses"]]
+        xrefs = self._synthesize_shared_entities(page_analyses)
         logger.info("[analyze/ingestion/synthesize/l5x] computed %d cross-references", len(xrefs))
         return DocumentSynthesis(cross_references=xrefs)
 
     def _synthesize_xml(self, page_analyses: list[PageAnalysis]) -> DocumentSynthesis:
         """Deterministic linking by shared entities for generic XML."""
-        xrefs: list[CrossReference] = []
-        entity_pages: dict[str, list[int]] = {}
-
-        for pa in page_analyses:
-            for entity in pa.entities:
-                entity_pages.setdefault(entity.name, []).append(pa.page_number)
-
-        for entity_name, pages in entity_pages.items():
-            if len(pages) > 1:
-                for i, src_page in enumerate(pages):
-                    for tgt_page in pages[i + 1 :]:
-                        xrefs.append(
-                            CrossReference(
-                                source_page=src_page,
-                                target_page=tgt_page,
-                                relationship=f"shared entity: {entity_name}",
-                                shared_entities=[entity_name],
-                            )
-                        )
-
+        xrefs = self._synthesize_shared_entities(page_analyses)
         logger.info("[analyze/ingestion/synthesize/xml] computed %d cross-references", len(xrefs))
         return DocumentSynthesis(cross_references=xrefs)
 
