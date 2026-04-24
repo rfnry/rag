@@ -132,7 +132,9 @@ async def find_section_starts(
             updated.append(entry)
             continue
 
-        # Search groups sequentially until we find the section
+        # SERIAL: early-exit search — groups are tried in order and the loop
+        # breaks as soon as the section start is found. Parallel execution would
+        # waste LLM calls on groups after the match and cannot short-circuit.
         page_num = None
         for group_text in page_groups:
             page_num = await b.FindSectionStart(

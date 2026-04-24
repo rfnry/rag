@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from baml_py import errors as baml_errors
 
 from rfnry_rag.retrieval.baml.baml_client.async_client import b
+from rfnry_rag.retrieval.common.errors import ConfigurationError
 from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.retrieval.common.logging import get_logger
 
@@ -23,6 +24,13 @@ class MultiQueryRewriting:
 
     lm_client: LanguageModelClient
     num_variants: int = DEFAULT_NUM_VARIANTS
+
+    def __post_init__(self) -> None:
+        if not (1 <= self.num_variants <= 10):
+            raise ConfigurationError(
+                f"num_variants must be 1-10, got {self.num_variants} — "
+                "more than 10 variants dilutes recall and multiplies LLM cost"
+            )
 
     async def rewrite(self, query: str, conversation_context: str | None = None) -> list[str]:
         registry = build_registry(self.lm_client)

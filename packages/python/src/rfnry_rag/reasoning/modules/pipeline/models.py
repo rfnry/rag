@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from rfnry_rag.reasoning.common.errors import ReasoningInputError
+
 if TYPE_CHECKING:
     from rfnry_rag.reasoning.modules.analysis.models import AnalysisConfig, AnalysisResult
     from rfnry_rag.reasoning.modules.analysis.service import AnalysisService
@@ -47,7 +49,7 @@ class ClassifyStep:
 
     def __post_init__(self) -> None:
         if not self.categories and not self.sets:
-            raise ValueError("ClassifyStep requires either categories or sets")
+            raise ReasoningInputError("ClassifyStep requires either categories or sets")
 
 
 @dataclass

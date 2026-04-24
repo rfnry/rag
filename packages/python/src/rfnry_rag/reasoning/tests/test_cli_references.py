@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 import click
 import pytest
 
@@ -60,3 +63,18 @@ class TestReadDirectoryAsText:
         result = _read_directory_as_text(tmp_path)
         assert "markdown" in result
         assert "code.py" not in result
+
+    def test_read_directory_rejects_symlink_outside(self, tmp_path: Path) -> None:
+        inside = tmp_path / "inside"
+        inside.mkdir()
+        (inside / "safe.txt").write_text("ok")
+
+        outside = tmp_path / "outside.txt"
+        outside.write_text("sensitive")
+
+        # Symlink inside the dir pointing to a file outside
+        link = inside / "evil.txt"
+        os.symlink(outside, link)
+
+        with pytest.raises(ValueError, match="escapes directory"):
+            _read_directory_as_text(inside)

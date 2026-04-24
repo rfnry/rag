@@ -30,9 +30,10 @@ async def test_run_tree_search_fans_out_sources_concurrently() -> None:
         ' "pages": [{"index": 0, "text": "x", "token_count": 1}]}'
     )
 
+    source_ids = [f"s{i}" for i in range(4)]
     metadata_store = MagicMock()
-    metadata_store.list_sources = AsyncMock(return_value=[SimpleNamespace(source_id=f"s{i}") for i in range(4)])
-    metadata_store.get_tree_index = AsyncMock(return_value=tree_json)
+    metadata_store.list_source_ids = AsyncMock(return_value=source_ids)
+    metadata_store.get_tree_indexes = AsyncMock(return_value={sid: tree_json for sid in source_ids})
 
     rag = RagEngine.__new__(RagEngine)
     rag._tree_search_service = tree_service
@@ -69,11 +70,11 @@ async def test_run_tree_search_caps_source_count() -> None:
     )
 
     # 200 sources; cap should be applied so only 5 are searched
+    all_ids = [f"s{i}" for i in range(200)]
+    capped_ids = all_ids[:5]
     metadata_store = MagicMock()
-    metadata_store.list_sources = AsyncMock(
-        return_value=[SimpleNamespace(source_id=f"s{i}") for i in range(200)]
-    )
-    metadata_store.get_tree_index = AsyncMock(return_value=tree_json)
+    metadata_store.list_source_ids = AsyncMock(return_value=all_ids)
+    metadata_store.get_tree_indexes = AsyncMock(return_value={sid: tree_json for sid in capped_ids})
 
     rag = RagEngine.__new__(RagEngine)
     rag._tree_search_service = tree_service

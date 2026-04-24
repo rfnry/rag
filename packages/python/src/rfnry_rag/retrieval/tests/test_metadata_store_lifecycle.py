@@ -6,6 +6,7 @@ moves tree_index_json to a separate table, the test will fail unless that
 table is wired up with ON DELETE CASCADE (or explicit deletion)."""
 
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
@@ -84,6 +85,62 @@ async def test_find_by_hash_returns_match(tmp_path) -> None:
 
     # No match when knowledge_id differs
     assert await store.find_by_hash("abc123", "different") is None
+
+
+async def test_initialization_is_idempotent(tmp_path) -> None:
+    """initialize() called twice on the same store must not error."""
+    store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path / 'db.sqlite'}")
+    await store.initialize()
+    await store.initialize()   # must not raise (would be "duplicate column" today)
+    await store.shutdown()
+
+
+async def test_get_tree_indexes_returns_mapping(tmp_path) -> None:
+    store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path / 'db.sqlite'}")
+    await store.initialize()
+
+    # Seed two sources with tree indexes; one without.
+    base: dict[str, Any] = dict(knowledge_id="kb1", embedding_model="m", created_at=datetime.now(UTC))
+    await store.create_source(Source(source_id="s1", **base))
+    await store.create_source(Source(source_id="s2", **base))
+    await store.create_source(Source(source_id="s3", **base))
+
+    await store.save_tree_index("s1", '{"nodes":[],"meta":"s1"}')
+    await store.save_tree_index("s2", '{"nodes":[],"meta":"s2"}')
+    # s3 intentionally has no tree index
+
+    result = await store.get_tree_indexes(["s1", "s2", "s3", "missing"])
+    assert result["s1"] == '{"nodes":[],"meta":"s1"}'
+    assert result["s2"] == '{"nodes":[],"meta":"s2"}'
+    assert result["s3"] is None
+    assert result["missing"] is None
+
+    # Empty input must return empty dict without hitting the DB.
+    assert await store.get_tree_indexes([]) == {}
+
+    await store.shutdown()
+
+
+async def test_list_source_ids_returns_only_ids(tmp_path) -> None:
+    store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path / 'db.sqlite'}")
+    await store.initialize()
+
+    # Seed 2 sources in kb1, 1 source in kb2.
+    now = datetime.now(UTC)
+    await store.create_source(Source(source_id="s1", knowledge_id="kb1", embedding_model="m", created_at=now))
+    await store.create_source(Source(source_id="s2", knowledge_id="kb1", embedding_model="m", created_at=now))
+    await store.create_source(Source(source_id="s3", knowledge_id="kb2", embedding_model="m", created_at=now))
+
+    ids_kb1 = await store.list_source_ids(knowledge_id="kb1")
+    assert set(ids_kb1) == {"s1", "s2"}
+
+    ids_all = await store.list_source_ids()
+    assert len(ids_all) == 3
+
+    ids_kb_unknown = await store.list_source_ids(knowledge_id="unknown")
+    assert ids_kb_unknown == []
+
+    await store.shutdown()
 
 
 async def test_file_hash_column_has_index(tmp_path) -> None:

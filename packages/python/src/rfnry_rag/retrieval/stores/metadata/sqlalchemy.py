@@ -275,6 +275,14 @@ class SQLAlchemyMetadataStore:
             rows = result.scalars().all()
             return [self._row_to_source(row) for row in rows]
 
+    async def list_source_ids(self, knowledge_id: str | None = None) -> list[str]:
+        stmt = select(_SourceRow.id)
+        if knowledge_id is not None:
+            stmt = stmt.where(_SourceRow.knowledge_id == knowledge_id)
+        async with self._session_factory() as session:
+            rows = (await session.execute(stmt)).scalars().all()
+        return list(rows)
+
     async def find_by_hash(self, hash_value: str, knowledge_id: str | None) -> Source | None:
         stmt = select(_SourceRow).where(_SourceRow.file_hash == hash_value)
         if knowledge_id is not None:
@@ -391,6 +399,18 @@ class SQLAlchemyMetadataStore:
             if row is None:
                 return None
             return row.tree_index_json
+
+    async def get_tree_indexes(self, source_ids: list[str]) -> dict[str, str | None]:
+        if not source_ids:
+            return {}
+        stmt = select(_SourceRow.id, _SourceRow.tree_index_json).where(
+            _SourceRow.id.in_(source_ids)
+        )
+        async with self._session_factory() as session:
+            rows = (await session.execute(stmt)).all()
+        found = {row.id: row.tree_index_json for row in rows}
+        # Preserve input order in output; missing source_ids map to None.
+        return {sid: found.get(sid) for sid in source_ids}
 
     async def shutdown(self) -> None:
         await self._engine.dispose()

@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from rfnry_rag.reasoning.common.errors import ReasoningInputError
+
 
 @dataclass
 class EvaluationPair:
@@ -63,15 +65,17 @@ class EvaluationConfig:
 
     def __post_init__(self) -> None:
         if self.strategy not in ("similarity", "judge", "combined"):
-            raise ValueError(f"Unknown strategy: {self.strategy}. Must be 'similarity', 'judge', or 'combined'.")
+            raise ReasoningInputError(
+                f"Unknown strategy: {self.strategy}. Must be 'similarity', 'judge', or 'combined'."
+            )
         if not 0.0 <= self.medium_threshold <= self.high_threshold <= 1.0:
-            raise ValueError(
+            raise ReasoningInputError(
                 f"Thresholds must satisfy 0 <= medium ({self.medium_threshold}) <= high ({self.high_threshold}) <= 1"
             )
         if self.concurrency < 1:
-            raise ValueError("concurrency must be >= 1")
+            raise ReasoningInputError("concurrency must be >= 1")
         if self.max_text_length > _MAX_TEXT_LENGTH_CEILING:
-            raise ValueError(
+            raise ReasoningInputError(
                 f"max_text_length must be <= {_MAX_TEXT_LENGTH_CEILING}, got {self.max_text_length}"
             )
 

@@ -6,6 +6,15 @@ class ReasoningError(SdkBaseError):
     """Base exception for reasoning SDK errors."""
 
 
+class ReasoningInputError(ReasoningError, ValueError):
+    """Raised when a reasoning SDK config or input fails validation.
+
+    Inherits both ``ReasoningError`` (for catching SDK-specific errors) and
+    ``ValueError`` (for back-compat: existing ``except ValueError:`` clauses
+    still catch this).
+    """
+
+
 class ClassificationError(ReasoningError):
     """Error during text classification."""
 

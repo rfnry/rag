@@ -113,6 +113,10 @@ class QdrantVectorStore:
         response = await self._client.get_collections()
         existing = {c.name for c in response.collections}
 
+        # SERIAL: self._state is mutated inside this loop; parallel iteration
+        # would introduce a check-then-act race on the same dict. The loop body
+        # is fast (one API call per collection) and initialize() is called once
+        # at startup — the sequential cost is negligible.
         for name in self._collections:
             if name in self._state:
                 continue

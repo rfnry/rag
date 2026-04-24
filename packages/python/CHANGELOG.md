@@ -10,6 +10,47 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-24 Round 4 Review
+
+Cumulative fixes from the fourth-pass SDK audit. Primary achievement:
+**four systematic contract-test sweeps** that now block future instances of
+the same findings. 21 commits; test count 789 → 837.
+
+**Contract-test sweeps (prevent future circling):**
+- `test_baml_prompt_fence_contract.py` — every user-controlled BAML prompt parameter across retrieval + reasoning must be fenced. Sweep caught and fixed **35 unfenced parameters** across 24 functions in 13 BAML files (rounds 2-3 had only spot-fixed 7).
+- `test_config_bounds_contract.py` — every int/float config field must have validation in `__post_init__` or a `# unbounded: <reason>` marker. Sweep fixed **8 unbounded knobs** (source_type_weights, temperature, num_variants, ClassificationConfig.concurrency, ClusteringConfig.{n_clusters,min_cluster_size,random_state}, ComplianceConfig.max_reference_length).
+- Serial-await audit — 11 intentionally-serial loops annotated with `# SERIAL:` comments explaining why they aren't parallelised.
+- `test_no_bare_valueerror_in_configs.py` — 33 bare `raise ValueError` replaced with new `ReasoningInputError(ReasoningError, ValueError)` across 7 reasoning modules.
+
+**Ship blockers fixed:**
+- `TreeRetrieval` dead code removed (never wired into MethodNamespace; round-3 parallelised an unreachable path) (A1).
+- Lucene metacharacter escape on Neo4j fulltext queries — prevents wildcard-explosion DoS (A2/H1).
+- `AnalyzedIngestionService._analyze_pdf` parallelised with bounded `asyncio.gather` (5 concurrent) — 200-page PDF no longer 200 serial LLM calls (A3/H2).
+- `parent_chunk_overlap < parent_chunk_size` validator added — prevents infinite `_merge_splits` loop (A4/H4).
+- `_migrate_missing_columns` verified idempotent via column introspection (A5/M1).
+- Neo4j URI credentials scrubbed before startup logging (A6/M5).
+
+**Performance:**
+- Batch tree-index lookup eliminates N+1 DB query in `_run_tree_search` (C1/M6).
+- `list_source_ids` lean projection — tree search no longer transfers megabyte `metadata_json`/`tree_index_json` payloads (C2/M7).
+- `embed_batched` centralises sub-batch concurrency with `asyncio.Semaphore(3)`; removes competing provider-layer gather (C3/M8).
+- BAML `ClientRegistry` cached in `GenerationService.__init__` instead of rebuilt per `generate()` call (D1/L7).
+- `_synthesize_shared_entities` caps per-entity pairwise cross-reference expansion at 20 pages (D6).
+
+**Security:**
+- `TreeIndex.pages` count guard (≤ 100_000) added to `from_dict`, complementing round-3's depth/node guards on `TreeNode` (C4/F7).
+- `compliance --references` CLI: `exists=True` + symlink/traversal containment check in `_read_directory_as_text` (D3/F5).
+- Upper-bound pins on `lxml`, `fastembed`, `voyageai`, `neo4j`, `rank-bm25` (D4/F6).
+
+**Safety / lifecycle:**
+- `RagEngine.shutdown` idempotent (separate `_stores_opened` flag preserves the init-rollback path) (D5/L2).
+
+**Docs:**
+- CLAUDE.md test count, new config ceilings, collection-0 aliasing note (D2 / D7 / arch M10).
+
+**Deferred from prior rounds:**
+- Round-3 L8 (uniform scoped pipelines / remove index-0 special case) — comment extended (D7) but refactor still not pursued; tests codify the current behavior.
+
 ### 2026-04-24 Round 3 Review
 
 Cumulative fixes from a third-pass SDK audit. 25 commits; test count 741 → 789.

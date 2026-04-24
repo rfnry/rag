@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 
+from rfnry_rag.reasoning.common.errors import ReasoningInputError
 from rfnry_rag.reasoning.common.logging import get_logger
 from rfnry_rag.reasoning.modules.evaluation.models import EvaluationPair
 from rfnry_rag.reasoning.modules.pipeline.models import (
@@ -37,16 +38,19 @@ class Pipeline:
         start = time.monotonic()
         result = PipelineResult()
 
+        # SERIAL: each step in the pipeline may read results written by prior steps
+        # (e.g., classify after analyze to branch on intent). Parallelising would
+        # require knowing the full dependency graph of all step types up front.
         for step in steps:
             if isinstance(step, AnalyzeStep):
                 if not self._services.analysis:
-                    raise ValueError("AnalyzeStep requires analysis service in PipelineServices")
+                    raise ReasoningInputError("AnalyzeStep requires analysis service in PipelineServices")
                 logger.info("[pipeline] running analyze step")
                 result.analysis = await self._services.analysis.analyze(text, step.config)
 
             elif isinstance(step, ClassifyStep):
                 if not self._services.classification:
-                    raise ValueError("ClassifyStep requires classification service in PipelineServices")
+                    raise ReasoningInputError("ClassifyStep requires classification service in PipelineServices")
                 logger.info("[pipeline] running classify step")
                 if step.sets:
                     result.classification = await self._services.classification.classify_sets(
@@ -59,7 +63,7 @@ class Pipeline:
 
             elif isinstance(step, EvaluateStep):
                 if not self._services.evaluation:
-                    raise ValueError("EvaluateStep requires evaluation service in PipelineServices")
+                    raise ReasoningInputError("EvaluateStep requires evaluation service in PipelineServices")
                 logger.info("[pipeline] running evaluate step")
                 result.evaluation = await self._services.evaluation.evaluate(
                     EvaluationPair(generated=text, reference=step.reference),
@@ -68,7 +72,7 @@ class Pipeline:
 
             elif isinstance(step, ComplianceStep):
                 if not self._services.compliance:
-                    raise ValueError("ComplianceStep requires compliance service in PipelineServices")
+                    raise ReasoningInputError("ComplianceStep requires compliance service in PipelineServices")
                 logger.info("[pipeline] running compliance step")
                 result.compliance = await self._services.compliance.check(text, step.reference, step.config)
 

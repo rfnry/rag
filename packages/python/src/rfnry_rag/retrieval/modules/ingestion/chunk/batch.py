@@ -180,6 +180,10 @@ class BatchIngestionService:
         stats.duration_seconds = time.monotonic() - start
 
         if self._on_complete:
+            # SERIAL: on_complete invalidates a BM25 cache keyed by knowledge_id;
+            # parallel calls for distinct knowledge_ids would be safe, but the
+            # callback implementation is not documented as concurrency-safe, and
+            # the set is typically tiny (≤ handful of knowledge_ids per batch).
             for kid in knowledge_ids_touched:
                 await self._on_complete(kid)
 
@@ -264,6 +268,10 @@ class BatchIngestionService:
                 await self._vector_store.initialize(len(points[0].vector))
                 await self._vector_store.upsert(points)
             if self._metadata_store:
+                # SERIAL: per-source exception isolation — a failure on one row
+                # must not abort the remaining creates. asyncio.gather with
+                # return_exceptions=True would also work but adds indirection;
+                # the per-iteration try/except is clearer for this error pattern.
                 for source in sources:
                     try:
                         await self._metadata_store.create_source(source)

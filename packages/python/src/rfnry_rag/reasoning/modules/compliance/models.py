@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from rfnry_rag.reasoning.common.errors import ReasoningInputError
+
 
 @dataclass
 class ComplianceDimensionDefinition:
@@ -36,15 +38,23 @@ class ComplianceConfig:
 
     def __post_init__(self) -> None:
         if self.concurrency < 1:
-            raise ValueError("concurrency must be >= 1")
+            raise ReasoningInputError("concurrency must be >= 1")
+        if self.concurrency > 20:
+            raise ReasoningInputError("concurrency must be <= 20 — higher values risk overwhelming the LLM provider")
         if self.max_text_length < 1:
-            raise ValueError("max_text_length must be >= 1")
+            raise ReasoningInputError("max_text_length must be >= 1")
         if self.max_text_length > _MAX_TEXT_LENGTH_CEILING:
-            raise ValueError(
+            raise ReasoningInputError(
                 f"max_text_length must be <= {_MAX_TEXT_LENGTH_CEILING}, got {self.max_text_length}"
             )
+        if self.max_reference_length < 1:
+            raise ReasoningInputError("max_reference_length must be >= 1")
+        if self.max_reference_length > _MAX_TEXT_LENGTH_CEILING:
+            raise ReasoningInputError(
+                f"max_reference_length must be <= {_MAX_TEXT_LENGTH_CEILING}, got {self.max_reference_length}"
+            )
         if self.threshold is not None and not 0.0 <= self.threshold <= 1.0:
-            raise ValueError("threshold must be between 0.0 and 1.0")
+            raise ReasoningInputError("threshold must be between 0.0 and 1.0")
 
 
 @dataclass

@@ -78,6 +78,10 @@ class LLMJudgment:
         registry = build_registry(self._lm_client)
         best_score = 0.0
 
+        # SERIAL: best_score is updated after each reference so a failure on one
+        # reference is isolated via try/except without losing prior scores.
+        # score_batch() already gathers across predictions — parallelising refs
+        # here would add concurrency at both levels simultaneously.
         for ref in references:
             try:
                 result = await b.JudgeAnswerQuality(

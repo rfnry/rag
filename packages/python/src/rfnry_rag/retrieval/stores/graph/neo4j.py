@@ -149,6 +149,44 @@ def _validate_relation_type(rel_type: str) -> str:
     return normalized
 
 
+# Lucene QueryParser special characters per
+# https://lucene.apache.org/core/9_x/queryparser/org/apache/lucene/queryparser/classic/QueryParser.html
+# We escape every metacharacter — the user query is always a literal phrase search,
+# never an expression. AND/OR/NOT operator tokens are NOT escaped because they're
+# plain letters once the special characters are gone.
+_LUCENE_ESCAPE_RE = re.compile(r'([+\-&|!(){}\[\]^"~*?:\\/])')
+
+
+def _escape_lucene_query(query: str) -> str:
+    """Escape Lucene QueryParser metacharacters in user-supplied query text.
+
+    Neo4j's fulltext index (``db.index.fulltext.queryNodes``) interprets the
+    parameter value as a Lucene query expression. A raw user query containing
+    ``*``, ``name:value``, or quoted strings parses as operators rather than
+    literal content, enabling wildcard-explosion DoS and incorrect matches.
+
+    This escape neutralises the 11 Lucene metacharacters, making every query
+    a plain-text phrase search. See test_graph_lucene_safety.py.
+    """
+    return _LUCENE_ESCAPE_RE.sub(r"\\\1", query)
+
+
+def _scrub_uri_credentials(uri: str) -> str:
+    """Remove userinfo (user:pass@) from a URI for safe logging.
+
+    Neo4j URIs legally embed credentials as ``bolt://user:pass@host``. The
+    initialize log emits the URI; this strips userinfo so log sinks (files,
+    SIEM, cloud log aggregators) never see the password.
+    """
+    from urllib.parse import urlparse, urlunparse
+
+    parsed = urlparse(uri)
+    if "@" in (parsed.netloc or ""):
+        host = parsed.netloc.rsplit("@", 1)[-1]
+        parsed = parsed._replace(netloc=host)
+    return urlunparse(parsed)
+
+
 def _node_to_entity(node: dict[str, Any]) -> GraphEntity:
     """Convert a Neo4j node dict to a GraphEntity."""
     return GraphEntity(
@@ -216,6 +254,9 @@ class Neo4jGraphStore:
         await self._driver.verify_connectivity()
 
         async with self._driver.session(database=self.database) as session:
+            # SERIAL: Neo4j async sessions are not concurrency-safe — only one
+            # outstanding async call per session is allowed. DDL queries are also
+            # cheap one-time setup; the serialisation cost here is negligible.
             for query in _INDEX_QUERIES:
                 await session.run(query)
             await session.run(_FULLTEXT_INDEX_QUERY)
@@ -223,7 +264,7 @@ class Neo4jGraphStore:
         logger.info(
             "neo4j graph store initialized: uri=%s database=%s query_timeout=%.1fs "
             "connection_timeout=%.1fs connection_acquisition_timeout=%.1fs",
-            self.uri,
+            _scrub_uri_credentials(self.uri),
             self.database,
             self.query_timeout,
             self.connection_timeout,
@@ -241,6 +282,10 @@ class Neo4jGraphStore:
             return
 
         async with self._driver.session(database=self.database) as session:
+            # SERIAL: Neo4j async sessions are not concurrency-safe — only one
+            # outstanding async call per session is allowed. To parallelise
+            # entity writes, open a separate session per entity, but that
+            # defeats the purpose of session-scoped auto-commit semantics.
             for entity in entities:
                 entity_id = _compute_entity_id(entity.name, entity.entity_type, knowledge_id)
                 await session.run(
@@ -267,6 +312,8 @@ class Neo4jGraphStore:
             return
 
         async with self._driver.session(database=self.database) as session:
+            # SERIAL: same session concurrency constraint as add_entities — the
+            # Neo4j async session allows only one outstanding call at a time.
             for rel in relations:
                 from_id = _compute_entity_id(rel.from_entity, rel.from_type, rel.knowledge_id)
                 to_id = _compute_entity_id(rel.to_entity, rel.to_type, rel.knowledge_id)
@@ -316,6 +363,10 @@ class Neo4jGraphStore:
                 return []
 
             results: list[GraphResult] = []
+            # SERIAL: all traversals share the same Neo4j session which allows
+            # only one outstanding async call at a time. Opening a session per
+            # seed is possible but multiplies connection-pool pressure for a
+            # typically small seed set (top_k ≤ 10).
             for seed_node, seed_score in seeds:
                 connected_entities, paths = await self._traverse(
                     session, seed_node["entity_id"], max_hops, knowledge_id, timeout=timeout
@@ -370,7 +421,7 @@ class Neo4jGraphStore:
         if entity_types:
             result = await session.run(
                 _SEED_QUERY_WITH_TYPES,
-                query_text=query,
+                query_text=_escape_lucene_query(query),
                 knowledge_id=knowledge_id,
                 entity_types=entity_types,
                 seed_limit=limit,
@@ -379,7 +430,7 @@ class Neo4jGraphStore:
         else:
             result = await session.run(
                 _SEED_QUERY,
-                query_text=query,
+                query_text=_escape_lucene_query(query),
                 knowledge_id=knowledge_id,
                 seed_limit=limit,
                 timeout=timeout,

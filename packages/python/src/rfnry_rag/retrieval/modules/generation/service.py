@@ -36,6 +36,8 @@ class GenerationService:
         if relevance_gate_enabled and relevance_gate_lm_client and self._score_gate:
             self._relevance_gate = RelevanceGate(lm_client=relevance_gate_lm_client, fallback_gate=self._score_gate)
 
+        self._registry = build_registry(self._lm_client)
+
     @staticmethod
     def _format_history(history: list[tuple[str, str]] | None) -> str:
         """Format conversation history as alternating role messages."""
@@ -131,13 +133,12 @@ class GenerationService:
 
         logger.info("LLM generation: %d context chunks", len(relevant_chunks))
         try:
-            registry = build_registry(self._lm_client)
             answer = await b.GenerateAnswer(
                 system_prompt=active_system_prompt,
                 context=context,
                 query=query,
                 history=formatted_history,
-                baml_options={"client_registry": registry},
+                baml_options={"client_registry": self._registry},
             )
         except baml_errors.BamlValidationError as exc:
             raise GenerationError(f"GenerateAnswer returned unparseable response: {exc}") from exc
@@ -190,13 +191,12 @@ class GenerationService:
 
         logger.info("LLM streaming: %d context chunks", len(relevant_chunks))
         try:
-            registry = build_registry(self._lm_client)
             stream = b.stream.GenerateAnswer(
                 system_prompt=active_system_prompt,
                 context=context,
                 query=query,
                 history=formatted_history,
-                baml_options={"client_registry": registry},
+                baml_options={"client_registry": self._registry},
             )
             prev = ""
             async for partial in stream:

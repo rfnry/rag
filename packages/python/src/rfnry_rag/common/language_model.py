@@ -44,13 +44,13 @@ class LanguageModelClient:
     fallback: LanguageModelProvider | None = None
     max_retries: int = 3
     strategy: Literal["primary_only", "fallback"] = "primary_only"
-    max_tokens: int = 4096
+    max_tokens: int = 4096  # unbounded: user pays for tokens; provider enforces its own context-window cap
     temperature: float = 0.0
     boundary_api_key: str | None = field(default=None, repr=False)
     # Per-call timeout. BAML's retry loop has no implicit timeout; without this,
     # a single hung LLM call (rate-limit stall, network partition) blocks the
     # event loop until the OS kills the socket.
-    timeout_seconds: int = 60
+    timeout_seconds: int = 60  # unbounded: operator sets based on provider SLA; no universal ceiling applies
 
     def __post_init__(self) -> None:
         if self.strategy not in ("primary_only", "fallback"):
@@ -61,6 +61,11 @@ class LanguageModelClient:
             raise ConfigurationError("strategy='fallback' requires a fallback client")
         if self.timeout_seconds <= 0:
             raise ConfigurationError(f"timeout_seconds must be positive, got {self.timeout_seconds}")
+        if not (0.0 <= self.temperature <= 2.0):
+            raise ConfigurationError(
+                f"temperature must be between 0.0 and 2.0, got {self.temperature} — "
+                "values > 2.0 produce incoherent output on all major providers"
+            )
 
 
 def _retry_policy_name(max_retries: int) -> str | None:

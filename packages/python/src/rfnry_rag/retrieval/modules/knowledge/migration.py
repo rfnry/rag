@@ -24,6 +24,10 @@ async def check_embedding_migration(
     sources = await metadata_store.list_sources()
     stale_count = 0
 
+    # SERIAL: update_source calls are independent in principle, but the
+    # metadata store (SQLite default) serialises writes via a single WAL
+    # writer; gathering here would not improve throughput and adds complexity.
+    # This path runs once at startup against a typically small source count.
     for source in sources:
         if source.embedding_model != embedding_model_name and not source.stale:
             await metadata_store.update_source(source.source_id, stale=True)

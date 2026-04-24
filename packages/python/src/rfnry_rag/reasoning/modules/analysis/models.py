@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from rfnry_rag.reasoning.common.errors import ReasoningInputError
+
 
 @dataclass
 class Message:
@@ -97,15 +99,15 @@ class AnalysisConfig:
 
     def __post_init__(self) -> None:
         if self.max_text_length < 1:
-            raise ValueError("max_text_length must be >= 1")
+            raise ReasoningInputError("max_text_length must be >= 1")
         if self.max_text_length > _MAX_TEXT_LENGTH_CEILING:
-            raise ValueError(
+            raise ReasoningInputError(
                 f"max_text_length must be <= {_MAX_TEXT_LENGTH_CEILING}, got {self.max_text_length}"
             )
         if self.concurrency < 1:
-            raise ValueError("concurrency must be >= 1")
+            raise ReasoningInputError("concurrency must be >= 1")
         if self.generate_retrieval_hints and not self.retrieval_hint_scopes:
-            raise ValueError("retrieval_hint_scopes required when generate_retrieval_hints is True")
+            raise ReasoningInputError("retrieval_hint_scopes required when generate_retrieval_hints is True")
 
 
 @dataclass

@@ -142,6 +142,14 @@ class IngestionConfig:
             raise ConfigurationError("parent_chunk_size must be non-negative")
         if self.parent_chunk_size > 0 and self.parent_chunk_size <= self.chunk_size:
             raise ConfigurationError("parent_chunk_size must be greater than chunk_size")
+        if self.parent_chunk_size > 0:
+            if self.parent_chunk_overlap < 0:
+                raise ConfigurationError("parent_chunk_overlap must be non-negative")
+            if self.parent_chunk_overlap >= self.parent_chunk_size:
+                raise ConfigurationError(
+                    f"parent_chunk_overlap ({self.parent_chunk_overlap}) must be less than "
+                    f"parent_chunk_size ({self.parent_chunk_size})"
+                )
         # dpi upper bound: beyond ~600 the PDF-to-image buffer grows pathologically
         # (each page can exceed 100MB), causing OOM rather than slow rendering.
         if not (72 <= self.dpi <= 600):
@@ -193,6 +201,12 @@ class RetrievalConfig:
             )
         if not (1 <= self.history_window <= 20):
             raise ConfigurationError(f"history_window must be 1-20, got {self.history_window}")
+        if self.source_type_weights is not None:
+            for key, weight in self.source_type_weights.items():
+                if not 0 < weight <= 10.0:
+                    raise ConfigurationError(
+                        f"source_type_weights[{key!r}]={weight} — weight must be in (0, 10]"
+                    )
 
 
 @dataclass
@@ -353,6 +367,7 @@ class RagEngine:
     def __init__(self, config: RagServerConfig) -> None:
         self._config = config
         self._initialized = False
+        self._stores_opened = False  # set True before first store.initialize(); guards re-entrant shutdown
 
         self._ingestion_service: IngestionService | None = None
         self._structured_ingestion: AnalyzedIngestionService | None = None
@@ -488,6 +503,7 @@ class RagEngine:
         logger.info("ragengine initializing")
 
         # Initialize stores
+        self._stores_opened = True  # from this point forward, shutdown() must run teardown
         if persistence.metadata_store:
             await persistence.metadata_store.initialize()
         if persistence.document_store:
@@ -646,12 +662,13 @@ class RagEngine:
         if persistence.vector_store and hasattr(persistence.vector_store, "collections"):
             store_collections: list[str] = persistence.vector_store.collections
             for coll_name in store_collections:
-                # INTENTIONAL: the first collection reuses the already-built default
-                # service instances (self._retrieval_service / self._ingestion_service)
-                # rather than a fresh scoped pipeline. This avoids redundant construction
-                # for the common case of one-collection engines. Removing this branch
-                # requires updating test_default_collection_uses_unscoped_default_services
-                # which codifies the intent.
+                # INTENTIONAL: the first collection reuses the already-built default service
+                # instances. Consequence: retrieving explicitly by the first collection's
+                # NAME is equivalent to unscoped retrieval against the default pipeline —
+                # they share the same RetrievalService / IngestionService instance (and
+                # therefore the same BM25 cache, parent-expansion state, etc.). Later
+                # collections get fresh scoped pipelines. Removing this branch requires
+                # updating test_default_collection_uses_unscoped_default_services.
                 if coll_name == store_collections[0]:
                     self._retrieval_by_collection[coll_name] = (
                         self._retrieval_service,
@@ -709,6 +726,9 @@ class RagEngine:
 
     async def shutdown(self) -> None:
         """Cleanup all store connections in reverse-init order."""
+        if not self._stores_opened:
+            return  # idempotent: no stores were opened, or shutdown already ran
+        self._stores_opened = False  # prevent re-entrant teardown on a second call
         persistence = self._config.persistence
         # Reverse-init order: vector → graph → document → metadata
         if persistence.vector_store:
@@ -1010,6 +1030,10 @@ class RagEngine:
         returned after a cross-collection ingest/remove."""
         seen: set[int] = set()
         if self._retrieval_by_collection:
+            # SERIAL: invalidate_cache mutates in-memory BM25 state; the `seen`
+            # set prevents double-invalidation of shared method instances across
+            # collections. Concurrent invalidations on the same method instance
+            # would require locking the BM25 cache — serial is simpler and safe.
             for retrieval_service, _ in self._retrieval_by_collection.values():
                 for method in retrieval_service.methods:
                     if method.name != "vector" or id(method) in seen:
@@ -1174,24 +1198,26 @@ class RagEngine:
         metadata_store = self._config.persistence.metadata_store
         assert metadata_store is not None
 
-        sources = await metadata_store.list_sources(knowledge_id=knowledge_id)
+        source_ids_full = await metadata_store.list_source_ids(knowledge_id=knowledge_id)
 
         max_sources = self._config.tree_search.max_sources_per_query
-        if len(sources) > max_sources:
+        if len(source_ids_full) > max_sources:
             logger.warning(
                 "tree search limited to %d of %d sources (max_sources_per_query)",
                 max_sources,
-                len(sources),
+                len(source_ids_full),
             )
-            sources = sources[:max_sources]
+            source_ids_full = source_ids_full[:max_sources]
 
-        async def search_one(source: Source) -> list[RetrievedChunk]:
-            tree_json = await metadata_store.get_tree_index(source.source_id)
+        tree_jsons = await metadata_store.get_tree_indexes(source_ids_full)
+
+        async def search_one(source_id: str) -> list[RetrievedChunk]:
+            tree_json = tree_jsons.get(source_id)
             if not tree_json:
                 return []
             tree_index = TreeIndex.from_dict(json.loads(tree_json))
             if not tree_index.pages:
-                logger.warning("tree index for %s has no stored pages, skipping tree search", source.source_id)
+                logger.warning("tree index for %s has no stored pages, skipping tree search", source_id)
                 return []
             # Convert stored TreePage back to PageContent for the search service
             pages = [PageContent(index=p.index, text=p.text, token_count=p.token_count) for p in tree_index.pages]
@@ -1205,14 +1231,14 @@ class RagEngine:
             return tree_service.to_retrieved_chunks(results, tree_index)
 
         per_source = await asyncio.gather(
-            *(search_one(s) for s in sources),
+            *(search_one(sid) for sid in source_ids_full),
             return_exceptions=True,
         )
 
         all_tree_chunks: list[RetrievedChunk] = []
-        for source, outcome in zip(sources, per_source, strict=True):
+        for source_id, outcome in zip(source_ids_full, per_source, strict=True):
             if isinstance(outcome, BaseException):
-                logger.warning("tree search for %s failed: %s — skipping", source.source_id, outcome)
+                logger.warning("tree search for %s failed: %s — skipping", source_id, outcome)
                 continue
             all_tree_chunks.extend(outcome)
         return all_tree_chunks

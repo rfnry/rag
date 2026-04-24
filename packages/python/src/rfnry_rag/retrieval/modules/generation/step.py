@@ -16,6 +16,7 @@ class StepGenerationService:
 
     def __init__(self, lm_client: LanguageModelClient) -> None:
         self._lm_client = lm_client
+        self._registry = build_registry(self._lm_client)
 
     async def generate_step(
         self,
@@ -30,14 +31,12 @@ class StepGenerationService:
         chunk_context = chunks_to_context(chunks) if chunks else "(No context retrieved)"
         prior_reasoning = context or ""
 
-        registry = build_registry(self._lm_client)
-
         try:
             result = await b.GenerateReasoningStep(
                 query=query,
                 context=chunk_context,
                 prior_reasoning=prior_reasoning,
-                baml_options={"client_registry": registry},
+                baml_options={"client_registry": self._registry},
             )
 
             text = result.text.strip()
