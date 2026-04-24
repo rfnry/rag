@@ -1,4 +1,5 @@
 import asyncio
+import json
 import re
 import time
 from dataclasses import dataclass, field
@@ -80,8 +81,8 @@ class FilesystemDocumentStore:
 
         file_path = directory / f"{source_id}.md"
         frontmatter = (
-            f"---\nsource_id: {source_id}\ntitle: {title}\n"
-            f"knowledge_id: {knowledge_id}\nsource_type: {source_type}\n---\n"
+            f"---\nsource_id: {source_id}\ntitle: {json.dumps(title)}\n"
+            f"knowledge_id: {json.dumps(knowledge_id)}\nsource_type: {json.dumps(source_type)}\n---\n"
         )
         file_content = frontmatter + content
         await asyncio.to_thread(file_path.write_text, file_content, "utf-8")
@@ -205,7 +206,6 @@ class FilesystemDocumentStore:
 
     def _parse_file(self, file_path: Path) -> dict[str, Any]:
         text = file_path.read_text(encoding="utf-8")
-        parts = text.split("---", 2)
         meta: dict[str, Any] = {
             "source_id": "",
             "title": "",
@@ -213,21 +213,32 @@ class FilesystemDocumentStore:
             "source_type": None,
             "content": "",
         }
-        if len(parts) >= 3:
-            frontmatter = parts[1].strip()
-            content = parts[2].lstrip("\n")
-            for line in frontmatter.splitlines():
-                if ": " in line:
-                    key, value = line.split(": ", 1)
-                    key = key.strip()
-                    value = value.strip()
-                    if value == "None":
-                        value = None  # type: ignore[assignment]
-                    if key in meta:
-                        meta[key] = value
-            meta["content"] = content
-        else:
-            meta["content"] = text
+        # Split on newline-bounded "---" so embedded "---" inside JSON values
+        # (which are surrounded by escaped \n, not real newlines) don't break
+        # the frontmatter boundary detection.
+        if text.startswith("---\n"):
+            rest = text[4:]
+            sep_idx = rest.find("\n---\n")
+            if sep_idx != -1:
+                frontmatter = rest[:sep_idx]
+                content = rest[sep_idx + 5:]
+                for line in frontmatter.splitlines():
+                    if ": " in line:
+                        key, value = line.split(": ", 1)
+                        key = key.strip()
+                        value = value.strip()
+                        if key in meta:
+                            try:
+                                meta[key] = json.loads(value)
+                            except (json.JSONDecodeError, ValueError):
+                                # Back-compat: files written before JSON encoding
+                                if value == "None":
+                                    meta[key] = None  # type: ignore[assignment]
+                                else:
+                                    meta[key] = value
+                meta["content"] = content
+                return meta
+        meta["content"] = text
         return meta
 
     async def _load_entries(
