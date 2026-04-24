@@ -313,3 +313,52 @@ async def test_neo4j_store_logs_effective_knobs(caplog) -> None:
     assert "connection_timeout=4.0" in joined
     assert "connection_acquisition_timeout=6.0" in joined
     assert "secret" not in joined  # password must not leak
+
+
+async def test_neo4j_log_does_not_leak_uri_embedded_credentials(caplog) -> None:
+    import logging
+    from unittest.mock import AsyncMock, MagicMock
+
+    from rfnry_rag.retrieval.stores.graph.neo4j import AsyncGraphDatabase, Neo4jGraphStore
+
+    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.retrieval.stores.graph.neo4j")
+    store = Neo4jGraphStore(
+        uri="bolt://user:secret-pw@neo4j:7687",
+        username="user",
+        password="secret-pw",
+    )
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+    mock_session.run = AsyncMock()
+
+    mock_driver = MagicMock()
+    mock_driver.verify_connectivity = AsyncMock()
+    mock_driver.close = AsyncMock()
+    mock_driver.session = MagicMock(return_value=mock_session)
+
+    original_driver_fn = AsyncGraphDatabase.driver
+
+    def mock_driver_fn(*args, **kwargs):
+        return mock_driver
+
+    AsyncGraphDatabase.driver = mock_driver_fn  # type: ignore[method-assign]
+    try:
+        await store.initialize()
+        await store.shutdown()
+    finally:
+        AsyncGraphDatabase.driver = original_driver_fn  # type: ignore[method-assign]
+
+    messages = "\n".join(r.message for r in caplog.records)
+    assert "secret-pw" not in messages
+    assert "user:" not in messages
+    assert "bolt://neo4j:7687" in messages   # still readable, just scrubbed
+
+
+def test_scrub_uri_credentials_strips_userinfo() -> None:
+    from rfnry_rag.retrieval.stores.graph.neo4j import _scrub_uri_credentials
+
+    assert _scrub_uri_credentials("bolt://u:p@host:7687") == "bolt://host:7687"
+    assert _scrub_uri_credentials("bolt://host:7687") == "bolt://host:7687"   # unchanged
+    assert _scrub_uri_credentials("neo4j+s://user@host") == "neo4j+s://host"

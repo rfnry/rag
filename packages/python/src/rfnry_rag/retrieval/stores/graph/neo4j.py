@@ -171,6 +171,22 @@ def _escape_lucene_query(query: str) -> str:
     return _LUCENE_ESCAPE_RE.sub(r"\\\1", query)
 
 
+def _scrub_uri_credentials(uri: str) -> str:
+    """Remove userinfo (user:pass@) from a URI for safe logging.
+
+    Neo4j URIs legally embed credentials as ``bolt://user:pass@host``. The
+    initialize log emits the URI; this strips userinfo so log sinks (files,
+    SIEM, cloud log aggregators) never see the password.
+    """
+    from urllib.parse import urlparse, urlunparse
+
+    parsed = urlparse(uri)
+    if "@" in (parsed.netloc or ""):
+        host = parsed.netloc.rsplit("@", 1)[-1]
+        parsed = parsed._replace(netloc=host)
+    return urlunparse(parsed)
+
+
 def _node_to_entity(node: dict[str, Any]) -> GraphEntity:
     """Convert a Neo4j node dict to a GraphEntity."""
     return GraphEntity(
@@ -245,7 +261,7 @@ class Neo4jGraphStore:
         logger.info(
             "neo4j graph store initialized: uri=%s database=%s query_timeout=%.1fs "
             "connection_timeout=%.1fs connection_acquisition_timeout=%.1fs",
-            self.uri,
+            _scrub_uri_credentials(self.uri),
             self.database,
             self.query_timeout,
             self.connection_timeout,
