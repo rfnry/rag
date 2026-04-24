@@ -63,7 +63,17 @@ class RecursiveTextSplitter:
         self._strip_whitespace = strip_whitespace
 
     def split_text(self, text: str) -> list[str]:
-        return self._split(text, self._separators)
+        return [chunk for chunk, _ in self.split_text_with_flags(text)]
+
+    def split_text_with_flags(self, text: str) -> list[tuple[str, bool]]:
+        """Split text and return (chunk_text, was_hard_split) tuples.
+
+        ``was_hard_split`` is True for any chunk that was produced by the
+        hard-split fallback — i.e. the separator ladder reached ``""`` and the
+        resulting piece still exceeded ``chunk_size``, so it was force-sliced at
+        ``chunk_size`` boundaries.
+        """
+        return self._split_flagged(text, self._separators)
 
     def _join(self, pieces: list[str], separator: str) -> str | None:
         """Join pieces with separator and optionally strip whitespaces."""
@@ -119,12 +129,21 @@ class RecursiveTextSplitter:
 
     def _split(self, text: str, separators: list[str]) -> list[str]:
         """Recursively split text using progressively finer separators."""
+        return [chunk for chunk, _ in self._split_flagged(text, separators)]
+
+    def _split_flagged(self, text: str, separators: list[str]) -> list[tuple[str, bool]]:
+        """Recursively split text, returning (chunk_text, was_hard_split) pairs.
+
+        When the separator ladder is exhausted and a piece still exceeds
+        ``chunk_size``, it is force-sliced at ``chunk_size`` boundaries and
+        each resulting slice is flagged with ``was_hard_split=True``.
+        """
         if not text:
             return []
 
         if self._length_function(text) <= self._chunk_size:
             stripped = text.strip() if self._strip_whitespace else text
-            return [stripped] if stripped else []
+            return [(stripped, False)] if stripped else []
 
         separator = separators[-1]
         remaining_separators: list[str] = []
@@ -137,9 +156,13 @@ class RecursiveTextSplitter:
                 remaining_separators = separators[i + 1 :]
                 break
 
+        # Splitting at the empty-string (character) level means we've exhausted
+        # all natural separators — any chunks produced at this level are hard-splits.
+        is_char_level = separator == ""
+
         splits = _split_with_separator(text, separator, self._keep_separator)
 
-        chunks: list[str] = []
+        flagged: list[tuple[str, bool]] = []
         good_splits: list[str] = []
 
         for piece in splits:
@@ -147,15 +170,30 @@ class RecursiveTextSplitter:
                 good_splits.append(piece)
             else:
                 if good_splits:
-                    chunks.extend(self._merge_splits(good_splits, separator))
+                    hard = is_char_level
+                    flagged.extend((c, hard) for c in self._merge_splits(good_splits, separator))
                     good_splits = []
 
                 if remaining_separators:
-                    chunks.extend(self._split(piece, remaining_separators))
+                    flagged.extend(self._split_flagged(piece, remaining_separators))
                 else:
-                    chunks.append(piece)
+                    # No separators left and piece still exceeds chunk_size:
+                    # hard-split at chunk_size boundaries.
+                    if self._length_function(piece) > self._chunk_size:
+                        step = max(1, self._chunk_size - self._chunk_overlap)
+                        start = 0
+                        while start < len(piece):
+                            hard_slice = piece[start : start + self._chunk_size]
+                            if self._strip_whitespace:
+                                hard_slice = hard_slice.strip()
+                            if hard_slice:
+                                flagged.append((hard_slice, True))
+                            start += step
+                    else:
+                        flagged.append((piece, is_char_level))
 
         if good_splits:
-            chunks.extend(self._merge_splits(good_splits, separator))
+            hard = is_char_level
+            flagged.extend((c, hard) for c in self._merge_splits(good_splits, separator))
 
-        return chunks
+        return flagged

@@ -44,14 +44,14 @@ class SemanticChunker:
         chunks: list[ChunkedContent] = []
         global_index = 0
         for page in pages:
-            texts = self._child_splitter.split_text(page.content)
-            for text in texts:
+            for text, was_hard_split in self._child_splitter.split_text_with_flags(page.content):
                 chunks.append(
                     ChunkedContent(
                         content=text,
                         page_number=page.page_number,
                         section=None,
                         chunk_index=global_index,
+                        was_hard_split=was_hard_split,
                     )
                 )
                 global_index += 1
@@ -63,9 +63,9 @@ class SemanticChunker:
         assert self._parent_splitter is not None, "_chunk_parent_child called without parent_splitter"
 
         for page in pages:
-            parent_texts = self._parent_splitter.split_text(page.content)
+            parent_flagged = self._parent_splitter.split_text_with_flags(page.content)
 
-            for parent_text in parent_texts:
+            for parent_text, parent_hard_split in parent_flagged:
                 parent_id = str(uuid4())
 
                 chunks.append(
@@ -76,12 +76,12 @@ class SemanticChunker:
                         chunk_index=global_index,
                         chunk_type="parent",
                         parent_id=parent_id,
+                        was_hard_split=parent_hard_split,
                     )
                 )
                 global_index += 1
 
-                child_texts = self._child_splitter.split_text(parent_text)
-                for child_text in child_texts:
+                for child_text, child_hard_split in self._child_splitter.split_text_with_flags(parent_text):
                     chunks.append(
                         ChunkedContent(
                             content=child_text,
@@ -90,6 +90,7 @@ class SemanticChunker:
                             chunk_index=global_index,
                             chunk_type="child",
                             parent_id=parent_id,
+                            was_hard_split=child_hard_split,
                         )
                     )
                     global_index += 1

@@ -21,6 +21,7 @@ class ChunkedContent:
     contextualized: str = ""
     parent_id: str | None = None
     chunk_type: Literal["child", "parent"] = "child"
+    was_hard_split: bool = False
 
     @property
     def embedding_text(self) -> str:
