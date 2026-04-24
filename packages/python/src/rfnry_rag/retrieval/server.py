@@ -823,8 +823,7 @@ class RagEngine:
             raise ConfigurationError("metadata store required for structured ingestion")
         if collection is not None:
             raise ValueError(
-                f"structured ingestion does not support collection routing "
-                f"(got collection={collection!r})"
+                f"structured ingestion does not support collection routing (got collection={collection!r})"
             )
         return await self._structured_ingestion.analyze(
             file_path=file_path,
@@ -1207,7 +1206,7 @@ class RagEngine:
         if self._generation_service:
             flows.append("generation")
         if self._tree_search_service:
-            flows.append("tree-search")
+            flows.append("tree_search")
         return flows
 
     @staticmethod
