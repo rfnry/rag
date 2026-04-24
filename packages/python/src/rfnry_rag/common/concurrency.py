@@ -1,6 +1,8 @@
 import asyncio
 from collections.abc import Awaitable, Callable, Iterable
 
+_MAX_CONCURRENCY = 100
+
 
 async def run_concurrent[T, R](
     items: Iterable[T],
@@ -8,6 +10,10 @@ async def run_concurrent[T, R](
     concurrency: int,
 ) -> list[R]:
     """Run fn(item) for each item with bounded concurrency. Results preserve input order."""
+    if concurrency < 1:
+        raise ValueError(f"concurrency must be >= 1, got {concurrency}")
+    if concurrency > _MAX_CONCURRENCY:
+        raise ValueError(f"concurrency must be <= {_MAX_CONCURRENCY}, got {concurrency}")
     semaphore = asyncio.Semaphore(concurrency)
 
     async def _run(item: T) -> R:
