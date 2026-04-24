@@ -31,9 +31,7 @@ async def test_run_tree_search_fans_out_sources_concurrently() -> None:
     )
 
     metadata_store = MagicMock()
-    metadata_store.list_sources = AsyncMock(
-        return_value=[SimpleNamespace(source_id=f"s{i}") for i in range(4)]
-    )
+    metadata_store.list_sources = AsyncMock(return_value=[SimpleNamespace(source_id=f"s{i}") for i in range(4)])
     metadata_store.get_tree_index = AsyncMock(return_value=tree_json)
 
     rag = RagEngine.__new__(RagEngine)

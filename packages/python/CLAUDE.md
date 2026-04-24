@@ -135,7 +135,7 @@ All LLM calls go through BAML for structured output parsing, retry/fallback poli
 
 ## Linting & Style
 
-- Ruff: line-length 120, target py312, rules: E, F, I, UP, B, SIM
+- Ruff: line-length 120, target py312, rules: E, F, I, UP, B, SIM, RUF022
 - MyPy: python 3.12, ignores missing imports
 - Both tools exclude `baml_client/` directories
 
