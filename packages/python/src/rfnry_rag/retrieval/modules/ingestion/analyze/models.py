@@ -29,6 +29,7 @@ class PageAnalysis:
     page_type: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
     raw_text: str = ""  # raw extracted text for BM25 / raw-text vectors
+    page_hash: str = ""  # SHA-256 of the rendered page image, for per-page cache lookup
 
 
 @dataclass

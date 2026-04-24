@@ -514,6 +514,41 @@ class SQLAlchemyMetadataStore:
             for r in rows
         ]
 
+    async def get_page_analyses_by_hash(
+        self, page_hashes: list[str], knowledge_id: str | None,
+    ) -> dict[str, dict]:
+        """Return {page_hash: data_dict} for any previously-analyzed page whose hash matches.
+
+        When ``knowledge_id`` is provided, restrict to sources from the same knowledge
+        (so per-knowledge prompt variations don't collide). When None, allow any match.
+        Rows whose ``page_hash`` column is NULL or empty are never returned.
+        """
+        if not page_hashes:
+            return {}
+        non_empty = [h for h in page_hashes if h]
+        if not non_empty:
+            return {}
+
+        from sqlalchemy import and_
+
+        stmt = select(_PageAnalysisRow).where(
+            _PageAnalysisRow.page_hash.in_(non_empty)
+        )
+        if knowledge_id is not None:
+            stmt = stmt.join(
+                _SourceRow,
+                and_(
+                    _SourceRow.id == _PageAnalysisRow.source_id,
+                    _SourceRow.knowledge_id == knowledge_id,
+                ),
+            )
+        async with self._session_factory() as session:
+            rows = (await session.execute(stmt)).scalars().all()
+
+        # If multiple rows share the same hash (same page in multiple sources),
+        # last one wins — fine for cache purposes.
+        return {r.page_hash: json.loads(r.data_json) for r in rows if r.page_hash}
+
     async def get_page_analysis(
         self, source_id: str, page_number: int,
     ) -> dict | None:

@@ -80,10 +80,21 @@ class AnalyzedIngestionService:
         ext = file_path.suffix.lower()
         logger.info("[analyze/ingestion/analyze] processing file: %s (%s)", file_path.name, ext)
 
+        # File-hash short-circuit: if an identical file was already analyzed for
+        # this knowledge, return the existing Source without re-running any LLM calls.
+        file_hash_value = await asyncio.to_thread(compute_file_hash, file_path)
+        existing = await self._metadata_store.find_by_hash(file_hash_value, knowledge_id)
+        if existing is not None and existing.status in ("analyzed", "synthesized", "completed"):
+            logger.info(
+                "[analyze] file-hash cache hit source=%s status=%s",
+                existing.source_id, existing.status,
+            )
+            return existing
+
         page_filter = parse_page_range(page_range) if page_range else None
 
         if ext == ".pdf":
-            page_analyses = await self._analyze_pdf(file_path, page_filter)
+            page_analyses = await self._analyze_pdf_with_cache(file_path, page_filter, knowledge_id)
             file_type = "pdf"
         elif ext == ".l5x" or (ext == ".xml" and is_l5x(file_path)):
             page_analyses = self._analyze_l5x(file_path)
@@ -95,10 +106,7 @@ class AnalyzedIngestionService:
             raise IngestionError(f"unsupported structured file extension: {ext}")
 
         source_id = str(uuid4())
-        # File hashing is CPU/IO-bound and must run off the event loop so a
-        # large PDF doesn't block every other coroutine. chunk/service.py:148
-        # already does this for the unstructured path — analyze must match.
-        file_hash_value = await asyncio.to_thread(compute_file_hash, file_path)
+        # file_hash_value already computed above for the short-circuit check
 
         source = Source(
             source_id=source_id,
@@ -300,6 +308,70 @@ class AnalyzedIngestionService:
         return source
 
     async def _analyze_pdf(self, file_path: Path, page_range: set[int] | None) -> list[PageAnalysis]:
+        """Original PDF analysis without per-page cache. Kept for back-compat; internal callers
+        now use _analyze_pdf_with_cache instead."""
+        sem = asyncio.Semaphore(_ANALYZE_PDF_CONCURRENCY)
+        pages = list(iter_pdf_page_images(file_path, dpi=self._dpi, pages=page_range))
+        return list(await asyncio.gather(*(self._analyze_one(p, sem) for p in pages)))
+
+    async def _analyze_pdf_with_cache(
+        self, file_path: Path, page_filter: set[int] | None, knowledge_id: str | None,
+    ) -> list[PageAnalysis]:
+        """PDF analysis with per-page image-hash caching.
+
+        Pages whose rendered-image hash matches an existing ``rag_page_analyses`` row
+        in the same knowledge are reused without an LLM call. Only changed (or new)
+        pages go through the BAML fan-out.
+        """
+        self._require_vision_and_registry()
+
+        pages = list(iter_pdf_page_images(file_path, dpi=self._dpi, pages=page_filter))
+        # page_hash is empty string when the iterator doesn't provide it (e.g. in tests
+        # that patch iter_pdf_page_images with minimal dicts). An empty hash is never
+        # found in get_page_analyses_by_hash, so those pages fall through to the LLM.
+        page_hashes = [p.get("page_hash", "") for p in pages]
+
+        # Pass knowledge_id=None for a cross-knowledge page-hash lookup: the same
+        # rendered-image bytes produce the same analysis regardless of which knowledge
+        # they came from.  File-hash short-circuit (above in analyze()) is already
+        # knowledge-scoped; per-page hash is content-addressed so cross-knowledge
+        # reuse is safe.
+        cached = await self._metadata_store.get_page_analyses_by_hash(
+            page_hashes=page_hashes, knowledge_id=None,
+        )
+
+        to_analyze = [p for p in pages if not p.get("page_hash") or p.get("page_hash") not in cached]
+        logger.info(
+            "[analyze] page-cache: %d hits / %d misses",
+            len(pages) - len(to_analyze),
+            len(to_analyze),
+        )
+
+        sem = asyncio.Semaphore(_ANALYZE_PDF_CONCURRENCY)
+
+        fresh_by_num: dict[int, PageAnalysis] = {}
+        if to_analyze:
+            fresh = list(await asyncio.gather(*(self._analyze_one(p, sem) for p in to_analyze)))
+            fresh_by_num = {f.page_number: f for f in fresh}
+
+        results: list[PageAnalysis] = []
+        for p in pages:
+            ph = p.get("page_hash", "")
+            if ph and ph in cached:
+                pa = _deserialize_analysis(cached[ph])
+                # Override position-sensitive and freshly-extracted fields
+                pa.page_number = p["page_number"]
+                pa.raw_text = p.get("raw_text", "")
+                pa.page_hash = ph
+            else:
+                pa = fresh_by_num[p["page_number"]]
+                # Inject raw_text and page_hash (set after LLM call to keep them canonical)
+                pa.raw_text = p.get("raw_text", "")
+                pa.page_hash = ph
+            results.append(pa)
+        return results
+
+    def _require_vision_and_registry(self) -> None:
         if not self._vision:
             raise ConfigurationError("vision provider required for structured PDF analysis")
         if not self._registry:
@@ -309,55 +381,53 @@ class AnalyzedIngestionService:
                 "Provide a LanguageModelClient with your LLM provider and API key."
             )
 
+    async def _analyze_one(self, img: dict, sem: asyncio.Semaphore) -> PageAnalysis:
+        """Analyze a single page image via BAML AnalyzePage."""
+        self._require_vision_and_registry()
+
+        from baml_py import Image
+
         from rfnry_rag.retrieval.baml.baml_client.async_client import b
 
-        # Capture registry into a local — closes over the narrowed non-None type
-        # after the guard above; avoids mypy complaint inside the nested coroutine.
-        registry = self._registry
-        pages = list(iter_pdf_page_images(file_path, dpi=self._dpi, pages=page_range))
-        sem = asyncio.Semaphore(_ANALYZE_PDF_CONCURRENCY)
+        # Narrow the type: _require_vision_and_registry() guarantees _registry is not None.
+        registry: ClientRegistry = self._registry  # type: ignore[assignment]
+        baml_image = Image.from_base64("image/png", img["image_base64"])
+        async with sem:
+            try:
+                result = await b.AnalyzePage(
+                    baml_image,
+                    baml_options={"client_registry": registry},
+                )
+            except baml_errors.BamlValidationError as exc:
+                raise IngestionError(
+                    f"AnalyzePage failed on page {img['page_number']}: LLM returned an unparseable response. "
+                    f"This usually means the model does not support the expected output format. Detail: {exc}"
+                ) from exc
+            except Exception as exc:
+                raise IngestionError(f"AnalyzePage failed on page {img['page_number']}: {exc}") from exc
 
-        async def analyze_one(img: dict) -> PageAnalysis:
-            from baml_py import Image
+        analysis = PageAnalysis(
+            page_number=img["page_number"],
+            description=result.description,
+            entities=[
+                DiscoveredEntity(name=e.name, category=e.category, context=e.context, value=e.value)
+                for e in result.entities
+            ],
+            tables=[DiscoveredTable(title=t.title, columns=t.columns, rows=t.rows) for t in result.tables],
+            annotations=result.annotations,
+            page_type=result.page_type,
+        )
+        # raw_text and page_hash are injected by the caller (_analyze_pdf_with_cache or _analyze_pdf)
+        # after the LLM call, keeping them canonical to the image data.
 
-            baml_image = Image.from_base64("image/png", img["image_base64"])
-            async with sem:
-                try:
-                    result = await b.AnalyzePage(
-                        baml_image,
-                        baml_options={"client_registry": registry},
-                    )
-                except baml_errors.BamlValidationError as exc:
-                    raise IngestionError(
-                        f"AnalyzePage failed on page {img['page_number']}: LLM returned an unparseable response. "
-                        f"This usually means the model does not support the expected output format. Detail: {exc}"
-                    ) from exc
-                except Exception as exc:
-                    raise IngestionError(f"AnalyzePage failed on page {img['page_number']}: {exc}") from exc
+        logger.info(
+            "[analyze/ingestion/analyze/vision] page %d analyzed (%s, %d entities)",
+            img["page_number"],
+            analysis.page_type,
+            len(analysis.entities),
+        )
 
-            analysis = PageAnalysis(
-                page_number=img["page_number"],
-                description=result.description,
-                entities=[
-                    DiscoveredEntity(name=e.name, category=e.category, context=e.context, value=e.value)
-                    for e in result.entities
-                ],
-                tables=[DiscoveredTable(title=t.title, columns=t.columns, rows=t.rows) for t in result.tables],
-                annotations=result.annotations,
-                page_type=result.page_type,
-                raw_text=img.get("raw_text", ""),  # PyMuPDF side-channel extraction
-            )
-
-            logger.info(
-                "[analyze/ingestion/analyze/vision] page %d analyzed (%s, %d entities)",
-                img["page_number"],
-                analysis.page_type,
-                len(analysis.entities),
-            )
-
-            return analysis
-
-        return list(await asyncio.gather(*(analyze_one(p) for p in pages)))
+        return analysis
 
     def _analyze_l5x(self, file_path: Path) -> list[PageAnalysis]:
         docs = parse_l5x(file_path)
@@ -560,6 +630,7 @@ def _serialize_analysis(pa: PageAnalysis) -> dict[str, Any]:
         "page_type": pa.page_type,
         "metadata": pa.metadata,
         "raw_text": pa.raw_text,
+        "page_hash": pa.page_hash,
     }
 
 
@@ -588,6 +659,7 @@ def _deserialize_analysis(data: dict[str, Any]) -> PageAnalysis:
         page_type=data.get("page_type", ""),
         metadata=data.get("metadata", {}),
         raw_text=data.get("raw_text", ""),  # back-compat: older persisted sources lack this field
+        page_hash=data.get("page_hash", ""),  # back-compat: older persisted sources lack this field
     )
 
 

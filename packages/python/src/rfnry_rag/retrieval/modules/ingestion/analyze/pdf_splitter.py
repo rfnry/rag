@@ -1,4 +1,5 @@
 import base64
+import hashlib
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -10,7 +11,7 @@ logger = get_logger("analyze/ingestion/analyze")
 
 
 def iter_pdf_page_images(file_path: Path, dpi: int = 300, pages: set[int] | None = None) -> Iterator[dict]:
-    """Yield PDF pages as {"page_number", "image_base64", "raw_text"} one at a time.
+    """Yield PDF pages as {"page_number", "image_base64", "raw_text", "page_hash"} one at a time.
 
     Streaming the pages keeps only one rendered image in memory at a time,
     instead of materializing every page before any is processed.
@@ -34,9 +35,15 @@ def iter_pdf_page_images(file_path: Path, dpi: int = 300, pages: set[int] | None
             raw_text = page.get_text()
             pix = page.get_pixmap(matrix=matrix)
             png_bytes = pix.tobytes("png")
+            page_hash = hashlib.sha256(png_bytes).hexdigest()[:32]
             b64 = base64.standard_b64encode(png_bytes).decode("utf-8")
             emitted += 1
-            yield {"page_number": page_1based, "image_base64": b64, "raw_text": raw_text}
+            yield {
+                "page_number": page_1based,
+                "image_base64": b64,
+                "raw_text": raw_text,
+                "page_hash": page_hash,
+            }
         logger.info("streamed pdf as %d page images at %d dpi", emitted, dpi)
     finally:
         doc.close()

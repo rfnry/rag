@@ -36,6 +36,10 @@ class BaseMetadataStore(Protocol):
 
     async def get_page_analyses(self, source_id: str) -> list[dict]: ...
 
+    async def get_page_analyses_by_hash(
+        self, page_hashes: list[str], knowledge_id: str | None,
+    ) -> dict[str, dict]: ...
+
     async def get_page_analysis(
         self, source_id: str, page_number: int,
     ) -> dict | None: ...
