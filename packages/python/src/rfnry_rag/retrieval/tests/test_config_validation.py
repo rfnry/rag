@@ -125,3 +125,11 @@ class TestContextualChunkingDeprecation:
         # Since the deprecation shim copies contextual_chunking onto chunk_context_headers,
         # the old name "wins" here — that's the documented deprecation semantics.
         assert cfg.chunk_context_headers is False
+
+
+def test_grounding_enabled_without_lm_client_rejected_at_config_time() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.server import GenerationConfig
+
+    with pytest.raises(ConfigurationError, match="grounding_enabled requires"):
+        GenerationConfig(grounding_enabled=True, grounding_threshold=0.5, lm_client=None)

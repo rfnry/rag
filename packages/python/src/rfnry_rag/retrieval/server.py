@@ -211,6 +211,8 @@ class GenerationConfig:
         # misconfiguration, though only 0.0 is outright incoherent.
         if self.grounding_enabled and self.grounding_threshold == 0.0:
             raise ConfigurationError("grounding_enabled=True with grounding_threshold=0.0 is a no-op")
+        if self.grounding_enabled and self.lm_client is None:
+            raise ConfigurationError("grounding_enabled requires lm_client")
 
 
 @dataclass
@@ -650,9 +652,6 @@ class RagEngine:
         if gen.step_lm_client:
             self._step_service = StepGenerationService(lm_client=gen.step_lm_client)
             logger.info("step generation: enabled")
-
-        if gen.grounding_enabled and not gen.lm_client:
-            raise ConfigurationError("grounding_enabled requires generation.lm_client")
 
         self._knowledge_manager = KnowledgeManager(
             vector_store=persistence.vector_store,
