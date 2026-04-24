@@ -86,6 +86,14 @@ async def test_find_by_hash_returns_match(tmp_path) -> None:
     assert await store.find_by_hash("abc123", "different") is None
 
 
+async def test_initialization_is_idempotent(tmp_path) -> None:
+    """initialize() called twice on the same store must not error."""
+    store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path / 'db.sqlite'}")
+    await store.initialize()
+    await store.initialize()   # must not raise (would be "duplicate column" today)
+    await store.shutdown()
+
+
 async def test_file_hash_column_has_index(tmp_path) -> None:
     """find_by_hash must hit an index, not a full scan."""
     import sqlalchemy as sa
