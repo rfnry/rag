@@ -899,7 +899,7 @@ class RagEngine:
         self._check_initialized()
         _validate_query_text(text)
         if not self._generation_service:
-            raise RuntimeError("query() requires generation to be configured")
+            raise ConfigurationError("query() requires generation.lm_client to be configured")
 
         chunks = await self._retrieve_chunks(text, knowledge_id, history, min_score, collection)
         return await self._generation_service.generate(
@@ -919,7 +919,7 @@ class RagEngine:
         self._check_initialized()
         _validate_query_text(text)
         if not self._generation_service:
-            raise RuntimeError("query_stream() requires generation to be configured")
+            raise ConfigurationError("query_stream() requires generation.lm_client to be configured")
 
         chunks = await self._retrieve_chunks(text, knowledge_id, history, min_score, collection)
         async for event in self._generation_service.generate_stream(
@@ -953,7 +953,7 @@ class RagEngine:
         self._check_initialized()
         _validate_query_text(query)
         if not self._step_service:
-            raise RuntimeError("generate_step() requires step_lm_client in GenerationConfig")
+            raise ConfigurationError("generate_step() requires generation.step_lm_client to be configured")
 
         return await self._step_service.generate_step(
             query=query,
