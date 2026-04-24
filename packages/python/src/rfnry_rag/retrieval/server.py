@@ -1203,8 +1203,11 @@ class RagEngine:
             )
             sources = sources[:max_sources]
 
+        source_ids = [s.source_id for s in sources]
+        tree_jsons = await metadata_store.get_tree_indexes(source_ids)
+
         async def search_one(source: Source) -> list[RetrievedChunk]:
-            tree_json = await metadata_store.get_tree_index(source.source_id)
+            tree_json = tree_jsons.get(source.source_id)
             if not tree_json:
                 return []
             tree_index = TreeIndex.from_dict(json.loads(tree_json))

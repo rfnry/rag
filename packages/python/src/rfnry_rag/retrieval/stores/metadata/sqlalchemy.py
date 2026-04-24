@@ -392,6 +392,18 @@ class SQLAlchemyMetadataStore:
                 return None
             return row.tree_index_json
 
+    async def get_tree_indexes(self, source_ids: list[str]) -> dict[str, str | None]:
+        if not source_ids:
+            return {}
+        stmt = select(_SourceRow.id, _SourceRow.tree_index_json).where(
+            _SourceRow.id.in_(source_ids)
+        )
+        async with self._session_factory() as session:
+            rows = (await session.execute(stmt)).all()
+        found = {row.id: row.tree_index_json for row in rows}
+        # Preserve input order in output; missing source_ids map to None.
+        return {sid: found.get(sid) for sid in source_ids}
+
     async def shutdown(self) -> None:
         await self._engine.dispose()
 

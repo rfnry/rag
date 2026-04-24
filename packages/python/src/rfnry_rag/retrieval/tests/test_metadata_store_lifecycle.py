@@ -94,6 +94,32 @@ async def test_initialization_is_idempotent(tmp_path) -> None:
     await store.shutdown()
 
 
+async def test_get_tree_indexes_returns_mapping(tmp_path) -> None:
+    store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path / 'db.sqlite'}")
+    await store.initialize()
+
+    # Seed two sources with tree indexes; one without.
+    base = dict(knowledge_id="kb1", embedding_model="m", created_at=datetime.now(UTC))
+    await store.create_source(Source(source_id="s1", **base))
+    await store.create_source(Source(source_id="s2", **base))
+    await store.create_source(Source(source_id="s3", **base))
+
+    await store.save_tree_index("s1", '{"nodes":[],"meta":"s1"}')
+    await store.save_tree_index("s2", '{"nodes":[],"meta":"s2"}')
+    # s3 intentionally has no tree index
+
+    result = await store.get_tree_indexes(["s1", "s2", "s3", "missing"])
+    assert result["s1"] == '{"nodes":[],"meta":"s1"}'
+    assert result["s2"] == '{"nodes":[],"meta":"s2"}'
+    assert result["s3"] is None
+    assert result["missing"] is None
+
+    # Empty input must return empty dict without hitting the DB.
+    assert await store.get_tree_indexes([]) == {}
+
+    await store.shutdown()
+
+
 async def test_file_hash_column_has_index(tmp_path) -> None:
     """find_by_hash must hit an index, not a full scan."""
     import sqlalchemy as sa
