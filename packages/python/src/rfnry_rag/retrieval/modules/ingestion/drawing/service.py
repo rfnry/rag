@@ -29,6 +29,12 @@ from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import Source
 from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.drawing.extract_dxf import extract_dxf_analysis
+from rfnry_rag.retrieval.modules.ingestion.drawing.linker import (
+    merge_fuzzy_labels,
+    pair_off_page_connectors,
+    parse_target_hints,
+)
+from rfnry_rag.retrieval.modules.ingestion.drawing.models import DrawingPageAnalysis
 from rfnry_rag.retrieval.modules.ingestion.drawing.render import render_dxf, render_pdf_pages
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.stores.graph.base import BaseGraphStore
@@ -201,7 +207,47 @@ class DrawingIngestionService:
 
     async def link(self, source_id: str) -> Source:
         """Phase 3 - cross-sheet linking (deterministic + LLM residue). Idempotent. (C7/C8)"""
-        raise NotImplementedError
+        source = await self._metadata_store.get_source(source_id)
+        if source is None:
+            raise IngestionError(f"source not found: {source_id}")
+        if source.status in {"linked", "completed"}:
+            return source  # idempotent
+        if source.status != "extracted":
+            raise IngestionError(
+                f"link requires status='extracted', got {source.status!r}"
+            )
+
+        rows = await self._metadata_store.get_page_analyses(source_id)
+        pages: list[DrawingPageAnalysis] = []
+        for r in rows:
+            analysis_dict = r.get("data", {}).get("analysis")
+            if analysis_dict is None:
+                continue
+            pages.append(DrawingPageAnalysis.from_dict(analysis_dict))
+
+        deterministic_pairings = (
+            pair_off_page_connectors(pages) + parse_target_hints(pages, self._config)
+        )
+        fuzzy_merges = merge_fuzzy_labels(pages, self._config)
+
+        link_payload = {
+            "deterministic_pairings": [p.to_dict() for p in deterministic_pairings],
+            "fuzzy_merges": fuzzy_merges,
+            "llm_residue": [],  # filled in C8
+        }
+        new_metadata = {**source.metadata, "drawing_linking": link_payload}
+        await self._metadata_store.update_source(
+            source_id, status="linked", metadata=new_metadata,
+        )
+        source.status = "linked"
+        source.metadata = new_metadata
+        logger.info(
+            "[drawing/link] source_id=%s deterministic=%d fuzzy=%d",
+            source_id,
+            len(deterministic_pairings),
+            len(fuzzy_merges),
+        )
+        return source
 
     async def ingest(self, source_id: str) -> Source:
         """Phase 4 - embed + graph write. Idempotent. (C10)"""
