@@ -86,7 +86,7 @@ The retrieval pipeline in `RagEngine` runs in this order:
    - **DocumentRetrieval** — Full-text + substring search (requires document store)
    - **GraphRetrieval** — Entity lookup + N-hop traversal (requires graph store)
    - **Enrich** — Structured retrieval with field filtering (requires metadata store)
-   - **Tree** — Runs when `TreeSearchConfig.enabled`; loads stored tree indexes for up to `max_sources_per_query` sources, runs an LLM-backed navigation per source, and injects results into the RRF fusion pool alongside the other retrieval paths. See `server.py::_run_tree_search` for orchestration; per-source work runs concurrently via `asyncio.gather`. Requires metadata store.
+   - **Tree** — Runs when `TreeSearchConfig.enabled`; loads stored tree indexes for up to `max_sources_per_query` sources, runs an LLM-backed navigation per source, and injects results into the RRF fusion pool alongside the other retrieval paths. See `server.py::_run_tree_search` for orchestration; per-source work runs concurrently via `asyncio.gather`. Uses `list_source_ids` + `get_tree_indexes` batch queries to eliminate N+1 DB lookups. Requires metadata store. Note: the `TreeRetrieval` class was removed in round-4 (it was never wired into `MethodNamespace`); tree search runs exclusively via `_run_tree_search` in `server.py`.
 3. **Reranking** (optional) — Cross-encoder reranking against original query (Cohere, Voyage)
 4. **Chunk refinement** (optional) — Extractive (context window) or abstractive (LLM summarization) refinement
 5. **Generation** (for `query()` only) — Grounding gate → LLM relevance gate → optional clarification → LLM generation
@@ -113,6 +113,7 @@ SdkBaseError (common base — not re-exported at top level; catch subclasses)
 └── ReasoningError (reasoning)
     ├── AnalysisError, ClassificationError, ClusteringError
     ├── ComplianceError, EvaluationError
+    └── ReasoningInputError(ReasoningError, ValueError) — input-validation failures in reasoning configs; back-compat with `except ValueError:` preserved
 ```
 
 Note: `SdkBaseError` was previously named `BaseException`; it was renamed to avoid shadowing the Python builtin. Top-level `rfnry_rag` does NOT re-export it — catch the specific subclasses or import from `rfnry_rag.common.errors` directly.
@@ -133,6 +134,14 @@ All LLM calls go through BAML for structured output parsing, retry/fallback poli
 - **Shared common, SDK-specific re-exports** — SDK `common/` modules are thin re-exports from `rfnry_rag.common`. Retrieval-specific utilities (models, formatting, hashing, page_range) stay in retrieval's own `common/`.
 - **Config dataclasses** — Pydantic V2 or plain dataclasses with `__post_init__` validation. `PersistenceConfig.vector_store` and `IngestionConfig.embeddings` are optional — at least one retrieval path must be configured.
 
+## Contract tests
+
+The following contract tests act as regression guards — they enforce whole-class invariants so that future rounds don't rediscover the same issue categories:
+
+- `test_baml_prompt_fence_contract.py` — every user-controlled BAML prompt parameter across retrieval + reasoning must be fenced. Fails if any new `.baml` file introduces an unfenced interpolation.
+- `test_config_bounds_contract.py` (retrieval + reasoning) — every `int` / `float` field in a config dataclass must have a `__post_init__` bounds check or carry a `# unbounded: <reason>` marker. Fails if a new config field is added without explicit validation.
+- `test_no_bare_valueerror_in_configs.py` — reasoning config `__post_init__` methods must raise `ReasoningInputError`, not bare `ValueError`. Enforces the error hierarchy so callers can distinguish validation failures from unexpected errors.
+
 ## Linting & Style
 
 - Ruff: line-length 120, target py312, rules: E, F, I, UP, B, SIM, RUF022
@@ -144,7 +153,7 @@ All LLM calls go through BAML for structured output parsing, retry/fallback poli
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking
 - Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules
-- 741 tests total across both SDKs
+- 837 tests total across both SDKs
 
 ## Config defaults and enforced bounds
 
@@ -171,6 +180,16 @@ All LLM calls go through BAML for structured output parsing, retry/fallback poli
 - `PostgresDocumentStore.headline_max_words` / `headline_min_words` / `headline_max_fragments`: `≥ 1`, with `min_words ≤ max_words`
 - `LanguageModelClient.timeout_seconds`: `> 0`, default `60`
 - `Neo4jGraphStore.password`: required (no default; empty raises)
+- `RetrievalConfig.source_type_weights`: each value in `(0, 10]`
+- `MultiQueryRewriting.num_variants`: `1–10`
+- `LanguageModelClient.temperature`: `0.0 ≤ temperature ≤ 2.0`
+- `ClassificationConfig.concurrency`: `1–20`
+- `ClusteringConfig.n_clusters`: `2–1000` (K-Means)
+- `ClusteringConfig.min_cluster_size`: `2–10_000` (HDBSCAN)
+- `ComplianceConfig.concurrency`: `1–20`
+- `ComplianceConfig.max_reference_length`: `1–5_000_000`
+- `TreeIndex.pages`: `≤ 100_000` (security cap in `from_dict`)
+- `_MAX_PAGES_PER_ENTITY = 20` in analyzed ingestion (cross-ref pairwise expansion cap)
 - Public-input bounds: query ≤ 32 000 chars, `ingest_text` ≤ 5 000 000 chars, metadata ≤ 50 keys × 8 000 chars
 
 Per-op timeouts (all configurable):
