@@ -125,7 +125,7 @@ class IngestionConfig:
     dpi: int = 300
     lm_client: LanguageModelClient | None = None
     sparse_embeddings: BaseSparseEmbeddings | None = None
-    parent_chunk_size: int = 0
+    parent_chunk_size: int = -1  # sentinel: -1 means "auto = 3 * chunk_size"; 0 explicitly disables
     parent_chunk_overlap: int = 200
     # Whether to prepend a short source/type header string to each chunk before
     # embedding. This is pure string templating — NOT the LLM-generated
@@ -146,8 +146,13 @@ class IngestionConfig:
             raise ConfigurationError("chunk_overlap must be non-negative")
         if self.chunk_overlap >= self.chunk_size:
             raise ConfigurationError("chunk_overlap must be less than chunk_size")
-        if self.parent_chunk_size < 0:
-            raise ConfigurationError("parent_chunk_size must be non-negative")
+        # Resolve sentinel: -1 means "auto = 3 * chunk_size". Values < -1 are invalid.
+        if self.parent_chunk_size < -1:
+            raise ConfigurationError(
+                f"parent_chunk_size must be >= -1 (-1=auto, 0=disabled, >0=explicit), got {self.parent_chunk_size}"
+            )
+        if self.parent_chunk_size == -1:
+            self.parent_chunk_size = 3 * self.chunk_size
         if self.parent_chunk_size > 0 and self.parent_chunk_size <= self.chunk_size:
             raise ConfigurationError("parent_chunk_size must be greater than chunk_size")
         if self.parent_chunk_size > 0:

@@ -20,9 +20,15 @@ def _mock_embeddings():
     return m
 
 
-def test_parent_chunk_size_must_be_nonnegative():
-    with pytest.raises(ConfigurationError, match="non-negative"):
-        IngestionConfig(embeddings=_mock_embeddings(), parent_chunk_size=-1)
+def test_parent_chunk_size_sentinel_minus_one_is_auto():
+    # -1 is the sentinel for "auto = 3 * chunk_size"; it must NOT raise
+    cfg = IngestionConfig(embeddings=_mock_embeddings(), chunk_size=375, parent_chunk_size=-1)
+    assert cfg.parent_chunk_size == 3 * 375
+
+
+def test_parent_chunk_size_below_minus_one_raises():
+    with pytest.raises(ConfigurationError, match="parent_chunk_size"):
+        IngestionConfig(embeddings=_mock_embeddings(), parent_chunk_size=-2)
 
 
 def test_parent_chunk_size_must_exceed_chunk_size():

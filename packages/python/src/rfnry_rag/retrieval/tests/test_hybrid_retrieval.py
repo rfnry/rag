@@ -1,5 +1,7 @@
 from unittest.mock import AsyncMock
 
+import pytest
+
 from rfnry_rag.retrieval.common.models import SparseVector, VectorResult
 from rfnry_rag.retrieval.modules.retrieval.methods.vector import VectorRetrieval
 
@@ -169,4 +171,5 @@ async def test_parent_deduplication():
     results = await search.search(query="test", top_k=5)
 
     assert len(results) == 1
-    assert results[0].score == 0.9
+    # Score is now the sum of all child scores (0.9 + 0.7 = 1.6)
+    assert results[0].score == pytest.approx(1.6)

@@ -175,40 +175,63 @@ class VectorRetrieval:
         return [self._result_to_chunk(r) for r in results]
 
     async def _expand_parents(self, results: list[VectorResult]) -> list[VectorResult]:
-        """For each child result with a parent_id, fetch the parent and return its content instead."""
-        parent_ids = set()
-        for r in results:
-            pid = r.payload.get("parent_id")
-            if pid:
-                parent_ids.add(pid)
+        """For each child result with a parent_id, fetch the parent and return its content instead.
 
-        if not parent_ids:
+        Multiple children sharing the same parent are collapsed into one result whose score
+        is the sum of all child scores (stronger multi-hit signal). Results without a parent_id
+        (already non-child chunks) are preserved as-is.
+        """
+        children = [r for r in results if r.payload.get("parent_id")]
+        non_children = [r for r in results if not r.payload.get("parent_id")]
+
+        if not children:
             return results
 
+        parent_ids = {r.payload["parent_id"] for r in children}
         parents = await self._store.retrieve(list(parent_ids))
-        parent_map = {p.point_id: p for p in parents}
+        parent_lookup = {p.point_id: p.payload for p in parents}
 
-        expanded = []
-        seen_parents: set[str] = set()
+        merged = self._merge_children_into_parents(children, parent_lookup)
+        return non_children + merged
 
+    @staticmethod
+    def _merge_children_into_parents(
+        results: list[VectorResult],
+        parent_lookup: dict[str, dict],  # {parent_id: parent_payload}
+    ) -> list[VectorResult]:
+        """Collapse child results sharing a parent into one result per parent.
+
+        Score is the sum of child scores. child_hit_count is added to the
+        payload so downstream reranker/LLM can observe multi-hit strength.
+        Children whose parent_id is not in parent_lookup are dropped.
+        """
+        from collections import defaultdict
+
+        groups: dict[str, list[VectorResult]] = defaultdict(list)
         for r in results:
-            pid = r.payload.get("parent_id")
-            if pid and pid in parent_map:
-                if pid in seen_parents:
-                    continue
-                seen_parents.add(pid)
-                parent = parent_map[pid]
-                expanded.append(
-                    VectorResult(
-                        point_id=r.point_id,
-                        score=r.score,
-                        payload={**parent.payload, "expanded_from_child": r.point_id},
-                    )
-                )
-            else:
-                expanded.append(r)
+            parent_id = r.payload.get("parent_id")
+            if parent_id and parent_id in parent_lookup:
+                groups[parent_id].append(r)
+            # else: child without a resolvable parent — drop silently
 
-        return expanded
+        merged: list[VectorResult] = []
+        for parent_id, children in groups.items():
+            parent_payload = dict(parent_lookup[parent_id])  # copy
+            parent_payload["child_hit_count"] = len(children)
+            parent_payload["expanded_from_children"] = [c.point_id for c in children]
+            summed = sum(c.score for c in children)
+            # Use the first child's point_id as the stable result id to preserve
+            # downstream deduplication semantics; content comes from parent.
+            first = children[0]
+            merged.append(
+                VectorResult(
+                    point_id=first.point_id,
+                    score=summed,
+                    payload=parent_payload,
+                )
+            )
+
+        return merged
 
     @staticmethod
     def _result_to_chunk(r: VectorResult) -> RetrievedChunk:
