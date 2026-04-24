@@ -128,10 +128,24 @@ def _compute_entity_id(name: str, entity_type: str, knowledge_id: str | None) ->
 
 
 def _validate_relation_type(rel_type: str) -> str:
-    """Validate and normalize relationship type. Falls back to CONNECTS_TO."""
+    """Validate and normalize relationship type against the allowlist.
+
+    Normalises the input (upper-case, spaces→underscores) then does an exact
+    allowlist check on the normalised value.  Raises ValueError if the
+    normalised value is not in ALLOWED_RELATION_TYPES — callers must not pass
+    arbitrary strings here because rel_type is interpolated directly into
+    Cypher (Neo4j drivers cannot bind label/type tokens as parameters).
+
+    Raises:
+        ValueError: if the (possibly normalised) rel_type is not in
+            ALLOWED_RELATION_TYPES.
+    """
     normalized = rel_type.upper().replace(" ", "_")
     if normalized not in ALLOWED_RELATION_TYPES:
-        return "CONNECTS_TO"
+        raise ValueError(
+            f"Relation type {rel_type!r} (normalised: {normalized!r}) is not in "
+            f"ALLOWED_RELATION_TYPES. Allowed: {sorted(ALLOWED_RELATION_TYPES)}"
+        )
     return normalized
 
 
@@ -242,6 +256,11 @@ class Neo4jGraphStore:
                 to_id = _compute_entity_id(rel.to_entity, rel.to_type, rel.knowledge_id)
                 rel_type = _validate_relation_type(rel.relation_type)
 
+                # SECURITY: rel_type flows into Cypher as a raw label token because Neo4j
+                # drivers do not support parameter binding of labels/types. The value MUST
+                # have passed _validate_relation_type() (allowlist check) before this line.
+                # Any change that loosens ALLOWED_RELATION_TYPES or bypasses validation is
+                # a Cypher-injection vulnerability — see test_graph_cypher_safety.py.
                 query = (
                     f"MATCH (a:Entity {{entity_id: $from_id}})\n"
                     f"MATCH (b:Entity {{entity_id: $to_id}})\n"

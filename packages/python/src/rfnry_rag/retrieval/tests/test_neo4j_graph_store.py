@@ -86,11 +86,13 @@ async def test_validate_relation_type_normalizes():
     assert _validate_relation_type("powered by") == "POWERED_BY"
 
 
-async def test_validate_relation_type_unknown_falls_back():
+async def test_validate_relation_type_unknown_raises():
     from rfnry_rag.retrieval.stores.graph.neo4j import _validate_relation_type
 
-    assert _validate_relation_type("UNKNOWN_REL") == "CONNECTS_TO"
-    assert _validate_relation_type("") == "CONNECTS_TO"
+    with pytest.raises(ValueError):
+        _validate_relation_type("UNKNOWN_REL")
+    with pytest.raises(ValueError):
+        _validate_relation_type("")
 
 
 @patch("rfnry_rag.retrieval.stores.graph.neo4j.AsyncGraphDatabase")
