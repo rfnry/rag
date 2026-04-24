@@ -34,7 +34,11 @@ class RetrievalService:
     def methods(self) -> list[BaseRetrievalMethod]:
         """Public read-only view over configured retrieval methods.
 
-        Use this instead of `_retrieval_methods` from outside the class.
+        This is NOT a Protocol member — RetrievalService is the concrete and
+        sole service implementation today. If the service ever becomes a swap
+        point (e.g., for a streaming variant), lift this property into a
+        BaseRetrievalService Protocol first.
+
         Returns the live list — callers must not mutate.
         """
         return self._retrieval_methods
