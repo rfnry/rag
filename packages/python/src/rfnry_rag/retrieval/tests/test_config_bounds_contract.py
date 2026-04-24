@@ -11,6 +11,7 @@ from typing import Any
 
 from rfnry_rag.common.language_model import LanguageModelClient
 from rfnry_rag.retrieval.modules.ingestion.chunk.batch import BatchConfig
+from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.multi_query import MultiQueryRewriting
 from rfnry_rag.retrieval.server import (
     GenerationConfig,
@@ -26,6 +27,7 @@ _CONFIGS_TO_AUDIT: list[type] = [
     GenerationConfig,
     TreeIndexingConfig,
     TreeSearchConfig,
+    DrawingIngestionConfig,
     LanguageModelClient,
     BatchConfig,
     MultiQueryRewriting,

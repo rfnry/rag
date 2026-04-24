@@ -22,6 +22,7 @@ from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngest
 from rfnry_rag.retrieval.modules.ingestion.base import BaseIngestionMethod
 from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker
 from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
+from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.modules.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
 from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
@@ -142,6 +143,9 @@ class IngestionConfig:
     # Max concurrent vision LLM calls during PDF analysis. Default 5 stays under
     # Tier-1 rate limits; Tier-2+ accounts can raise this to 8-16 for wall-clock wins.
     analyze_concurrency: int = 5
+    # Optional nested config for the DrawingIngestion pipeline (Phase C).
+    # None by default so existing consumers are unaffected.
+    drawings: DrawingIngestionConfig | None = None
 
     def __post_init__(self) -> None:
         if self.chunk_size_unit not in ("chars", "tokens"):
