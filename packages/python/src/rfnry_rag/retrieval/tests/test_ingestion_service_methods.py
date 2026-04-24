@@ -325,8 +325,9 @@ async def test_method_failure_does_not_abort_pipeline():
 # --- on_progress callback tests ---
 
 
-async def test_on_progress_fires_at_group_boundaries(tmp_path) -> None:
-    """Progress fires once after required group and once after optional group."""
+async def test_on_progress_fires_group_and_completion_events(tmp_path) -> None:
+    """Progress fires after any non-empty group AND a final (total, total)
+    event on success, regardless of which groups were configured."""
     calls: list[tuple[int, int]] = []
 
     async def progress(done: int, total: int) -> None:
@@ -335,14 +336,34 @@ async def test_on_progress_fires_at_group_boundaries(tmp_path) -> None:
     file_path = tmp_path / "sample.txt"
     file_path.write_text("hello world " * 50)
 
-    # Two required methods, zero optional → progress fires ONCE after the required
-    # group: (2, 2). The empty optional group is skipped entirely.
+    # 2 required + 0 optional → one mid-event + one completion event,
+    # both at (2, 2) because all work is in the required group.
     method_a = _mock_method(name="a", required=True)
     method_b = _mock_method(name="b", required=True)
     service = _make_service_advanced(ingestion_methods=[method_a, method_b])
 
     await service.ingest(file_path=file_path, on_progress=progress)
 
+    assert calls == [(2, 2), (2, 2)]
+
+
+async def test_on_progress_fires_completion_for_all_optional_methods(tmp_path) -> None:
+    """All-optional config must still emit a final (total, total) event."""
+    calls: list[tuple[int, int]] = []
+
+    async def progress(done: int, total: int) -> None:
+        calls.append((done, total))
+
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text("hello world " * 50)
+
+    a = _mock_method(name="a", required=False)
+    b = _mock_method(name="b", required=False)
+    service = _make_service_advanced(ingestion_methods=[a, b])
+
+    await service.ingest(file_path=file_path, on_progress=progress)
+
+    # No required methods → no mid-event. Optional group (2 methods, both succeed) → completion.
     assert calls == [(2, 2)]
 
 
