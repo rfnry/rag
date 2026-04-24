@@ -85,7 +85,7 @@ The retrieval pipeline in `RagEngine` runs in this order:
 2. **Multi-path search** (per query) — pluggable retrieval methods run concurrently, results merged via reciprocal rank fusion with per-method weights:
    - **VectorRetrieval** — Dense similarity + SPLADE hybrid (if `sparse_embeddings`) + BM25 (if `bm25_enabled`), fused internally via RRF. Each method has `weight` and optional `top_k` override.
    - **DocumentRetrieval** — Full-text + substring search (requires document store)
-   - **GraphRetrieval** — Entity lookup + N-hop traversal (requires graph store)
+   - **GraphRetrieval** — Entity lookup + N-hop traversal (requires graph store) — exposes `trace(entity_name, max_hops, relation_types, knowledge_id)` for programmatic N-hop queries returning `GraphPath` objects directly (vs `search()`'s RetrievedChunk conversion).
    - **Enrich** — Structured retrieval with field filtering (requires metadata store)
    - **Tree** — Runs when `TreeSearchConfig.enabled`; loads stored tree indexes for up to `max_sources_per_query` sources, runs an LLM-backed navigation per source, and injects results into the RRF fusion pool alongside the other retrieval paths. See `server.py::_run_tree_search` for orchestration; per-source work runs concurrently via `asyncio.gather`. Uses `list_source_ids` + `get_tree_indexes` batch queries to eliminate N+1 DB lookups. Requires metadata store. Note: the `TreeRetrieval` class was removed in round-4 (it was never wired into `MethodNamespace`); tree search runs exclusively via `_run_tree_search` in `server.py`.
 3. **Reranking** (optional) — Cross-encoder reranking against original query (Cohere, Voyage)
@@ -101,6 +101,17 @@ Retrieval and ingestion are protocol-based plugin architectures. No mandatory ve
 - **`MethodNamespace[T]`** — Generic container exposing methods as attributes (`rag.retrieval.vector`) and supporting iteration (`for m in rag.retrieval`).
 - **Dynamic assembly** — `RagEngine.initialize()` builds method lists from config, validates cross-config constraints via `_validate_config()`, assembles `RetrievalService` and `IngestionService` with method list dispatch.
 - **`AnalyzedIngestionService`** — 3-phase LLM pipeline (analyze → synthesize → ingest) for vision-analyzed documents. Uses `graph_store` directly for pre-extracted entities, delegates document storage to method list. Phase A4: produces **3 vector kinds per page** — `description` (LLM prose), `raw_text` (PyMuPDF OCR, if non-empty), `table_row` (one vector per table row, column-header-prefixed); each payload tagged by `vector_role`. `full_text` for downstream document-store methods is now raw OCR text (fallback: LLM description + entities for L5X/XML). Phase B: page analyses stored in dedicated `rag_page_analyses` table (B1/B2); **file-hash + per-page-hash caching** short-circuits redundant LLM calls on re-ingestion (B3); **status-based resume** routes to the first unfinished phase on restart (B4); **PyMuPDF text-density pre-filter** skips vision LLM calls for text-dense pages (B5); concurrency configurable via `IngestionConfig.analyze_concurrency` (B6).
+- **`DrawingIngestionService`** — sibling of `AnalyzedIngestionService` for
+  drawing-first documents (schematics, P&ID, wiring, mechanical). 4-phase
+  pipeline (`render → extract → link → ingest`) ingesting both PDF
+  (vision-based via `AnalyzeDrawingPage`) and DXF (zero-LLM direct parse via
+  ezdxf). The `link` phase resolves cross-sheet connectivity
+  deterministically (exact off-page tags, regex target hints, RapidFuzz
+  label merges) with LLM residue via `SynthesizeDrawingSet` only when
+  unresolved candidates remain. Symbol vocabularies, off-page-connector
+  regexes, and wire_style→relation_type mapping are fully consumer-
+  configurable via `DrawingIngestionConfig` (ships IEC 60617 + ISA 5.1
+  defaults). Phase C (2026-04-25).
 
 ### Error Hierarchy
 
@@ -154,7 +165,7 @@ The following contract tests act as regression guards — they enforce whole-cla
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking
 - Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules
-- 890 tests total across both SDKs
+- 986 tests total across both SDKs
 
 ## Config defaults and enforced bounds
 
@@ -166,6 +177,15 @@ The following contract tests act as regression guards — they enforce whole-cla
 - `IngestionConfig.chunk_context_headers` (was `contextual_chunking`, old name deprecated)
 - `IngestionConfig.chunk_size_unit`: `Literal["chars", "tokens"]`, default `"tokens"` (Phase A1). Default `chunk_size=375` tokens (was 500 chars), `chunk_overlap=40` (was 50).
 - `IngestionConfig.parent_chunk_size`: sentinel `-1` (default) resolves to `3 * chunk_size` in `__post_init__`; explicit `0` disables parent-child indexing (Phase A5).
+- `DrawingIngestionConfig.dpi`: `150 ≤ dpi ≤ 600`, default 400 (higher than
+  analyze's 300 — schematics need legible line weights)
+- `DrawingIngestionConfig.analyze_concurrency`: `1 ≤ n ≤ 100`, default 5
+- `DrawingIngestionConfig.fuzzy_label_threshold`: `0.0 ≤ t ≤ 1.0`, default
+  0.92
+- `DrawingIngestionConfig.graph_write_batch_size`: `1 ≤ n ≤ 10_000`,
+  default 500
+- `DrawingIngestionConfig.relation_vocabulary`: every target must be in
+  `ALLOWED_RELATION_TYPES` (validated at `__post_init__`)
 - `RetrievalConfig.top_k`: `1 ≤ top_k ≤ 200`
 - `RetrievalConfig.bm25_max_chunks`: `≤ 200_000`
 - `RetrievalConfig.bm25_max_indexes`: `1 ≤ n ≤ 1000`, default 16

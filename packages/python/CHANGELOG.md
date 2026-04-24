@@ -10,6 +10,134 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-25 Phase C — DrawingIngestion MVP
+
+Thirteen tasks (15 feature + 2 fix-up commits) shipping a first-class SDK
+capability for ingesting technical drawings (schematics, P&ID, wiring,
+mechanical) with multi-page connectivity resolution. Input formats: PDF
+(vision-based) and DXF (structured parse via ezdxf). All drawing standards,
+symbol vocabularies, off-page-connector patterns, and relation-type
+vocabularies are consumer-configurable (SDK ships IEC 60617 + ISA 5.1
+defaults). Test count 890 → 986. ruff + mypy clean on 345+ source files.
+
+Architecture: new `DrawingIngestionService` sibling of `AnalyzedIngestionService`
+with a 4-phase pipeline: `render → extract → link → ingest`. The `link`
+phase is the novel piece — deterministic cross-sheet resolution first
+(exact off-page tag matching, regex target hints, RapidFuzz label merges),
+LLM synthesis only for the residue. Graph mapping reuses the existing Neo4j
+allowlist (`CONNECTS_TO` / `FEEDS` / `FLOWS_TO` / `POWERED_BY` /
+`CONTROLLED_BY` / `MENTIONS` / `REFERENCES`) — no schema migration.
+
+**C1 — BAML schema + functions.**
+`baml_src/ingestion/drawing.baml`: new classes (`Port`,
+`DetectedComponent`, `DetectedConnection`, `OffPageConnector`,
+`DrawingPageAnalysis`, `DrawingSetSynthesis`, `Merge`, `NarrativeXref`) and
+two functions (`AnalyzeDrawingPage`, `SynthesizeDrawingSet`). All
+user-controlled string parameters fenced per the prompt-fence contract.
+Commit: `c665618`.
+
+**C2 — `DrawingIngestionConfig`.**
+Nested into `IngestionConfig.drawings` (matches `tree_search` precedent).
+Consumer-overridable: `symbol_library` (full replace or
+`symbol_library_extensions` additive), `off_page_connector_patterns`
+(regex list, default covers `/A2`, `OPC-N`, `to sheet N zone XN` idioms),
+`relation_vocabulary` (wire_style → relation_type; `__post_init__`
+validates every target against `ALLOWED_RELATION_TYPES`),
+`fuzzy_label_threshold`, `analyze_concurrency`, `dpi`,
+`graph_write_batch_size` — all bounded per the config-bounds contract.
+Commits: `00ae462`, `06c651f`.
+
+**C3 — Service skeleton + dataclass models.**
+`DrawingIngestionService` sibling of `AnalyzedIngestionService` with 4
+async phase stubs. Python dataclasses (`Port`, `DetectedComponent`,
+`DetectedConnection`, `OffPageConnector`, `DrawingPageAnalysis`) mirror
+the BAML schema with `to_dict`/`from_dict` for JSONB persistence.
+Commit: `bd7d2da`.
+
+**C4 — Render phase.**
+PDF via PyMuPDF (reused `iter_pdf_page_images`), DXF via
+`ezdxf.addons.drawing.matplotlib` rendered to single-sheet PNG. File-hash
+idempotency short-circuit. New deps: `ezdxf>=1.3,<2.0` and
+`matplotlib>=3.8,<4.0`. Matplotlib forced to Agg backend for
+asyncio-worker-thread safety.
+Commit: `a6fa302`.
+
+**C5 — Extract phase (PDF).**
+Per-page `AnalyzeDrawingPage` BAML call with consumer-supplied
+`symbol_library` + `off_page_patterns`. Semaphore-capped at
+`config.analyze_concurrency`. Merges LLM-extracted analysis into the
+existing `rag_page_analyses.data` row preserving `page_image_b64` from
+render. Idempotent on re-entry when status already `extracted`.
+Commit: `dde63cb`.
+
+**C6 — Extract phase (DXF).**
+INSERT entities → components via exact-then-substring classification against
+`symbol_library`. LINE entities whose endpoints fall inside two distinct
+bboxes (with small tolerance) → connections. Zero LLM calls. Off-page
+connectors in TEXT/MTEXT deferred to Phase D.
+Commits: `4291b39`, `ec56036` (fix: tighten proximity tolerance to a
+2-unit absolute constant after spec review flagged the proportional
+version as production risk).
+
+**C7 — Link phase (deterministic).**
+Three passes, all deterministic: (1) `pair_off_page_connectors`
+exact-tag match produces consecutive DetectedConnection pairings; (2)
+`parse_target_hints` regex `sheet N (zone XN)?` resolves target pages;
+(3) `merge_fuzzy_labels` RapidFuzz WRatio above
+`fuzzy_label_threshold`, each component consumed once. New dep:
+`rapidfuzz>=3.5,<4.0`.
+Commit: `d83488f`.
+
+**C8 — Link phase (LLM residue).**
+`SynthesizeDrawingSet` only called when `multi_page_linking=True`, an
+`lm_client` is configured, AND unresolved candidates remain. Merges
+below 0.5 confidence dropped. BAML errors logged and swallowed —
+deterministic pairings still commit.
+Commit: `b3cf2bc`.
+
+**C9 — Drawing-specific graph mapper.**
+Threads bbox/ports/domain/page_number into `GraphEntity.properties`;
+encodes wire_style/net/from_port/to_port/cross_sheet into a deterministic
+`k=v;k=v` `GraphRelation.context` string (GraphRelation has no
+`properties` dict in the shared dataclass). Drops the analyze path's
+`len(shared_entities)>=2` filter that kills legitimate single-component
+cross-sheet wires. LLM-suggested merges emit `MENTIONS` edges with
+`llm_suggested=true` in the context.
+Commit: `ece88af`.
+
+**C10 — Ingest phase.**
+One vector per component (`vector_role='drawing_component'`,
+`source_type='drawing'`, embedding-friendly description = symbol_class +
+label + sorted same-page neighbours + domain). Graph writes batched by
+`graph_write_batch_size` (default 500) to avoid large Neo4j
+transactions. Idempotent on `completed`. No-op graph path when
+`graph_store is None`.
+Commit: `dfd588a`.
+
+**C11 — `RagEngine` routing.**
+`.dxf` always routes to the drawing service; `.pdf` routes only when
+`source_type="drawing"` (tiebreaker). `SUPPORTED_STRUCTURED_EXTENSIONS`
+stays `{.xml, .l5x}` — no .pdf regression. Stepped API:
+`render_drawing`, `extract_drawing`, `link_drawing`,
+`complete_drawing_ingestion`. Status-based resume through all four
+phases. `collection=` arg rejected. `shutdown()` drops the service for
+lifecycle hygiene.
+Commit: `df05d92`.
+
+**C12 — `GraphRetrieval.trace()` helper.**
+Thin wrapper around the graph store's `query_graph` + N-hop traversal,
+returning `GraphPath` objects directly (vs `search()`'s RetrievedChunk
+conversion). `relation_types` is a strict AND filter. Store errors
+convert to an empty list + warning log. Enables spatial queries like
+"what feeds V-101" on drawing-ingested knowledge.
+Commit: `cd8d22e`.
+
+**C13 — End-to-end integration + docs.**
+Real ezdxf round-trip fixture (`simple_rlc.dxf`) through all four phases
+with stubbed stores. Consumer `symbol_library` override test. File-hash
+idempotency test.
+Commit: `710516a`.
+
 ### 2026-04-25 Phase B — Perf/Cost Prerequisites
 
 Six tasks (7 commits: 6 feature + 1 scope-fix) reducing LLM call cost and
