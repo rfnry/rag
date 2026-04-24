@@ -134,6 +134,17 @@ class QdrantVectorStore:
                 self._state[name] = _CollectionState(initialized=True, named_vectors=True)
                 logger.info("created collection '%s' (dim=%d, named vectors)", name, vector_size)
 
+        logger.info(
+            "qdrant vector store initialized: url=%s timeout=%ds scroll_timeout=%ds write_timeout=%ds "
+            "hybrid_prefetch_multiplier=%d collections=%s",
+            self._url,
+            self._timeout,
+            self._scroll_timeout,
+            self._write_timeout,
+            self._hybrid_prefetch_multiplier,
+            self._collections,
+        )
+
     async def _ensure_and_resolve(self, collection: str | None = None) -> tuple[str, bool] | None:
         """Async version: ensure collection exists and return (name, named_vectors).
 

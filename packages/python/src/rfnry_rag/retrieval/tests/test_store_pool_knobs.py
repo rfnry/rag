@@ -245,3 +245,71 @@ def test_neo4j_store_rejects_nonpositive_connection_acquisition_timeout() -> Non
 
     with pytest.raises(ConfigurationError, match="connection_acquisition_timeout"):
         Neo4jGraphStore(uri="bolt://localhost", password="secret", connection_acquisition_timeout=-1.0)
+
+
+async def test_qdrant_store_logs_effective_knobs(caplog) -> None:
+    import logging
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+
+    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.retrieval.stores.vector.qdrant")
+    store = QdrantVectorStore(
+        url="http://fake:6333",
+        api_key="secret-key",
+        timeout=7,
+        scroll_timeout=29,
+        write_timeout=31,
+        hybrid_prefetch_multiplier=5,
+    )
+    assert store._client_instance is not None
+    store._client_instance.get_collections = AsyncMock(return_value=SimpleNamespace(collections=[]))  # type: ignore[method-assign]
+    store._client_instance.create_collection = AsyncMock(return_value=True)  # type: ignore[method-assign]
+    await store.initialize(vector_size=1536)
+    joined = "\n".join(r.message for r in caplog.records)
+    assert "hybrid_prefetch_multiplier=5" in joined
+    assert "timeout=7" in joined
+    assert "secret-key" not in joined  # api_key must not leak
+
+
+async def test_neo4j_store_logs_effective_knobs(caplog) -> None:
+    import logging
+    from unittest.mock import AsyncMock, MagicMock
+
+    from rfnry_rag.retrieval.stores.graph.neo4j import AsyncGraphDatabase, Neo4jGraphStore
+
+    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.retrieval.stores.graph.neo4j")
+    store = Neo4jGraphStore(
+        uri="bolt://localhost:7687",
+        password="secret",
+        query_timeout=3.0,
+        connection_timeout=4.0,
+        connection_acquisition_timeout=6.0,
+    )
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+    mock_session.run = AsyncMock()
+
+    mock_driver = MagicMock()
+    mock_driver.verify_connectivity = AsyncMock()
+    mock_driver.session = MagicMock(return_value=mock_session)
+
+    original_driver_fn = AsyncGraphDatabase.driver
+
+    def mock_driver_fn(*args, **kwargs):
+        return mock_driver
+
+    AsyncGraphDatabase.driver = mock_driver_fn  # type: ignore[method-assign]
+    try:
+        await store.initialize()
+    finally:
+        AsyncGraphDatabase.driver = original_driver_fn  # type: ignore[method-assign]
+
+    joined = "\n".join(r.message for r in caplog.records)
+    assert "query_timeout=3.0" in joined
+    assert "connection_timeout=4.0" in joined
+    assert "connection_acquisition_timeout=6.0" in joined
+    assert "secret" not in joined  # password must not leak

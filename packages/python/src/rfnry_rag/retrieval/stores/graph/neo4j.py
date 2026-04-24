@@ -220,7 +220,15 @@ class Neo4jGraphStore:
                 await session.run(query)
             await session.run(_FULLTEXT_INDEX_QUERY)
 
-        logger.info("neo4j graph store initialized (uri=%s, database=%s)", self.uri, self.database)
+        logger.info(
+            "neo4j graph store initialized: uri=%s database=%s query_timeout=%.1fs "
+            "connection_timeout=%.1fs connection_acquisition_timeout=%.1fs",
+            self.uri,
+            self.database,
+            self.query_timeout,
+            self.connection_timeout,
+            self.connection_acquisition_timeout,
+        )
 
     async def add_entities(
         self,
