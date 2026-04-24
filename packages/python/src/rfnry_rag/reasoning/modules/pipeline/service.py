@@ -18,7 +18,16 @@ logger = get_logger("pipeline")
 
 
 class Pipeline:
-    """Compose SDK modules into sequential flows."""
+    """Compose SDK modules into sequential flows.
+
+    Supported step types: AnalyzeStep, ClassifyStep, EvaluateStep, ComplianceStep.
+
+    **Clustering is intentionally excluded.** ClusteringService operates over
+    a corpus (list[str]) and produces labeled groups, which does not fit
+    the single-text step chain that Pipeline models. Use `ClusteringService`
+    directly for clustering flows; compose its output into a Pipeline by
+    selecting representative texts per cluster and feeding them through.
+    """
 
     def __init__(self, services: PipelineServices) -> None:
         self._services = services

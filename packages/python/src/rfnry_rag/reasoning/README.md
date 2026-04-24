@@ -244,6 +244,8 @@ print(f"Distribution: {report.distribution}")  # {"high": N, "medium": N, "low":
 
 Compose analysis, classification, compliance, and evaluation into sequential pipelines.
 
+> **Note:** `ClusteringService` is intentionally excluded from `Pipeline`. Clustering operates over a corpus (`list[str]`) and produces labeled groups, which does not fit the single-text step chain. Use `ClusteringService` directly; compose its output into a Pipeline by selecting representative texts per cluster.
+
 ```python
 from rfnry_rag.reasoning import (
     Pipeline, PipelineServices,
@@ -406,6 +408,8 @@ Constructor: `Pipeline(services)` where `services` is `PipelineServices(analysis
 | `run(text, steps)` | `PipelineResult` | Execute steps sequentially on the input text |
 
 Steps: `AnalyzeStep`, `ClassifyStep`, `EvaluateStep`, `ComplianceStep`
+
+> **Clustering is intentionally excluded.** `ClusteringService` operates over a corpus (`list[str]`) and does not fit the single-text step chain. Use it directly and feed representative texts into a Pipeline if needed.
 
 ### Config Reference
 
