@@ -201,6 +201,12 @@ class RetrievalConfig:
             )
         if not (1 <= self.history_window <= 20):
             raise ConfigurationError(f"history_window must be 1-20, got {self.history_window}")
+        if self.source_type_weights is not None:
+            for key, weight in self.source_type_weights.items():
+                if not 0 < weight <= 10.0:
+                    raise ConfigurationError(
+                        f"source_type_weights[{key!r}]={weight} — weight must be in (0, 10]"
+                    )
 
 
 @dataclass

@@ -70,6 +70,10 @@ class ClassificationConfig:
             raise ValueError("escalation_threshold must be between 0.0 and 1.0")
         if self.top_k < 1:
             raise ValueError("top_k must be >= 1")
+        if self.concurrency < 1:
+            raise ValueError("concurrency must be >= 1")
+        if self.concurrency > 20:
+            raise ValueError("concurrency must be <= 20 — higher values risk overwhelming the LLM provider")
         if self.max_text_length > _MAX_TEXT_LENGTH_CEILING:
             raise ValueError(
                 f"max_text_length must be <= {_MAX_TEXT_LENGTH_CEILING}, got {self.max_text_length}"
