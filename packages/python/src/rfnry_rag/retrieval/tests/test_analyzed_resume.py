@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -12,31 +11,9 @@ import pytest_asyncio
 
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 from rfnry_rag.retrieval.common.models import Source
+from rfnry_rag.retrieval.modules.ingestion.analyze.models import PageAnalysis
 from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
 from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
-
-# ---------------------------------------------------------------------------
-# Helpers shared with test_analyzed_cache (duplicated to keep this file
-# self-contained; the store / service / BAML wiring is identical).
-# ---------------------------------------------------------------------------
-
-
-def _make_fake_baml_result(page_num: int) -> SimpleNamespace:
-    return SimpleNamespace(
-        description=f"page {page_num} description",
-        entities=[],
-        tables=[],
-        annotations=[],
-        page_type="text",
-    )
-
-
-def _make_fake_synth_result() -> SimpleNamespace:
-    return SimpleNamespace(
-        cross_references=[],
-        page_clusters=[],
-        document_summary="summary",
-    )
 
 
 class _FakeEmbeddings:
@@ -75,11 +52,11 @@ class _FakeVision:
     pass
 
 
-def _make_pages() -> list[dict]:
+def _make_xml_page_analyses() -> list[PageAnalysis]:
     return [
-        {"page_number": 1, "image_base64": "aW1nMQ==", "raw_text": "text1", "page_hash": "hash_1"},
-        {"page_number": 2, "image_base64": "aW1nMg==", "raw_text": "text2", "page_hash": "hash_2"},
-        {"page_number": 3, "image_base64": "aW1nMw==", "raw_text": "text3", "page_hash": "hash_3"},
+        PageAnalysis(page_number=1, description="xml element 1", page_type="xml_element"),
+        PageAnalysis(page_number=2, description="xml element 2", page_type="xml_element"),
+        PageAnalysis(page_number=3, description="xml element 3", page_type="xml_element"),
     ]
 
 
@@ -154,10 +131,10 @@ async def resume_rag_engine_pdf(tmp_path):
     - engine._structured_ingestion is a real AnalyzedIngestionService backed
       by SQLite.
     - engine.ingest() uses the same status-based routing as server.py.
-    - b.AnalyzePage / b.SynthesizeDocument are patched so call counts are
-      observable.
-    - compute_file_hash is patched to return a fixed value; iter_pdf_page_images
-      returns 3 deterministic pages so actual PDF I/O is never needed.
+    - mock_b.AnalyzePage / mock_b.SynthesizeDocument are available for call-count
+      assertions (never fired for .xml; counts remain 0 throughout).
+    - compute_file_hash is patched to return a fixed value; parse_xml returns 3
+      deterministic PageAnalysis objects so no real XML I/O is needed.
     """
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
@@ -172,15 +149,19 @@ async def resume_rag_engine_pdf(tmp_path):
     svc._registry = MagicMock()
 
     mock_b = MagicMock()
-    mock_b.AnalyzePage = AsyncMock(side_effect=lambda img, **kw: _make_fake_baml_result(0))
-    mock_b.SynthesizeDocument = AsyncMock(side_effect=lambda ctx, **kw: _make_fake_synth_result())
+    mock_b.AnalyzePage = AsyncMock()
+    mock_b.SynthesizeDocument = AsyncMock()
 
     engine = _MinimalEngine(structured_ingestion=svc, metadata_store=store)
 
     with (
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.iter_pdf_page_images",
-            return_value=iter(_make_pages()),
+            "rfnry_rag.retrieval.modules.ingestion.analyze.service.is_l5x",
+            return_value=False,
+        ),
+        patch(
+            "rfnry_rag.retrieval.modules.ingestion.analyze.service.parse_xml",
+            return_value=_make_xml_page_analyses(),
         ),
         patch(
             "rfnry_rag.retrieval.modules.ingestion.analyze.service.compute_file_hash",
@@ -227,15 +208,19 @@ async def resume_rag_engine_pdf_with_vector_capture(tmp_path):
     svc._registry = MagicMock()
 
     mock_b = MagicMock()
-    mock_b.AnalyzePage = AsyncMock(side_effect=lambda img, **kw: _make_fake_baml_result(0))
-    mock_b.SynthesizeDocument = AsyncMock(side_effect=lambda ctx, **kw: _make_fake_synth_result())
+    mock_b.AnalyzePage = AsyncMock()
+    mock_b.SynthesizeDocument = AsyncMock()
 
     engine = _MinimalEngine(structured_ingestion=svc, metadata_store=store)
 
     with (
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.iter_pdf_page_images",
-            return_value=iter(_make_pages()),
+            "rfnry_rag.retrieval.modules.ingestion.analyze.service.is_l5x",
+            return_value=False,
+        ),
+        patch(
+            "rfnry_rag.retrieval.modules.ingestion.analyze.service.parse_xml",
+            return_value=_make_xml_page_analyses(),
         ),
         patch(
             "rfnry_rag.retrieval.modules.ingestion.analyze.service.compute_file_hash",
@@ -272,12 +257,12 @@ async def test_resume_from_analyzed_skips_phase_1(resume_rag_engine_pdf) -> None
     """Source.status == 'analyzed' -> engine skips analyze, runs synthesize + ingest."""
     engine, mock_baml = resume_rag_engine_pdf
     # Prime: run just the analyze phase via the stepped API
-    src = await engine._structured_ingestion.analyze("/tmp/doc.pdf", knowledge_id="k1")
+    src = await engine._structured_ingestion.analyze("/tmp/doc.xml", knowledge_id="k1")
     assert src.status == "analyzed"
     analyze_calls_before = mock_baml.AnalyzePage.call_count
 
     # Full engine.ingest() on the same file — must NOT rerun AnalyzePage
-    result = await engine.ingest("/tmp/doc.pdf", knowledge_id="k1")
+    result = await engine.ingest("/tmp/doc.xml", knowledge_id="k1")
     assert mock_baml.AnalyzePage.call_count == analyze_calls_before
     assert result.status == "completed"
 
@@ -286,13 +271,13 @@ async def test_resume_from_analyzed_skips_phase_1(resume_rag_engine_pdf) -> None
 async def test_resume_from_synthesized_skips_phases_1_and_2(resume_rag_engine_pdf) -> None:
     """Source.status == 'synthesized' -> engine runs only ingest."""
     engine, mock_baml = resume_rag_engine_pdf
-    src = await engine._structured_ingestion.analyze("/tmp/doc.pdf", knowledge_id="k1")
+    src = await engine._structured_ingestion.analyze("/tmp/doc.xml", knowledge_id="k1")
     src = await engine._structured_ingestion.synthesize(src.source_id)
     assert src.status == "synthesized"
     analyze_count = mock_baml.AnalyzePage.call_count
     synth_count = mock_baml.SynthesizeDocument.call_count
 
-    result = await engine.ingest("/tmp/doc.pdf", knowledge_id="k1")
+    result = await engine.ingest("/tmp/doc.xml", knowledge_id="k1")
     assert mock_baml.AnalyzePage.call_count == analyze_count
     assert mock_baml.SynthesizeDocument.call_count == synth_count
     assert result.status == "completed"
@@ -302,11 +287,11 @@ async def test_resume_from_synthesized_skips_phases_1_and_2(resume_rag_engine_pd
 async def test_resume_from_completed_returns_existing_source(resume_rag_engine_pdf) -> None:
     """Source.status == 'completed' -> return existing source, zero new work."""
     engine, mock_baml = resume_rag_engine_pdf
-    first = await engine.ingest("/tmp/doc.pdf", knowledge_id="k1")
+    first = await engine.ingest("/tmp/doc.xml", knowledge_id="k1")
     assert first.status == "completed"
     total_calls = mock_baml.AnalyzePage.call_count + mock_baml.SynthesizeDocument.call_count
 
-    result = await engine.ingest("/tmp/doc.pdf", knowledge_id="k1")
+    result = await engine.ingest("/tmp/doc.xml", knowledge_id="k1")
     # No additional LLM calls at all
     assert mock_baml.AnalyzePage.call_count + mock_baml.SynthesizeDocument.call_count == total_calls
     assert result.source_id == first.source_id
@@ -316,7 +301,7 @@ async def test_resume_from_completed_returns_existing_source(resume_rag_engine_p
 async def test_synthesize_idempotent_on_already_synthesized_source(resume_rag_engine_pdf) -> None:
     """Calling synthesize() twice on the same source_id does not re-run SynthesizeDocument."""
     engine, mock_baml = resume_rag_engine_pdf
-    src = await engine._structured_ingestion.analyze("/tmp/doc.pdf", knowledge_id="k1")
+    src = await engine._structured_ingestion.analyze("/tmp/doc.xml", knowledge_id="k1")
     src = await engine._structured_ingestion.synthesize(src.source_id)
     synth_count = mock_baml.SynthesizeDocument.call_count
 
@@ -332,7 +317,7 @@ async def test_ingest_phase_idempotent_on_already_completed_source(
 ) -> None:
     """Calling the ingest phase on a completed source does not re-embed or re-upsert."""
     engine, mock_baml, captured = resume_rag_engine_pdf_with_vector_capture
-    src = await engine.ingest("/tmp/doc.pdf", knowledge_id="k1")
+    src = await engine.ingest("/tmp/doc.xml", knowledge_id="k1")
     assert src.status == "completed"
     upsert_count = len(captured["upserts"])
 
