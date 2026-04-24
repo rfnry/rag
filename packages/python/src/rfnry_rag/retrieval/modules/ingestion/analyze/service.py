@@ -27,6 +27,7 @@ from rfnry_rag.retrieval.modules.ingestion.analyze.parsers.xml import is_l5x, pa
 from rfnry_rag.retrieval.modules.ingestion.analyze.pdf_splitter import iter_pdf_page_images
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.modules.ingestion.embeddings.utils import embed_batched
+from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
 from rfnry_rag.retrieval.modules.ingestion.vision.base import BaseVision
 from rfnry_rag.retrieval.stores.graph.base import BaseGraphStore
 from rfnry_rag.retrieval.stores.graph.mapper import cross_refs_to_graph_relations, page_entities_to_graph
@@ -100,7 +101,7 @@ class AnalyzedIngestionService:
 
         # Delegate document storage to ingestion methods
         if page_analyses:
-            doc_methods = [m for m in self._ingestion_methods if m.name == "document"]
+            doc_methods = [m for m in self._ingestion_methods if isinstance(m, DocumentIngestion)]
             if doc_methods:
                 full_text = "\n\n".join(
                     f"[Page {pa.page_number}] ({pa.page_type})\n{pa.description}" for pa in page_analyses

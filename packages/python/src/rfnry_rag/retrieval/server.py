@@ -565,7 +565,7 @@ class RagEngine:
 
         # Analyzed ingestion — shares document method from main list, graph store passed directly
         if persistence.metadata_store and persistence.vector_store and ingestion.embeddings:
-            analyzed_methods = [m for m in ingestion_methods if m.name == "document"]
+            analyzed_methods = [m for m in ingestion_methods if isinstance(m, DocumentIngestion)]
             if not analyzed_methods:
                 logger.warning(
                     "structured ingestion enabled but no DocumentIngestion configured — "

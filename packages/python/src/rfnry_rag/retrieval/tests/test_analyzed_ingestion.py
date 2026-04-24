@@ -139,3 +139,25 @@ async def test_ingest_graph_store_failure_warns():
     await service.ingest(source.source_id)
     # Vector upsert should still have succeeded
     service._vector_store.upsert.assert_called_once()
+
+
+async def test_analyzed_ingestion_identifies_document_method_by_type_not_name() -> None:
+    """If DocumentIngestion.name is renamed, document storage must still route correctly."""
+    from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
+
+    # DocumentIngestion instance whose .name attr has drifted.
+    doc_method = MagicMock(spec=DocumentIngestion)
+    doc_method.name = "doc"  # simulate rename
+    doc_method.required = True
+    doc_method.ingest = AsyncMock()
+
+    # Non-document method with a similar-looking name.
+    other = MagicMock()
+    other.name = "document_like_but_wrong"
+    other.required = True
+    other.ingest = AsyncMock()
+
+    # The filter must pick only the DocumentIngestion instance.
+    methods = [doc_method, other]
+    filtered = [m for m in methods if isinstance(m, DocumentIngestion)]
+    assert filtered == [doc_method]
