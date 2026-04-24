@@ -36,6 +36,7 @@ from rfnry_rag.retrieval.stores.vector.base import BaseVectorStore
 logger = get_logger("analyze/ingestion")
 
 STRUCTURED_EXTENSIONS = {".pdf", ".xml", ".l5x"}
+_ANALYZE_PDF_CONCURRENCY = 5  # bounded to stay under LLM provider rate limits
 
 
 class AnalyzedIngestionService:
@@ -272,26 +273,31 @@ class AnalyzedIngestionService:
                 "Provide a LanguageModelClient with your LLM provider and API key."
             )
 
-        analyses: list[PageAnalysis] = []
-
         from rfnry_rag.retrieval.baml.baml_client.async_client import b
 
-        for img in iter_pdf_page_images(file_path, dpi=self._dpi, pages=page_range):
+        # Capture registry into a local — closes over the narrowed non-None type
+        # after the guard above; avoids mypy complaint inside the nested coroutine.
+        registry = self._registry
+        pages = list(iter_pdf_page_images(file_path, dpi=self._dpi, pages=page_range))
+        sem = asyncio.Semaphore(_ANALYZE_PDF_CONCURRENCY)
+
+        async def analyze_one(img: dict) -> PageAnalysis:
             from baml_py import Image
 
             baml_image = Image.from_base64("image/png", img["image_base64"])
-            try:
-                result = await b.AnalyzePage(
-                    baml_image,
-                    baml_options={"client_registry": self._registry},
-                )
-            except baml_errors.BamlValidationError as exc:
-                raise IngestionError(
-                    f"AnalyzePage failed on page {img['page_number']}: LLM returned an unparseable response. "
-                    f"This usually means the model does not support the expected output format. Detail: {exc}"
-                ) from exc
-            except Exception as exc:
-                raise IngestionError(f"AnalyzePage failed on page {img['page_number']}: {exc}") from exc
+            async with sem:
+                try:
+                    result = await b.AnalyzePage(
+                        baml_image,
+                        baml_options={"client_registry": registry},
+                    )
+                except baml_errors.BamlValidationError as exc:
+                    raise IngestionError(
+                        f"AnalyzePage failed on page {img['page_number']}: LLM returned an unparseable response. "
+                        f"This usually means the model does not support the expected output format. Detail: {exc}"
+                    ) from exc
+                except Exception as exc:
+                    raise IngestionError(f"AnalyzePage failed on page {img['page_number']}: {exc}") from exc
 
             analysis = PageAnalysis(
                 page_number=img["page_number"],
@@ -304,7 +310,6 @@ class AnalyzedIngestionService:
                 annotations=result.annotations,
                 page_type=result.page_type,
             )
-            analyses.append(analysis)
 
             logger.info(
                 "[analyze/ingestion/analyze/vision] page %d analyzed (%s, %d entities)",
@@ -313,7 +318,9 @@ class AnalyzedIngestionService:
                 len(analysis.entities),
             )
 
-        return analyses
+            return analysis
+
+        return list(await asyncio.gather(*(analyze_one(p) for p in pages)))
 
     def _analyze_l5x(self, file_path: Path) -> list[PageAnalysis]:
         docs = parse_l5x(file_path)

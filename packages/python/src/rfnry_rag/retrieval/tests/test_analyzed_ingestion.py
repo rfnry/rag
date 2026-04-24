@@ -186,6 +186,62 @@ async def test_analyzed_ingestion_writes_document_store_exactly_once(tmp_path) -
     assert doc_method.ingest.await_count == 1
 
 
+async def test_analyze_pdf_runs_pages_concurrently(tmp_path) -> None:
+    """Page analysis must overlap — 200-page PDF shouldn't be 200 serial LLM calls."""
+    import asyncio
+    from unittest.mock import patch
+
+    concurrent = 0
+    max_concurrent = 0
+
+    async def slow_analyze_page(image, *, baml_options=None):
+        nonlocal concurrent, max_concurrent
+        concurrent += 1
+        max_concurrent = max(max_concurrent, concurrent)
+        await asyncio.sleep(0.02)
+        concurrent -= 1
+        result = MagicMock()
+        result.description = "test page"
+        result.entities = []
+        result.tables = []
+        result.annotations = []
+        result.page_type = "diagram"
+        return result
+
+    n_pages = 8
+    fake_pages = [
+        {"page_number": i + 1, "image_base64": "dGVzdA=="}  # b64("test")
+        for i in range(n_pages)
+    ]
+
+    service = _make_service()
+    # Inject a vision provider and registry so the guards in _analyze_pdf pass
+    service._vision = MagicMock()
+    service._registry = MagicMock()
+
+    with (
+        patch(
+            "rfnry_rag.retrieval.modules.ingestion.analyze.service.iter_pdf_page_images",
+            return_value=iter(fake_pages),
+        ),
+        patch(
+            "rfnry_rag.retrieval.baml.baml_client.async_client.b.AnalyzePage",
+            new=slow_analyze_page,
+        ),
+    ):
+        service._metadata_store.create_source = AsyncMock()
+        fake_pdf = tmp_path / "test.pdf"
+        fake_pdf.write_bytes(b"%PDF-1.4")
+        await service.analyze(file_path=fake_pdf)
+
+    # With serial execution all pages run one-at-a-time → max_concurrent == 1.
+    # With bounded gather (semaphore=5) over 8 pages, max_concurrent must be > 1.
+    assert max_concurrent >= 2, (
+        f"max_concurrent={max_concurrent}: page analysis appears to be running serially. "
+        "Expected at least 2 concurrent AnalyzePage calls with bounded gather."
+    )
+
+
 async def test_analyzed_ingestion_identifies_document_method_by_type_not_name() -> None:
     """If DocumentIngestion.name is renamed, document storage must still route correctly."""
     from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
