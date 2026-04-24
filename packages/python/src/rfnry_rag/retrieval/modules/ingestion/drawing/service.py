@@ -137,7 +137,63 @@ class DrawingIngestionService:
 
     async def extract(self, source_id: str) -> Source:
         """Phase 2 - per-page DrawingPageAnalysis. Idempotent when status != 'rendered'. (C5/C6)"""
-        raise NotImplementedError
+        from rfnry_rag.retrieval.modules.ingestion.drawing.extract_pdf import (
+            extract_pdf_analyses,
+        )
+
+        source = await self._metadata_store.get_source(source_id)
+        if source is None:
+            raise IngestionError(f"source not found: {source_id}")
+        if source.status in {"extracted", "linked", "completed"}:
+            return source  # idempotent
+        if source.status != "rendered":
+            raise IngestionError(
+                f"extract requires status='rendered', got {source.status!r}"
+            )
+
+        page_rows = await self._metadata_store.get_page_analyses(source_id)
+        source_format = source.metadata.get("source_format")
+
+        if source_format == "pdf":
+            if self._registry is None:
+                raise IngestionError(
+                    "DrawingIngestionConfig.lm_client is required for PDF extract phase"
+                )
+            analyses = await extract_pdf_analyses(
+                page_rows, self._config, self._registry, source.metadata,
+            )
+        elif source_format == "dxf":
+            # C6 will fill this; for now leave a stub.
+            raise NotImplementedError("DXF extract - see Task C6")
+        else:
+            raise IngestionError(
+                f"unsupported source_format for extract: {source_format!r}"
+            )
+
+        # Production upsert_page_analyses REPLACES data_json wholesale. Merge at
+        # the service layer so render-produced fields (page_image_b64, page_hash,
+        # raw_text, source_format) are preserved alongside the new 'analysis'
+        # payload. Keyed on page_number.
+        existing_by_page: dict[int, dict] = {r["page_number"]: r for r in page_rows}
+        merged: list[dict] = []
+        for a in analyses:
+            prior_data = existing_by_page.get(a.page_number, {}).get("data", {})
+            merged.append(
+                {
+                    "page_number": a.page_number,
+                    "data": {**prior_data, "analysis": a.to_dict()},
+                }
+            )
+        await self._metadata_store.upsert_page_analyses(source_id, merged)
+        await self._metadata_store.update_source(source_id, status="extracted")
+        source.status = "extracted"
+        logger.info(
+            "[drawing/extract] source_id=%s pages=%d format=%s",
+            source_id,
+            len(analyses),
+            source_format,
+        )
+        return source
 
     async def link(self, source_id: str) -> Source:
         """Phase 3 - cross-sheet linking (deterministic + LLM residue). Idempotent. (C7/C8)"""
