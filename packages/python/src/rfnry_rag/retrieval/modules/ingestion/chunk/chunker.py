@@ -68,7 +68,11 @@ class SemanticChunker:
             search_from = chunk_offset + len(chunk_text)
             # Use the last character of the chunk for section lookup so that
             # the deepest heading within the chunk governs its section label.
-            lookup_offset = chunk_offset + max(0, len(chunk_text) - 1)
+            # Clamp to avoid overshooting past the last heading span's end.
+            lookup_offset = min(
+                chunk_offset + max(0, len(chunk_text) - 1),
+                max(0, len(page.content) - 1),
+            )
             chunks.append(ChunkedContent(
                 content=chunk_text,
                 page_number=page.page_number,
@@ -83,8 +87,8 @@ class SemanticChunker:
         chunks: list[ChunkedContent] = []
         global_index = 0
         for page in pages:
-            heading_spans = build_heading_spans(page.content)
             atomic_regions = find_atomic_regions(page.content)
+            heading_spans = build_heading_spans(page.content, exclude_regions=atomic_regions)
 
             cursor = 0
             for region in atomic_regions:
@@ -126,55 +130,127 @@ class SemanticChunker:
                 )
         return chunks
 
+    def _emit_parent_child_from_text(
+        self,
+        text: str,
+        page_offset: int,
+        page: ParsedPage,
+        heading_spans: list,
+        chunks: list[ChunkedContent],
+        global_index: int,
+        force_section: str | None = None,
+        parent_hard_split: bool = False,
+    ) -> int:
+        """Split ``text`` via the parent splitter and emit parent + child chunks.
+
+        ``page_offset`` is the start of ``text`` within ``page.content``.
+        ``force_section`` overrides section lookup (used for atomic regions).
+        """
+        assert self._parent_splitter is not None
+        parent_cursor = page_offset
+        for parent_text, p_hard in self._parent_splitter.split_text_with_flags(text):
+            parent_id = str(uuid4())
+            idx = page.content.find(parent_text, parent_cursor)
+            parent_offset = idx if idx != -1 else parent_cursor
+            parent_section = (
+                force_section if force_section is not None else section_path_at(parent_offset, heading_spans)
+            )
+            parent_cursor = parent_offset + len(parent_text)
+
+            chunks.append(ChunkedContent(
+                content=parent_text,
+                page_number=page.page_number,
+                section=parent_section,
+                chunk_index=global_index,
+                chunk_type="parent",
+                parent_id=parent_id,
+                was_hard_split=p_hard or parent_hard_split,
+            ))
+            global_index += 1
+
+            for child_text, child_hard in self._child_splitter.split_text_with_flags(parent_text):
+                chunks.append(ChunkedContent(
+                    content=child_text,
+                    page_number=page.page_number,
+                    section=parent_section,
+                    chunk_index=global_index,
+                    chunk_type="child",
+                    parent_id=parent_id,
+                    was_hard_split=child_hard,
+                ))
+                global_index += 1
+
+        return global_index
+
     def _chunk_parent_child(self, pages: list[ParsedPage]) -> list[ChunkedContent]:
         chunks: list[ChunkedContent] = []
         global_index = 0
         assert self._parent_splitter is not None, "_chunk_parent_child called without parent_splitter"
 
         for page in pages:
-            heading_spans = build_heading_spans(page.content)
-            parent_flagged = self._parent_splitter.split_text_with_flags(page.content)
+            atomic_regions = find_atomic_regions(page.content)
+            heading_spans = build_heading_spans(page.content, exclude_regions=atomic_regions)
 
-            # Track the offset into page.content as we process each parent chunk.
-            # Since parent chunks are produced by splitting page.content sequentially,
-            # we find each parent's start offset by searching from a running cursor.
-            parent_cursor = 0
+            cursor = 0
+            for region in atomic_regions:
+                # Free text before this atomic region
+                if cursor < region.start:
+                    free_text = page.content[cursor:region.start]
+                    global_index = self._emit_parent_child_from_text(
+                        free_text, cursor, page, heading_spans, chunks, global_index
+                    )
 
-            for parent_text, parent_hard_split in parent_flagged:
-                parent_id = str(uuid4())
-
-                # Locate this parent chunk's start offset in the page for section lookup.
-                # search from parent_cursor to handle repeated substrings correctly.
-                idx = page.content.find(parent_text, parent_cursor)
-                parent_offset = idx if idx != -1 else parent_cursor
-                parent_section = section_path_at(parent_offset, heading_spans)
-                parent_cursor = parent_offset + len(parent_text)
-
-                chunks.append(
-                    ChunkedContent(
-                        content=parent_text,
+                # Atomic region: emit as a single parent+child pair if it fits,
+                # else fall back to splitting via both splitters.
+                region_section = section_path_at(region.start, heading_spans)
+                if self._parent_splitter._length_function(region.content) <= self._parent_splitter._chunk_size:
+                    parent_id = str(uuid4())
+                    chunks.append(ChunkedContent(
+                        content=region.content,
                         page_number=page.page_number,
-                        section=parent_section,
+                        section=region_section,
                         chunk_index=global_index,
                         chunk_type="parent",
                         parent_id=parent_id,
-                        was_hard_split=parent_hard_split,
-                    )
-                )
-                global_index += 1
-
-                for child_text, child_hard_split in self._child_splitter.split_text_with_flags(parent_text):
-                    chunks.append(
-                        ChunkedContent(
-                            content=child_text,
+                        was_hard_split=False,
+                    ))
+                    global_index += 1
+                    # Emit children: atomic as one child if fits, else split.
+                    if self._child_splitter._length_function(region.content) <= self._child_splitter._chunk_size:
+                        chunks.append(ChunkedContent(
+                            content=region.content,
                             page_number=page.page_number,
-                            section=parent_section,
+                            section=region_section,
                             chunk_index=global_index,
                             chunk_type="child",
                             parent_id=parent_id,
-                            was_hard_split=child_hard_split,
-                        )
+                            was_hard_split=False,
+                        ))
+                        global_index += 1
+                    else:
+                        for child_text, child_hard in self._child_splitter.split_text_with_flags(region.content):
+                            chunks.append(ChunkedContent(
+                                content=child_text,
+                                page_number=page.page_number,
+                                section=region_section,
+                                chunk_index=global_index,
+                                chunk_type="child",
+                                parent_id=parent_id,
+                                was_hard_split=child_hard,
+                            ))
+                            global_index += 1
+                else:
+                    global_index = self._emit_parent_child_from_text(
+                        region.content, region.start, page, heading_spans, chunks, global_index,
+                        force_section=region_section,
                     )
-                    global_index += 1
+                cursor = region.end
+
+            # Trailing free text after the last atomic region
+            if cursor < len(page.content):
+                tail = page.content[cursor:]
+                global_index = self._emit_parent_child_from_text(
+                    tail, cursor, page, heading_spans, chunks, global_index
+                )
 
         return chunks

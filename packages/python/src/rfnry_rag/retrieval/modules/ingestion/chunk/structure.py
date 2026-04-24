@@ -40,11 +40,26 @@ def find_atomic_regions(text: str) -> list[AtomicRegion]:
     return regions
 
 
-def build_heading_spans(text: str) -> list[HeadingSpan]:
-    """Return non-overlapping spans with the heading path active at each offset."""
+def build_heading_spans(
+    text: str, exclude_regions: list[AtomicRegion] | None = None,
+) -> list[HeadingSpan]:
+    """Return non-overlapping spans with the heading path active at each offset.
+
+    When ``exclude_regions`` is provided, heading-like lines that fall inside
+    any of those regions (e.g. inside fenced code blocks) are NOT treated as
+    real headings. This prevents Python ``# comments`` inside code fences
+    from being lifted to section labels.
+    """
     headings: list[tuple[int, int, str]] = []  # (offset, level, title)
+    exclude = exclude_regions or []
     for m in _HEADING_RE.finditer(text):
-        headings.append((m.start(), len(m.group(1)), m.group(2).strip()))
+        offset = m.start()
+        if any(r.start <= offset < r.end for r in exclude):
+            continue
+        title = m.group(2).strip()
+        # Strip optional CommonMark closing sequence: zero or more '#' preceded by whitespace
+        title = re.sub(r"\s*#+\s*$", "", title).strip() or title
+        headings.append((offset, len(m.group(1)), title))
     if not headings:
         return []
     spans: list[HeadingSpan] = []
