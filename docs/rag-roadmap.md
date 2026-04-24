@@ -6,6 +6,51 @@ For the research analysis behind these decisions, see [rfnry-rag Long-Context St
 
 ---
 
+## Conventions from Phases A-E
+
+Phases A-E established patterns that new roadmap items MUST follow. Any design in R1-R8 that conflicts with these is either wrong or needs explicit justification in the per-feature design.
+
+### 1. Consumer-agnostic by default
+
+Phase D removed hardcoded electrical/mechanical patterns from the graph mapper; Phase E deleted `QueryAnalysis.domain_hint` for the same reason. Every new feature that uses an LLM prompt MUST:
+
+- Avoid seeding the LLM with domain-specific examples ("valves, motors, wires, terminals", "480V", "SAE 30"). The contract test `test_baml_prompt_domain_agnostic` scans both `baml_src/ingestion/functions.baml` and `baml_src/retrieval/functions.baml` for 11 bias terms and will fail on regressions.
+- When the feature needs a vocabulary (entity types, relationship keywords, symbol libraries, relation-type maps), expose it via a consumer-overridable config. See `GraphIngestionConfig` and `DrawingIngestionConfig` for the pattern: empty defaults, consumer supplies domain knowledge, values are validated against an allowlist where applicable.
+- **Intent classifications** (factual / comparative / procedural / entity-lookup) are universal and fine — they describe the shape of a query, not the domain. **Domain classifications** (electrical / legal / medical / academic) are not — they leak domain assumption into the SDK.
+
+### 2. New configs must register with the bounds contract
+
+Every new config dataclass added to `IngestionConfig`, `RetrievalConfig`, or `GenerationConfig` must:
+
+- Register in `_CONFIGS_TO_AUDIT` at `test_config_bounds_contract.py` so every numeric field gets bounds validation enforced at import time.
+- Add an entry to the "Config defaults and enforced bounds" section of `CLAUDE.md`.
+- Validate every numeric field in `__post_init__` with a bounds check, OR carry a `# unbounded: <reason>` marker on the field line.
+- Values that map to an allowlist (e.g., Neo4j `ALLOWED_RELATION_TYPES`) must be validated against that allowlist at construction. See `DrawingIngestionConfig.relation_vocabulary` and `GraphIngestionConfig.unclassified_relation_default` for the pattern.
+
+### 3. BAML prompt conventions
+
+Every new BAML function must:
+
+- Classify each parameter in `USER_CONTROLLED_PARAMS` at `test_baml_prompt_fence_contract.py` (either list user-controlled params or an empty list for purely operator-controlled functions). The contract test fails on any unclassified function.
+- Fence every user-controlled string parameter with `======== <TAG> START ========` / `======== <TAG> END ========` and an "untrusted" directive in the prompt body.
+- Carry no domain-specific examples in the prompt body (see Convention 1).
+
+### 4. Sibling ingestion services, not fold-ins
+
+`AnalyzedIngestionService` (Phase A/B) and `DrawingIngestionService` (Phase C) are parallel entry points into the ingestion layer. Features that operate on the chunk/embedding level (R2 RAPTOR, R3 document expansion, R4 chunk position) apply to the chunk-based services ONLY. Drawing ingestion emits one vector per component, not per chunk — do not wire chunk-level features into the drawing path.
+
+Use `IngestionConfig.*` nested configs for each service (precedent: `tree_search`, `drawings`, `graph`). One config per service, no cross-service knobs.
+
+### 5. Migration pattern for field renames
+
+When renaming a config field (e.g., `contextual_chunking` → `chunk_context_headers` in Phase A), keep the old name as an optional field with a `__post_init__` `DeprecationWarning` and value forwarding. One release of overlap; then remove the deprecated alias.
+
+### 6. Vector payload tagging
+
+Phase A4 established `vector_role: description | raw_text | table_row`. Phase C10 added `drawing_component`. New retrieval paths that produce vectors (R2 RAPTOR) should add a new `vector_role` value (e.g., `raptor_level_N`) rather than overloading an existing role. Consumers filter by role at query time.
+
+---
+
 ## R1. Context-Aware Routing
 
 **Status:** Not started
@@ -69,13 +114,13 @@ Add `routing: RoutingConfig` to `RagServerConfig`. Default remains `RETRIEVAL` f
 
 | What | Where | Detail |
 |---|---|---|
-| Token counting at ingest | `IngestionService.ingest()` | After chunking, sum `len(chunk.content)` across chunks, estimate tokens (chars / 3.5), store in `Source.metadata["estimated_tokens"]` |
+| Token counting at ingest | `IngestionService.ingest()` | Use `count_tokens()` from `ingestion/chunk/token_counter.py` (Phase A shipped `tiktoken` + cl100k_base encoder). Sum per source, store in `Source.metadata["estimated_tokens"]` |
 | Corpus size query | `KnowledgeManager` | New method: `get_corpus_tokens(knowledge_id) -> int` — sum estimated_tokens across all sources in scope |
 | Full corpus loader | `RagEngine` | New method: `_load_full_corpus(knowledge_id) -> str` — load all document content from document store or scroll vector store chunks |
 | Direct context generation | `GenerationService` | New method or parameter on `generate()` — pass full corpus as context instead of retrieved chunks |
-| Answerability check | New BAML function | `CheckAnswerability(query, context) -> {answerable: bool, reasoning: str}` |
+| Answerability check | New BAML function | `CheckAnswerability(query, context) -> {answerable: bool, reasoning: str}`. Fence `query` + `context` as user-controlled; classify in `USER_CONTROLLED_PARAMS`; keep prompt domain-agnostic (Conventions 1 + 3) |
 | Routing logic | `RagEngine.query()` | Before calling `_retrieve_chunks()`, check mode. For AUTO, call `get_corpus_tokens()`. For HYBRID, wrap retrieval + answerability check + optional LC fallback |
-| Config wiring | `RagServerConfig` | New `RoutingConfig` dataclass, validated in `_validate_config()` |
+| Config wiring | `RagServerConfig` | New `RoutingConfig` dataclass, validated in `_validate_config()`. Register in `_CONFIGS_TO_AUDIT`; bounds-check `direct_context_threshold`; add CLAUDE.md bounds entry (Convention 2) |
 
 ### Prompt Caching
 
@@ -108,6 +153,8 @@ rfnry-rag's tree retrieval navigates existing document structure (TOC, headings,
 Li et al. (2025) showed RAPTOR retrieval achieves 38.5% accuracy — nearly double the 20-21% of standard chunk-based methods (BM25, Contriever, OpenAI embeddings). This is the largest single retrieval quality improvement available.
 
 ### Design
+
+> **Scope:** RAPTOR operates on the chunk-based ingestion path (`AnalyzedIngestionService` + `VectorIngestion`). It does NOT apply to `DrawingIngestionService` — drawings emit one vector per component, not per chunk (see Phase C10). Consumers with mixed corpora get RAPTOR on the document sources only; drawing sources are untouched (Convention 4).
 
 Two new modules implementing the existing protocols:
 
@@ -152,11 +199,11 @@ Add to `IngestionConfig` as `raptor: RaptorConfig`. When `enabled=True`, `Raptor
 | What | Where | Detail |
 |---|---|---|
 | Cluster reuse | Import `ClusteringService` from reasoning SDK | Already implements K-Means + HDBSCAN. May need to expose raw cluster assignments (not just samples) |
-| BAML summarization | New BAML function `SummarizeCluster` | Input: list of chunk texts. Output: summary string. Add to `retrieval/baml/baml_src/` |
+| BAML summarization | New BAML function `SummarizeCluster` | Input: list of chunk texts (user-controlled — fence and classify per Convention 3). Output: summary string. Prompt must stay domain-agnostic (Convention 1). Add to `retrieval/baml/baml_src/` |
 | RaptorIngestion | `modules/ingestion/methods/raptor.py` | New file implementing `BaseIngestionMethod`. Recursive cluster→summarize→embed→store loop |
 | RaptorRetrieval | `modules/retrieval/methods/raptor.py` | New file implementing `BaseRetrievalMethod`. Vector search with raptor_level metadata filter |
-| Vector payload extension | No schema change | Add `raptor_level`, `raptor_cluster_id`, `raptor_parent_id` to `VectorPoint.payload` dict |
-| Config wiring | `IngestionConfig` + `RagEngine.initialize()` | Add `RaptorConfig`, conditionally create RAPTOR methods |
+| Vector payload extension | No schema change | Add `raptor_level`, `raptor_cluster_id`, `raptor_parent_id` to `VectorPoint.payload` dict. Set `vector_role="raptor_summary"` for summary vectors; leaf chunks keep their existing role (`description`, `raw_text`, etc.) per Convention 6 |
+| Config wiring | `IngestionConfig` + `RagEngine.initialize()` | Add `RaptorConfig`, conditionally create RAPTOR methods. Register in `_CONFIGS_TO_AUDIT`; bounds-check `max_levels`, `clusters_per_level`, `min_cluster_size`, `summary_max_tokens`; add CLAUDE.md bounds entry (Convention 2) |
 
 ### Relationship to Existing Tree Retrieval
 
@@ -186,7 +233,7 @@ Both participate in RRF fusion. Users can enable either, both, or neither.
 
 Users ask questions differently from how documents describe answers. "How do I change the oil?" won't BM25-match a document titled "Lubricant Replacement Procedure." Dense embeddings partially bridge this gap, but BEIR showed that document expansion — generating synthetic queries at index time — outperforms BM25 on 11/18 heterogeneous datasets while maintaining BM25's generalization strength.
 
-rfnry-rag already has `contextual_chunking` (LLM-generated context prepended to each chunk). This addresses Anthropic's approach. But it doesn't generate **questions the chunk answers** — which is a different signal that directly bridges the user-query-to-document-content vocabulary gap.
+rfnry-rag already has `chunk_context_headers` (Phase A; pure string templating that prepends a source/type header to each chunk — *not* LLM-generated; the name was corrected from the misleading `contextual_chunking` in Phase A). Neither does any existing feature generate **questions the chunk answers** — which is a different signal that directly bridges the user-query-to-document-content vocabulary gap. Document expansion is orthogonal to `chunk_context_headers`; both can be enabled together and address different failure modes.
 
 ### Design
 
@@ -196,7 +243,7 @@ Add a new index-time processing step that generates synthetic queries per chunk:
 2. Append the synthetic queries to the chunk's searchable representation — both for BM25 indexing and embedding generation.
 3. Store the synthetic queries separately in metadata for transparency and debugging.
 
-This is similar to contextual chunking but targets a different failure mode: contextual chunking adds document-level context ("this chunk is from section 3.2 of the maintenance manual"), while document expansion adds user-level query patterns ("how to change oil", "oil replacement steps", "when to change lubricant").
+This targets a different failure mode than `chunk_context_headers`: the existing headers add document-level context ("this chunk is from section 3.2 of Source X"), while document expansion adds user-level query patterns (generic example: "how to do procedure Y", "steps for Y", "when to do Y" — NB: the prompt itself must not seed domain vocabulary per Convention 1; these are illustrative only).
 
 ### Configuration
 
@@ -216,12 +263,12 @@ Add to `IngestionConfig` as `document_expansion: DocumentExpansionConfig`.
 
 | What | Where | Detail |
 |---|---|---|
-| Query generation | New BAML function `GenerateSyntheticQueries` | Input: chunk text + optional document context. Output: list of query strings |
+| Query generation | New BAML function `GenerateSyntheticQueries` | Input: chunk text + optional document context. Output: list of query strings. Prompt MUST be domain-agnostic — no "valves, motors, oil change" examples (Convention 1). Fence both input params; classify in `USER_CONTROLLED_PARAMS` (Convention 3) |
 | Chunk augmentation | `IngestionService.ingest()`, after `contextualize_chunks()` | New step: `expand_chunks()`. For each chunk, call LLM, append queries to `ChunkedContent.contextualized` (or a new field) |
 | Metadata storage | `ChunkedContent` model | New field: `synthetic_queries: list[str] = field(default_factory=list)`. Stored in vector payload for inspection |
 | Embedding integration | `VectorIngestion.ingest()` | When `include_in_embeddings`, append synthetic queries to the text passed to the embedding model |
 | BM25 integration | Qdrant BM25 indexing | When `include_in_bm25`, include synthetic queries in the BM25-indexed content field |
-| Config wiring | `IngestionConfig` + `IngestionService.__init__()` | Pass config through, call expansion step conditionally |
+| Config wiring | `IngestionConfig` + `IngestionService.__init__()` | Pass config through, call expansion step conditionally. Register `DocumentExpansionConfig` in `_CONFIGS_TO_AUDIT`; bounds-check `num_queries`; add CLAUDE.md bounds entry (Convention 2) |
 
 ### Cost Considerations
 
@@ -277,7 +324,7 @@ chunk_ordering: ChunkOrdering = ChunkOrdering.SCORE_DESCENDING
 | What | Where | Detail |
 |---|---|---|
 | Ordering logic | `common/formatting.py` → `chunks_to_context()` | Add `ordering: ChunkOrdering` parameter. Apply reordering before joining chunks into context string |
-| Config wiring | `GenerationConfig` → `GenerationService.__init__()` | Pass ordering to the formatting function |
+| Config wiring | `GenerationConfig` → `GenerationService.__init__()` | Pass ordering to the formatting function. `chunk_ordering` is an enum — no numeric bounds to register — but add a CLAUDE.md note under `GenerationConfig` (Convention 2) |
 
 This is a ~30-line change in `chunks_to_context()` and config wiring. The ordering function itself:
 
@@ -328,7 +375,7 @@ Three adaptive mechanisms, each independently valuable:
 Estimate query complexity before retrieval and adjust top_k accordingly:
 
 1. **Heuristic classification** (no LLM call): query length, question word type (who/what/how/compare), presence of specific identifiers, number of entities mentioned. Fast, free, catches the obvious cases.
-2. **LLM classification** (optional, uses `RetrievalConfig.enrich_lm_config`): lightweight call to classify query as `simple | moderate | complex`. More accurate, adds one LLM round-trip.
+2. **LLM classification** (optional, uses `RetrievalConfig.enrich_lm_client`): lightweight call to classify query as `simple | moderate | complex`. More accurate, adds one LLM round-trip.
 
 Map complexity to top_k within configured bounds:
 - `simple` → `top_k_min` (default 3)
@@ -379,16 +426,16 @@ Add to `RetrievalConfig` as `adaptive: AdaptiveRetrievalConfig`.
 | What | Where | Detail |
 |---|---|---|
 | Query classifier (heuristic) | New module: `modules/retrieval/search/classification.py` | Rule-based: regex for question words, entity count, query length → complexity enum |
-| Query classifier (LLM) | New BAML function `ClassifyQueryComplexity` | Input: query text. Output: `{complexity: simple\|moderate\|complex, query_type: factual\|comparative\|entity\|procedural}` |
+| Query classifier (LLM) | New BAML function `ClassifyQueryComplexity` | Input: query text (fenced + classified per Convention 3). Output: `{complexity: simple\|moderate\|complex, query_type: factual\|comparative\|entity\|procedural}`. Both fields are *intent*-based — universal across domains. Do NOT seed domain examples ("electrical query", "legal contract") in the prompt (Convention 1) |
 | Dynamic top_k | `RetrievalService.retrieve()` | Before dispatch, classify query, compute effective top_k from bounds |
 | Weight adjustment | `RetrievalService.retrieve()` | Before RRF fusion, multiply method weights by task profile |
 | Confidence expansion | `RagEngine.query()` around `_retrieve_chunks()` | Wrap retrieval in retry loop. Check max score against threshold. Expand parameters on retry |
-| Config wiring | `RetrievalConfig` + `RagEngine.initialize()` | Pass adaptive config to RetrievalService |
+| Config wiring | `RetrievalConfig` + `RagEngine.initialize()` | Pass adaptive config to RetrievalService. Register `AdaptiveRetrievalConfig` in `_CONFIGS_TO_AUDIT`; bounds-check `top_k_min`, `top_k_max`, `max_expansion_retries`; add CLAUDE.md bounds entry (Convention 2) |
 
 ### Dependencies
 
 - Heuristic classification: no dependencies
-- LLM classification: requires `RetrievalConfig.enrich_lm_config` (already exists)
+- LLM classification: requires `RetrievalConfig.enrich_lm_client` (already exists)
 - Confidence expansion: benefits from R1 (Direct Context fallback) but works independently (can just increase top_k without LC fallback)
 
 ---
@@ -432,11 +479,12 @@ Add to `RetrievalConfig` as `iterative: IterativeRetrievalConfig`.
 
 | What | Where | Detail |
 |---|---|---|
-| Query decomposer | New BAML function `DecomposeQuery` | Input: query + optional accumulated context. Output: `{sub_questions: list[str], reasoning: str}` or `{answerable: true}` if no decomposition needed |
+| Query decomposer | New BAML function `DecomposeQuery` | Input: query + optional accumulated context (both user-controlled — fence + classify per Convention 3). Output: `{sub_questions: list[str], reasoning: str}` or `{answerable: true}` if no decomposition needed. Prompt stays domain-agnostic (Convention 1) |
 | Iterative loop | New service: `modules/retrieval/search/iterative.py` | `IterativeRetrievalService` wrapping `RetrievalService`. Calls decompose → retrieve → accumulate → repeat |
 | Context accumulation | Within iterative service | Maintain `accumulated_chunks: list[RetrievedChunk]` across hops. Deduplicate by chunk_id |
 | Integration | `RagEngine._retrieve_chunks()` | When iterative retrieval is enabled and query complexity >= threshold, use `IterativeRetrievalService` instead of direct `RetrievalService.retrieve()` |
 | Complexity check | Reuse R5's query classifier | If R5 is implemented, reuse classification. Otherwise, always decompose (LLM decides if decomposition is needed via the `answerable` escape hatch) |
+| Config wiring | `RetrievalConfig` | Register `IterativeRetrievalConfig` in `_CONFIGS_TO_AUDIT`; bounds-check `max_hops`; add CLAUDE.md bounds entry (Convention 2) |
 
 ### Interaction with Query Rewriting
 
@@ -557,6 +605,8 @@ rfnry-rag has evaluation metrics (EM, F1, LLMJudge, retrieval recall/precision) 
 
 ### Design
 
+Phase C12 shipped `GraphRetrieval.trace(entity_name, max_hops, relation_types, knowledge_id) -> list[GraphPath]` as a per-method diagnostic helper — the pattern to generalize here. That method already demonstrates timing capture, optional-filter semantics, and empty-list-on-error behavior; extend the same discipline across every retrieval method so the pipeline-level trace in R8 has consistent data to aggregate.
+
 Three capabilities:
 
 **A. Retrieval Trace**
@@ -651,10 +701,10 @@ Phase 1 (Foundation)
 ├── R3. Document Expansion at Index Time ← index-time improvement, no runtime changes
 └── R7. Local Cross-Encoder Reranking    ← drop-in replacement, no architecture changes
 
-Phase 2 (Intelligence)  
-├── R1. Context-Aware Routing            ← requires token counting infrastructure
-├── R5. Adaptive Retrieval Parameters    ← requires query classification
-└── R8. Retrieval Diagnostics            ← requires trace infrastructure in RetrievalService
+Phase 2 (Intelligence)
+├── R8. Retrieval Diagnostics            ← trace infrastructure; observability prerequisite for R1's AUTO routing + R5's adaptive weights
+├── R1. Context-Aware Routing            ← token counting infra partially done (Phase A's tiktoken + count_tokens)
+└── R5. Adaptive Retrieval Parameters    ← requires query classification; shares classifier with R6
 
 Phase 3 (Advanced)
 ├── R2. RAPTOR Summarization Retrieval   ← new ingestion + retrieval method pair
@@ -663,7 +713,7 @@ Phase 3 (Advanced)
 
 Phase 1 features are independent, small-scoped, and immediately valuable. They can ship together or separately.
 
-Phase 2 features build the intelligence layer — routing, adaptation, and observability. R1 is the most important feature overall but benefits from R5's query classification and R8's diagnostics for tuning.
+Phase 2 features build the intelligence layer — observability, routing, and adaptation. R8 moves to the front because R1's `AUTO` mode and R5's adaptive parameters are unobservable without trace infrastructure; tuning either blind wastes weeks. R1 remains the most important feature overall but genuinely benefits from having R8 land first. R5's classifier is shared with R6, so landing R5 first reduces R6's implementation cost.
 
 Phase 3 features are the most complex and benefit from the infrastructure built in Phases 1-2. RAPTOR needs the embedding and vector store infrastructure to be well-tested. Iterative retrieval benefits from query classification (R5) and can use LC fallback (R1) as an escape hatch.
 
