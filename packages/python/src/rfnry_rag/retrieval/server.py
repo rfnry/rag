@@ -966,6 +966,8 @@ class RagEngine:
         self._check_initialized()
         if not self._config.ingestion.embeddings:
             raise ConfigurationError("embed() requires embeddings to be configured")
+        for text in texts:
+            _validate_query_text(text)
         return await self._config.ingestion.embeddings.embed(texts)
 
     async def embed_single(self, text: str) -> list[float]:
@@ -973,6 +975,7 @@ class RagEngine:
         self._check_initialized()
         if not self._config.ingestion.embeddings:
             raise ConfigurationError("embed_single() requires embeddings to be configured")
+        _validate_query_text(text)
         vectors = await self._config.ingestion.embeddings.embed([text])
         return vectors[0]
 
