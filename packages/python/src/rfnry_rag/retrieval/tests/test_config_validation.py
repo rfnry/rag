@@ -94,6 +94,14 @@ def test_retrieval_config_accepts_sensible_bm25_max_chunks():
     assert cfg.bm25_max_chunks == 100_000
 
 
+def test_retrieval_config_bm25_max_indexes_bounds() -> None:
+    with pytest.raises(ConfigurationError, match="bm25_max_indexes"):
+        RetrievalConfig(bm25_max_indexes=0)
+    with pytest.raises(ConfigurationError, match="bm25_max_indexes"):
+        RetrievalConfig(bm25_max_indexes=1001)
+    assert RetrievalConfig().bm25_max_indexes == 16
+
+
 class TestContextualChunkingDeprecation:
     """`contextual_chunking` is renamed to `chunk_context_headers`."""
 

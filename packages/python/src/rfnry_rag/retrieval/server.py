@@ -187,6 +187,10 @@ class RetrievalConfig:
                 f"bm25_max_chunks must be <= 200_000, got {self.bm25_max_chunks} — "
                 "in-memory BM25 index at that size risks OOM; use sparse_embeddings instead"
             )
+        if not (1 <= self.bm25_max_indexes <= 1000):
+            raise ConfigurationError(
+                f"bm25_max_indexes must be 1-1000, got {self.bm25_max_indexes}"
+            )
         if not (1 <= self.history_window <= 20):
             raise ConfigurationError(f"history_window must be 1-20, got {self.history_window}")
 
