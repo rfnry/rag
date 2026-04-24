@@ -1,14 +1,38 @@
-"""Contract: BAML prompt bodies (ingestion + retrieval) carry no domain hints."""
+"""Contract: BAML prompt bodies (retrieval + reasoning) carry no domain hints."""
 from pathlib import Path
 
-_BAML_SRC_ROOT = Path(__file__).parent.parent / "baml" / "baml_src"
+_RETRIEVAL_BAML_ROOT = Path(__file__).parent.parent / "baml" / "baml_src"
+_REASONING_BAML_ROOT = (
+    Path(__file__).parent.parent.parent / "reasoning" / "baml" / "baml_src"
+)
+_BAML_ROOTS: list[Path] = [_RETRIEVAL_BAML_ROOT, _REASONING_BAML_ROOT]
 
-# Every prompt-body file that should be screened for domain-bias terms.
-# Add new .baml files here when they land.
-_PROMPT_FILES: list[Path] = [
-    _BAML_SRC_ROOT / "ingestion" / "functions.baml",
-    _BAML_SRC_ROOT / "retrieval" / "functions.baml",
-]
+# Files excluded from the domain-agnostic scan.
+# Relative-to-root paths (forward slashes).
+_EXCLUDED_RELATIVE: set[str] = {
+    # Infrastructure — no prompt bodies at all.
+    "clients.baml",
+    "generators.baml",
+    # Drawing ingestion prompt: "electrical", "p_and_id", "mechanical" strings
+    # here are DrawingIngestionConfig-bound domain labels (the consumer-
+    # configurable enum of supported drawing domains), not prompt examples
+    # that bias the LLM. See DrawingIngestionConfig.default_domain.
+    "ingestion/drawing.baml",
+}
+
+
+def _discover_prompt_files() -> list[Path]:
+    files: list[Path] = []
+    for root in _BAML_ROOTS:
+        for p in sorted(root.rglob("*.baml")):
+            rel = p.relative_to(root).as_posix()
+            if rel in _EXCLUDED_RELATIVE:
+                continue
+            files.append(p)
+    return files
+
+
+_PROMPT_FILES: list[Path] = _discover_prompt_files()
 
 # Domain-specific words that MUST NOT appear in prompts — they bias the LLM
 # toward electrical/mechanical output. (Case-insensitive substring check.)
@@ -35,17 +59,25 @@ def _extract_prompt_bodies(text: str) -> list[str]:
     return out
 
 
+def _display_path(prompt_file: Path) -> str:
+    for root in _BAML_ROOTS:
+        try:
+            return prompt_file.relative_to(root.parent.parent).as_posix()
+        except ValueError:
+            continue
+    return str(prompt_file)
+
+
 def test_baml_prompts_have_no_domain_bias_terms() -> None:
+    assert _PROMPT_FILES, "no BAML prompt files discovered"
     violations: list[str] = []
     for prompt_file in _PROMPT_FILES:
-        assert prompt_file.exists(), f"prompt file missing: {prompt_file}"
         text = prompt_file.read_text()
-        # Scan only the prompt bodies (between #" and "#), not field comments or @descriptions
         prompt_bodies = _extract_prompt_bodies(text)
         combined = " ".join(prompt_bodies).lower()
         hits = [term for term in _DOMAIN_BIAS_TERMS if term.lower() in combined]
         if hits:
-            violations.append(f"{prompt_file.relative_to(_BAML_SRC_ROOT)}: {hits}")
+            violations.append(f"{_display_path(prompt_file)}: {hits}")
     assert not violations, (
         "Prompt bodies contain domain-bias terms:\n  "
         + "\n  ".join(violations)
