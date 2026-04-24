@@ -142,6 +142,10 @@ class IngestionService:
                 async with asyncio.TaskGroup() as tg:
                     for m in required:
                         tg.create_task(m.ingest(**ingest_kwargs), name=m.name)
+            except* (KeyboardInterrupt, SystemExit, asyncio.CancelledError) as eg:
+                # Non-failure BaseExceptions must propagate unwrapped so shutdown/
+                # interruption still cancels the surrounding task cleanly.
+                raise eg.exceptions[0] from None
             except* Exception as eg:
                 for exc in eg.exceptions:
                     logger.error("required ingestion method failed — aborting: %s", exc, exc_info=exc)

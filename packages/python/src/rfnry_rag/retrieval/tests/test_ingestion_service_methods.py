@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
 
 
@@ -121,8 +123,6 @@ async def test_ingest_text_empty_chunks_raises():
         chunker=chunker,
         ingestion_methods=[],
     )
-    import pytest
-
     from rfnry_rag.retrieval.common.errors import EmptyDocumentError
 
     with pytest.raises(EmptyDocumentError):
@@ -443,3 +443,37 @@ async def test_optional_methods_run_concurrently_within_group(tmp_path) -> None:
     await service.ingest(file_path=file_path)
 
     assert max_concurrent >= 2
+
+
+async def test_dispatch_methods_propagates_cancellation_without_wrapping(tmp_path) -> None:
+    """CancelledError must propagate unwrapped, not re-wrapped as IngestionError.
+
+    The fix uses ``except* (KeyboardInterrupt, SystemExit, asyncio.CancelledError)``
+    before the ``except* Exception`` branch so that external task cancellation
+    (the real-world trigger) escapes the TaskGroup as a bare CancelledError rather
+    than getting caught by the generic ``except* Exception`` handler and re-raised
+    as IngestionError.
+
+    Note: raising CancelledError *inside* a child task body in Python 3.13 causes
+    TaskGroup to silently mark that task cancelled without surfacing an ExceptionGroup
+    to the host coroutine — so external cancellation (task.cancel()) is the correct
+    way to drive this test.
+    """
+    import asyncio
+
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text("hello world " * 50)
+
+    async def blocking_ingest(**kwargs):
+        await asyncio.sleep(10)  # blocks until cancelled
+
+    m = _mock_method(name="cancel-me", required=True)
+    m.ingest = AsyncMock(side_effect=blocking_ingest)
+    service = _make_service_advanced(ingestion_methods=[m])
+
+    task = asyncio.create_task(service.ingest(file_path=file_path))
+    await asyncio.sleep(0)  # yield so the task starts and enters the TaskGroup
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
