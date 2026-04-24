@@ -14,7 +14,7 @@ from rfnry_rag.retrieval.stores.graph.neo4j import ALLOWED_RELATION_TYPES, _vali
     ],
 )
 def test_validate_relation_type_rejects_non_allowlisted(injection: str) -> None:
-    with pytest.raises((ValueError, KeyError)):  # accept either exception shape
+    with pytest.raises(ValueError):
         _validate_relation_type(injection)
 
 
