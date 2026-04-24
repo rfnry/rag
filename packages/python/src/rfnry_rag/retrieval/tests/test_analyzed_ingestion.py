@@ -3,6 +3,56 @@ from unittest.mock import AsyncMock, MagicMock
 from rfnry_rag.retrieval.common.models import Source
 from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
 
+# Serialised page-analysis rows stored in rag_page_analyses (keyed by "data")
+_PAGE_ANALYSES_ROWS = [
+    {
+        "page_number": 1,
+        "data": {
+            "page_number": 1,
+            "description": "Electrical schematic showing motor circuit",
+            "entities": [
+                {
+                    "name": "Motor M1",
+                    "category": "electrical_component",
+                    "context": "main motor",
+                    "value": "480V",
+                },
+                {
+                    "name": "Breaker CB-3",
+                    "category": "electrical_component",
+                    "context": "feeder",
+                    "value": None,
+                },
+            ],
+            "tables": [],
+            "annotations": [],
+            "page_type": "electrical_schematic",
+            "metadata": {},
+            "raw_text": "",
+        },
+    },
+    {
+        "page_number": 2,
+        "data": {
+            "page_number": 2,
+            "description": "Panel schedule",
+            "entities": [
+                {
+                    "name": "Panel MCC-1",
+                    "category": "electrical_component",
+                    "context": "main panel",
+                    "value": None,
+                },
+            ],
+            "tables": [],
+            "annotations": [],
+            "page_type": "panel_schedule",
+            "metadata": {},
+            "raw_text": "",
+        },
+    },
+]
+
 
 def _make_service(graph_store=None, ingestion_methods=None):
     embeddings = MagicMock()
@@ -14,6 +64,8 @@ def _make_service(graph_store=None, ingestion_methods=None):
     vector_store.upsert = AsyncMock()
 
     metadata_store = AsyncMock()
+    # New table-based reads — return the page analyses rows by default
+    metadata_store.get_page_analyses = AsyncMock(return_value=_PAGE_ANALYSES_ROWS)
 
     return AnalyzedIngestionService(
         embeddings=embeddings,
@@ -26,6 +78,7 @@ def _make_service(graph_store=None, ingestion_methods=None):
 
 
 def _make_source_with_analysis() -> Source:
+    """Source in 'synthesized' state. page_analyses live in rag_page_analyses, NOT metadata."""
     return Source(
         source_id="src-1",
         knowledge_id="kb-1",
@@ -35,46 +88,6 @@ def _make_source_with_analysis() -> Source:
         metadata={
             "file_type": "pdf",
             "file_name": "test.pdf",
-            "page_analyses": [
-                {
-                    "page_number": 1,
-                    "description": "Electrical schematic showing motor circuit",
-                    "entities": [
-                        {
-                            "name": "Motor M1",
-                            "category": "electrical_component",
-                            "context": "main motor",
-                            "value": "480V",
-                        },
-                        {
-                            "name": "Breaker CB-3",
-                            "category": "electrical_component",
-                            "context": "feeder",
-                            "value": None,
-                        },
-                    ],
-                    "tables": [],
-                    "annotations": [],
-                    "page_type": "electrical_schematic",
-                    "metadata": {},
-                },
-                {
-                    "page_number": 2,
-                    "description": "Panel schedule",
-                    "entities": [
-                        {
-                            "name": "Panel MCC-1",
-                            "category": "electrical_component",
-                            "context": "main panel",
-                            "value": None,
-                        },
-                    ],
-                    "tables": [],
-                    "annotations": [],
-                    "page_type": "panel_schedule",
-                    "metadata": {},
-                },
-            ],
             "synthesis": {
                 "cross_references": [
                     {

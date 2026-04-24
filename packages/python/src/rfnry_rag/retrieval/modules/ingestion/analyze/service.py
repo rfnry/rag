@@ -113,10 +113,16 @@ class AnalyzedIngestionService:
                 **(metadata or {}),
                 "file_type": file_type,
                 "file_name": file_path.name,
-                "page_analyses": [_serialize_analysis(a) for a in page_analyses],
             },
         )
         await self._metadata_store.create_source(source)
+        await self._metadata_store.upsert_page_analyses(
+            source_id,
+            [
+                {"page_number": pa.page_number, "data": _serialize_analysis(pa)}
+                for pa in page_analyses
+            ],
+        )
 
         logger.info(
             "[analyze/ingestion/analyze] complete: %d pages/groups, status=analyzed",
@@ -131,14 +137,15 @@ class AnalyzedIngestionService:
             raise IngestionError(f"source not found: {source_id}")
 
         file_type = source.metadata.get("file_type")
-        page_analyses = [_deserialize_analysis(a) for a in source.metadata["page_analyses"]]
+        rows = await self._metadata_store.get_page_analyses(source_id)
+        page_analyses = [_deserialize_analysis(r["data"]) for r in rows]
 
         logger.info("[analyze/ingestion/synthesize] source %s: %d pages in context", source_id, len(page_analyses))
 
         if file_type == "pdf":
             synthesis = await self._synthesize_pdf(page_analyses)
         elif file_type == "l5x":
-            synthesis = self._synthesize_l5x(source)
+            synthesis = self._synthesize_l5x(page_analyses)
         else:
             synthesis = self._synthesize_xml(page_analyses)
 
@@ -158,7 +165,8 @@ class AnalyzedIngestionService:
         if source is None:
             raise IngestionError(f"source not found: {source_id}")
 
-        page_analyses = [_deserialize_analysis(a) for a in source.metadata["page_analyses"]]
+        rows = await self._metadata_store.get_page_analyses(source_id)
+        page_analyses = [_deserialize_analysis(r["data"]) for r in rows]
         synthesis_data = source.metadata.get("synthesis", {})
         synthesis = _deserialize_synthesis(synthesis_data)
 
@@ -456,9 +464,8 @@ class AnalyzedIngestionService:
 
         return xrefs
 
-    def _synthesize_l5x(self, source: Source) -> DocumentSynthesis:
+    def _synthesize_l5x(self, page_analyses: list[PageAnalysis]) -> DocumentSynthesis:
         """Deterministic cross-reference computation for L5X."""
-        page_analyses = [_deserialize_analysis(a) for a in source.metadata["page_analyses"]]
         xrefs = self._synthesize_shared_entities(page_analyses)
         logger.info("[analyze/ingestion/synthesize/l5x] computed %d cross-references", len(xrefs))
         return DocumentSynthesis(cross_references=xrefs)

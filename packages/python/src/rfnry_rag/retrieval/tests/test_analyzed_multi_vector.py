@@ -119,10 +119,10 @@ async def fake_analyzed_service(tmp_path):
         file_hash="deadbeef",
         created_at=datetime.now(UTC),
         source_weight=1.0,
+        # page_analyses live in the dedicated table, NOT in metadata
         metadata={
             "file_type": "pdf",
             "file_name": "seed.pdf",
-            "page_analyses": [_serialize_page_for_test(pa) for pa in page_analyses],
             "synthesis": {
                 "cross_references": [],
                 "page_clusters": [],
@@ -131,6 +131,11 @@ async def fake_analyzed_service(tmp_path):
         },
     )
     await store.create_source(source)
+    # Seed page analyses into rag_page_analyses table
+    await store.upsert_page_analyses(
+        source_id,
+        [{"page_number": pa.page_number, "data": _serialize_page_for_test(pa)} for pa in page_analyses],
+    )
     svc._seeded_source_id = source_id
 
     yield svc, captured
@@ -184,14 +189,12 @@ async def test_page_without_raw_text_still_produces_description_vector(
 ) -> None:
     """If raw_text is empty (older docs), skip raw_text vector gracefully — do NOT crash."""
     svc, captured = fake_analyzed_service
-    # Override seed to have empty raw_text on page 2
-    source = await svc._metadata_store.get_source(svc._seeded_source_id)
-    pas = source.metadata["page_analyses"]
-    pas[1]["raw_text"] = ""
-    source.metadata["page_analyses"] = pas
-    await svc._metadata_store.update_source(
-        source.source_id,
-        metadata=source.metadata,
+    # Override page 2 in the table to have empty raw_text
+    rows = await svc._metadata_store.get_page_analyses(svc._seeded_source_id)
+    rows[1]["data"]["raw_text"] = ""
+    await svc._metadata_store.upsert_page_analyses(
+        svc._seeded_source_id,
+        [{"page_number": r["page_number"], "data": r["data"]} for r in rows],
     )
     await svc.ingest(source_id=svc._seeded_source_id)
 
@@ -211,12 +214,13 @@ async def test_full_text_for_non_pdf_falls_back_to_description_with_entities(
     so document-store search on 'Motor M1' still matches.
     """
     svc, captured = fake_analyzed_service
-    # Blank out raw_text on both seeded pages to simulate L5X/XML
-    source = await svc._metadata_store.get_source(svc._seeded_source_id)
-    for pa in source.metadata["page_analyses"]:
-        pa["raw_text"] = ""
-    await svc._metadata_store.update_source(
-        source.source_id, metadata=source.metadata,
+    # Blank out raw_text on both pages in the table to simulate L5X/XML
+    rows = await svc._metadata_store.get_page_analyses(svc._seeded_source_id)
+    for row in rows:
+        row["data"]["raw_text"] = ""
+    await svc._metadata_store.upsert_page_analyses(
+        svc._seeded_source_id,
+        [{"page_number": r["page_number"], "data": r["data"]} for r in rows],
     )
 
     await svc.ingest(source_id=svc._seeded_source_id)
