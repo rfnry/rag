@@ -1,8 +1,6 @@
 """DrawingIngestionService: 4-phase stubs + async method contract."""
 import inspect
 
-import pytest
-
 from rfnry_rag.retrieval.modules.ingestion.drawing.service import DrawingIngestionService
 
 
@@ -91,13 +89,3 @@ def test_models_roundtrip_handles_optional_fields() -> None:
         title_block=None,
     )
     assert DrawingPageAnalysis.from_dict(analysis.to_dict()) == analysis
-
-
-@pytest.mark.skip(reason="Pending C4+: phase bodies NotImplementedError until render/extract/link/ingest land")
-async def test_status_transitions() -> None:
-    ...
-
-
-@pytest.mark.skip(reason="Pending C4+")
-async def test_phase_method_idempotent_on_reentry() -> None:
-    ...

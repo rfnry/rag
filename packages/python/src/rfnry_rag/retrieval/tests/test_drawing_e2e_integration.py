@@ -211,3 +211,61 @@ async def test_dxf_end_to_end_file_hash_idempotent_on_second_run(
     src_b = await svc.render(str(simple_rlc_dxf), knowledge_id="k1")
     assert src_a.source_id == src_b.source_id
     assert src_a.file_hash == src_b.file_hash
+
+
+async def test_phase_methods_reject_status_skip_ahead(simple_rlc_dxf: Path) -> None:
+    """Each phase enforces its predecessor's status; skipping raises IngestionError."""
+    from rfnry_rag.retrieval.common.errors import IngestionError
+
+    metadata = _InMemoryMetadataStore()
+    svc = _make_service(metadata, graph_store=_RecordingGraphStore())
+
+    src = await svc.render(str(simple_rlc_dxf), knowledge_id="k1")
+    assert src.status == "rendered"
+
+    with pytest.raises(IngestionError, match="link requires status='extracted'"):
+        await svc.link(src.source_id)
+    with pytest.raises(IngestionError, match="ingest requires status='linked'"):
+        await svc.ingest(src.source_id)
+
+    src = await svc.extract(src.source_id)
+    assert src.status == "extracted"
+    with pytest.raises(IngestionError, match="ingest requires status='linked'"):
+        await svc.ingest(src.source_id)
+
+    src = await svc.link(src.source_id)
+    assert src.status == "linked"
+    src = await svc.ingest(src.source_id)
+    assert src.status == "completed"
+
+
+async def test_phase_methods_idempotent_on_reentry(simple_rlc_dxf: Path) -> None:
+    """Re-entering each phase at its terminal status is a no-op with no duplicate side effects."""
+    metadata = _InMemoryMetadataStore()
+    vstore = _RecordingVectorStore()
+    gstore = _RecordingGraphStore()
+    svc = _make_service(metadata, vector_store=vstore, graph_store=gstore)
+
+    first = await svc.render(str(simple_rlc_dxf), knowledge_id="k1")
+    second = await svc.render(str(simple_rlc_dxf), knowledge_id="k1")
+    assert first.source_id == second.source_id
+    assert second.status == "rendered"
+
+    await svc.extract(first.source_id)
+    again = await svc.extract(first.source_id)
+    assert again.status == "extracted"
+
+    await svc.link(first.source_id)
+    again = await svc.link(first.source_id)
+    assert again.status == "linked"
+
+    await svc.ingest(first.source_id)
+    vector_count_after_first = len(vstore.upserted)
+    entity_calls_after_first = gstore.entities_calls
+    relation_calls_after_first = gstore.relations_calls
+
+    again = await svc.ingest(first.source_id)
+    assert again.status == "completed"
+    assert len(vstore.upserted) == vector_count_after_first
+    assert gstore.entities_calls == entity_calls_after_first
+    assert gstore.relations_calls == relation_calls_after_first
