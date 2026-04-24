@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from rfnry_rag.retrieval.common.errors import ConfigurationError, InputError
 
@@ -114,15 +114,19 @@ class PersistenceConfig:
 class IngestionConfig:
     embeddings: BaseEmbeddings | None = None
     vision: BaseVision | None = None
-    # ~100 words per chunk, fits typical 512-1536 token embedding windows.
-    chunk_size: int = 500
-    # 10% overlap preserves cross-boundary context without blowing up chunk count.
-    chunk_overlap: int = 50
+    # 375 tokens per chunk (~1500 chars) — fills modern 512-token embedding windows well.
+    # chunk_size is now in token units when chunk_size_unit='tokens' (the default).
+    chunk_size: int = 375
+    # ~10% overlap preserves cross-boundary context without blowing up chunk count.
+    chunk_overlap: int = 40
+    # Unit for chunk_size and chunk_overlap: 'tokens' (default) or 'chars'.
+    # 'tokens' uses tiktoken cl100k_base; falls back to word count if tiktoken unavailable.
+    chunk_size_unit: Literal["chars", "tokens"] = "tokens"
     dpi: int = 300
     lm_client: LanguageModelClient | None = None
     sparse_embeddings: BaseSparseEmbeddings | None = None
     parent_chunk_size: int = 0
-    parent_chunk_overlap: int = 200
+    parent_chunk_overlap: int = 150
     # Whether to prepend a short source/type header string to each chunk before
     # embedding. This is pure string templating — NOT the LLM-generated
     # contextual-chunking technique the old name implied.
@@ -132,6 +136,10 @@ class IngestionConfig:
     contextual_chunking: bool | None = None
 
     def __post_init__(self) -> None:
+        if self.chunk_size_unit not in ("chars", "tokens"):
+            raise ConfigurationError(
+                f"IngestionConfig.chunk_size_unit must be 'chars' or 'tokens', got {self.chunk_size_unit!r}"
+            )
         if self.chunk_size < 1:
             raise ConfigurationError("chunk_size must be positive")
         if self.chunk_overlap < 0:
@@ -565,6 +573,7 @@ class RagEngine:
             chunk_overlap=ingestion.chunk_overlap,
             parent_chunk_size=ingestion.parent_chunk_size,
             parent_chunk_overlap=ingestion.parent_chunk_overlap,
+            chunk_size_unit=ingestion.chunk_size_unit,
         )
 
         # Tree indexing service

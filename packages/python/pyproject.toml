@@ -25,6 +25,7 @@ dependencies = [
     "baml-py==0.221.0",
     "lxml>=6.1.0,<7.0",
     "fastembed>=0.8.0,<1.0",
+    "tiktoken>=0.5,<1.0",
 ]
 
 [project.urls]

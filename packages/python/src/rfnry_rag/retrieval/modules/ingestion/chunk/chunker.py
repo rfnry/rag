@@ -1,26 +1,38 @@
+from typing import Literal
 from uuid import uuid4
 
 from rfnry_rag.retrieval.modules.ingestion.chunk.splitter import RecursiveTextSplitter
+from rfnry_rag.retrieval.modules.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.retrieval.modules.ingestion.models import ChunkedContent, ParsedPage
+
+ChunkSizeUnit = Literal["chars", "tokens"]
 
 
 class SemanticChunker:
     def __init__(
         self,
-        chunk_size: int = 500,
-        chunk_overlap: int = 50,
+        chunk_size: int = 375,
+        chunk_overlap: int = 40,
         parent_chunk_size: int = 0,
-        parent_chunk_overlap: int = 200,
+        parent_chunk_overlap: int = 150,
+        chunk_size_unit: ChunkSizeUnit = "tokens",
     ) -> None:
+        if chunk_size_unit not in ("chars", "tokens"):
+            raise ValueError(f"chunk_size_unit must be 'chars' or 'tokens', got {chunk_size_unit!r}")
+        self.chunk_size_unit = chunk_size_unit
+        length_function = count_tokens if chunk_size_unit == "tokens" else len
+
         self._child_splitter = RecursiveTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
+            length_function=length_function,
         )
         self._parent_splitter = None
         if parent_chunk_size > 0:
             self._parent_splitter = RecursiveTextSplitter(
                 chunk_size=parent_chunk_size,
                 chunk_overlap=parent_chunk_overlap,
+                length_function=length_function,
             )
 
     def chunk(self, pages: list[ParsedPage]) -> list[ChunkedContent]:
