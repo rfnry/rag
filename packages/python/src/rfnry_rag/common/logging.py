@@ -5,6 +5,7 @@ _BAML_LOG_ENV = "BAML_LOG"
 _RFNRY_RAG_BAML_LOG_ENV = "RFNRY_RAG_BAML_LOG"
 
 _VALID_LEVELS = set(logging.getLevelNamesMapping())
+_VALID_BAML_LEVELS = {"trace", "debug", "info", "warn", "error", "off"}
 
 
 def _resolve_level(raw: str) -> int:
@@ -36,9 +37,16 @@ def _propagate_baml_log_env() -> None:
 
     An explicitly-set BAML_LOG wins — we only propagate when BAML_LOG is unset.
     """
-    user_value = os.getenv(_RFNRY_RAG_BAML_LOG_ENV)
-    if user_value and not os.getenv(_BAML_LOG_ENV):
-        os.environ[_BAML_LOG_ENV] = user_value
+    raw = os.environ.get(_RFNRY_RAG_BAML_LOG_ENV)
+    if raw is not None:
+        if raw.lower() not in _VALID_BAML_LEVELS:
+            from rfnry_rag.common.errors import ConfigurationError
+
+            raise ConfigurationError(
+                f"RFNRY_RAG_BAML_LOG must be one of {sorted(_VALID_BAML_LEVELS)}, got {raw!r}"
+            )
+        if not os.getenv(_BAML_LOG_ENV):
+            os.environ[_BAML_LOG_ENV] = raw.lower()
 
 
 def get_logger(module: str) -> logging.Logger:

@@ -5,8 +5,8 @@ from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from rfnry_rag.retrieval.modules.ingestion.models import ChunkedContent
 from rfnry_rag.retrieval.modules.ingestion.methods.vector import VectorIngestion
+from rfnry_rag.retrieval.modules.ingestion.models import ChunkedContent
 
 
 def _make_chunk(text: str = "hello world") -> MagicMock:
