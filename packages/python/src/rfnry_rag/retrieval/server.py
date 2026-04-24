@@ -235,10 +235,16 @@ class TreeIndexingConfig:
     def __post_init__(self) -> None:
         if self.toc_scan_pages < 1:
             raise ConfigurationError("toc_scan_pages must be positive")
+        if self.toc_scan_pages > 500:
+            raise ConfigurationError(f"toc_scan_pages must be <= 500, got {self.toc_scan_pages}")
         if self.max_pages_per_node < 1:
             raise ConfigurationError("max_pages_per_node must be positive")
+        if self.max_pages_per_node > 200:
+            raise ConfigurationError(f"max_pages_per_node must be <= 200, got {self.max_pages_per_node}")
         if self.max_tokens_per_node < 1:
             raise ConfigurationError("max_tokens_per_node must be positive")
+        if self.max_tokens_per_node > 200_000:
+            raise ConfigurationError(f"max_tokens_per_node must be <= 200_000, got {self.max_tokens_per_node}")
 
 
 @dataclass
@@ -254,8 +260,12 @@ class TreeSearchConfig:
     def __post_init__(self) -> None:
         if self.max_steps < 1:
             raise ConfigurationError("max_steps must be positive")
+        if self.max_steps > 50:
+            raise ConfigurationError(f"max_steps must be <= 50, got {self.max_steps}")
         if self.max_context_tokens < 1:
             raise ConfigurationError("max_context_tokens must be positive")
+        if self.max_context_tokens > 500_000:
+            raise ConfigurationError(f"max_context_tokens must be <= 500_000, got {self.max_context_tokens}")
         if not (1 <= self.max_sources_per_query <= 1000):
             raise ConfigurationError(
                 f"max_sources_per_query must be 1-1000, got {self.max_sources_per_query}"

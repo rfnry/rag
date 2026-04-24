@@ -189,3 +189,19 @@ def test_tree_search_config_max_sources_per_query_validates() -> None:
     with pytest.raises(ConfigurationError, match="max_sources_per_query"):
         TreeSearchConfig(enabled=False, max_sources_per_query=1001)
     assert TreeSearchConfig(enabled=False).max_sources_per_query == 50
+
+
+def test_tree_indexing_config_upper_bounds() -> None:
+    with pytest.raises(ConfigurationError, match="toc_scan_pages"):
+        TreeIndexingConfig(toc_scan_pages=501)
+    with pytest.raises(ConfigurationError, match="max_pages_per_node"):
+        TreeIndexingConfig(max_pages_per_node=201)
+    with pytest.raises(ConfigurationError, match="max_tokens_per_node"):
+        TreeIndexingConfig(max_tokens_per_node=200_001)
+
+
+def test_tree_search_config_upper_bounds() -> None:
+    with pytest.raises(ConfigurationError, match="max_steps"):
+        TreeSearchConfig(max_steps=51)
+    with pytest.raises(ConfigurationError, match="max_context_tokens"):
+        TreeSearchConfig(max_context_tokens=500_001)
