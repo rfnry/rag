@@ -126,7 +126,7 @@ class IngestionConfig:
     lm_client: LanguageModelClient | None = None
     sparse_embeddings: BaseSparseEmbeddings | None = None
     parent_chunk_size: int = 0
-    parent_chunk_overlap: int = 150
+    parent_chunk_overlap: int = 200
     # Whether to prepend a short source/type header string to each chunk before
     # embedding. This is pure string templating — NOT the LLM-generated
     # contextual-chunking technique the old name implied.
