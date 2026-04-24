@@ -32,3 +32,12 @@ def test_reranking_with_unsupported_provider_raises():
     provider = LanguageModelProvider(provider="openai", model="gpt-4o", api_key="sk-test")
     with pytest.raises(ConfigurationError, match="no dedicated reranker API"):
         Reranking(provider)
+
+
+def test_voyage_reranker_uses_async_client() -> None:
+    import voyageai
+
+    from rfnry_rag.retrieval.modules.retrieval.search.reranking.voyage import _VoyageReranking
+
+    rerank = _VoyageReranking(provider=LanguageModelProvider(provider="voyage", model="rerank-2", api_key="sk-test"))
+    assert isinstance(rerank._client, voyageai.AsyncClient)
