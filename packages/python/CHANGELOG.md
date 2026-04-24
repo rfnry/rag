@@ -10,6 +10,59 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-25 Phase B — Perf/Cost Prerequisites
+
+Six tasks (7 commits: 6 feature + 1 scope-fix) reducing LLM call cost and
+enabling safe resumption of interrupted ingestion runs.
+Test count 861 → 890. ruff + mypy clean on 318+ source files.
+
+**B1 — `rag_page_analyses` table.**
+New `(source_id, page_number)` composite-key table with indexed `page_hash`
+column. `upsert_page_analyses` + `get_page_analyses` + `get_page_analysis` on
+`SQLAlchemyMetadataStore` with dialect-dispatched upsert (SQLite + Postgres).
+Idempotent migration via `_migrate_missing_columns`. FK cascade-delete from
+`rag_sources.id`.
+Commit: `1a3ceb2`.
+
+**B2 — Migrate AnalyzedIngestionService.**
+All 3 phases (analyze / synthesize / ingest) and all 3 file formats (PDF / L5X
+/ XML) now read/write `PageAnalysis` blobs via the dedicated table instead of
+serialising into `source.metadata["page_analyses"]`. `synthesis` blob stays in
+`source.metadata`.
+Commit: `2bf9a5d`.
+
+**B3 — File-hash + per-page-hash caching.**
+Two caching layers: (a) `analyze()` short-circuits on
+`find_by_hash(file_hash, knowledge_id)` when status ∈ {analyzed, synthesized,
+completed}; (b) per-page SHA-256 cache: each rendered page's PNG bytes are
+hashed, and `get_page_analyses_by_hash(page_hashes, knowledge_id=None)`
+resolves cache hits in bulk. A 1-page revision of a 500-page manual now fires
+1 LLM call instead of 500. `PageAnalysis.page_hash: str` added.
+Commit: `7e189b1`.
+
+**B4 — Status-based resume + phase idempotency.**
+`RagEngine.ingest()`'s structured branch now inspects `Source.status` and
+routes to the first unfinished phase (completed → no-op; synthesized → ingest;
+analyzed → synthesize+ingest; otherwise → full 3-phase run). `synthesize()` and
+`ingest()` phase methods are idempotent on re-entry. **Fix-up commit** reverted
+an out-of-scope `.pdf` routing change that would have silently routed every PDF
+through the expensive analyzed pipeline.
+Commits: `c05148f`, `ad539a9`.
+
+**B5 — PyMuPDF text-density pre-filter.**
+Pages with `>= analyze_text_skip_threshold_chars` extractable text AND zero
+embedded images are classified as `page_type="text"` and built from raw text
+directly — no vision LLM call. Typical 30–50% saving on narrative-heavy
+engineering manuals at zero new deps. Threshold bounded `[0, 100_000]`; default
+300; 0 disables.
+Commit: `5dc20b8`.
+
+**B6 — `analyze_concurrency` config.**
+Promoted `_ANALYZE_PDF_CONCURRENCY=5` module constant to
+`IngestionConfig.analyze_concurrency: int = 5` with bounds `[1, 100]`. Tier 2+
+API accounts can safely crank higher.
+Commit: `b4291fb`.
+
 ### 2026-04-25 Phase A — RAG Quality Baseline
 
 Five RAG-quality tasks (9 commits: 5 feature + 4 follow-up) targeting
