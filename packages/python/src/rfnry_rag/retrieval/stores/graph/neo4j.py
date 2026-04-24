@@ -149,6 +149,28 @@ def _validate_relation_type(rel_type: str) -> str:
     return normalized
 
 
+# Lucene QueryParser special characters per
+# https://lucene.apache.org/core/9_x/queryparser/org/apache/lucene/queryparser/classic/QueryParser.html
+# We escape every metacharacter — the user query is always a literal phrase search,
+# never an expression. AND/OR/NOT operator tokens are NOT escaped because they're
+# plain letters once the special characters are gone.
+_LUCENE_ESCAPE_RE = re.compile(r'([+\-&|!(){}\[\]^"~*?:\\/])')
+
+
+def _escape_lucene_query(query: str) -> str:
+    """Escape Lucene QueryParser metacharacters in user-supplied query text.
+
+    Neo4j's fulltext index (``db.index.fulltext.queryNodes``) interprets the
+    parameter value as a Lucene query expression. A raw user query containing
+    ``*``, ``name:value``, or quoted strings parses as operators rather than
+    literal content, enabling wildcard-explosion DoS and incorrect matches.
+
+    This escape neutralises the 11 Lucene metacharacters, making every query
+    a plain-text phrase search. See test_graph_lucene_safety.py.
+    """
+    return _LUCENE_ESCAPE_RE.sub(r"\\\1", query)
+
+
 def _node_to_entity(node: dict[str, Any]) -> GraphEntity:
     """Convert a Neo4j node dict to a GraphEntity."""
     return GraphEntity(
@@ -370,7 +392,7 @@ class Neo4jGraphStore:
         if entity_types:
             result = await session.run(
                 _SEED_QUERY_WITH_TYPES,
-                query_text=query,
+                query_text=_escape_lucene_query(query),
                 knowledge_id=knowledge_id,
                 entity_types=entity_types,
                 seed_limit=limit,
@@ -379,7 +401,7 @@ class Neo4jGraphStore:
         else:
             result = await session.run(
                 _SEED_QUERY,
-                query_text=query,
+                query_text=_escape_lucene_query(query),
                 knowledge_id=knowledge_id,
                 seed_limit=limit,
                 timeout=timeout,
