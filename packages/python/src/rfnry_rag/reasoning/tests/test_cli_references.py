@@ -1,7 +1,7 @@
 import click
 import pytest
 
-from rfnry_rag.reasoning.cli import resolve_references
+from rfnry_rag.reasoning.cli import _MAX_DIR_READ_BYTES, _read_directory_as_text, resolve_references
 
 
 class TestResolveReferences:
@@ -40,3 +40,23 @@ class TestResolveReferences:
         empty.mkdir()
         with pytest.raises(click.UsageError, match="No reference documents"):
             resolve_references((str(empty),))
+
+
+class TestReadDirectoryAsText:
+    def test_reasoning_cli_directory_read_caps_aggregate_size(self, tmp_path):
+        big = tmp_path / "big.txt"
+        big.write_text("x" * (_MAX_DIR_READ_BYTES + 1))
+        with pytest.raises(ValueError, match="exceeds"):
+            _read_directory_as_text(tmp_path)
+
+    def test_reads_within_limit(self, tmp_path):
+        (tmp_path / "a.md").write_text("small content")
+        result = _read_directory_as_text(tmp_path)
+        assert "small content" in result
+
+    def test_skips_non_text_files(self, tmp_path):
+        (tmp_path / "code.py").write_text("print('hello')")
+        (tmp_path / "doc.md").write_text("markdown")
+        result = _read_directory_as_text(tmp_path)
+        assert "markdown" in result
+        assert "code.py" not in result
