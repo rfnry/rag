@@ -18,7 +18,10 @@ def _read_directory_as_text(path: Path) -> str:
 
     Raises ValueError if the aggregate size exceeds _MAX_DIR_READ_BYTES to
     prevent runaway memory use when a caller points to a large directory.
+    Raises ValueError if any entry resolves outside the directory (symlink
+    traversal / path-containment guard).
     """
+    path = path.resolve()
     parts: list[str] = []
     total = 0
     for f in sorted(path.iterdir()):
@@ -26,6 +29,10 @@ def _read_directory_as_text(path: Path) -> str:
             continue
         if f.suffix not in _DIR_READ_EXTENSIONS:
             continue
+        resolved = f.resolve()
+        # Defense in depth: reject symlinks pointing outside the directory.
+        if not resolved.is_relative_to(path):
+            raise ValueError(f"refusing to read {resolved}: resolved path escapes directory {path}")
         data = f.read_text()
         total += len(data)
         if total > _MAX_DIR_READ_BYTES:
@@ -59,7 +66,7 @@ def resolve_input(text: str | None, file_path: str | None) -> str:
     raise click.UsageError("Provide text, --file, or pipe stdin.")
 
 
-def resolve_references(paths: tuple[str, ...]) -> str:
+def resolve_references(paths: tuple[str | Path, ...]) -> str:
     """Resolve one or more reference paths (files or folder) into a single string."""
     parts: list[str] = []
     for p in paths:

@@ -18,7 +18,7 @@ from rfnry_rag.reasoning.cli.output import OutputMode, print_compliance, print_e
 @click.option(
     "--references",
     "reference_paths",
-    type=click.Path(),
+    type=click.Path(exists=True, path_type=Path),
     required=True,
     multiple=True,
     help="Reference document(s) or folder to check against.",
@@ -35,7 +35,7 @@ def compliance(
     ctx: click.Context,
     text: str | None,
     file_path: str | None,
-    reference_paths: tuple[str, ...],
+    reference_paths: tuple[Path, ...],
     dimensions_file: str | None,
     threshold: float | None,
 ) -> None:
