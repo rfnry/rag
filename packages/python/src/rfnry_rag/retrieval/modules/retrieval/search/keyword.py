@@ -47,48 +47,56 @@ class KeywordSearch:
 
     async def _build_index(self, knowledge_id: str | None) -> None:
         key = knowledge_id if knowledge_id is not None else _GLOBAL_KEY
-        if key in self._cache:
-            return
+
+        # Fast path: cache hit, no work.
         async with self._lock:
             if key in self._cache:
                 return
 
-            filters = {"knowledge_id": knowledge_id} if knowledge_id is not None else None
-            all_chunks: list[dict[str, Any]] = []
-            offset = None
+        # Collect chunks OUTSIDE the lock. Multiple builds for different
+        # keys can proceed concurrently; the vector store is the natural
+        # serialization point.
+        filters = {"knowledge_id": knowledge_id} if knowledge_id is not None else None
+        all_chunks: list[dict[str, Any]] = []
+        offset = None
 
-            while True:
-                results, next_offset = await self._store.scroll(filters=filters, limit=500, offset=offset)
-                for r in results:
-                    all_chunks.append(
-                        {
-                            "point_id": r.point_id,
-                            "content": r.payload.get("content", ""),
-                            "page_number": r.payload.get("page_number"),
-                            "section": r.payload.get("section"),
-                            "source_id": r.payload.get("source_id", ""),
-                            "source_type": r.payload.get("source_type"),
-                            "source_weight": r.payload.get("source_weight", 1.0),
-                            "source_name": r.payload.get("source_name", ""),
-                            "file_url": r.payload.get("file_url", ""),
-                            "tags": r.payload.get("tags", []),
-                        }
-                    )
-                if next_offset is None or not results:
-                    break
-                offset = next_offset
+        while True:
+            results, next_offset = await self._store.scroll(filters=filters, limit=500, offset=offset)
+            for r in results:
+                all_chunks.append(
+                    {
+                        "point_id": r.point_id,
+                        "content": r.payload.get("content", ""),
+                        "page_number": r.payload.get("page_number"),
+                        "section": r.payload.get("section"),
+                        "source_id": r.payload.get("source_id", ""),
+                        "source_type": r.payload.get("source_type"),
+                        "source_weight": r.payload.get("source_weight", 1.0),
+                        "source_name": r.payload.get("source_name", ""),
+                        "file_url": r.payload.get("file_url", ""),
+                        "tags": r.payload.get("tags", []),
+                    }
+                )
+            if next_offset is None or not results:
+                break
+            offset = next_offset
 
-            self._evict_lru()
-
-            if not all_chunks:
-                self._cache[key] = _BM25Entry(index=None, last_used=time.monotonic())
-                return
-
-            loop = asyncio.get_running_loop()
+        # Tokenize + build in thread pool — pure-Python CPU work.
+        loop = asyncio.get_running_loop()
+        if all_chunks:
             tokenized = await loop.run_in_executor(None, lambda: [_tokenize(c["content"]) for c in all_chunks])
-            index = await loop.run_in_executor(None, lambda: BM25Okapi(tokenized))
+            index: BM25Okapi | None = await loop.run_in_executor(None, lambda: BM25Okapi(tokenized))
+        else:
+            index = None
+
+        # Re-check-then-write under the lock. If another build landed first,
+        # discard ours.
+        async with self._lock:
+            if key in self._cache:
+                return
+            self._evict_lru()
             self._cache[key] = _BM25Entry(index=index, chunks=all_chunks, last_used=time.monotonic())
-            logger.info("built bm25 index for knowledge_id=%s: %d chunks", knowledge_id, len(all_chunks))
+        logger.info("built bm25 index for knowledge_id=%s: %d chunks", knowledge_id, len(all_chunks))
 
     async def search(
         self,
