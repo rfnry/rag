@@ -249,12 +249,17 @@ class TreeSearchConfig:
     model: LanguageModelClient | None = None
     max_steps: int = 5
     max_context_tokens: int = 50_000
+    max_sources_per_query: int = 50
 
     def __post_init__(self) -> None:
         if self.max_steps < 1:
             raise ConfigurationError("max_steps must be positive")
         if self.max_context_tokens < 1:
             raise ConfigurationError("max_context_tokens must be positive")
+        if not (1 <= self.max_sources_per_query <= 1000):
+            raise ConfigurationError(
+                f"max_sources_per_query must be 1-1000, got {self.max_sources_per_query}"
+            )
 
 
 @dataclass
@@ -1147,6 +1152,15 @@ class RagEngine:
         assert metadata_store is not None
 
         sources = await metadata_store.list_sources(knowledge_id=knowledge_id)
+
+        max_sources = self._config.tree_search.max_sources_per_query
+        if len(sources) > max_sources:
+            logger.warning(
+                "tree search limited to %d of %d sources (max_sources_per_query)",
+                max_sources,
+                len(sources),
+            )
+            sources = sources[:max_sources]
 
         async def search_one(source: Source) -> list[RetrievedChunk]:
             tree_json = await metadata_store.get_tree_index(source.source_id)

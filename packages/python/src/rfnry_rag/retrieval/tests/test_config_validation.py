@@ -181,3 +181,11 @@ def test_retrieval_config_history_window_validates() -> None:
         RetrievalConfig(history_window=0)
     with pytest.raises(ConfigurationError, match="history_window"):
         RetrievalConfig(history_window=21)
+
+
+def test_tree_search_config_max_sources_per_query_validates() -> None:
+    with pytest.raises(ConfigurationError, match="max_sources_per_query"):
+        TreeSearchConfig(enabled=False, max_sources_per_query=0)
+    with pytest.raises(ConfigurationError, match="max_sources_per_query"):
+        TreeSearchConfig(enabled=False, max_sources_per_query=1001)
+    assert TreeSearchConfig(enabled=False).max_sources_per_query == 50
