@@ -322,7 +322,8 @@ async def test_method_failure_does_not_abort_pipeline():
 # --- on_progress callback tests ---
 
 
-async def test_on_progress_called_once_per_method(tmp_path) -> None:
+async def test_on_progress_fires_at_group_boundaries(tmp_path) -> None:
+    """Progress fires once after required group and once after optional group."""
     calls: list[tuple[int, int]] = []
 
     async def progress(done: int, total: int) -> None:
@@ -331,18 +332,19 @@ async def test_on_progress_called_once_per_method(tmp_path) -> None:
     file_path = tmp_path / "sample.txt"
     file_path.write_text("hello world " * 50)
 
-    # Two methods in the list → two progress callbacks after each succeeds.
+    # Two required methods → progress fires ONCE after the required group: (2, 2),
+    # then again after the (empty) optional group: (2, 2).
     method_a = _mock_method(name="a", required=True)
     method_b = _mock_method(name="b", required=True)
     service = _make_service_advanced(ingestion_methods=[method_a, method_b])
 
     await service.ingest(file_path=file_path, on_progress=progress)
 
-    assert calls == [(1, 2), (2, 2)]
+    assert calls == [(2, 2), (2, 2)]
 
 
-async def test_on_progress_skips_failed_optional(tmp_path) -> None:
-    """Failed optional methods must NOT emit a progress event (continue before progress)."""
+async def test_on_progress_fires_at_both_group_boundaries(tmp_path) -> None:
+    """Progress fires after required group and after optional group (even when optional fails)."""
     calls: list[tuple[int, int]] = []
 
     async def progress(done: int, total: int) -> None:
@@ -351,12 +353,69 @@ async def test_on_progress_skips_failed_optional(tmp_path) -> None:
     file_path = tmp_path / "sample.txt"
     file_path.write_text("hello world " * 50)
 
+    # One required, one failing optional (total=2).
+    # After required group: (1, 2). After optional group: (2, 2).
     failing_optional = _mock_method(name="opt", required=False)
     failing_optional.ingest = AsyncMock(side_effect=RuntimeError("boom"))
     required = _mock_method(name="req", required=True)
 
-    service = _make_service_advanced(ingestion_methods=[failing_optional, required])
+    service = _make_service_advanced(ingestion_methods=[required, failing_optional])
     await service.ingest(file_path=file_path, on_progress=progress)
 
-    # Only the required method succeeded → one callback, not two.
-    assert calls == [(2, 2)]
+    assert calls == [(1, 2), (2, 2)]
+
+
+async def test_required_methods_run_concurrently_within_group(tmp_path) -> None:
+    """Required methods execute in parallel inside the TaskGroup."""
+    import asyncio
+
+    concurrent = 0
+    max_concurrent = 0
+
+    async def slow_ingest(**kwargs: object) -> None:
+        nonlocal concurrent, max_concurrent
+        concurrent += 1
+        max_concurrent = max(max_concurrent, concurrent)
+        await asyncio.sleep(0.02)
+        concurrent -= 1
+
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text("hello world " * 50)
+
+    a = _mock_method(name="a", required=True)
+    a.ingest = AsyncMock(side_effect=slow_ingest)
+    b = _mock_method(name="b", required=True)
+    b.ingest = AsyncMock(side_effect=slow_ingest)
+
+    service = _make_service_advanced(ingestion_methods=[a, b])
+    await service.ingest(file_path=file_path)
+
+    assert max_concurrent >= 2
+
+
+async def test_optional_methods_run_concurrently_within_group(tmp_path) -> None:
+    """Optional methods execute in parallel inside gather."""
+    import asyncio
+
+    concurrent = 0
+    max_concurrent = 0
+
+    async def slow_ingest(**kwargs: object) -> None:
+        nonlocal concurrent, max_concurrent
+        concurrent += 1
+        max_concurrent = max(max_concurrent, concurrent)
+        await asyncio.sleep(0.02)
+        concurrent -= 1
+
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text("hello world " * 50)
+
+    a = _mock_method(name="a", required=False)
+    a.ingest = AsyncMock(side_effect=slow_ingest)
+    b = _mock_method(name="b", required=False)
+    b.ingest = AsyncMock(side_effect=slow_ingest)
+
+    service = _make_service_advanced(ingestion_methods=[a, b])
+    await service.ingest(file_path=file_path)
+
+    assert max_concurrent >= 2

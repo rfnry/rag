@@ -44,7 +44,7 @@ async def test_required_method_failure_aborts_and_does_not_commit_source(tmp_pat
     fp = tmp_path / "a.txt"
     fp.write_text("hello world " * 50)
 
-    with pytest.raises(IngestionError, match="vector"):
+    with pytest.raises(IngestionError, match="required ingestion method failed"):
         await svc.ingest(file_path=fp)
 
     metadata_store.create_source.assert_not_called()

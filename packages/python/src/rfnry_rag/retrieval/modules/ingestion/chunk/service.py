@@ -101,46 +101,68 @@ class IngestionService:
         pages: list[ParsedPage] | None = None,
         on_progress: IngestionProgress | None = None,
     ) -> None:
-        """Dispatch ingestion to all registered methods.
+        """Dispatch ingestion to all registered methods in parallel groups.
 
         Each method declares ``required: bool``. Required methods (vector,
-        document) abort ingestion on failure by raising ``IngestionError`` —
-        the caller uses this to skip the metadata commit so a partially-
-        ingested source is never marked as successful. Optional methods
-        (graph, tree) are logged and the pipeline continues.
+        document) run concurrently via ``asyncio.TaskGroup`` — a single
+        failure cancels all siblings and aborts ingestion with
+        ``IngestionError``, skipping the metadata commit so no partially-
+        ingested source is ever marked as successful.
+
+        Optional methods (graph, tree) run concurrently via
+        ``asyncio.gather(return_exceptions=True)`` — failures are logged and
+        the pipeline continues.
 
         A method missing the ``required`` attribute is treated as required
         to preserve data integrity by default.
 
-        ``on_progress`` is invoked with ``(done, total)`` after each
-        successful method call. Optional methods that fail are skipped and
-        do NOT emit a progress event, so ``total`` may not be reached if
-        every optional method raises.
+        ``on_progress`` is invoked with ``(done, total)`` twice: once after
+        the required group completes and once after the optional group
+        completes. Group-level progress boundaries replace the previous
+        per-method firing.
         """
-        total = len(self._ingestion_methods)
-        for done, method in enumerate(self._ingestion_methods, start=1):
+        required = [m for m in self._ingestion_methods if getattr(m, "required", True)]
+        optional = [m for m in self._ingestion_methods if not getattr(m, "required", True)]
+        total = len(required) + len(optional)
+
+        ingest_kwargs: dict[str, Any] = dict(
+            source_id=source_id,
+            knowledge_id=knowledge_id,
+            source_type=source_type,
+            source_weight=source_weight,
+            title=title,
+            full_text=full_text,
+            chunks=chunks,
+            tags=tags,
+            metadata=metadata,
+            hash_value=hash_value,
+            pages=pages,
+        )
+
+        if required:
             try:
-                await method.ingest(
-                    source_id=source_id,
-                    knowledge_id=knowledge_id,
-                    source_type=source_type,
-                    source_weight=source_weight,
-                    title=title,
-                    full_text=full_text,
-                    chunks=chunks,
-                    tags=tags,
-                    metadata=metadata,
-                    hash_value=hash_value,
-                    pages=pages,
-                )
-            except Exception as exc:
-                if getattr(method, "required", True):
-                    logger.exception("required ingestion method '%s' failed — aborting", method.name)
-                    raise IngestionError(f"required ingestion method '{method.name}' failed: {exc}") from exc
-                logger.warning("optional ingestion method '%s' failed: %s", method.name, exc)
-                continue
-            if on_progress is not None:
-                await on_progress(done, total)
+                async with asyncio.TaskGroup() as tg:
+                    for m in required:
+                        tg.create_task(m.ingest(**ingest_kwargs))
+            except* Exception as eg:
+                first = eg.exceptions[0]
+                logger.exception("required ingestion method failed — aborting")
+                raise IngestionError(f"required ingestion method failed: {first}") from first
+
+        if on_progress is not None:
+            await on_progress(len(required), total)
+
+        if optional:
+            outcomes = await asyncio.gather(
+                *(m.ingest(**ingest_kwargs) for m in optional),
+                return_exceptions=True,
+            )
+            for method, outcome in zip(optional, outcomes, strict=True):
+                if isinstance(outcome, BaseException):
+                    logger.warning("optional ingestion method '%s' failed: %s", method.name, outcome)
+
+        if on_progress is not None:
+            await on_progress(total, total)
 
     async def ingest(
         self,
