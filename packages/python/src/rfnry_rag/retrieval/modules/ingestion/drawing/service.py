@@ -28,6 +28,7 @@ from rfnry_rag.retrieval.common.language_model import build_registry
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import Source
 from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+from rfnry_rag.retrieval.modules.ingestion.drawing.extract_dxf import extract_dxf_analysis
 from rfnry_rag.retrieval.modules.ingestion.drawing.render import render_dxf, render_pdf_pages
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.stores.graph.base import BaseGraphStore
@@ -163,8 +164,11 @@ class DrawingIngestionService:
                 page_rows, self._config, self._registry, source.metadata,
             )
         elif source_format == "dxf":
-            # C6 will fill this; for now leave a stub.
-            raise NotImplementedError("DXF extract - see Task C6")
+            file_path = Path(source.metadata["file_path"])
+            analysis = await asyncio.to_thread(
+                extract_dxf_analysis, file_path, self._config
+            )
+            analyses = [analysis]
         else:
             raise IngestionError(
                 f"unsupported source_format for extract: {source_format!r}"
