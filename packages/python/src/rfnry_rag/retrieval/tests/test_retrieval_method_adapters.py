@@ -1,18 +1,14 @@
-"""Adapter tests — TreeRetrieval and StructuredRetrieval wrap internal services
-so they conform to the BaseRetrievalMethod protocol and can be composed into
-a RetrievalService."""
+"""Adapter tests — StructuredRetrieval wraps an internal service so it conforms
+to the BaseRetrievalMethod protocol and can be composed into a RetrievalService."""
 
-import json
-from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.retrieval.common.models import RetrievedChunk, Source, TreeIndex
+from rfnry_rag.retrieval.common.models import RetrievedChunk
 from rfnry_rag.retrieval.modules.retrieval.methods.enrich import StructuredRetrieval
-from rfnry_rag.retrieval.modules.retrieval.methods.tree import TreeRetrieval
 
 
 def _chunk(cid: str) -> RetrievedChunk:
@@ -59,51 +55,3 @@ async def test_structured_retrieval_isolates_errors() -> None:
     assert result == []
 
 
-def _source(sid: str) -> Source:
-    return Source(source_id=sid, knowledge_id="k", source_type="manual", status="completed")
-
-
-@pytest.mark.asyncio
-async def test_tree_retrieval_adapter_conforms_to_protocol() -> None:
-    tree_index = TreeIndex(
-        source_id="s1",
-        doc_name="doc",
-        doc_description=None,
-        structure=[],
-        page_count=0,
-        created_at=datetime.now(UTC),
-        pages=[],
-    )
-    # Empty pages means the loop skips; no _service.search call. Test conformance only.
-    metadata_store = SimpleNamespace(
-        list_sources=AsyncMock(return_value=[_source("s1")]),
-        get_tree_index=AsyncMock(return_value=json.dumps(tree_index.to_dict())),
-    )
-    service = SimpleNamespace(search=AsyncMock(return_value=[]), to_retrieved_chunks=lambda r, t: [])
-
-    adapter = TreeRetrieval(
-        service=cast(object, service),  # type: ignore[arg-type]
-        metadata_store=cast(object, metadata_store),  # type: ignore[arg-type]
-        weight=0.9,
-    )
-    _assert_conforms_to_protocol(adapter, "tree")
-    assert adapter.weight == 0.9
-    assert adapter.top_k is None
-
-    result = await adapter.search("q", top_k=5, knowledge_id="k")
-    assert result == []
-    metadata_store.list_sources.assert_awaited_once_with(knowledge_id="k")
-    # tree_index.pages is empty → service.search not invoked
-    service.search.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_tree_retrieval_isolates_errors() -> None:
-    metadata_store = SimpleNamespace(list_sources=AsyncMock(side_effect=RuntimeError("boom")))
-    service = SimpleNamespace()
-    adapter = TreeRetrieval(
-        service=cast(object, service),  # type: ignore[arg-type]
-        metadata_store=cast(object, metadata_store),  # type: ignore[arg-type]
-    )
-    result = await adapter.search("q", top_k=5)
-    assert result == []
