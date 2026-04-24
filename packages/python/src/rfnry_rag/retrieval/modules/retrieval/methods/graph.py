@@ -6,7 +6,7 @@ from typing import Any
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievedChunk
 from rfnry_rag.retrieval.stores.graph.base import BaseGraphStore
-from rfnry_rag.retrieval.stores.graph.models import GraphResult
+from rfnry_rag.retrieval.stores.graph.models import GraphPath, GraphResult
 
 logger = get_logger("retrieval.methods.graph")
 
@@ -54,6 +54,50 @@ class GraphRetrieval:
             elapsed = (time.perf_counter() - start) * 1000
             logger.warning("failed in %.1fms — %s", elapsed, exc)
             return []
+
+    async def trace(
+        self,
+        entity_name: str,
+        max_hops: int = 2,
+        relation_types: list[str] | None = None,
+        knowledge_id: str | None = None,
+    ) -> list[GraphPath]:
+        """Traverse the knowledge graph from entity_name, returning all matching paths.
+
+        This is a thin wrapper around the graph store's query_graph() + N-hop
+        traversal. Unlike search(), it returns GraphPath objects directly so
+        callers can inspect the actual connectivity subgraph without re-parsing
+        a RetrievedChunk.description string.
+
+        When relation_types is provided, only paths whose every edge is in the
+        list are returned (strict AND filter).
+
+        max_hops bounds the traversal depth and is passed through to the store.
+        Errors from the store are treated the same way search() treats them:
+        logged at warning level and converted to an empty result list.
+        """
+        start = time.perf_counter()
+        try:
+            results = await self._store.query_graph(
+                query=entity_name,
+                knowledge_id=knowledge_id,
+                max_hops=max_hops,
+                top_k=self._top_k or 10,
+            )
+        except Exception as exc:
+            elapsed = (time.perf_counter() - start) * 1000
+            logger.warning("trace(%r) failed in %.1fms — %s", entity_name, elapsed, exc)
+            return []
+
+        paths: list[GraphPath] = []
+        for r in results:
+            paths.extend(r.paths)
+        if relation_types is not None:
+            allowed = set(relation_types)
+            paths = [p for p in paths if all(rel in allowed for rel in p.relationships)]
+        elapsed = (time.perf_counter() - start) * 1000
+        logger.info("trace(%r) returned %d paths in %.1fms", entity_name, len(paths), elapsed)
+        return paths
 
     @staticmethod
     def _convert(results: list[GraphResult]) -> list[RetrievedChunk]:
