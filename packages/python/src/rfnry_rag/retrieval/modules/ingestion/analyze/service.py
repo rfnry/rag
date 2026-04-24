@@ -143,6 +143,9 @@ class AnalyzedIngestionService:
         source = await self._metadata_store.get_source(source_id)
         if source is None:
             raise IngestionError(f"source not found: {source_id}")
+        if source.status in ("synthesized", "completed"):
+            logger.info("[synthesize] source %s already %s, skipping", source_id, source.status)
+            return source
 
         file_type = source.metadata.get("file_type")
         rows = await self._metadata_store.get_page_analyses(source_id)
@@ -172,6 +175,9 @@ class AnalyzedIngestionService:
         source = await self._metadata_store.get_source(source_id)
         if source is None:
             raise IngestionError(f"source not found: {source_id}")
+        if source.status == "completed":
+            logger.info("[ingest] source %s already completed, skipping", source_id)
+            return source
 
         rows = await self._metadata_store.get_page_analyses(source_id)
         page_analyses = [_deserialize_analysis(r["data"]) for r in rows]

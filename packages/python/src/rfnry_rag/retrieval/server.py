@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from rfnry_rag.retrieval.common.errors import ConfigurationError, InputError
+from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 
 if TYPE_CHECKING:
     from rfnry_rag.retrieval.modules.ingestion.tree.service import TreeIndexingService
@@ -47,7 +48,7 @@ from rfnry_rag.retrieval.stores.vector.base import BaseVectorStore
 
 logger = get_logger("server")
 
-SUPPORTED_STRUCTURED_EXTENSIONS = {".xml", ".l5x"}
+SUPPORTED_STRUCTURED_EXTENSIONS = {".pdf", ".xml", ".l5x"}
 
 # Size guards on user-supplied inputs. These prevent monetary-DoS (huge query
 # sent to every embedding provider) and OOM (unbounded text or metadata). The
@@ -813,6 +814,28 @@ class RagEngine:
                     f"structured ingestion does not support collection routing "
                     f"(got collection={collection!r}, file type={ext!r})"
                 )
+
+            # Status-based resume: find any prior ingest for the same file_hash.
+            metadata_store = self._config.persistence.metadata_store
+            existing: Source | None = None
+            if metadata_store is not None:
+                file_hash_value = await asyncio.to_thread(compute_file_hash, file_path)
+                existing = await metadata_store.find_by_hash(file_hash_value, knowledge_id)
+
+            if existing is not None and existing.status == "completed":
+                logger.info("[ingest] resume: completed source %s returned", existing.source_id)
+                return existing
+
+            if existing is not None and existing.status == "synthesized":
+                logger.info("[ingest] resume: continuing from synthesized source %s", existing.source_id)
+                return await self._structured_ingestion.ingest(existing.source_id)
+
+            if existing is not None and existing.status == "analyzed":
+                logger.info("[ingest] resume: continuing from analyzed source %s", existing.source_id)
+                source = await self._structured_ingestion.synthesize(existing.source_id)
+                return await self._structured_ingestion.ingest(source.source_id)
+
+            # Fresh run (or no metadata store): all 3 phases
             source = await self._structured_ingestion.analyze(
                 file_path=file_path,
                 knowledge_id=knowledge_id,
