@@ -683,28 +683,43 @@ class RagEngine:
         logger.info("ragengine ready — %s flows enabled", ", ".join(flows) if flows else "none")
 
     async def shutdown(self) -> None:
-        """Cleanup all store connections."""
+        """Cleanup all store connections in reverse-init order."""
         persistence = self._config.persistence
+        # Reverse-init order: vector → graph → document → metadata
         if persistence.vector_store:
             try:
                 await persistence.vector_store.shutdown()
             except Exception:
                 logger.exception("error shutting down vector store")
-        if persistence.metadata_store:
-            try:
-                await persistence.metadata_store.shutdown()
-            except Exception:
-                logger.exception("error shutting down metadata store")
-        if persistence.document_store:
-            try:
-                await persistence.document_store.shutdown()
-            except Exception:
-                logger.exception("error shutting down document store")
         if persistence.graph_store:
             try:
                 await persistence.graph_store.shutdown()
             except Exception:
                 logger.exception("error shutting down graph store")
+        if persistence.document_store:
+            try:
+                await persistence.document_store.shutdown()
+            except Exception:
+                logger.exception("error shutting down document store")
+        if persistence.metadata_store:
+            try:
+                await persistence.metadata_store.shutdown()
+            except Exception:
+                logger.exception("error shutting down metadata store")
+        # Null out service refs so post-shutdown access fails cleanly
+        self._ingestion_service = None
+        self._structured_ingestion = None
+        self._retrieval_service = None
+        self._structured_retrieval = None
+        self._generation_service = None
+        self._knowledge_manager = None
+        self._step_service = None
+        self._tree_indexing_service = None
+        self._tree_search_service = None
+        self._retrieval_namespace = None
+        self._ingestion_namespace = None
+        self._retrieval_by_collection.clear()
+        self._ingestion_by_collection.clear()
         self._initialized = False
         logger.info("ragengine shut down")
 
