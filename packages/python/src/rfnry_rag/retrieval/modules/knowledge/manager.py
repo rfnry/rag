@@ -105,6 +105,10 @@ class KnowledgeManager:
     async def purge_stale(self, knowledge_id: str | None = None) -> int:
         """Remove all stale sources. Returns the count of removed sources."""
         stale = await self.list_stale(knowledge_id=knowledge_id)
+        # SERIAL: remove() touches the metadata store, vector store, document
+        # store, and graph store for each source. Running removes concurrently
+        # can produce conflicting deletes on shared indexes and raises in the
+        # metadata store if two coroutines attempt FK-constrained deletes at once.
         for source in stale:
             await self.remove(source.source_id)
         return len(stale)

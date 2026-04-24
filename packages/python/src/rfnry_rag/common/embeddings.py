@@ -22,6 +22,9 @@ async def embed_batched(
     if len(texts) <= batch_size:
         return await embeddings.embed(texts)
     all_vectors: list[list[float]] = []
+    # SERIAL: sub-batches are awaited one at a time. A future C3 task will
+    # centralise concurrency here with asyncio.gather + a semaphore so that
+    # provider-level rate-limit handling lives in exactly one place.
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
         vectors = await embeddings.embed(batch)

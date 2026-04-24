@@ -37,6 +37,9 @@ class Pipeline:
         start = time.monotonic()
         result = PipelineResult()
 
+        # SERIAL: each step in the pipeline may read results written by prior steps
+        # (e.g., classify after analyze to branch on intent). Parallelising would
+        # require knowing the full dependency graph of all step types up front.
         for step in steps:
             if isinstance(step, AnalyzeStep):
                 if not self._services.analysis:

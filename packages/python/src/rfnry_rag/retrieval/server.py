@@ -1024,6 +1024,10 @@ class RagEngine:
         returned after a cross-collection ingest/remove."""
         seen: set[int] = set()
         if self._retrieval_by_collection:
+            # SERIAL: invalidate_cache mutates in-memory BM25 state; the `seen`
+            # set prevents double-invalidation of shared method instances across
+            # collections. Concurrent invalidations on the same method instance
+            # would require locking the BM25 cache — serial is simpler and safe.
             for retrieval_service, _ in self._retrieval_by_collection.values():
                 for method in retrieval_service.methods:
                     if method.name != "vector" or id(method) in seen:

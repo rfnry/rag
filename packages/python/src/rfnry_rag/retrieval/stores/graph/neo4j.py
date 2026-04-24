@@ -254,6 +254,9 @@ class Neo4jGraphStore:
         await self._driver.verify_connectivity()
 
         async with self._driver.session(database=self.database) as session:
+            # SERIAL: Neo4j async sessions are not concurrency-safe — only one
+            # outstanding async call per session is allowed. DDL queries are also
+            # cheap one-time setup; the serialisation cost here is negligible.
             for query in _INDEX_QUERIES:
                 await session.run(query)
             await session.run(_FULLTEXT_INDEX_QUERY)
@@ -279,6 +282,10 @@ class Neo4jGraphStore:
             return
 
         async with self._driver.session(database=self.database) as session:
+            # SERIAL: Neo4j async sessions are not concurrency-safe — only one
+            # outstanding async call per session is allowed. To parallelise
+            # entity writes, open a separate session per entity, but that
+            # defeats the purpose of session-scoped auto-commit semantics.
             for entity in entities:
                 entity_id = _compute_entity_id(entity.name, entity.entity_type, knowledge_id)
                 await session.run(
@@ -305,6 +312,8 @@ class Neo4jGraphStore:
             return
 
         async with self._driver.session(database=self.database) as session:
+            # SERIAL: same session concurrency constraint as add_entities — the
+            # Neo4j async session allows only one outstanding call at a time.
             for rel in relations:
                 from_id = _compute_entity_id(rel.from_entity, rel.from_type, rel.knowledge_id)
                 to_id = _compute_entity_id(rel.to_entity, rel.to_type, rel.knowledge_id)
@@ -354,6 +363,10 @@ class Neo4jGraphStore:
                 return []
 
             results: list[GraphResult] = []
+            # SERIAL: all traversals share the same Neo4j session which allows
+            # only one outstanding async call at a time. Opening a session per
+            # seed is possible but multiplies connection-pool pressure for a
+            # typically small seed set (top_k ≤ 10).
             for seed_node, seed_score in seeds:
                 connected_entities, paths = await self._traverse(
                     session, seed_node["entity_id"], max_hops, knowledge_id, timeout=timeout

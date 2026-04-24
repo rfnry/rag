@@ -58,6 +58,10 @@ class TreeSearchService:
         max_steps = self._config.max_steps
         max_context_tokens = self._config.max_context_tokens
 
+        # SERIAL: tree navigation is a multi-turn tool-call loop — each step's
+        # LLM response (drill-down, fetch-pages, or resolve) determines the
+        # next action. The accumulated_context from prior steps is the input to
+        # the next step; parallelising would defeat the navigation logic.
         for step in range(max_steps):
             logger.info("tree search step %d/%d", step + 1, max_steps)
 
