@@ -143,13 +143,14 @@ class IngestionService:
             try:
                 async with asyncio.TaskGroup() as tg:
                     for m in required:
-                        tg.create_task(m.ingest(**ingest_kwargs))
+                        tg.create_task(m.ingest(**ingest_kwargs), name=m.name)
             except* Exception as eg:
-                first = eg.exceptions[0]
-                logger.exception("required ingestion method failed — aborting")
-                raise IngestionError(f"required ingestion method failed: {first}") from first
+                for exc in eg.exceptions:
+                    logger.error("required ingestion method failed — aborting: %s", exc, exc_info=exc)
+                causes = "; ".join(str(e) for e in eg.exceptions)
+                raise IngestionError(f"required ingestion method failed: {causes}") from eg.exceptions[0]
 
-        if on_progress is not None:
+        if required and on_progress is not None:
             await on_progress(len(required), total)
 
         if optional:
@@ -161,7 +162,7 @@ class IngestionService:
                 if isinstance(outcome, BaseException):
                     logger.warning("optional ingestion method '%s' failed: %s", method.name, outcome)
 
-        if on_progress is not None:
+        if optional and on_progress is not None:
             await on_progress(total, total)
 
     async def ingest(

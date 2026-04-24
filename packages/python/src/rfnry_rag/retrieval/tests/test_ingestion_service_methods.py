@@ -332,15 +332,15 @@ async def test_on_progress_fires_at_group_boundaries(tmp_path) -> None:
     file_path = tmp_path / "sample.txt"
     file_path.write_text("hello world " * 50)
 
-    # Two required methods → progress fires ONCE after the required group: (2, 2),
-    # then again after the (empty) optional group: (2, 2).
+    # Two required methods, zero optional → progress fires ONCE after the required
+    # group: (2, 2). The empty optional group is skipped entirely.
     method_a = _mock_method(name="a", required=True)
     method_b = _mock_method(name="b", required=True)
     service = _make_service_advanced(ingestion_methods=[method_a, method_b])
 
     await service.ingest(file_path=file_path, on_progress=progress)
 
-    assert calls == [(2, 2), (2, 2)]
+    assert calls == [(2, 2)]
 
 
 async def test_on_progress_fires_at_both_group_boundaries(tmp_path) -> None:
