@@ -142,7 +142,7 @@ async def test_cache_invalidation_fans_out_to_all_scoped_collections():
     invalidated: list[tuple[int, str | None]] = []
 
     for idx, (retrieval_service, _) in enumerate(engine._retrieval_by_collection.values()):
-        for method in retrieval_service._retrieval_methods:
+        for method in retrieval_service.methods:
             if method.name == "vector":
 
                 async def _capture(knowledge_id, i=idx):

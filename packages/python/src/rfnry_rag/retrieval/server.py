@@ -961,7 +961,7 @@ class RagEngine:
         seen: set[int] = set()
         if self._retrieval_by_collection:
             for retrieval_service, _ in self._retrieval_by_collection.values():
-                for method in retrieval_service._retrieval_methods:
+                for method in retrieval_service.methods:
                     if method.name != "vector" or id(method) in seen:
                         continue
                     seen.add(id(method))

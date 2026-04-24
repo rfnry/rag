@@ -30,6 +30,15 @@ class RetrievalService:
         self._query_rewriter = query_rewriter
         self._chunk_refiner = chunk_refiner
 
+    @property
+    def methods(self) -> list[BaseRetrievalMethod]:
+        """Public read-only view over configured retrieval methods.
+
+        Use this instead of `_retrieval_methods` from outside the class.
+        Returns the live list — callers must not mutate.
+        """
+        return self._retrieval_methods
+
     async def retrieve(
         self,
         query: str,
