@@ -6,6 +6,7 @@ moves tree_index_json to a separate table, the test will fail unless that
 table is wired up with ON DELETE CASCADE (or explicit deletion)."""
 
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
@@ -99,7 +100,7 @@ async def test_get_tree_indexes_returns_mapping(tmp_path) -> None:
     await store.initialize()
 
     # Seed two sources with tree indexes; one without.
-    base = dict(knowledge_id="kb1", embedding_model="m", created_at=datetime.now(UTC))
+    base: dict[str, Any] = dict(knowledge_id="kb1", embedding_model="m", created_at=datetime.now(UTC))
     await store.create_source(Source(source_id="s1", **base))
     await store.create_source(Source(source_id="s2", **base))
     await store.create_source(Source(source_id="s3", **base))
