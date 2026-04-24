@@ -1,10 +1,11 @@
 from typing import Any
 
-from sqlalchemy import String, Text, delete, select, text
+from sqlalchemy import ColumnElement, String, Text, column, delete, func, literal, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from rfnry_rag.retrieval.common.errors import ConfigurationError
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import ContentMatch
 from rfnry_rag.retrieval.stores.document.excerpt import extract_window
@@ -44,7 +45,23 @@ class PostgresDocumentStore:
         pool_pre_ping: bool = True,
         pool_timeout: int = 10,
         echo: bool = False,
+        headline_max_words: int = 200,
+        headline_min_words: int = 80,
+        headline_max_fragments: int = 3,
     ) -> None:
+        if headline_max_words < 1:
+            raise ConfigurationError("headline_max_words must be >= 1")
+        if headline_min_words < 1:
+            raise ConfigurationError("headline_min_words must be >= 1")
+        if headline_max_fragments < 1:
+            raise ConfigurationError("headline_max_fragments must be >= 1")
+        if headline_min_words > headline_max_words:
+            raise ConfigurationError(
+                f"headline_min_words ({headline_min_words}) must be <= headline_max_words ({headline_max_words})"
+            )
+        self._headline_max_words = headline_max_words
+        self._headline_min_words = headline_min_words
+        self._headline_max_fragments = headline_max_fragments
         parsed = make_url(url)
         if parsed.drivername == "postgresql":
             parsed = parsed.set(drivername="postgresql+asyncpg")
@@ -68,6 +85,25 @@ class PostgresDocumentStore:
         self._is_postgres = parsed.drivername.startswith("postgresql")
 
     async def initialize(self) -> None:
+        driver = self._engine.dialect.name
+        if driver == "sqlite":
+            logger.info(
+                "document store initializing: driver=sqlite static pool (pool_size/max_overflow not applicable)"
+            )
+        else:
+            pool = self._engine.sync_engine.pool
+            pool_size = pool.size() if hasattr(pool, "size") else "n/a"
+            overflow = getattr(pool, "_max_overflow", "n/a")
+            recycle = getattr(pool, "_recycle", "n/a")
+            timeout = getattr(pool, "_timeout", "n/a")
+            logger.info(
+                "document store initializing: driver=%s pool_size=%s max_overflow=%s pool_recycle=%ss pool_timeout=%ss",
+                driver,
+                pool_size,
+                overflow,
+                recycle,
+                timeout,
+            )
         async with self._engine.begin() as conn:
             await conn.run_sync(_Base.metadata.create_all)
 
@@ -146,28 +182,38 @@ class PostgresDocumentStore:
     ) -> list[ContentMatch]:
         seen: dict[str, ContentMatch] = {}
 
-        where_clauses = ["tsv @@ plainto_tsquery('english', :query)"]
-        params: dict[str, Any] = {"query": query}
-        if knowledge_id is not None:
-            where_clauses.append("knowledge_id = :knowledge_id")
-            params["knowledge_id"] = knowledge_id
-        if source_type is not None:
-            where_clauses.append("source_type = :source_type")
-            params["source_type"] = source_type
-
-        where_sql = " AND ".join(where_clauses)
-        tsquery_sql = text(
-            f"SELECT source_id, title, source_type, "  # noqa: S608
-            f"ts_rank(tsv, plainto_tsquery('english', :query)) AS rank, "
-            f"ts_headline('english', content, plainto_tsquery('english', :query), "
-            f"'MaxWords=200,MinWords=80,MaxFragments=3') AS headline "
-            f"FROM rag_source_content WHERE {where_sql} "
-            f"ORDER BY rank DESC LIMIT :top_k"
+        # Reference the generated tsvector column by name — it is not in the ORM
+        # mapping because it is a GENERATED ALWAYS column added via DDL.
+        tsv_col: ColumnElement[Any] = column("tsv")
+        tsq = func.plainto_tsquery(literal("english"), literal(query))
+        rank_col = func.ts_rank(tsv_col, tsq).label("rank")
+        headline_opts = (
+            f"MaxWords={self._headline_max_words},"
+            f"MinWords={self._headline_min_words},"
+            f"MaxFragments={self._headline_max_fragments}"
         )
-        params["top_k"] = top_k
+        headline_col = func.ts_headline(
+            literal("english"),
+            _SourceContentRow.content,
+            tsq,
+            literal(headline_opts),
+        ).label("headline")
+
+        stmt = select(
+            _SourceContentRow.source_id,
+            _SourceContentRow.title,
+            _SourceContentRow.source_type,
+            rank_col,
+            headline_col,
+        ).where(tsv_col.op("@@")(tsq))
+        if knowledge_id is not None:
+            stmt = stmt.where(_SourceContentRow.knowledge_id == knowledge_id)
+        if source_type is not None:
+            stmt = stmt.where(_SourceContentRow.source_type == source_type)
+        stmt = stmt.order_by(rank_col.desc()).limit(top_k)
 
         async with self._session_factory() as session:
-            result = await session.execute(tsquery_sql, params)
+            result = await session.execute(stmt)
             for row in result:
                 seen[row.source_id] = ContentMatch(
                     source_id=row.source_id,
@@ -180,24 +226,19 @@ class PostgresDocumentStore:
 
             if len(seen) < top_k:
                 remaining = top_k - len(seen)
-                ilike_where = ["content ILIKE :pattern"]
-                ilike_params: dict[str, Any] = {"pattern": f"%{_escape_like(query)}%"}
+                ilike_stmt = select(
+                    _SourceContentRow.source_id,
+                    _SourceContentRow.title,
+                    _SourceContentRow.content,
+                    _SourceContentRow.source_type,
+                ).where(_SourceContentRow.content.ilike(f"%{_escape_like(query)}%"))
                 if knowledge_id is not None:
-                    ilike_where.append("knowledge_id = :knowledge_id")
-                    ilike_params["knowledge_id"] = knowledge_id
+                    ilike_stmt = ilike_stmt.where(_SourceContentRow.knowledge_id == knowledge_id)
                 if source_type is not None:
-                    ilike_where.append("source_type = :source_type")
-                    ilike_params["source_type"] = source_type
+                    ilike_stmt = ilike_stmt.where(_SourceContentRow.source_type == source_type)
+                ilike_stmt = ilike_stmt.limit(remaining + len(seen))
 
-                ilike_where_sql = " AND ".join(ilike_where)
-                ilike_sql = text(
-                    f"SELECT source_id, title, content, source_type "  # noqa: S608
-                    f"FROM rag_source_content WHERE {ilike_where_sql} "
-                    f"LIMIT :limit"
-                )
-                ilike_params["limit"] = remaining + len(seen)
-
-                result = await session.execute(ilike_sql, ilike_params)
+                result = await session.execute(ilike_stmt)
                 for row in result:
                     if row.source_id not in seen:
                         seen[row.source_id] = ContentMatch(

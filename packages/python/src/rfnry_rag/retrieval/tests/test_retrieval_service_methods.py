@@ -207,3 +207,21 @@ async def test_fetch_k_is_four_times_top_k():
     service = RetrievalService(retrieval_methods=[vector], top_k=3)
     await service.retrieve(query="test")
     assert vector.search.call_args.kwargs["top_k"] == 12  # 3 * 4
+
+
+# --- Public API surface tests ---
+
+
+def test_retrieval_service_exposes_public_methods_iterator() -> None:
+    svc = RetrievalService(retrieval_methods=[])
+    assert list(svc.methods) == []
+
+
+def test_retrieval_service_methods_returns_configured_list() -> None:
+    from unittest.mock import MagicMock
+
+    from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod
+
+    method = MagicMock(spec=BaseRetrievalMethod)
+    svc = RetrievalService(retrieval_methods=[method])
+    assert svc.methods == [method]

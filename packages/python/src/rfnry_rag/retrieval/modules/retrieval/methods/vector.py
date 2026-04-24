@@ -241,10 +241,12 @@ class VectorRetrieval:
         knowledge_id: str | None,
     ) -> list[RetrievedChunk]:
         key = knowledge_id if knowledge_id is not None else _GLOBAL_KEY
-        if key not in self._bm25_cache:
+        async with self._bm25_lock:
+            entry = self._bm25_cache.get(key)
+        if entry is None:
             await self._build_bm25_index(knowledge_id)
-
-        entry = self._bm25_cache.get(key)
+            async with self._bm25_lock:
+                entry = self._bm25_cache.get(key)
         if entry is None or entry.index is None or not entry.chunks:
             return []
 

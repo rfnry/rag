@@ -1,6 +1,4 @@
-import asyncio
 from dataclasses import replace
-from functools import partial
 
 import voyageai
 
@@ -13,7 +11,7 @@ logger = get_logger(__name__)
 
 class _VoyageReranking:
     def __init__(self, provider: LanguageModelProvider) -> None:
-        self._client = voyageai.Client(api_key=provider.api_key)
+        self._client = voyageai.AsyncClient(api_key=provider.api_key)
         self._model = provider.model
 
     async def rerank(self, query: str, results: list[RetrievedChunk], top_k: int = 5) -> list[RetrievedChunk]:
@@ -23,16 +21,11 @@ class _VoyageReranking:
         documents = [r.content for r in results]
 
         try:
-            loop = asyncio.get_running_loop()
-            response = await loop.run_in_executor(
-                None,
-                partial(
-                    self._client.rerank,
-                    query=query,
-                    documents=documents,
-                    model=self._model,
-                    top_k=top_k,
-                ),
+            response = await self._client.rerank(
+                query=query,
+                documents=documents,
+                model=self._model,
+                top_k=top_k,
             )
         except Exception:
             logger.exception("voyage rerank failed, returning unranked")

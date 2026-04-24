@@ -4,6 +4,23 @@ import os
 _BAML_LOG_ENV = "BAML_LOG"
 _RFNRY_RAG_BAML_LOG_ENV = "RFNRY_RAG_BAML_LOG"
 
+_VALID_LEVELS = set(logging.getLevelNamesMapping())
+
+
+def _resolve_level(raw: str) -> int:
+    """Resolve a level name string to its integer value.
+
+    Raises ``ConfigurationError`` for unrecognised names so invalid
+    ``RFNRY_RAG_LOG_LEVEL`` values are caught at startup rather than
+    silently defaulting to NOTSET (0).
+    """
+    upper = raw.upper()
+    if upper not in _VALID_LEVELS:
+        from rfnry_rag.common.errors import ConfigurationError
+
+        raise ConfigurationError(f"unknown log level {raw!r}; valid: {sorted(_VALID_LEVELS)}")
+    return logging.getLevelNamesMapping()[upper]
+
 
 def query_logging_enabled() -> bool:
     """True when user queries may be logged verbatim. Defaults False (PII-safe).
@@ -28,8 +45,8 @@ def get_logger(module: str) -> logging.Logger:
     _propagate_baml_log_env()
     logger = logging.getLogger(f"rfnry_rag.{module}")
     if os.getenv("RFNRY_RAG_LOG_ENABLED", "false").lower() == "true":
-        level = os.getenv("RFNRY_RAG_LOG_LEVEL", "INFO").upper()
-        logger.setLevel(getattr(logging, level, logging.INFO))
+        level = os.getenv("RFNRY_RAG_LOG_LEVEL", "INFO")
+        logger.setLevel(_resolve_level(level))
         if not logger.handlers:
             handler = logging.StreamHandler()
             handler.setFormatter(logging.Formatter("[%(name)s] %(message)s"))

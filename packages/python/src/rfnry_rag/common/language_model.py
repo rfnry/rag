@@ -121,6 +121,16 @@ def build_registry(client: LanguageModelClient) -> ClientRegistry:
 
     _apply_boundary_api_key(client.boundary_api_key)
 
+    _boundary_logger.info(
+        "language model client: provider=%s model=%s strategy=%s max_retries=%d timeout=%ds fallback=%s",
+        client.provider.provider,
+        client.provider.model,
+        client.strategy,
+        client.max_retries,
+        client.timeout_seconds,
+        bool(client.fallback),
+    )
+
     return registry
 
 

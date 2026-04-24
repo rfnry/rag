@@ -58,3 +58,29 @@ async def test_delete_source_is_idempotent_on_tree_index(tmp_path) -> None:
     assert await store.get_tree_index("s2") is None
     await store.delete_source("s2")
     assert await store.get_tree_index("s2") is None
+
+
+@pytest.mark.asyncio
+async def test_find_by_hash_returns_match(tmp_path) -> None:
+    store = SQLAlchemyMetadataStore(f"sqlite:///{tmp_path}/m.db")
+    await store.initialize()
+
+    source = Source(
+        source_id="s3",
+        knowledge_id="kb1",
+        embedding_model="m",
+        file_hash="abc123",
+        created_at=datetime.now(UTC),
+    )
+    await store.create_source(source)
+
+    # Exact match on hash + knowledge_id
+    found = await store.find_by_hash("abc123", "kb1")
+    assert found is not None
+    assert found.source_id == "s3"
+
+    # No match on unknown hash
+    assert await store.find_by_hash("nope", "kb1") is None
+
+    # No match when knowledge_id differs
+    assert await store.find_by_hash("abc123", "different") is None

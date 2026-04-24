@@ -1,3 +1,5 @@
+import inspect
+
 import pytest
 
 from rfnry_rag.retrieval.stores.document.postgres import PostgresDocumentStore
@@ -105,3 +107,23 @@ async def test_store_content_upsert(store):
     results_beta = await store.search_content(query="BETA", knowledge_id="kb-1")
     assert len(results_alpha) == 0
     assert len(results_beta) == 1
+
+
+def test_search_postgres_uses_core_expressions() -> None:
+    """Regression: _search_postgres must not assemble SQL via text(f'...')."""
+    source = inspect.getsource(PostgresDocumentStore._search_postgres)
+    assert "text(f" not in source, "_search_postgres must not use text(f'...') f-string SQL assembly"
+    assert "where_sql" not in source, "_search_postgres must not use the old f-string where_sql variable"
+    assert "ilike_where_sql" not in source, "_search_postgres must not use the old f-string ilike_where_sql variable"
+
+
+def test_postgres_headline_options_configurable() -> None:
+    store = PostgresDocumentStore(
+        url="sqlite+aiosqlite:///:memory:",
+        headline_max_words=50,
+        headline_min_words=20,
+        headline_max_fragments=1,
+    )
+    assert store._headline_max_words == 50
+    assert store._headline_min_words == 20
+    assert store._headline_max_fragments == 1

@@ -53,7 +53,7 @@ class IngestionService:
         metadata_store: BaseMetadataStore | None = None,
         on_ingestion_complete: Callable[[str | None], Awaitable[None]] | None = None,
         vision_parser: BaseVision | None = None,
-        contextual_chunking: bool = True,
+        chunk_context_headers: bool = True,
     ) -> None:
         self._chunker = chunker
         self._ingestion_methods = ingestion_methods
@@ -62,7 +62,7 @@ class IngestionService:
         self._source_type_weights = source_type_weights
         self._on_ingestion_complete = on_ingestion_complete
         self._vision_parser = vision_parser
-        self._contextual_chunking = contextual_chunking
+        self._chunk_context_headers = chunk_context_headers
 
     def _resolve_weight(self, source_type: str | None) -> float:
         if self._source_type_weights is None:
@@ -79,12 +79,11 @@ class IngestionService:
     async def _check_duplicate(self, hash_value: str, knowledge_id: str | None) -> None:
         if not self._metadata_store:
             return
-        existing = await self._metadata_store.list_sources(knowledge_id=knowledge_id)
-        for source in existing:
-            if source.file_hash == hash_value:
-                raise DuplicateSourceError(
-                    f"File already ingested as source {source.source_id} (hash={hash_value[:12]}...)"
-                )
+        existing = await self._metadata_store.find_by_hash(hash_value, knowledge_id)
+        if existing is not None:
+            raise DuplicateSourceError(
+                f"File already ingested as source {existing.source_id} (hash={hash_value[:12]}...)"
+            )
 
     async def _dispatch_methods(
         self,
@@ -99,38 +98,71 @@ class IngestionService:
         metadata: dict[str, Any],
         hash_value: str | None = None,
         pages: list[ParsedPage] | None = None,
+        on_progress: IngestionProgress | None = None,
     ) -> None:
-        """Dispatch ingestion to all registered methods.
+        """Dispatch ingestion to all registered methods in parallel groups.
 
         Each method declares ``required: bool``. Required methods (vector,
-        document) abort ingestion on failure by raising ``IngestionError`` —
-        the caller uses this to skip the metadata commit so a partially-
-        ingested source is never marked as successful. Optional methods
-        (graph, tree) are logged and the pipeline continues.
+        document) run concurrently via ``asyncio.TaskGroup`` — a single
+        failure cancels all siblings and aborts ingestion with
+        ``IngestionError``, skipping the metadata commit so no partially-
+        ingested source is ever marked as successful.
+
+        Optional methods (graph, tree) run concurrently via
+        ``asyncio.gather(return_exceptions=True)`` — failures are logged and
+        the pipeline continues.
 
         A method missing the ``required`` attribute is treated as required
         to preserve data integrity by default.
+
+        ``on_progress`` is invoked with ``(done, total)`` twice: once after
+        the required group completes and once after the optional group
+        completes. Group-level progress boundaries replace the previous
+        per-method firing.
         """
-        for method in self._ingestion_methods:
+        required = [m for m in self._ingestion_methods if getattr(m, "required", True)]
+        optional = [m for m in self._ingestion_methods if not getattr(m, "required", True)]
+        total = len(required) + len(optional)
+
+        ingest_kwargs: dict[str, Any] = dict(
+            source_id=source_id,
+            knowledge_id=knowledge_id,
+            source_type=source_type,
+            source_weight=source_weight,
+            title=title,
+            full_text=full_text,
+            chunks=chunks,
+            tags=tags,
+            metadata=metadata,
+            hash_value=hash_value,
+            pages=pages,
+        )
+
+        if required:
             try:
-                await method.ingest(
-                    source_id=source_id,
-                    knowledge_id=knowledge_id,
-                    source_type=source_type,
-                    source_weight=source_weight,
-                    title=title,
-                    full_text=full_text,
-                    chunks=chunks,
-                    tags=tags,
-                    metadata=metadata,
-                    hash_value=hash_value,
-                    pages=pages,
-                )
-            except Exception as exc:
-                if getattr(method, "required", True):
-                    logger.exception("required ingestion method '%s' failed — aborting", method.name)
-                    raise IngestionError(f"required ingestion method '{method.name}' failed: {exc}") from exc
-                logger.warning("optional ingestion method '%s' failed: %s", method.name, exc)
+                async with asyncio.TaskGroup() as tg:
+                    for m in required:
+                        tg.create_task(m.ingest(**ingest_kwargs), name=m.name)
+            except* Exception as eg:
+                for exc in eg.exceptions:
+                    logger.error("required ingestion method failed — aborting: %s", exc, exc_info=exc)
+                causes = "; ".join(str(e) for e in eg.exceptions)
+                raise IngestionError(f"required ingestion method failed: {causes}") from eg.exceptions[0]
+
+        if required and on_progress is not None:
+            await on_progress(len(required), total)
+
+        if optional:
+            outcomes = await asyncio.gather(
+                *(m.ingest(**ingest_kwargs) for m in optional),
+                return_exceptions=True,
+            )
+            for method, outcome in zip(optional, outcomes, strict=True):
+                if isinstance(outcome, BaseException):
+                    logger.warning("optional ingestion method '%s' failed: %s", method.name, outcome)
+
+        if optional and on_progress is not None:
+            await on_progress(total, total)
 
     async def ingest(
         self,
@@ -186,7 +218,7 @@ class IngestionService:
         if not chunks:
             raise EmptyDocumentError(f"Document produced no content to ingest: {file_path.name}")
 
-        if self._contextual_chunking:
+        if self._chunk_context_headers:
             source_name = (metadata or {}).get("name", file_path.name)
             chunks = contextualize_chunks(chunks, source_name=source_name, source_type=source_type)
 
@@ -205,6 +237,7 @@ class IngestionService:
             metadata=metadata,
             hash_value=hash_value,
             pages=pages,
+            on_progress=on_progress,
         )
 
         source = Source(
@@ -247,7 +280,7 @@ class IngestionService:
         if not chunks:
             raise EmptyDocumentError("Text content produced no chunks to ingest")
 
-        if self._contextual_chunking:
+        if self._chunk_context_headers:
             source_name = (metadata or {}).get("name", "text-input")
             chunks = contextualize_chunks(chunks, source_name=source_name, source_type=source_type)
 

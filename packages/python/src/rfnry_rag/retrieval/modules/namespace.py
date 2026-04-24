@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Iterator
 
 
 class MethodNamespace[T]:
@@ -23,7 +23,7 @@ class MethodNamespace[T]:
         except KeyError:
             raise AttributeError(f"No method '{name}' configured") from None
 
-    def __iter__(self) -> Any:
+    def __iter__(self) -> Iterator[T]:
         return iter(self._methods.values())
 
     def __len__(self) -> int:

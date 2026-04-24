@@ -18,6 +18,7 @@ from rfnry_rag.retrieval.modules.generation.models import QueryResult, StepResul
 from rfnry_rag.retrieval.modules.generation.service import GenerationService
 from rfnry_rag.retrieval.modules.generation.step import StepGenerationService
 from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
+from rfnry_rag.retrieval.modules.ingestion.base import BaseIngestionMethod
 from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker
 from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
@@ -30,6 +31,7 @@ from rfnry_rag.retrieval.modules.ingestion.vision.base import BaseVision
 from rfnry_rag.retrieval.modules.knowledge.manager import KnowledgeManager
 from rfnry_rag.retrieval.modules.knowledge.migration import check_embedding_migration
 from rfnry_rag.retrieval.modules.namespace import MethodNamespace
+from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod
 from rfnry_rag.retrieval.modules.retrieval.enrich.service import StructuredRetrievalService
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval
@@ -171,6 +173,7 @@ class RetrievalConfig:
     enrich_lm_client: LanguageModelClient | None = None
     parent_expansion: bool = True
     chunk_refiner: BaseChunkRefinement | None = None
+    history_window: int = 3
 
     def __post_init__(self) -> None:
         if self.top_k < 1:
@@ -184,6 +187,8 @@ class RetrievalConfig:
                 f"bm25_max_chunks must be <= 200_000, got {self.bm25_max_chunks} — "
                 "in-memory BM25 index at that size risks OOM; use sparse_embeddings instead"
             )
+        if not (1 <= self.history_window <= 20):
+            raise ConfigurationError(f"history_window must be 1-20, got {self.history_window}")
 
 
 @dataclass
@@ -211,6 +216,8 @@ class GenerationConfig:
         # misconfiguration, though only 0.0 is outright incoherent.
         if self.grounding_enabled and self.grounding_threshold == 0.0:
             raise ConfigurationError("grounding_enabled=True with grounding_threshold=0.0 is a no-op")
+        if self.grounding_enabled and self.lm_client is None:
+            raise ConfigurationError("grounding_enabled requires lm_client")
 
 
 @dataclass
@@ -338,8 +345,8 @@ class RagEngine:
         self._tree_indexing_service: TreeIndexingService | None = None
         self._tree_search_service: TreeSearchService | None = None
 
-        self._retrieval_namespace: MethodNamespace | None = None
-        self._ingestion_namespace: MethodNamespace | None = None
+        self._retrieval_namespace: MethodNamespace[BaseRetrievalMethod] | None = None
+        self._ingestion_namespace: MethodNamespace[BaseIngestionMethod] | None = None
 
         self._retrieval_by_collection: dict[str, tuple[RetrievalService, StructuredRetrievalService | None]] = {}
         self._ingestion_by_collection: dict[str, IngestionService] = {}
@@ -362,14 +369,14 @@ class RagEngine:
         return []
 
     @property
-    def retrieval(self) -> MethodNamespace:
+    def retrieval(self) -> MethodNamespace[BaseRetrievalMethod]:
         """Namespace of configured retrieval methods."""
         self._check_initialized()
         assert self._retrieval_namespace is not None
         return self._retrieval_namespace
 
     @property
-    def ingestion(self) -> MethodNamespace:
+    def ingestion(self) -> MethodNamespace[BaseIngestionMethod]:
         """Namespace of configured ingestion methods."""
         self._check_initialized()
         assert self._ingestion_namespace is not None
@@ -412,6 +419,10 @@ class RagEngine:
             raise ConfigurationError("tree_indexing requires metadata_store")
         if cfg.tree_search.enabled and not p.metadata_store:
             raise ConfigurationError("tree_search requires metadata_store")
+        if cfg.tree_indexing.enabled and cfg.tree_indexing.model is None:
+            raise ConfigurationError("tree_indexing.enabled requires tree_indexing.model")
+        if cfg.tree_search.enabled and cfg.tree_search.model is None:
+            raise ConfigurationError("tree_search.enabled requires tree_search.model")
         if (
             cfg.tree_indexing.enabled
             and cfg.tree_search.enabled
@@ -560,12 +571,12 @@ class RagEngine:
             metadata_store=persistence.metadata_store,
             on_ingestion_complete=self._on_ingestion_complete,
             vision_parser=ingestion.vision,
-            contextual_chunking=ingestion.chunk_context_headers,
+            chunk_context_headers=ingestion.chunk_context_headers,
         )
 
         # Analyzed ingestion — shares document method from main list, graph store passed directly
         if persistence.metadata_store and persistence.vector_store and ingestion.embeddings:
-            analyzed_methods = [m for m in ingestion_methods if m.name == "document"]
+            analyzed_methods = [m for m in ingestion_methods if isinstance(m, DocumentIngestion)]
             if not analyzed_methods:
                 logger.warning(
                     "structured ingestion enabled but no DocumentIngestion configured — "
@@ -651,9 +662,6 @@ class RagEngine:
             self._step_service = StepGenerationService(lm_client=gen.step_lm_client)
             logger.info("step generation: enabled")
 
-        if gen.grounding_enabled and not gen.lm_client:
-            raise ConfigurationError("grounding_enabled requires generation.lm_client")
-
         self._knowledge_manager = KnowledgeManager(
             vector_store=persistence.vector_store,
             metadata_store=persistence.metadata_store,
@@ -675,28 +683,43 @@ class RagEngine:
         logger.info("ragengine ready — %s flows enabled", ", ".join(flows) if flows else "none")
 
     async def shutdown(self) -> None:
-        """Cleanup all store connections."""
+        """Cleanup all store connections in reverse-init order."""
         persistence = self._config.persistence
+        # Reverse-init order: vector → graph → document → metadata
         if persistence.vector_store:
             try:
                 await persistence.vector_store.shutdown()
             except Exception:
                 logger.exception("error shutting down vector store")
-        if persistence.metadata_store:
-            try:
-                await persistence.metadata_store.shutdown()
-            except Exception:
-                logger.exception("error shutting down metadata store")
-        if persistence.document_store:
-            try:
-                await persistence.document_store.shutdown()
-            except Exception:
-                logger.exception("error shutting down document store")
         if persistence.graph_store:
             try:
                 await persistence.graph_store.shutdown()
             except Exception:
                 logger.exception("error shutting down graph store")
+        if persistence.document_store:
+            try:
+                await persistence.document_store.shutdown()
+            except Exception:
+                logger.exception("error shutting down document store")
+        if persistence.metadata_store:
+            try:
+                await persistence.metadata_store.shutdown()
+            except Exception:
+                logger.exception("error shutting down metadata store")
+        # Null out service refs so post-shutdown access fails cleanly
+        self._ingestion_service = None
+        self._structured_ingestion = None
+        self._retrieval_service = None
+        self._structured_retrieval = None
+        self._generation_service = None
+        self._knowledge_manager = None
+        self._step_service = None
+        self._tree_indexing_service = None
+        self._tree_search_service = None
+        self._retrieval_namespace = None
+        self._ingestion_namespace = None
+        self._retrieval_by_collection.clear()
+        self._ingestion_by_collection.clear()
         self._initialized = False
         logger.info("ragengine shut down")
 
@@ -726,6 +749,11 @@ class RagEngine:
         ext = file_path.suffix.lower()
 
         if ext in SUPPORTED_STRUCTURED_EXTENSIONS and self._structured_ingestion:
+            if collection is not None:
+                raise ValueError(
+                    f"structured ingestion does not support collection routing "
+                    f"(got collection={collection!r}, file type={ext!r})"
+                )
             source = await self._structured_ingestion.analyze(
                 file_path=file_path,
                 knowledge_id=knowledge_id,
@@ -805,10 +833,18 @@ class RagEngine:
         page_range: str | None = None,
         collection: str | None = None,
     ) -> Source:
-        """Structured phase 1: per-page analysis."""
+        """Structured phase 1: per-page analysis.
+
+        ``collection`` must be ``None`` — structured ingestion does not support
+        per-collection routing; a non-None value raises ``ValueError``.
+        """
         self._check_initialized()
         if not self._structured_ingestion:
             raise ConfigurationError("metadata store required for structured ingestion")
+        if collection is not None:
+            raise ValueError(
+                f"structured ingestion does not support collection routing (got collection={collection!r})"
+            )
         return await self._structured_ingestion.analyze(
             file_path=file_path,
             knowledge_id=knowledge_id,
@@ -896,6 +932,7 @@ class RagEngine:
         owns the loop, stopping conditions, and query enrichment between iterations.
         """
         self._check_initialized()
+        _validate_query_text(query)
         if not self._step_service:
             raise RuntimeError("generate_step() requires step_lm_client in GenerationConfig")
 
@@ -920,8 +957,7 @@ class RagEngine:
         vectors = await self._config.ingestion.embeddings.embed([text])
         return vectors[0]
 
-    @staticmethod
-    def _build_retrieval_query(text: str, history: list[tuple[str, str]] | None) -> str:
+    def _build_retrieval_query(self, text: str, history: list[tuple[str, str]] | None) -> str:
         """Enrich the retrieval query with recent conversation context.
 
         When history is available, appends key terms from recent exchanges so
@@ -931,7 +967,7 @@ class RagEngine:
         if not history:
             return text
 
-        recent = history[-3:]
+        recent = history[-self._config.retrieval.history_window :]
         context_parts = []
         for human_msg, _assistant_msg in recent:
             context_parts.append(human_msg)
@@ -947,7 +983,7 @@ class RagEngine:
         seen: set[int] = set()
         if self._retrieval_by_collection:
             for retrieval_service, _ in self._retrieval_by_collection.values():
-                for method in retrieval_service._retrieval_methods:
+                for method in retrieval_service.methods:
                     if method.name != "vector" or id(method) in seen:
                         continue
                     seen.add(id(method))
@@ -1029,6 +1065,15 @@ class RagEngine:
             )
         if cfg.persistence.document_store:
             methods.append(DocumentIngestion(document_store=cfg.persistence.document_store))
+        if cfg.persistence.graph_store and cfg.ingestion.lm_client:
+            methods.append(
+                GraphIngestion(
+                    graph_store=cfg.persistence.graph_store,
+                    lm_client=cfg.ingestion.lm_client,
+                )
+            )
+        if self._tree_indexing_service is not None:
+            methods.append(TreeIngestion(tree_service=self._tree_indexing_service))
 
         return IngestionService(
             chunker=self._chunker,
@@ -1038,7 +1083,7 @@ class RagEngine:
             metadata_store=cfg.persistence.metadata_store,
             on_ingestion_complete=self._on_ingestion_complete,
             vision_parser=cfg.ingestion.vision,
-            contextual_chunking=cfg.ingestion.chunk_context_headers,
+            chunk_context_headers=cfg.ingestion.chunk_context_headers,
         )
 
     async def _retrieve_chunks(
@@ -1090,42 +1135,49 @@ class RagEngine:
         query: str,
         knowledge_id: str | None,
     ) -> list[RetrievedChunk]:
-        """Load tree indexes for relevant sources and run tree search."""
+        """Load tree indexes for relevant sources and run tree search concurrently across sources."""
         import json
 
         from rfnry_rag.retrieval.common.models import TreeIndex
         from rfnry_rag.retrieval.modules.ingestion.tree.toc import PageContent
 
         assert self._tree_search_service is not None
+        tree_service = self._tree_search_service
         metadata_store = self._config.persistence.metadata_store
         assert metadata_store is not None
 
-        # Get sources that might have tree indexes
         sources = await metadata_store.list_sources(knowledge_id=knowledge_id)
-        all_tree_chunks: list[RetrievedChunk] = []
 
-        for source in sources:
+        async def search_one(source: Source) -> list[RetrievedChunk]:
             tree_json = await metadata_store.get_tree_index(source.source_id)
             if not tree_json:
-                continue
-
+                return []
             tree_index = TreeIndex.from_dict(json.loads(tree_json))
             if not tree_index.pages:
                 logger.warning("tree index for %s has no stored pages, skipping tree search", source.source_id)
-                continue
-
+                return []
             # Convert stored TreePage back to PageContent for the search service
             pages = [PageContent(index=p.index, text=p.text, token_count=p.token_count) for p in tree_index.pages]
-
-            results = await self._tree_search_service.search(
+            results = await tree_service.search(
                 query=query,
                 tree_index=tree_index,
                 pages=pages,
             )
+            if not results:
+                return []
+            return tree_service.to_retrieved_chunks(results, tree_index)
 
-            if results:
-                all_tree_chunks.extend(self._tree_search_service.to_retrieved_chunks(results, tree_index))
+        per_source = await asyncio.gather(
+            *(search_one(s) for s in sources),
+            return_exceptions=True,
+        )
 
+        all_tree_chunks: list[RetrievedChunk] = []
+        for source, outcome in zip(sources, per_source, strict=True):
+            if isinstance(outcome, BaseException):
+                logger.warning("tree search for %s failed: %s — skipping", source.source_id, outcome)
+                continue
+            all_tree_chunks.extend(outcome)
         return all_tree_chunks
 
     def _get_retrieval(self, collection: str | None) -> tuple[RetrievalService, StructuredRetrievalService | None]:
@@ -1174,7 +1226,7 @@ class RagEngine:
         if self._generation_service:
             flows.append("generation")
         if self._tree_search_service:
-            flows.append("tree-search")
+            flows.append("tree_search")
         return flows
 
     @staticmethod

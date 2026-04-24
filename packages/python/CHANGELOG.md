@@ -10,6 +10,61 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-23 Round 2 Review
+
+Cumulative fixes from a second-pass SDK audit. 40 commits; test count 689 → 741.
+
+**Correctness (critical & high):**
+- Rejected `collection=` on structured ingestion paths instead of silently using the default collection (C1).
+- Wired the previously-noop `on_progress` callback in `RagEngine.ingest` (C2).
+- Fan out `_run_tree_search` across sources with `asyncio.gather` — serial loop removed (H1).
+- Hardened Cypher relationship-type allowlist with a contract test and fixed a latent silent-fallback bug in `_validate_relation_type` (H2).
+- Replaced private `_retrieval_methods` reach-through with a public `RetrievalService.methods` property (H3).
+- Selected `DocumentIngestion` by `isinstance` rather than string-name filter (H4).
+
+**Correctness (medium):**
+- Scoped-collection ingestion now includes graph and tree methods (M1).
+- Analyzed ingestion writes the document store exactly once in phase 3 (M2).
+- `grounding_enabled` guard moved to `GenerationConfig.__post_init__` (M3).
+- `tree_indexing.enabled` and `tree_search.enabled` without a `model` now fail at init (M4).
+- Ingestion methods parallelise within required/optional groups via TaskGroup + gather (M5).
+
+**Performance:**
+- Voyage reranker uses `voyageai.AsyncClient` directly (M6).
+- Embedding providers chunk batches at provider limits: OpenAI 2048, Voyage 128, Cohere 96 (M7).
+- Metadata-store duplicate-hash check pushed into SQL WHERE (L12).
+
+**Security hardening:**
+- `GenerateAnswer` BAML prompt fences untrusted context to blunt prompt injection (M8).
+- Postgres document search moved from f-string SQL assembly to SQLAlchemy Core expressions (M9).
+- PyMuPDF upper-bounded; PDF parser guards size and page count (M10).
+- `RagEngine.generate_step` validates query length (L13).
+- Filesystem frontmatter values JSON-encoded to survive embedded delimiters (L14).
+- Reasoning CLI directory reads capped at 5 MB aggregate (L15).
+
+**Configuration surface:**
+- Added `QdrantVectorStore(hybrid_prefetch_multiplier=...)` (L4).
+- Added `PostgresDocumentStore(headline_max_words, headline_min_words, headline_max_fragments)` (L5).
+- Added `RetrievalConfig(history_window=...)` (L6).
+- `RFNRY_RAG_LOG_LEVEL` validates against known level names (L7).
+
+**Observability:**
+- Effective pool sizes and LLM client policy logged at startup (L8).
+
+**Lifecycle / safety:**
+- `run_concurrent` caller-supplied `concurrency` bounded to 1–100 (L9).
+- `RagEngine.shutdown` tears down stores in reverse-init order and clears service refs (L10).
+- BM25 cache initial read held under lock to prevent torn read vs invalidate (L11).
+
+**Refactors & hygiene:**
+- `IngestionService` internal kwarg renamed `contextual_chunking` → `chunk_context_headers` (L1).
+- `MethodNamespace[T]` type parameter threaded through engine properties (L2).
+- Shared synthesise-entities loop body extracted in analyzed ingestion (L3).
+- `_escalation_result` loses unused `chunks=` parameter (M11).
+- `_enabled_flows()` normalised to snake_case (M12).
+- `reasoning/__init__.py::__all__` sorted; `RUF022` enabled (M13).
+- `generate_step()` documented in retrieval README (M14).
+
 ### Breaking changes
 
 - **`rfnry_rag.common.errors.BaseException` renamed to `SdkBaseError`**, and

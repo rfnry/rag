@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 
 def test_rfnry_rag_baml_log_propagates_to_baml_log(monkeypatch):
     from rfnry_rag.common.logging import _propagate_baml_log_env
@@ -26,3 +28,11 @@ def test_no_env_no_propagation(monkeypatch):
     monkeypatch.delenv("RFNRY_RAG_BAML_LOG", raising=False)
     _propagate_baml_log_env()
     assert "BAML_LOG" not in os.environ
+
+
+def test_invalid_log_level_raises_configuration_error(monkeypatch) -> None:
+    from rfnry_rag.common.errors import ConfigurationError
+    from rfnry_rag.common.logging import _resolve_level
+
+    with pytest.raises(ConfigurationError, match="unknown log level"):
+        _resolve_level("TRACE")

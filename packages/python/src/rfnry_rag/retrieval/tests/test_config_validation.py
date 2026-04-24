@@ -9,6 +9,8 @@ from rfnry_rag.retrieval.server import (
     RagEngine,
     RagServerConfig,
     RetrievalConfig,
+    TreeIndexingConfig,
+    TreeSearchConfig,
 )
 
 
@@ -125,3 +127,57 @@ class TestContextualChunkingDeprecation:
         # Since the deprecation shim copies contextual_chunking onto chunk_context_headers,
         # the old name "wins" here — that's the documented deprecation semantics.
         assert cfg.chunk_context_headers is False
+
+
+def test_grounding_enabled_without_lm_client_rejected_at_config_time() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.server import GenerationConfig
+
+    with pytest.raises(ConfigurationError, match="grounding_enabled requires"):
+        GenerationConfig(grounding_enabled=True, grounding_threshold=0.5, lm_client=None)
+
+
+def _config_with_metadata_store() -> RagServerConfig:
+    """Minimal config with a document retrieval path and metadata_store.
+
+    ``document_store`` satisfies the 'at least one retrieval path' check.
+    ``metadata_store`` satisfies the tree-requires-metadata_store cross-check,
+    so that the model=None check fires rather than the metadata_store check.
+    """
+    return RagServerConfig(
+        persistence=PersistenceConfig(
+            document_store=MagicMock(),
+            metadata_store=MagicMock(),
+        ),
+        ingestion=IngestionConfig(embeddings=None),
+    )
+
+
+def test_tree_indexing_enabled_without_model_rejected_at_init() -> None:
+    config = _config_with_metadata_store()
+    config.tree_indexing = TreeIndexingConfig(enabled=True, model=None)
+    with pytest.raises(ConfigurationError, match="tree_indexing.enabled requires tree_indexing.model"):
+        RagEngine(config)._validate_config()
+
+
+def test_tree_search_enabled_without_model_rejected_at_init() -> None:
+    config = _config_with_metadata_store()
+    config.tree_search = TreeSearchConfig(enabled=True, model=None)
+    with pytest.raises(ConfigurationError, match="tree_search.enabled requires tree_search.model"):
+        RagEngine(config)._validate_config()
+
+
+def test_retrieval_config_history_window_validates() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.server import RetrievalConfig
+
+    default = RetrievalConfig()
+    assert default.history_window == 3
+
+    custom = RetrievalConfig(history_window=1)
+    assert custom.history_window == 1
+
+    with pytest.raises(ConfigurationError, match="history_window"):
+        RetrievalConfig(history_window=0)
+    with pytest.raises(ConfigurationError, match="history_window"):
+        RetrievalConfig(history_window=21)

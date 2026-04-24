@@ -23,7 +23,7 @@ async def test_store_creates_file(store, tmp_path):
     assert expected.exists()
     text = expected.read_text()
     assert "FBD-20254-MERV13" in text
-    assert "title: Pump Manual" in text
+    assert '"Pump Manual"' in text
 
 
 async def test_search_exact_match(store):
@@ -163,3 +163,19 @@ async def test_rejects_traversal_in_source_type(store, bad_type):
 async def test_search_rejects_traversal_in_knowledge_id(store, bad_id):
     with pytest.raises(ValueError, match="invalid.*component"):
         await store.search_content(query="anything", knowledge_id=bad_id)
+
+
+async def test_filesystem_store_handles_title_with_frontmatter_delimiter(tmp_path) -> None:
+    store = FilesystemDocumentStore(base_path=str(tmp_path))
+    await store.initialize()
+    bad_title = "normal start\n---\nend: injected"
+    await store.store_content(
+        source_id="s1",
+        knowledge_id=None,
+        source_type=None,
+        title=bad_title,
+        content="hello",
+    )
+    hits = await store.search_content("hello")
+    assert len(hits) == 1
+    assert hits[0].title == bad_title

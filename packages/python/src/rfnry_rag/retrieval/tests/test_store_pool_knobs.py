@@ -102,3 +102,55 @@ def test_qdrant_store_does_not_warn_with_https(caplog) -> None:
 
     joined = "\n".join(r.message for r in caplog.records)
     assert "plaintext" not in joined.lower()
+
+
+async def test_metadata_store_logs_effective_pool_knobs(caplog) -> None:
+    import logging
+
+    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.retrieval.stores.metadata.sqlalchemy")
+    store = SQLAlchemyMetadataStore(url="sqlite+aiosqlite:///:memory:", pool_size=7, max_overflow=14)
+    await store.initialize()
+    await store.shutdown()
+    msg = "\n".join(r.message for r in caplog.records)
+    assert "pool" in msg.lower()
+
+
+async def test_document_store_logs_effective_pool_knobs(caplog) -> None:
+    import logging
+
+    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.retrieval.stores.document.postgres")
+    store = PostgresDocumentStore(url="sqlite+aiosqlite:///:memory:", pool_size=5, max_overflow=10)
+    await store.initialize()
+    await store.shutdown()
+    msg = "\n".join(r.message for r in caplog.records)
+    assert "pool" in msg.lower()
+
+
+def test_build_registry_logs_lm_policy(caplog) -> None:
+    import logging
+
+    from rfnry_rag.common.language_model import LanguageModelClient, LanguageModelProvider, build_registry
+
+    caplog.set_level(logging.INFO, logger="rfnry_rag.common.language_model")
+    client = LanguageModelClient(
+        provider=LanguageModelProvider(provider="openai", model="gpt-4o", api_key="sk-test"),
+        max_retries=2,
+        timeout_seconds=30,
+    )
+    build_registry(client)
+    msg = "\n".join(r.message for r in caplog.records)
+    assert "strategy" in msg.lower() or "max_retries" in msg.lower() or "timeout" in msg.lower()
+
+
+def test_qdrant_hybrid_prefetch_multiplier_defaults_and_validates() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+
+    default = QdrantVectorStore(url="http://fake", api_key="k")
+    assert default._hybrid_prefetch_multiplier == 4
+
+    custom = QdrantVectorStore(url="http://fake", api_key="k", hybrid_prefetch_multiplier=8)
+    assert custom._hybrid_prefetch_multiplier == 8
+
+    with pytest.raises(ConfigurationError, match="hybrid_prefetch_multiplier"):
+        QdrantVectorStore(url="http://fake", api_key="k", hybrid_prefetch_multiplier=0)

@@ -4,12 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
 
 
-def _mock_method(name: str) -> SimpleNamespace:
-    return SimpleNamespace(
-        name=name,
-        ingest=AsyncMock(),
-        delete=AsyncMock(),
-    )
+def _mock_method(name: str, required: bool = True) -> SimpleNamespace:
+    return SimpleNamespace(name=name, required=required, ingest=AsyncMock(), delete=AsyncMock())
 
 
 def _make_service(methods=None, metadata_store=None):
@@ -58,6 +54,7 @@ async def test_ingest_text_creates_metadata_source():
     meta_store = SimpleNamespace(
         create_source=AsyncMock(),
         list_sources=AsyncMock(return_value=[]),
+        find_by_hash=AsyncMock(return_value=None),
     )
     service = _make_service(methods=[], metadata_store=meta_store)
     source = await service.ingest_text(content="Hello world")
@@ -153,6 +150,7 @@ def _make_service_with_metadata(ingestion_methods=None):
 
     metadata_store = AsyncMock()
     metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.find_by_hash = AsyncMock(return_value=None)
     metadata_store.create_source = AsyncMock()
 
     if ingestion_methods is None:
@@ -231,7 +229,7 @@ async def test_structured_ingestion_has_document_method():
 # --- Tests merged from test_ingestion_advanced.py ---
 
 
-def _make_service_advanced(ingestion_methods=None, contextual_chunking=True):
+def _make_service_advanced(ingestion_methods=None, chunk_context_headers=True):
     chunker = MagicMock()
     chunker.chunk = MagicMock(
         return_value=[
@@ -250,6 +248,7 @@ def _make_service_advanced(ingestion_methods=None, contextual_chunking=True):
 
     metadata_store = AsyncMock()
     metadata_store.list_sources = AsyncMock(return_value=[])
+    metadata_store.find_by_hash = AsyncMock(return_value=None)
     metadata_store.create_source = AsyncMock()
 
     if ingestion_methods is None:
@@ -260,7 +259,7 @@ def _make_service_advanced(ingestion_methods=None, contextual_chunking=True):
         ingestion_methods=ingestion_methods,
         embedding_model_name="test:model",
         metadata_store=metadata_store,
-        contextual_chunking=contextual_chunking,
+        chunk_context_headers=chunk_context_headers,
     )
 
 
@@ -291,7 +290,7 @@ async def test_ingestion_creates_source(tmp_path):
 async def test_ingestion_payload_has_context_fields(tmp_path):
     """Contextual chunking adds context fields to chunks before passing to methods."""
     method = _mock_method("vector")
-    service = _make_service_advanced(ingestion_methods=[method], contextual_chunking=True)
+    service = _make_service_advanced(ingestion_methods=[method], chunk_context_headers=True)
 
     test_file = tmp_path / "test.txt"
     test_file.write_text("Some content.")
@@ -321,3 +320,105 @@ async def test_method_failure_does_not_abort_pipeline():
     # Graph failed but document still called
     succeeding.ingest.assert_called_once()
     assert source is not None
+
+
+# --- on_progress callback tests ---
+
+
+async def test_on_progress_fires_at_group_boundaries(tmp_path) -> None:
+    """Progress fires once after required group and once after optional group."""
+    calls: list[tuple[int, int]] = []
+
+    async def progress(done: int, total: int) -> None:
+        calls.append((done, total))
+
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text("hello world " * 50)
+
+    # Two required methods, zero optional → progress fires ONCE after the required
+    # group: (2, 2). The empty optional group is skipped entirely.
+    method_a = _mock_method(name="a", required=True)
+    method_b = _mock_method(name="b", required=True)
+    service = _make_service_advanced(ingestion_methods=[method_a, method_b])
+
+    await service.ingest(file_path=file_path, on_progress=progress)
+
+    assert calls == [(2, 2)]
+
+
+async def test_on_progress_fires_at_both_group_boundaries(tmp_path) -> None:
+    """Progress fires after required group and after optional group (even when optional fails)."""
+    calls: list[tuple[int, int]] = []
+
+    async def progress(done: int, total: int) -> None:
+        calls.append((done, total))
+
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text("hello world " * 50)
+
+    # One required, one failing optional (total=2).
+    # After required group: (1, 2). After optional group: (2, 2).
+    failing_optional = _mock_method(name="opt", required=False)
+    failing_optional.ingest = AsyncMock(side_effect=RuntimeError("boom"))
+    required = _mock_method(name="req", required=True)
+
+    service = _make_service_advanced(ingestion_methods=[required, failing_optional])
+    await service.ingest(file_path=file_path, on_progress=progress)
+
+    assert calls == [(1, 2), (2, 2)]
+
+
+async def test_required_methods_run_concurrently_within_group(tmp_path) -> None:
+    """Required methods execute in parallel inside the TaskGroup."""
+    import asyncio
+
+    concurrent = 0
+    max_concurrent = 0
+
+    async def slow_ingest(**kwargs: object) -> None:
+        nonlocal concurrent, max_concurrent
+        concurrent += 1
+        max_concurrent = max(max_concurrent, concurrent)
+        await asyncio.sleep(0.02)
+        concurrent -= 1
+
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text("hello world " * 50)
+
+    a = _mock_method(name="a", required=True)
+    a.ingest = AsyncMock(side_effect=slow_ingest)
+    b = _mock_method(name="b", required=True)
+    b.ingest = AsyncMock(side_effect=slow_ingest)
+
+    service = _make_service_advanced(ingestion_methods=[a, b])
+    await service.ingest(file_path=file_path)
+
+    assert max_concurrent >= 2
+
+
+async def test_optional_methods_run_concurrently_within_group(tmp_path) -> None:
+    """Optional methods execute in parallel inside gather."""
+    import asyncio
+
+    concurrent = 0
+    max_concurrent = 0
+
+    async def slow_ingest(**kwargs: object) -> None:
+        nonlocal concurrent, max_concurrent
+        concurrent += 1
+        max_concurrent = max(max_concurrent, concurrent)
+        await asyncio.sleep(0.02)
+        concurrent -= 1
+
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text("hello world " * 50)
+
+    a = _mock_method(name="a", required=False)
+    a.ingest = AsyncMock(side_effect=slow_ingest)
+    b = _mock_method(name="b", required=False)
+    b.ingest = AsyncMock(side_effect=slow_ingest)
+
+    service = _make_service_advanced(ingestion_methods=[a, b])
+    await service.ingest(file_path=file_path)
+
+    assert max_concurrent >= 2

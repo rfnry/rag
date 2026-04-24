@@ -2,10 +2,36 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from pathlib import Path
 
 import click
 
 from rfnry_rag.reasoning.cli.output import get_output_mode
+
+_MAX_DIR_READ_BYTES = 5_000_000
+
+_DIR_READ_EXTENSIONS = (".md", ".txt", ".json")
+
+
+def _read_directory_as_text(path: Path) -> str:
+    """Read all text files in a directory into a single string.
+
+    Raises ValueError if the aggregate size exceeds _MAX_DIR_READ_BYTES to
+    prevent runaway memory use when a caller points to a large directory.
+    """
+    parts: list[str] = []
+    total = 0
+    for f in sorted(path.iterdir()):
+        if not f.is_file():
+            continue
+        if f.suffix not in _DIR_READ_EXTENSIONS:
+            continue
+        data = f.read_text()
+        total += len(data)
+        if total > _MAX_DIR_READ_BYTES:
+            raise ValueError(f"directory aggregate read exceeds {_MAX_DIR_READ_BYTES} bytes")
+        parts.append(f"[{f.name}]\n{data}")
+    return "\n\n========\n\n".join(parts)
 
 
 @click.group()
@@ -35,15 +61,13 @@ def resolve_input(text: str | None, file_path: str | None) -> str:
 
 def resolve_references(paths: tuple[str, ...]) -> str:
     """Resolve one or more reference paths (files or folder) into a single string."""
-    from pathlib import Path
-
     parts: list[str] = []
     for p in paths:
         path = Path(p)
         if path.is_dir():
-            for f in sorted(path.iterdir()):
-                if f.suffix in (".md", ".txt", ".json"):
-                    parts.append(f"[{f.name}]\n{f.read_text()}")
+            dir_text = _read_directory_as_text(path)
+            if dir_text:
+                parts.append(dir_text)
         elif path.is_file():
             parts.append(f"[{path.name}]\n{path.read_text()}")
         else:

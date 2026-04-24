@@ -1,4 +1,5 @@
-from unittest.mock import AsyncMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -16,7 +17,8 @@ def _query_result(answer: str = "The answer is 42.") -> QueryResult:
 
 
 def _make_server() -> RagEngine:
-    config = AsyncMock(spec=RagServerConfig)
+    config = MagicMock(spec=RagServerConfig)
+    config.retrieval = SimpleNamespace(history_window=3)
     server = RagEngine.__new__(RagEngine)
     server._config = config
     server._initialized = True
@@ -170,6 +172,12 @@ class TestServerGenerateStep:
         with pytest.raises(RuntimeError, match="step_lm_client"):
             await server.generate_step("query", [])
 
+    async def test_generate_step_rejects_oversize_query(self):
+        server = _make_server()
+        server._step_service = AsyncMock()
+        with pytest.raises(ValueError, match="query exceeds"):
+            await server.generate_step(query="x" * 40_000, chunks=[])
+
 
 class TestMinScore:
     async def test_retrieve_filters_by_min_score(self):
@@ -203,16 +211,19 @@ class TestMinScore:
 
 class TestBuildRetrievalQuery:
     def test_no_history_returns_text(self):
-        assert RagEngine._build_retrieval_query("hello", None) == "hello"
+        server = _make_server()
+        assert server._build_retrieval_query("hello", None) == "hello"
 
     def test_history_appends_context(self):
-        result = RagEngine._build_retrieval_query("follow up", [("what is X?", "X is Y")])
+        server = _make_server()
+        result = server._build_retrieval_query("follow up", [("what is X?", "X is Y")])
         assert "follow up" in result
         assert "what is X?" in result
 
     def test_uses_last_3_exchanges(self):
+        server = _make_server()
         history = [(f"q{i}", f"a{i}") for i in range(5)]
-        result = RagEngine._build_retrieval_query("current", history)
+        result = server._build_retrieval_query("current", history)
         assert "q2" in result
         assert "q3" in result
         assert "q4" in result

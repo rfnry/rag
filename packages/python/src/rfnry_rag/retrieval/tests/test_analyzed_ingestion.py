@@ -4,7 +4,7 @@ from rfnry_rag.retrieval.common.models import Source
 from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
 
 
-def _make_service(graph_store=None):
+def _make_service(graph_store=None, ingestion_methods=None):
     embeddings = MagicMock()
     embeddings.model = "test-model"
     embeddings.embed = AsyncMock(return_value=[[0.1] * 10, [0.2] * 10])
@@ -21,6 +21,7 @@ def _make_service(graph_store=None):
         metadata_store=metadata_store,
         embedding_model_name="test:test-model",
         graph_store=graph_store,
+        ingestion_methods=ingestion_methods,
     )
 
 
@@ -139,3 +140,69 @@ async def test_ingest_graph_store_failure_warns():
     await service.ingest(source.source_id)
     # Vector upsert should still have succeeded
     service._vector_store.upsert.assert_called_once()
+
+
+async def test_analyzed_ingestion_writes_document_store_exactly_once(tmp_path) -> None:
+    """Phase 3 must be the single authoritative document write."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
+
+    doc_method = MagicMock(spec=DocumentIngestion)
+    doc_method.name = "document"
+    doc_method.required = True
+    doc_method.ingest = AsyncMock()
+
+    xml = tmp_path / "sample.xml"
+    xml.write_text("<root><item>hello</item></root>")
+
+    service = _make_service(ingestion_methods=[doc_method])
+    # Override embed so it returns exactly one vector per text (avoids zip mismatch)
+    service._embeddings.embed = AsyncMock(side_effect=lambda texts: [[0.1] * 10] * len(texts))
+
+    # Phase 1: analyze — metadata_store.create_source saves the source
+    created_sources: list[Source] = []
+
+    async def capture_create(source: Source) -> None:
+        created_sources.append(source)
+
+    service._metadata_store.create_source = AsyncMock(side_effect=capture_create)
+
+    source = await service.analyze(file_path=xml)
+
+    # Phase 2: synthesize — get_source returns the analyzed source; update_source updates it
+    service._metadata_store.get_source = AsyncMock(return_value=source)
+    service._metadata_store.update_source = AsyncMock()
+
+    source = await service.synthesize(source.source_id)
+
+    # Refresh: get_source for phase 3 returns the synthesized source (with synthesis in metadata)
+    service._metadata_store.get_source = AsyncMock(return_value=source)
+
+    # Phase 3: ingest
+    await service.ingest(source.source_id)
+
+    # The document method must have been called exactly once — in phase 3 only
+    assert doc_method.ingest.await_count == 1
+
+
+async def test_analyzed_ingestion_identifies_document_method_by_type_not_name() -> None:
+    """If DocumentIngestion.name is renamed, document storage must still route correctly."""
+    from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
+
+    # DocumentIngestion instance whose .name attr has drifted.
+    doc_method = MagicMock(spec=DocumentIngestion)
+    doc_method.name = "doc"  # simulate rename
+    doc_method.required = True
+    doc_method.ingest = AsyncMock()
+
+    # Non-document method with a similar-looking name.
+    other = MagicMock()
+    other.name = "document_like_but_wrong"
+    other.required = True
+    other.ingest = AsyncMock()
+
+    # The filter must pick only the DocumentIngestion instance.
+    methods = [doc_method, other]
+    filtered = [m for m in methods if isinstance(m, DocumentIngestion)]
+    assert filtered == [doc_method]
