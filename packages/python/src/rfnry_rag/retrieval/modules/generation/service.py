@@ -117,13 +117,13 @@ class GenerationService:
         passed, message = self._run_grounding_gates(chunks)
         if not passed:
             logger.info("score gate rejected query")
-            return self._escalation_result(message or DEFAULT_ESCALATION, chunks)
+            return self._escalation_result(message or DEFAULT_ESCALATION)
 
         passed, message, relevant_chunks, confidence, early_result = await self._run_relevance_gate(query, chunks)
         if not passed:
             if early_result:
                 return early_result
-            return self._escalation_result(message or DEFAULT_ESCALATION, chunks, confidence)
+            return self._escalation_result(message or DEFAULT_ESCALATION, confidence)
 
         context = chunks_to_context(relevant_chunks)
         formatted_history = self._format_history(history)
@@ -231,7 +231,6 @@ class GenerationService:
     @staticmethod
     def _escalation_result(
         message: str,
-        chunks: list[RetrievedChunk],
         confidence: float = 0.0,
     ) -> QueryResult:
         return QueryResult(
