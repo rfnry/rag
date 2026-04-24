@@ -144,7 +144,7 @@ All LLM calls go through BAML for structured output parsing, retry/fallback poli
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking
 - Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules
-- 689 tests total across both SDKs
+- 741 tests total across both SDKs
 
 ## Config defaults and enforced bounds
 
@@ -157,6 +157,10 @@ All LLM calls go through BAML for structured output parsing, retry/fallback poli
 - `GenerationConfig`: `grounding_enabled=True` requires `grounding_threshold > 0` and an `lm_client`
 - Cross-config: `tree_indexing.max_tokens_per_node ≤ tree_search.max_context_tokens`
 - `BatchConfig.concurrency`: `1 ≤ concurrency ≤ 20`
+- `run_concurrent` (common concurrency helper): `1 ≤ concurrency ≤ 100` (separate from `BatchConfig.concurrency` which is capped at 20)
+- `RetrievalConfig.history_window`: `1 ≤ history_window ≤ 20`, default 3
+- `QdrantVectorStore.hybrid_prefetch_multiplier`: `≥ 1`, default 4
+- `PostgresDocumentStore.headline_max_words` / `headline_min_words` / `headline_max_fragments`: `≥ 1`, with `min_words ≤ max_words`
 - `LanguageModelClient.timeout_seconds`: `> 0`, default `60`
 - `Neo4jGraphStore.password`: required (no default; empty raises)
 - Public-input bounds: query ≤ 32 000 chars, `ingest_text` ≤ 5 000 000 chars, metadata ≤ 50 keys × 8 000 chars
