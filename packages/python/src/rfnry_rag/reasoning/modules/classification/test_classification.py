@@ -175,3 +175,8 @@ def test_classification_config_low_confidence_validation():
     """low_confidence_threshold must be 0.0-1.0."""
     with pytest.raises(ValueError, match="low_confidence_threshold"):
         ClassificationConfig(low_confidence_threshold=1.5)
+
+
+def test_classification_config_max_text_length_upper_bound() -> None:
+    with pytest.raises(ValueError, match="max_text_length must be <= "):
+        ClassificationConfig(max_text_length=5_000_001)

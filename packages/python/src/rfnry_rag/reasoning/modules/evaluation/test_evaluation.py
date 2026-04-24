@@ -109,3 +109,8 @@ def test_evaluation_config_strategy_validation():
     """Invalid strategy raises ValueError."""
     with pytest.raises(ValueError, match="Unknown strategy"):
         EvaluationConfig(strategy="invalid")
+
+
+def test_evaluation_config_max_text_length_upper_bound() -> None:
+    with pytest.raises(ValueError, match="max_text_length must be <= "):
+        EvaluationConfig(max_text_length=5_000_001)

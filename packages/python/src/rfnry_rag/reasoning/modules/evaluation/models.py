@@ -47,6 +47,9 @@ class EvaluationResult:
         return d
 
 
+_MAX_TEXT_LENGTH_CEILING = 5_000_000
+
+
 @dataclass
 class EvaluationConfig:
     """Configuration for evaluation operations."""
@@ -67,6 +70,10 @@ class EvaluationConfig:
             )
         if self.concurrency < 1:
             raise ValueError("concurrency must be >= 1")
+        if self.max_text_length > _MAX_TEXT_LENGTH_CEILING:
+            raise ValueError(
+                f"max_text_length must be <= {_MAX_TEXT_LENGTH_CEILING}, got {self.max_text_length}"
+            )
 
 
 @dataclass

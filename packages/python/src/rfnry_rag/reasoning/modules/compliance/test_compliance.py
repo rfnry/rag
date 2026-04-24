@@ -160,3 +160,8 @@ def test_compliance_config_threshold_validation():
         ComplianceConfig(threshold=1.5)
     with pytest.raises(ValueError, match="threshold"):
         ComplianceConfig(threshold=-0.1)
+
+
+def test_compliance_config_max_text_length_upper_bound() -> None:
+    with pytest.raises(ValueError, match="max_text_length must be <= "):
+        ComplianceConfig(max_text_length=5_000_001)

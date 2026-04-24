@@ -244,3 +244,8 @@ def test_analysis_config_validation():
 
     with pytest.raises(ValueError, match="max_text_length"):
         AnalysisConfig(max_text_length=0)
+
+
+def test_analysis_config_max_text_length_upper_bound() -> None:
+    with pytest.raises(ValueError, match="max_text_length must be <= "):
+        AnalysisConfig(max_text_length=5_000_001)
