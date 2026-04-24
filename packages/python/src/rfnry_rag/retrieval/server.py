@@ -18,6 +18,7 @@ from rfnry_rag.retrieval.modules.generation.models import QueryResult, StepResul
 from rfnry_rag.retrieval.modules.generation.service import GenerationService
 from rfnry_rag.retrieval.modules.generation.step import StepGenerationService
 from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
+from rfnry_rag.retrieval.modules.ingestion.base import BaseIngestionMethod
 from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker
 from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
@@ -30,6 +31,7 @@ from rfnry_rag.retrieval.modules.ingestion.vision.base import BaseVision
 from rfnry_rag.retrieval.modules.knowledge.manager import KnowledgeManager
 from rfnry_rag.retrieval.modules.knowledge.migration import check_embedding_migration
 from rfnry_rag.retrieval.modules.namespace import MethodNamespace
+from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod
 from rfnry_rag.retrieval.modules.retrieval.enrich.service import StructuredRetrievalService
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval
@@ -340,8 +342,8 @@ class RagEngine:
         self._tree_indexing_service: TreeIndexingService | None = None
         self._tree_search_service: TreeSearchService | None = None
 
-        self._retrieval_namespace: MethodNamespace | None = None
-        self._ingestion_namespace: MethodNamespace | None = None
+        self._retrieval_namespace: MethodNamespace[BaseRetrievalMethod] | None = None
+        self._ingestion_namespace: MethodNamespace[BaseIngestionMethod] | None = None
 
         self._retrieval_by_collection: dict[str, tuple[RetrievalService, StructuredRetrievalService | None]] = {}
         self._ingestion_by_collection: dict[str, IngestionService] = {}
@@ -364,14 +366,14 @@ class RagEngine:
         return []
 
     @property
-    def retrieval(self) -> MethodNamespace:
+    def retrieval(self) -> MethodNamespace[BaseRetrievalMethod]:
         """Namespace of configured retrieval methods."""
         self._check_initialized()
         assert self._retrieval_namespace is not None
         return self._retrieval_namespace
 
     @property
-    def ingestion(self) -> MethodNamespace:
+    def ingestion(self) -> MethodNamespace[BaseIngestionMethod]:
         """Namespace of configured ingestion methods."""
         self._check_initialized()
         assert self._ingestion_namespace is not None
