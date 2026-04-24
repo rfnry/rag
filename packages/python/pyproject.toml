@@ -63,7 +63,7 @@ target-version = "py312"
 exclude = ["src/rfnry_rag/retrieval/baml/baml_client", "src/rfnry_rag/reasoning/baml/baml_client"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF022"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/rfnry_rag/__init__.py" = ["E402", "F401", "F403", "F811"]
