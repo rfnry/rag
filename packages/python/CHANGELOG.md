@@ -12,7 +12,7 @@ tests passing (up from 629).
 
 ### 2026-04-25 Phase C — DrawingIngestion MVP
 
-Thirteen tasks (15 feature + 2 fix-up commits) shipping a first-class SDK
+Thirteen tasks (13 feature + 2 fix-up commits, plus docs) shipping a first-class SDK
 capability for ingesting technical drawings (schematics, P&ID, wiring,
 mechanical) with multi-page connectivity resolution. Input formats: PDF
 (vision-based) and DXF (structured parse via ezdxf). All drawing standards,
