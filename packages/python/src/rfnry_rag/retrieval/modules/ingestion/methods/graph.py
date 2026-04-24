@@ -6,6 +6,7 @@ from typing import Any
 from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.modules.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
+from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.models import ChunkedContent, ParsedPage
 from rfnry_rag.retrieval.stores.graph.base import BaseGraphStore
 from rfnry_rag.retrieval.stores.graph.mapper import page_entities_to_graph
@@ -39,9 +40,11 @@ class GraphIngestion:
         self,
         graph_store: BaseGraphStore,
         lm_client: LanguageModelClient | None = None,
+        graph_config: GraphIngestionConfig | None = None,
     ) -> None:
         self._store = graph_store
         self._registry = build_registry(lm_client) if lm_client else None
+        self._graph_config = graph_config if graph_config is not None else GraphIngestionConfig()
 
     @property
     def name(self) -> str:
@@ -97,7 +100,7 @@ class GraphIngestion:
             )
 
             # Reuse existing mapper
-            graph_entities = page_entities_to_graph(analysis, source_id)
+            graph_entities = page_entities_to_graph(analysis, source_id, self._graph_config)
 
             await self._store.add_entities(
                 source_id=source_id,

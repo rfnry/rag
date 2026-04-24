@@ -597,6 +597,7 @@ class RagEngine:
                     GraphIngestion(
                         graph_store=persistence.graph_store,
                         lm_client=ingestion.lm_client,
+                        graph_config=ingestion.graph,
                     )
                 )
             retrieval_methods.append(GraphRetrieval(graph_store=persistence.graph_store, weight=0.7))
@@ -675,6 +676,7 @@ class RagEngine:
                 ingestion_methods=analyzed_methods,
                 analyze_text_skip_threshold_chars=ingestion.analyze_text_skip_threshold_chars,
                 analyze_concurrency=ingestion.analyze_concurrency,
+                graph_config=ingestion.graph,
             )
             if not ingestion.vision:
                 logger.warning("no vision provider — structured PDF analysis disabled")
@@ -1302,6 +1304,7 @@ class RagEngine:
                 GraphIngestion(
                     graph_store=cfg.persistence.graph_store,
                     lm_client=cfg.ingestion.lm_client,
+                    graph_config=cfg.ingestion.graph,
                 )
             )
         if self._tree_indexing_service is not None:

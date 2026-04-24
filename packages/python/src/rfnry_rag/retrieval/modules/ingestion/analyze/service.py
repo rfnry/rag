@@ -27,6 +27,7 @@ from rfnry_rag.retrieval.modules.ingestion.analyze.parsers.xml import is_l5x, pa
 from rfnry_rag.retrieval.modules.ingestion.analyze.pdf_splitter import iter_pdf_page_images
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.modules.ingestion.embeddings.utils import embed_batched
+from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.vision.base import BaseVision
 from rfnry_rag.retrieval.stores.graph.base import BaseGraphStore
 from rfnry_rag.retrieval.stores.graph.mapper import cross_refs_to_graph_relations, page_entities_to_graph
@@ -55,6 +56,7 @@ class AnalyzedIngestionService:
         ingestion_methods: list | None = None,
         analyze_text_skip_threshold_chars: int = 300,
         analyze_concurrency: int = 5,
+        graph_config: GraphIngestionConfig | None = None,
     ) -> None:
         self._embeddings = embeddings
         self._vector_store = vector_store
@@ -69,6 +71,7 @@ class AnalyzedIngestionService:
         self._ingestion_methods = ingestion_methods or []
         self._analyze_text_skip_threshold_chars = analyze_text_skip_threshold_chars
         self._analyze_concurrency = analyze_concurrency
+        self._graph_config = graph_config if graph_config is not None else GraphIngestionConfig()
 
     async def analyze(
         self,
@@ -262,8 +265,10 @@ class AnalyzedIngestionService:
             try:
                 all_entities = []
                 for pa in page_analyses:
-                    all_entities.extend(page_entities_to_graph(pa, source.source_id))
-                relations = cross_refs_to_graph_relations(synthesis, page_analyses, source.knowledge_id)
+                    all_entities.extend(page_entities_to_graph(pa, source.source_id, self._graph_config))
+                relations = cross_refs_to_graph_relations(
+                    synthesis, page_analyses, source.knowledge_id, self._graph_config,
+                )
                 if all_entities:
                     await self._graph_store.add_entities(
                         source_id=source.source_id,
