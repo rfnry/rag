@@ -48,6 +48,11 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     # ---- retrieval / ingestion ----
     "AnalyzePage": [],  # image type — no text injection risk
     "ExtractEntitiesFromText": ["text"],
+    # domain_hint is operator config; page_image is image type (no text injection)
+    "AnalyzeDrawingPage": ["symbol_library", "off_page_patterns"],
+    # per_page_digest and already_linked are pipeline-generated but include
+    # document-extracted text (potentially tainted); fence both
+    "SynthesizeDrawingSet": ["per_page_digest", "already_linked"],
     # ---- retrieval / tree_indexing ----
     "DetectTableOfContents": ["page_text"],
     "ParseTableOfContents": ["toc_text"],
@@ -108,12 +113,13 @@ def _has_fence_for_param(body: str, param: str) -> bool:
     """A user-controlled param must be enclosed between START/END fence markers.
 
     The fence convention (established in rounds 2-3):
-        ======== <ANY_TOKEN> START ========
+        ======== <TAG> START ========
         {{ param }}
-        ======== <ANY_TOKEN> END ========
+        ======== <TAG> END ========
 
-    The token between the equals-signs is a single \\S+ word (e.g., QUERY,
-    CONTEXT, PASSAGES).  Old-style delimiters like ``======== USER QUERY ========``
+    The tag between the equals-signs is one or more whitespace-separated tokens
+    (e.g., QUERY, CONTEXT, PASSAGES, SYMBOL LIBRARY, OFF PAGE CONNECTOR PATTERNS).
+    Old-style delimiters like ``======== USER QUERY ========`` (no START/END sentinel)
     do NOT satisfy this contract.
 
     Returns True if:
@@ -128,9 +134,9 @@ def _has_fence_for_param(body: str, param: str) -> bool:
     after = body[param_site.end() :]
 
     # Locate START and END markers in the appropriate halves.
-    start_marker_ends = [m.end() for m in re.finditer(r"======== \S+ START ========", before)]
-    end_markers_before = [m.end() for m in re.finditer(r"======== \S+ END ========", before)]
-    end_markers_after = [m.start() for m in re.finditer(r"======== \S+ END ========", after)]
+    start_marker_ends = [m.end() for m in re.finditer(r"======== \S+(?: \S+)* START ========", before)]
+    end_markers_before = [m.end() for m in re.finditer(r"======== \S+(?: \S+)* END ========", before)]
+    end_markers_after = [m.start() for m in re.finditer(r"======== \S+(?: \S+)* END ========", after)]
 
     if not start_marker_ends or not end_markers_after:
         return False

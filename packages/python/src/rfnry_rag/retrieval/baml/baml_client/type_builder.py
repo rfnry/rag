@@ -20,7 +20,7 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(type_builder.TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["AnswerQualityJudgment","CompressedContext","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","ExtractedSection","ExtractedStructure","HypotheticalDocument","PageAnalysis","QueryAnalysis","QueryVariants","RankedChunk","ReasoningStep","RelevanceJudgment","RetrievalNecessityJudgment","StepBackQuery","SynthesisCrossReference","SynthesisPageCluster","TocDetectionResult","TocEntry","TocStructure","ToolDrillDown","ToolFetchPages","ToolResolvedPages",]
+          ["AnswerQualityJudgment","CompressedContext","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","DrawingSetSynthesis","ExtractedSection","ExtractedStructure","HypotheticalDocument","Merge","NarrativeXref","OffPageConnector","PageAnalysis","Port","QueryAnalysis","QueryVariants","RankedChunk","ReasoningStep","RelevanceJudgment","RetrievalNecessityJudgment","StepBackQuery","SynthesisCrossReference","SynthesisPageCluster","TocDetectionResult","TocEntry","TocStructure","ToolDrillDown","ToolFetchPages","ToolResolvedPages",]
         ), enums=set(
           []
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
@@ -31,7 +31,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
     # #########################################################################
-    # Generated classes 24
+    # Generated classes 32
     # #########################################################################
 
     @property
@@ -41,6 +41,14 @@ class TypeBuilder(type_builder.TypeBuilder):
     @property
     def CompressedContext(self) -> "CompressedContextViewer":
         return CompressedContextViewer(self)
+
+    @property
+    def DetectedComponent(self) -> "DetectedComponentViewer":
+        return DetectedComponentViewer(self)
+
+    @property
+    def DetectedConnection(self) -> "DetectedConnectionViewer":
+        return DetectedConnectionViewer(self)
 
     @property
     def DiscoveredEntity(self) -> "DiscoveredEntityViewer":
@@ -55,6 +63,14 @@ class TypeBuilder(type_builder.TypeBuilder):
         return DocumentSynthesisViewer(self)
 
     @property
+    def DrawingPageAnalysis(self) -> "DrawingPageAnalysisViewer":
+        return DrawingPageAnalysisViewer(self)
+
+    @property
+    def DrawingSetSynthesis(self) -> "DrawingSetSynthesisViewer":
+        return DrawingSetSynthesisViewer(self)
+
+    @property
     def ExtractedSection(self) -> "ExtractedSectionViewer":
         return ExtractedSectionViewer(self)
 
@@ -67,8 +83,24 @@ class TypeBuilder(type_builder.TypeBuilder):
         return HypotheticalDocumentViewer(self)
 
     @property
+    def Merge(self) -> "MergeViewer":
+        return MergeViewer(self)
+
+    @property
+    def NarrativeXref(self) -> "NarrativeXrefViewer":
+        return NarrativeXrefViewer(self)
+
+    @property
+    def OffPageConnector(self) -> "OffPageConnectorViewer":
+        return OffPageConnectorViewer(self)
+
+    @property
     def PageAnalysis(self) -> "PageAnalysisViewer":
         return PageAnalysisViewer(self)
+
+    @property
+    def Port(self) -> "PortViewer":
+        return PortViewer(self)
 
     @property
     def QueryAnalysis(self) -> "QueryAnalysisViewer":
@@ -138,7 +170,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
 # #########################################################################
-# Generated classes 24
+# Generated classes 32
 # #########################################################################
 
 class AnswerQualityJudgmentAst:
@@ -219,6 +251,124 @@ class CompressedContextProperties:
     @property
     def compressed_text(self) -> type_builder.ClassPropertyViewer:
         return type_builder.ClassPropertyViewer(self.__bldr.property("compressed_text"))
+    
+    
+
+
+class DetectedComponentAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("DetectedComponent")
+        self._properties: typing.Set[str] = set([  "component_id",  "symbol_class",  "label",  "bbox",  "ports",  "properties",  ])
+        self._props = DetectedComponentProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "DetectedComponentProperties":
+        return self._props
+
+
+class DetectedComponentViewer(DetectedComponentAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class DetectedComponentProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def component_id(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("component_id"))
+    
+    @property
+    def symbol_class(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("symbol_class"))
+    
+    @property
+    def label(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("label"))
+    
+    @property
+    def bbox(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("bbox"))
+    
+    @property
+    def ports(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("ports"))
+    
+    @property
+    def properties(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("properties"))
+    
+    
+
+
+class DetectedConnectionAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("DetectedConnection")
+        self._properties: typing.Set[str] = set([  "from_component",  "from_port",  "to_component",  "to_port",  "net_label",  "wire_style",  ])
+        self._props = DetectedConnectionProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "DetectedConnectionProperties":
+        return self._props
+
+
+class DetectedConnectionViewer(DetectedConnectionAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class DetectedConnectionProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def from_component(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("from_component"))
+    
+    @property
+    def from_port(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("from_port"))
+    
+    @property
+    def to_component(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("to_component"))
+    
+    @property
+    def to_port(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("to_port"))
+    
+    @property
+    def net_label(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("net_label"))
+    
+    @property
+    def wire_style(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("wire_style"))
     
     
 
@@ -368,6 +518,128 @@ class DocumentSynthesisProperties:
     
 
 
+class DrawingPageAnalysisAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("DrawingPageAnalysis")
+        self._properties: typing.Set[str] = set([  "page_number",  "sheet_number",  "zone_grid",  "domain",  "components",  "connections",  "off_page_connectors",  "title_block",  "notes",  "page_type",  ])
+        self._props = DrawingPageAnalysisProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "DrawingPageAnalysisProperties":
+        return self._props
+
+
+class DrawingPageAnalysisViewer(DrawingPageAnalysisAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class DrawingPageAnalysisProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def page_number(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("page_number"))
+    
+    @property
+    def sheet_number(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("sheet_number"))
+    
+    @property
+    def zone_grid(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("zone_grid"))
+    
+    @property
+    def domain(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("domain"))
+    
+    @property
+    def components(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("components"))
+    
+    @property
+    def connections(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("connections"))
+    
+    @property
+    def off_page_connectors(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("off_page_connectors"))
+    
+    @property
+    def title_block(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("title_block"))
+    
+    @property
+    def notes(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("notes"))
+    
+    @property
+    def page_type(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("page_type"))
+    
+    
+
+
+class DrawingSetSynthesisAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("DrawingSetSynthesis")
+        self._properties: typing.Set[str] = set([  "ambiguous_component_merges",  "narrative_cross_references",  "document_summary",  ])
+        self._props = DrawingSetSynthesisProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "DrawingSetSynthesisProperties":
+        return self._props
+
+
+class DrawingSetSynthesisViewer(DrawingSetSynthesisAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class DrawingSetSynthesisProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def ambiguous_component_merges(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("ambiguous_component_merges"))
+    
+    @property
+    def narrative_cross_references(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("narrative_cross_references"))
+    
+    @property
+    def document_summary(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("document_summary"))
+    
+    
+
+
 class ExtractedSectionAst:
     def __init__(self, tb: type_builder.TypeBuilder):
         _tb = tb._tb # type: ignore (we know how to use this private attribute)
@@ -493,6 +765,159 @@ class HypotheticalDocumentProperties:
     
 
 
+class MergeAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("Merge")
+        self._properties: typing.Set[str] = set([  "page_a",  "component_a",  "page_b",  "component_b",  "confidence",  "rationale",  ])
+        self._props = MergeProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "MergeProperties":
+        return self._props
+
+
+class MergeViewer(MergeAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class MergeProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def page_a(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("page_a"))
+    
+    @property
+    def component_a(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("component_a"))
+    
+    @property
+    def page_b(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("page_b"))
+    
+    @property
+    def component_b(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("component_b"))
+    
+    @property
+    def confidence(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("confidence"))
+    
+    @property
+    def rationale(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("rationale"))
+    
+    
+
+
+class NarrativeXrefAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("NarrativeXref")
+        self._properties: typing.Set[str] = set([  "source_page",  "target_page",  "description",  ])
+        self._props = NarrativeXrefProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "NarrativeXrefProperties":
+        return self._props
+
+
+class NarrativeXrefViewer(NarrativeXrefAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class NarrativeXrefProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def source_page(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("source_page"))
+    
+    @property
+    def target_page(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("target_page"))
+    
+    @property
+    def description(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("description"))
+    
+    
+
+
+class OffPageConnectorAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("OffPageConnector")
+        self._properties: typing.Set[str] = set([  "tag",  "bound_component",  "target_hint",  ])
+        self._props = OffPageConnectorProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "OffPageConnectorProperties":
+        return self._props
+
+
+class OffPageConnectorViewer(OffPageConnectorAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class OffPageConnectorProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def tag(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("tag"))
+    
+    @property
+    def bound_component(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("bound_component"))
+    
+    @property
+    def target_hint(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("target_hint"))
+    
+    
+
+
 class PageAnalysisAst:
     def __init__(self, tb: type_builder.TypeBuilder):
         _tb = tb._tb # type: ignore (we know how to use this private attribute)
@@ -544,6 +969,49 @@ class PageAnalysisProperties:
     @property
     def page_type(self) -> type_builder.ClassPropertyViewer:
         return type_builder.ClassPropertyViewer(self.__bldr.property("page_type"))
+    
+    
+
+
+class PortAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("Port")
+        self._properties: typing.Set[str] = set([  "port_id",  "position",  ])
+        self._props = PortProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "PortProperties":
+        return self._props
+
+
+class PortViewer(PortAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class PortProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def port_id(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("port_id"))
+    
+    @property
+    def position(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("position"))
     
     
 

@@ -23,7 +23,7 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
     value: StreamStateValueT
     state: typing_extensions.Literal["Pending", "Incomplete", "Complete"]
 # #########################################################################
-# Generated classes (24)
+# Generated classes (32)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -32,6 +32,22 @@ class AnswerQualityJudgment(BaseModel):
 
 class CompressedContext(BaseModel):
     compressed_text: typing.Optional[str] = Field(default=None, description='The compressed context preserving only query-relevant information')
+
+class DetectedComponent(BaseModel):
+    component_id: typing.Optional[str] = Field(default=None, description='stable within-page ID: \'R1\', \'V-101\', or synthesised')
+    symbol_class: typing.Optional[str] = Field(default=None, description='resistor | capacitor | valve | pump | junction | off_page_connector | ...')
+    label: typing.Optional[str] = Field(default=None, description='visible printed text near the symbol')
+    bbox: typing.List[int] = Field(description='[x, y, w, h] page pixel coords')
+    ports: typing.List["Port"]
+    properties: typing.Optional[typing.Dict[str, str]] = None
+
+class DetectedConnection(BaseModel):
+    from_component: typing.Optional[str] = None
+    from_port: typing.Optional[str] = None
+    to_component: typing.Optional[str] = None
+    to_port: typing.Optional[str] = None
+    net_label: typing.Optional[str] = Field(default=None, description='\'N5\', \'+24V\', or null for unnamed')
+    wire_style: typing.Optional[str] = Field(default=None, description='solid | dashed | pneumatic | hydraulic | signal')
 
 class DiscoveredEntity(BaseModel):
     name: typing.Optional[str] = None
@@ -49,6 +65,23 @@ class DocumentSynthesis(BaseModel):
     page_clusters: typing.List["SynthesisPageCluster"]
     document_summary: typing.Optional[str] = None
 
+class DrawingPageAnalysis(BaseModel):
+    page_number: typing.Optional[int] = None
+    sheet_number: typing.Optional[str] = None
+    zone_grid: typing.Optional[str] = Field(default=None, description='\'A-H horizontal, 1-8 vertical\' or similar grid spec')
+    domain: typing.Optional[str] = Field(default=None, description='electrical | p_and_id | mechanical | mixed')
+    components: typing.List["DetectedComponent"]
+    connections: typing.List["DetectedConnection"]
+    off_page_connectors: typing.List["OffPageConnector"]
+    title_block: typing.Optional[typing.Dict[str, str]] = None
+    notes: typing.List[str]
+    page_type: typing.Optional[str] = Field(default=None, description='drawing | title_page | bom | text | mixed')
+
+class DrawingSetSynthesis(BaseModel):
+    ambiguous_component_merges: typing.List["Merge"]
+    narrative_cross_references: typing.List["NarrativeXref"]
+    document_summary: typing.Optional[str] = None
+
 class ExtractedSection(BaseModel):
     structure: typing.Optional[str] = Field(default=None, description='hierarchical numbering')
     title: typing.Optional[str] = Field(default=None, description='section title')
@@ -60,12 +93,34 @@ class ExtractedStructure(BaseModel):
 class HypotheticalDocument(BaseModel):
     passage: typing.Optional[str] = Field(default=None, description='A hypothetical document passage answering the question')
 
+class Merge(BaseModel):
+    page_a: typing.Optional[int] = None
+    component_a: typing.Optional[str] = None
+    page_b: typing.Optional[int] = None
+    component_b: typing.Optional[str] = None
+    confidence: typing.Optional[float] = None
+    rationale: typing.Optional[str] = None
+
+class NarrativeXref(BaseModel):
+    source_page: typing.Optional[int] = None
+    target_page: typing.Optional[int] = None
+    description: typing.Optional[str] = None
+
+class OffPageConnector(BaseModel):
+    tag: typing.Optional[str] = Field(default=None, description='\'/A2\', \'OPC-1\', \'to sheet 3 zone B2\'')
+    bound_component: typing.Optional[str] = Field(default=None, description='on-page component_id it terminates at')
+    target_hint: typing.Optional[str] = Field(default=None, description='parsed \'sheet 3, zone B2\' hint if present')
+
 class PageAnalysis(BaseModel):
     description: typing.Optional[str] = None
     entities: typing.List["DiscoveredEntity"]
     tables: typing.List["DiscoveredTable"]
     annotations: typing.List[str]
     page_type: typing.Optional[str] = None
+
+class Port(BaseModel):
+    port_id: typing.Optional[str] = Field(default=None, description='label or index of the port')
+    position: typing.Optional[typing.List[int]] = Field(default=None, description='[x, y] in page pixel coords, optional')
 
 class QueryAnalysis(BaseModel):
     keywords: typing.List[str]

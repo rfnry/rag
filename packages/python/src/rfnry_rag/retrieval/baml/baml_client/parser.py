@@ -23,6 +23,12 @@ class LlmResponseParser:
     def __init__(self, options: DoNotUseDirectlyCallManager):
         self.__options = options
 
+    def AnalyzeDrawingPage(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> types.DrawingPageAnalysis:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzeDrawingPage", llm_response=llm_response, mode="request")
+        return typing.cast(types.DrawingPageAnalysis, __result__)
+
     def AnalyzePage(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> types.PageAnalysis:
@@ -149,6 +155,12 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="SynthesizeDocument", llm_response=llm_response, mode="request")
         return typing.cast(types.DocumentSynthesis, __result__)
 
+    def SynthesizeDrawingSet(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> types.DrawingSetSynthesis:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="SynthesizeDrawingSet", llm_response=llm_response, mode="request")
+        return typing.cast(types.DrawingSetSynthesis, __result__)
+
     def TreeRetrievalStep(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> typing.Union["types.ToolFetchPages", "types.ToolDrillDown", "types.ToolResolvedPages"]:
@@ -168,6 +180,12 @@ class LlmStreamParser:
 
     def __init__(self, options: DoNotUseDirectlyCallManager):
         self.__options = options
+
+    def AnalyzeDrawingPage(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> stream_types.DrawingPageAnalysis:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzeDrawingPage", llm_response=llm_response, mode="stream")
+        return typing.cast(stream_types.DrawingPageAnalysis, __result__)
 
     def AnalyzePage(
         self, llm_response: str, baml_options: BamlCallOptions = {},
@@ -294,6 +312,12 @@ class LlmStreamParser:
     ) -> stream_types.DocumentSynthesis:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="SynthesizeDocument", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.DocumentSynthesis, __result__)
+
+    def SynthesizeDrawingSet(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> stream_types.DrawingSetSynthesis:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="SynthesizeDrawingSet", llm_response=llm_response, mode="stream")
+        return typing.cast(stream_types.DrawingSetSynthesis, __result__)
 
     def TreeRetrievalStep(
         self, llm_response: str, baml_options: BamlCallOptions = {},

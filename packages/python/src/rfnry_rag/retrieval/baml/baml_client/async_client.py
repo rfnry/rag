@@ -82,6 +82,21 @@ class BamlAsyncClient:
     def parse_stream(self):
       return self.__llm_stream_parser
 
+    async def AnalyzeDrawingPage(self, page_image: baml_py.Image,domain_hint: str,symbol_library: str,off_page_patterns: str,
+        baml_options: BamlCallOptions = {},
+    ) -> types.DrawingPageAnalysis:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            # Use streaming internally when on_tick is provided
+            __stream__ = self.stream.AnalyzeDrawingPage(page_image=page_image,domain_hint=domain_hint,symbol_library=symbol_library,off_page_patterns=off_page_patterns,
+                baml_options=baml_options)
+            return await __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="AnalyzeDrawingPage", args={
+                "page_image": page_image,"domain_hint": domain_hint,"symbol_library": symbol_library,"off_page_patterns": off_page_patterns,
+            })
+            return typing.cast(types.DrawingPageAnalysis, __result__.cast_to(types, types, stream_types, False, __runtime__))
     async def AnalyzePage(self, page_image: baml_py.Image,
         baml_options: BamlCallOptions = {},
     ) -> types.PageAnalysis:
@@ -397,6 +412,21 @@ class BamlAsyncClient:
                 "page_analyses": page_analyses,
             })
             return typing.cast(types.DocumentSynthesis, __result__.cast_to(types, types, stream_types, False, __runtime__))
+    async def SynthesizeDrawingSet(self, per_page_digest: str,already_linked: str,
+        baml_options: BamlCallOptions = {},
+    ) -> types.DrawingSetSynthesis:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            # Use streaming internally when on_tick is provided
+            __stream__ = self.stream.SynthesizeDrawingSet(per_page_digest=per_page_digest,already_linked=already_linked,
+                baml_options=baml_options)
+            return await __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="SynthesizeDrawingSet", args={
+                "per_page_digest": per_page_digest,"already_linked": already_linked,
+            })
+            return typing.cast(types.DrawingSetSynthesis, __result__.cast_to(types, types, stream_types, False, __runtime__))
     async def TreeRetrievalStep(self, query: str,tree_structure: str,accumulated_context: str,
         baml_options: BamlCallOptions = {},
     ) -> typing.Union["types.ToolFetchPages", "types.ToolDrillDown", "types.ToolResolvedPages"]:
@@ -436,6 +466,18 @@ class BamlStreamClient:
     def __init__(self, options: DoNotUseDirectlyCallManager):
         self.__options = options
 
+    def AnalyzeDrawingPage(self, page_image: baml_py.Image,domain_hint: str,symbol_library: str,off_page_patterns: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlStream[stream_types.DrawingPageAnalysis, types.DrawingPageAnalysis]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="AnalyzeDrawingPage", args={
+            "page_image": page_image,"domain_hint": domain_hint,"symbol_library": symbol_library,"off_page_patterns": off_page_patterns,
+        })
+        return baml_py.BamlStream[stream_types.DrawingPageAnalysis, types.DrawingPageAnalysis](
+          __result__,
+          lambda x: typing.cast(stream_types.DrawingPageAnalysis, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(types.DrawingPageAnalysis, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
     def AnalyzePage(self, page_image: baml_py.Image,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlStream[stream_types.PageAnalysis, types.PageAnalysis]:
@@ -688,6 +730,18 @@ class BamlStreamClient:
           lambda x: typing.cast(types.DocumentSynthesis, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
+    def SynthesizeDrawingSet(self, per_page_digest: str,already_linked: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlStream[stream_types.DrawingSetSynthesis, types.DrawingSetSynthesis]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="SynthesizeDrawingSet", args={
+            "per_page_digest": per_page_digest,"already_linked": already_linked,
+        })
+        return baml_py.BamlStream[stream_types.DrawingSetSynthesis, types.DrawingSetSynthesis](
+          __result__,
+          lambda x: typing.cast(stream_types.DrawingSetSynthesis, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(types.DrawingSetSynthesis, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
     def TreeRetrievalStep(self, query: str,tree_structure: str,accumulated_context: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlStream[typing.Union["stream_types.ToolFetchPages", "stream_types.ToolDrillDown", "stream_types.ToolResolvedPages"], typing.Union["types.ToolFetchPages", "types.ToolDrillDown", "types.ToolResolvedPages"]]:
@@ -720,6 +774,13 @@ class BamlHttpRequestClient:
     def __init__(self, options: DoNotUseDirectlyCallManager):
         self.__options = options
 
+    async def AnalyzeDrawingPage(self, page_image: baml_py.Image,domain_hint: str,symbol_library: str,off_page_patterns: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="AnalyzeDrawingPage", args={
+            "page_image": page_image,"domain_hint": domain_hint,"symbol_library": symbol_library,"off_page_patterns": off_page_patterns,
+        }, mode="request")
+        return __result__
     async def AnalyzePage(self, page_image: baml_py.Image,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
@@ -865,6 +926,13 @@ class BamlHttpRequestClient:
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="SynthesizeDocument", args={
             "page_analyses": page_analyses,
+        }, mode="request")
+        return __result__
+    async def SynthesizeDrawingSet(self, per_page_digest: str,already_linked: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="SynthesizeDrawingSet", args={
+            "per_page_digest": per_page_digest,"already_linked": already_linked,
         }, mode="request")
         return __result__
     async def TreeRetrievalStep(self, query: str,tree_structure: str,accumulated_context: str,
@@ -889,6 +957,13 @@ class BamlHttpStreamRequestClient:
     def __init__(self, options: DoNotUseDirectlyCallManager):
         self.__options = options
 
+    async def AnalyzeDrawingPage(self, page_image: baml_py.Image,domain_hint: str,symbol_library: str,off_page_patterns: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="AnalyzeDrawingPage", args={
+            "page_image": page_image,"domain_hint": domain_hint,"symbol_library": symbol_library,"off_page_patterns": off_page_patterns,
+        }, mode="stream")
+        return __result__
     async def AnalyzePage(self, page_image: baml_py.Image,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
@@ -1034,6 +1109,13 @@ class BamlHttpStreamRequestClient:
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="SynthesizeDocument", args={
             "page_analyses": page_analyses,
+        }, mode="stream")
+        return __result__
+    async def SynthesizeDrawingSet(self, per_page_digest: str,already_linked: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="SynthesizeDrawingSet", args={
+            "per_page_digest": per_page_digest,"already_linked": already_linked,
         }, mode="stream")
         return __result__
     async def TreeRetrievalStep(self, query: str,tree_structure: str,accumulated_context: str,

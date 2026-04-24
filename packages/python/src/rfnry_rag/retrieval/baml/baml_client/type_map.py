@@ -22,6 +22,12 @@ type_map = {
     "types.CompressedContext": types.CompressedContext,
     "stream_types.CompressedContext": stream_types.CompressedContext,
 
+    "types.DetectedComponent": types.DetectedComponent,
+    "stream_types.DetectedComponent": stream_types.DetectedComponent,
+
+    "types.DetectedConnection": types.DetectedConnection,
+    "stream_types.DetectedConnection": stream_types.DetectedConnection,
+
     "types.DiscoveredEntity": types.DiscoveredEntity,
     "stream_types.DiscoveredEntity": stream_types.DiscoveredEntity,
 
@@ -30,6 +36,12 @@ type_map = {
 
     "types.DocumentSynthesis": types.DocumentSynthesis,
     "stream_types.DocumentSynthesis": stream_types.DocumentSynthesis,
+
+    "types.DrawingPageAnalysis": types.DrawingPageAnalysis,
+    "stream_types.DrawingPageAnalysis": stream_types.DrawingPageAnalysis,
+
+    "types.DrawingSetSynthesis": types.DrawingSetSynthesis,
+    "stream_types.DrawingSetSynthesis": stream_types.DrawingSetSynthesis,
 
     "types.ExtractedSection": types.ExtractedSection,
     "stream_types.ExtractedSection": stream_types.ExtractedSection,
@@ -40,8 +52,20 @@ type_map = {
     "types.HypotheticalDocument": types.HypotheticalDocument,
     "stream_types.HypotheticalDocument": stream_types.HypotheticalDocument,
 
+    "types.Merge": types.Merge,
+    "stream_types.Merge": stream_types.Merge,
+
+    "types.NarrativeXref": types.NarrativeXref,
+    "stream_types.NarrativeXref": stream_types.NarrativeXref,
+
+    "types.OffPageConnector": types.OffPageConnector,
+    "stream_types.OffPageConnector": stream_types.OffPageConnector,
+
     "types.PageAnalysis": types.PageAnalysis,
     "stream_types.PageAnalysis": stream_types.PageAnalysis,
+
+    "types.Port": types.Port,
+    "stream_types.Port": stream_types.Port,
 
     "types.QueryAnalysis": types.QueryAnalysis,
     "stream_types.QueryAnalysis": stream_types.QueryAnalysis,
