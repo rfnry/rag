@@ -163,6 +163,7 @@ All LLM calls go through BAML for structured output parsing, retry/fallback poli
 - `TreeIndexingConfig.max_tokens_per_node`: `≤ 200_000`
 - `GenerationConfig`: `grounding_enabled=True` requires `grounding_threshold > 0` and an `lm_client`
 - Cross-config: `tree_indexing.max_tokens_per_node ≤ tree_search.max_context_tokens`
+- `BatchConfig.batch_size`: `≤ 100_000`
 - `BatchConfig.concurrency`: `1 ≤ concurrency ≤ 20`
 - `run_concurrent` (common concurrency helper): `1 ≤ concurrency ≤ 100` (separate from `BatchConfig.concurrency` which is capped at 20)
 - `RetrievalConfig.history_window`: `1 ≤ history_window ≤ 20`, default 3

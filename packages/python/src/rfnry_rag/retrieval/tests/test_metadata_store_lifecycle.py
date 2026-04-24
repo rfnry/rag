@@ -86,7 +86,6 @@ async def test_find_by_hash_returns_match(tmp_path) -> None:
     assert await store.find_by_hash("abc123", "different") is None
 
 
-@pytest.mark.asyncio
 async def test_file_hash_column_has_index(tmp_path) -> None:
     """find_by_hash must hit an index, not a full scan."""
     import sqlalchemy as sa

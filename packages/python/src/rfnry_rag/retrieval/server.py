@@ -646,6 +646,12 @@ class RagEngine:
         if persistence.vector_store and hasattr(persistence.vector_store, "collections"):
             store_collections: list[str] = persistence.vector_store.collections
             for coll_name in store_collections:
+                # INTENTIONAL: the first collection reuses the already-built default
+                # service instances (self._retrieval_service / self._ingestion_service)
+                # rather than a fresh scoped pipeline. This avoids redundant construction
+                # for the common case of one-collection engines. Removing this branch
+                # requires updating test_default_collection_uses_unscoped_default_services
+                # which codifies the intent.
                 if coll_name == store_collections[0]:
                     self._retrieval_by_collection[coll_name] = (
                         self._retrieval_service,

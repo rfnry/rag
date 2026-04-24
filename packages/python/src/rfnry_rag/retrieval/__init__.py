@@ -11,6 +11,7 @@ from rfnry_rag.retrieval.common.errors import EmptyDocumentError as EmptyDocumen
 from rfnry_rag.retrieval.common.errors import GenerationError as GenerationError
 from rfnry_rag.retrieval.common.errors import IngestionError as IngestionError
 from rfnry_rag.retrieval.common.errors import IngestionInterruptedError as IngestionInterruptedError
+from rfnry_rag.retrieval.common.errors import InputError as InputError
 from rfnry_rag.retrieval.common.errors import ParseError as ParseError
 from rfnry_rag.retrieval.common.errors import RagError as RagError
 from rfnry_rag.retrieval.common.errors import RetrievalError as RetrievalError
@@ -118,6 +119,7 @@ __all__ = [
     "IngestionError",
     "IngestionInterruptedError",
     "IngestionService",
+    "InputError",
     "JudgmentResult",
     "LLMJudgment",
     "LanguageModelClient",

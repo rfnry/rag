@@ -10,6 +10,52 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-24 Round 3 Review
+
+Cumulative fixes from a third-pass SDK audit. 25 commits; test count 741 → 789.
+
+**Round 2 regressions resolved:**
+- `on_progress` callback now emits a final `(total, total)` completion event regardless of group composition (R2-A).
+- `_dispatch_methods` TaskGroup `except*` handler now propagates `CancelledError`/`SystemExit`/`KeyboardInterrupt` unwrapped (R2-B).
+
+**Performance:**
+- BM25 index build scrolls chunks outside the cache lock — concurrent builds for different `knowledge_id`s no longer serialize (P-1).
+- `TreeRetrieval.search` fans out per-source work with `asyncio.gather` (P-2).
+- Embedding provider sub-batches run under a bounded `asyncio.Semaphore(3)` instead of serial `for` loop (P-3).
+- Added DB index on `rag_sources.file_hash` with schema migration — `find_by_hash` no longer full-scans (P-4).
+- `VectorIngestion` gathers dense + sparse embeddings concurrently (P-5).
+
+**Config safety:**
+- `RFNRY_RAG_BAML_LOG` validated against `{trace, debug, info, warn, error, off}` (C-1).
+- All stores reject zero/negative timeout and pool knobs; SQLAlchemy accepts `-1` for `pool_recycle` (C-2).
+- `TreeSearchConfig.max_sources_per_query` (`1–1000`, default 50) caps `_run_tree_search` fan-out (C-3).
+- Upper bounds on tree indexing/search knobs: `toc_scan_pages ≤ 500`, `max_pages_per_node ≤ 200`, `max_tokens_per_node ≤ 200_000`, `max_steps ≤ 50`, `max_context_tokens ≤ 500_000` (C-4).
+- `BatchConfig.batch_size ≤ 100_000` (C-5).
+- `RetrievalConfig.bm25_max_indexes ∈ [1, 1000]` (L2).
+
+**Security hardening:**
+- Query-rewriting BAML prompts (HyDE, multi-query, step-back) fence `{{ query }}` in `======== QUERY START/END ========` (S-1).
+- Reasoning BAML `AnalyzeContext` fences `{{ roles }}`; `CheckCompliance` fences `{{ dimensions }}` (S-2).
+- Reasoning SDK configs cap `max_text_length ≤ 5_000_000` chars (S-3).
+- `RagEngine.embed` and `embed_single` validate query length (L3).
+- `TreeNode.from_dict` rejects tampered trees with depth > 100 or > 10 000 nodes (L4).
+- `mapper._classify_relationship` returns `None` for unknown relationships instead of defaulting to `CONNECTS_TO`; unclassifiable cross-references are dropped (L5).
+
+**Error typing:**
+- `RuntimeError` → `ConfigurationError` for missing generation config at call time (three sites) (L6).
+- New `InputError(RagError, ValueError)` for input-validation failures; back-compat with `except ValueError:` preserved (L7).
+
+**Observability:**
+- Neo4j and Qdrant stores log effective pool/timeout settings at startup (L1).
+
+**Docs:**
+- Clarified `RetrievalService.methods` is a concrete-class contract (L9).
+- CLAUDE.md documents tree-search placement in the retrieval pipeline flow (L10).
+- `Pipeline` docstring explains why `ClusteringService` is intentionally excluded (L11).
+
+**Deferred:**
+- L8 (uniform scoped pipelines) — deferred. The `collections[0]` special case is intentional per existing tests that codify first-collection-reuses-default-services behavior. Will require test-spec revision before it can land.
+
 ### 2026-04-23 Round 2 Review
 
 Cumulative fixes from a second-pass SDK audit. 40 commits; test count 689 → 741.
