@@ -262,3 +262,29 @@ async def test_analyzed_ingestion_identifies_document_method_by_type_not_name() 
     methods = [doc_method, other]
     filtered = [m for m in methods if isinstance(m, DocumentIngestion)]
     assert filtered == [doc_method]
+
+
+def test_synthesize_shared_entities_caps_cross_refs_per_entity() -> None:
+    """Entity appearing on 50+ pages must not produce O(n^2) cross-refs."""
+    from rfnry_rag.retrieval.modules.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
+    from rfnry_rag.retrieval.modules.ingestion.analyze.service import _MAX_PAGES_PER_ENTITY, AnalyzedIngestionService
+
+    # Build 50 pages all sharing one entity — uncapped this would produce
+    # 50*49/2 = 1225 cross-refs; capped at _MAX_PAGES_PER_ENTITY it must be
+    # at most _MAX_PAGES_PER_ENTITY * (_MAX_PAGES_PER_ENTITY - 1) / 2 = 190.
+    n_pages = 50
+    pages = [
+        PageAnalysis(
+            page_number=i + 1,
+            description=f"Page {i + 1}",
+            entities=[DiscoveredEntity(name="SharedEntity", category="test", context="", value=None)],
+        )
+        for i in range(n_pages)
+    ]
+
+    xrefs = AnalyzedIngestionService._synthesize_shared_entities(pages)
+    max_expected = _MAX_PAGES_PER_ENTITY * (_MAX_PAGES_PER_ENTITY - 1) // 2
+    assert len(xrefs) <= max_expected, (
+        f"got {len(xrefs)} cross-refs for {n_pages} pages sharing one entity; "
+        f"expected ≤ {max_expected} (cap={_MAX_PAGES_PER_ENTITY})"
+    )

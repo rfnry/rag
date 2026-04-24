@@ -37,6 +37,7 @@ logger = get_logger("analyze/ingestion")
 
 STRUCTURED_EXTENSIONS = {".pdf", ".xml", ".l5x"}
 _ANALYZE_PDF_CONCURRENCY = 5  # bounded to stay under LLM provider rate limits
+_MAX_PAGES_PER_ENTITY = 20  # caps pairwise cross-ref expansion to 190 refs per entity (20*19/2)
 
 
 class AnalyzedIngestionService:
@@ -405,6 +406,14 @@ class AnalyzedIngestionService:
                 entity_pages.setdefault(entity.name, []).append(pa.page_number)
 
         for entity_name, pages in entity_pages.items():
+            if len(pages) > _MAX_PAGES_PER_ENTITY:
+                logger.warning(
+                    "entity %s appears on %d pages; capping cross-ref expansion to first %d",
+                    entity_name,
+                    len(pages),
+                    _MAX_PAGES_PER_ENTITY,
+                )
+                pages = pages[:_MAX_PAGES_PER_ENTITY]
             if len(pages) > 1:
                 for i, src_page in enumerate(pages):
                     for tgt_page in pages[i + 1 :]:
