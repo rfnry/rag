@@ -248,6 +248,38 @@ async with RagEngine(config) as rag:
 
 When grounding gates reject a query, `result.grounded` is `False` and `result.answer` contains an escalation message. When guiding is enabled, the relevance gate may return a `result.clarification` with a question and options.
 
+### Iterative retrieval with generate_step
+
+`generate_step()` exposes a single LLM reasoning step as a public primitive. It accepts the current query, a list of retrieved chunks, and an optional string of prior reasoning accumulated over previous iterations, and returns a `StepResult(text, done)` where `text` is the model's reasoning output for this step and `done` signals whether the model considers the answer complete. Unlike `query()`, the consumer owns the loop — the application decides how many iterations to run, when to stop, and how to enrich the query between rounds.
+
+```python
+from rfnry_rag.retrieval import RagEngine, GenerationConfig, LanguageModelClient, LanguageModelProvider
+
+step_lm = LanguageModelClient(
+    provider=LanguageModelProvider(provider="anthropic", model="claude-haiku-4-5-20251001", api_key="..."),
+)
+config = RagServerConfig(
+    ...,
+    generation=GenerationConfig(step_lm_client=step_lm),
+)
+
+async with RagEngine(config) as rag:
+    query = "What maintenance intervals apply to the hydraulic system?"
+    reasoning = ""
+    max_steps = 5
+
+    for _ in range(max_steps):
+        chunks = await rag.retrieve(query, knowledge_id="helios")
+        result = await rag.generate_step(query=query, chunks=chunks, context=reasoning)
+        reasoning = result.text
+        if result.done:
+            break
+
+    print(reasoning)
+```
+
+`generate_step()` raises `RuntimeError` if `step_lm_client` is not set in `GenerationConfig`. The method is independent of the grounding and relevance gates used by `query()` — those gates are not applied here.
+
 ### Knowledge
 
 Source CRUD, chunk inspection, statistics, and embedding migration detection.
