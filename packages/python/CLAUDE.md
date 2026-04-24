@@ -86,7 +86,7 @@ The retrieval pipeline in `RagEngine` runs in this order:
    - **DocumentRetrieval** — Full-text + substring search (requires document store)
    - **GraphRetrieval** — Entity lookup + N-hop traversal (requires graph store)
    - **Enrich** — Structured retrieval with field filtering (requires metadata store)
-   - **Tree** — LLM reasoning over hierarchical document structure (requires metadata store + `TreeSearchConfig.enabled`)
+   - **Tree** — Runs when `TreeSearchConfig.enabled`; loads stored tree indexes for up to `max_sources_per_query` sources, runs an LLM-backed navigation per source, and injects results into the RRF fusion pool alongside the other retrieval paths. See `server.py::_run_tree_search` for orchestration; per-source work runs concurrently via `asyncio.gather`. Requires metadata store.
 3. **Reranking** (optional) — Cross-encoder reranking against original query (Cohere, Voyage)
 4. **Chunk refinement** (optional) — Extractive (context window) or abstractive (LLM summarization) refinement
 5. **Generation** (for `query()` only) — Grounding gate → LLM relevance gate → optional clarification → LLM generation
@@ -154,8 +154,16 @@ All LLM calls go through BAML for structured output parsing, retry/fallback poli
 - `IngestionConfig.chunk_context_headers` (was `contextual_chunking`, old name deprecated)
 - `RetrievalConfig.top_k`: `1 ≤ top_k ≤ 200`
 - `RetrievalConfig.bm25_max_chunks`: `≤ 200_000`
+- `RetrievalConfig.bm25_max_indexes`: `1 ≤ n ≤ 1000`, default 16
+- `TreeSearchConfig.max_sources_per_query`: `1 ≤ n ≤ 1000`, default 50
+- `TreeSearchConfig.max_steps`: `≤ 50`
+- `TreeSearchConfig.max_context_tokens`: `≤ 500_000`
+- `TreeIndexingConfig.toc_scan_pages`: `≤ 500`
+- `TreeIndexingConfig.max_pages_per_node`: `≤ 200`
+- `TreeIndexingConfig.max_tokens_per_node`: `≤ 200_000`
 - `GenerationConfig`: `grounding_enabled=True` requires `grounding_threshold > 0` and an `lm_client`
 - Cross-config: `tree_indexing.max_tokens_per_node ≤ tree_search.max_context_tokens`
+- `BatchConfig.batch_size`: `≤ 100_000`
 - `BatchConfig.concurrency`: `1 ≤ concurrency ≤ 20`
 - `run_concurrent` (common concurrency helper): `1 ≤ concurrency ≤ 100` (separate from `BatchConfig.concurrency` which is capped at 20)
 - `RetrievalConfig.history_window`: `1 ≤ history_window ≤ 20`, default 3

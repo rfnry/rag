@@ -1,8 +1,11 @@
+import asyncio
+
 from openai import AsyncOpenAI
 
 from rfnry_rag.common.language_model import LanguageModelProvider
 
 _OPENAI_MAX_BATCH = 2048
+_EMBED_CONCURRENCY = 3  # bounded to stay well below provider rate limits
 
 
 class _OpenAIEmbeddings:
@@ -15,16 +18,26 @@ class _OpenAIEmbeddings:
     def model(self) -> str:
         return self._model
 
+    async def _embed_one(self, texts: list[str]) -> list[list[float]]:
+        response = await self._client.embeddings.create(input=texts, model=self._model)
+        return [item.embedding for item in response.data]
+
     async def embed(self, texts: list[str]) -> list[list[float]]:
         if len(texts) <= _OPENAI_MAX_BATCH:
-            response = await self._client.embeddings.create(input=texts, model=self._model)
-            return [item.embedding for item in response.data]
-        all_vectors: list[list[float]] = []
-        for i in range(0, len(texts), _OPENAI_MAX_BATCH):
-            batch = texts[i : i + _OPENAI_MAX_BATCH]
-            response = await self._client.embeddings.create(input=batch, model=self._model)
-            all_vectors.extend(item.embedding for item in response.data)
-        return all_vectors
+            return await self._embed_one(texts)
+
+        chunks = [texts[i : i + _OPENAI_MAX_BATCH] for i in range(0, len(texts), _OPENAI_MAX_BATCH)]
+        sem = asyncio.Semaphore(_EMBED_CONCURRENCY)
+
+        async def embed_chunk(chunk: list[str]) -> list[list[float]]:
+            async with sem:
+                return await self._embed_one(chunk)
+
+        results = await asyncio.gather(*(embed_chunk(c) for c in chunks))
+        out: list[list[float]] = []
+        for r in results:
+            out.extend(r)
+        return out
 
     async def embedding_dimension(self) -> int:
         if self._dimension is None:

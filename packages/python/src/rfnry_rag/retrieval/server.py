@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from rfnry_rag.retrieval.common.errors import ConfigurationError
+from rfnry_rag.retrieval.common.errors import ConfigurationError, InputError
 
 if TYPE_CHECKING:
     from rfnry_rag.retrieval.modules.ingestion.tree.service import TreeIndexingService
@@ -60,22 +60,22 @@ _MAX_METADATA_VALUE_CHARS = 8_000
 
 def _validate_query_text(text: str) -> None:
     if len(text) > _MAX_QUERY_CHARS:
-        raise ValueError(f"query exceeds {_MAX_QUERY_CHARS} chars (got {len(text)})")
+        raise InputError(f"query exceeds {_MAX_QUERY_CHARS} chars (got {len(text)})")
 
 
 def _validate_ingest_content(content: str) -> None:
     if len(content) > _MAX_INGEST_CHARS:
-        raise ValueError(f"ingest content exceeds {_MAX_INGEST_CHARS} chars (got {len(content)})")
+        raise InputError(f"ingest content exceeds {_MAX_INGEST_CHARS} chars (got {len(content)})")
 
 
 def _validate_metadata(metadata: dict[str, Any] | None) -> None:
     if not metadata:
         return
     if len(metadata) > _MAX_METADATA_KEYS:
-        raise ValueError(f"metadata exceeds {_MAX_METADATA_KEYS} keys (got {len(metadata)})")
+        raise InputError(f"metadata exceeds {_MAX_METADATA_KEYS} keys (got {len(metadata)})")
     for k, v in metadata.items():
         if isinstance(v, str) and len(v) > _MAX_METADATA_VALUE_CHARS:
-            raise ValueError(f"metadata[{k!r}] value exceeds {_MAX_METADATA_VALUE_CHARS} chars (got {len(v)})")
+            raise InputError(f"metadata[{k!r}] value exceeds {_MAX_METADATA_VALUE_CHARS} chars (got {len(v)})")
 
 
 DEFAULT_SYSTEM_PROMPT = (
@@ -187,6 +187,10 @@ class RetrievalConfig:
                 f"bm25_max_chunks must be <= 200_000, got {self.bm25_max_chunks} — "
                 "in-memory BM25 index at that size risks OOM; use sparse_embeddings instead"
             )
+        if not (1 <= self.bm25_max_indexes <= 1000):
+            raise ConfigurationError(
+                f"bm25_max_indexes must be 1-1000, got {self.bm25_max_indexes}"
+            )
         if not (1 <= self.history_window <= 20):
             raise ConfigurationError(f"history_window must be 1-20, got {self.history_window}")
 
@@ -235,10 +239,16 @@ class TreeIndexingConfig:
     def __post_init__(self) -> None:
         if self.toc_scan_pages < 1:
             raise ConfigurationError("toc_scan_pages must be positive")
+        if self.toc_scan_pages > 500:
+            raise ConfigurationError(f"toc_scan_pages must be <= 500, got {self.toc_scan_pages}")
         if self.max_pages_per_node < 1:
             raise ConfigurationError("max_pages_per_node must be positive")
+        if self.max_pages_per_node > 200:
+            raise ConfigurationError(f"max_pages_per_node must be <= 200, got {self.max_pages_per_node}")
         if self.max_tokens_per_node < 1:
             raise ConfigurationError("max_tokens_per_node must be positive")
+        if self.max_tokens_per_node > 200_000:
+            raise ConfigurationError(f"max_tokens_per_node must be <= 200_000, got {self.max_tokens_per_node}")
 
 
 @dataclass
@@ -249,12 +259,21 @@ class TreeSearchConfig:
     model: LanguageModelClient | None = None
     max_steps: int = 5
     max_context_tokens: int = 50_000
+    max_sources_per_query: int = 50
 
     def __post_init__(self) -> None:
         if self.max_steps < 1:
             raise ConfigurationError("max_steps must be positive")
+        if self.max_steps > 50:
+            raise ConfigurationError(f"max_steps must be <= 50, got {self.max_steps}")
         if self.max_context_tokens < 1:
             raise ConfigurationError("max_context_tokens must be positive")
+        if self.max_context_tokens > 500_000:
+            raise ConfigurationError(f"max_context_tokens must be <= 500_000, got {self.max_context_tokens}")
+        if not (1 <= self.max_sources_per_query <= 1000):
+            raise ConfigurationError(
+                f"max_sources_per_query must be 1-1000, got {self.max_sources_per_query}"
+            )
 
 
 @dataclass
@@ -627,6 +646,12 @@ class RagEngine:
         if persistence.vector_store and hasattr(persistence.vector_store, "collections"):
             store_collections: list[str] = persistence.vector_store.collections
             for coll_name in store_collections:
+                # INTENTIONAL: the first collection reuses the already-built default
+                # service instances (self._retrieval_service / self._ingestion_service)
+                # rather than a fresh scoped pipeline. This avoids redundant construction
+                # for the common case of one-collection engines. Removing this branch
+                # requires updating test_default_collection_uses_unscoped_default_services
+                # which codifies the intent.
                 if coll_name == store_collections[0]:
                     self._retrieval_by_collection[coll_name] = (
                         self._retrieval_service,
@@ -880,7 +905,7 @@ class RagEngine:
         self._check_initialized()
         _validate_query_text(text)
         if not self._generation_service:
-            raise RuntimeError("query() requires generation to be configured")
+            raise ConfigurationError("query() requires generation.lm_client to be configured")
 
         chunks = await self._retrieve_chunks(text, knowledge_id, history, min_score, collection)
         return await self._generation_service.generate(
@@ -900,7 +925,7 @@ class RagEngine:
         self._check_initialized()
         _validate_query_text(text)
         if not self._generation_service:
-            raise RuntimeError("query_stream() requires generation to be configured")
+            raise ConfigurationError("query_stream() requires generation.lm_client to be configured")
 
         chunks = await self._retrieve_chunks(text, knowledge_id, history, min_score, collection)
         async for event in self._generation_service.generate_stream(
@@ -934,7 +959,7 @@ class RagEngine:
         self._check_initialized()
         _validate_query_text(query)
         if not self._step_service:
-            raise RuntimeError("generate_step() requires step_lm_client in GenerationConfig")
+            raise ConfigurationError("generate_step() requires generation.step_lm_client to be configured")
 
         return await self._step_service.generate_step(
             query=query,
@@ -947,6 +972,8 @@ class RagEngine:
         self._check_initialized()
         if not self._config.ingestion.embeddings:
             raise ConfigurationError("embed() requires embeddings to be configured")
+        for text in texts:
+            _validate_query_text(text)
         return await self._config.ingestion.embeddings.embed(texts)
 
     async def embed_single(self, text: str) -> list[float]:
@@ -954,6 +981,7 @@ class RagEngine:
         self._check_initialized()
         if not self._config.ingestion.embeddings:
             raise ConfigurationError("embed_single() requires embeddings to be configured")
+        _validate_query_text(text)
         vectors = await self._config.ingestion.embeddings.embed([text])
         return vectors[0]
 
@@ -1147,6 +1175,15 @@ class RagEngine:
         assert metadata_store is not None
 
         sources = await metadata_store.list_sources(knowledge_id=knowledge_id)
+
+        max_sources = self._config.tree_search.max_sources_per_query
+        if len(sources) > max_sources:
+            logger.warning(
+                "tree search limited to %d of %d sources (max_sources_per_query)",
+                max_sources,
+                len(sources),
+            )
+            sources = sources[:max_sources]
 
         async def search_one(source: Source) -> list[RetrievedChunk]:
             tree_json = await metadata_store.get_tree_index(source.source_id)

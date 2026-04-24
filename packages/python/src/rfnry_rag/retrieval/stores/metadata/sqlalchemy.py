@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.schema import ColumnDefault
 
-from rfnry_rag.retrieval.common.errors import DuplicateSourceError, SourceNotFoundError
+from rfnry_rag.retrieval.common.errors import ConfigurationError, DuplicateSourceError, SourceNotFoundError
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import Source, SourceStats
 
@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 # Current schema version. Bump on every additive migration so we can detect
 # downgrade attempts and avoid double-applying ALTER statements under concurrent
 # process start.
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 
 class _Base(DeclarativeBase):
@@ -56,7 +56,7 @@ class _SourceRow(_Base):
     tags_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     chunk_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     embedding_model: Mapped[str] = mapped_column(String(100), nullable=False)
-    file_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    file_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     stale: Mapped[bool] = mapped_column(nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     tree_index_json: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -89,6 +89,12 @@ class SQLAlchemyMetadataStore:
         pool_timeout: int = 10,
         echo: bool = False,
     ) -> None:
+        if pool_timeout <= 0:
+            raise ConfigurationError(f"pool_timeout must be > 0, got {pool_timeout}")
+        # SQLAlchemy interprets -1 as "never recycle"; reject 0 or other negatives.
+        if pool_recycle != -1 and pool_recycle <= 0:
+            raise ConfigurationError(f"pool_recycle must be > 0 or -1 (disable), got {pool_recycle}")
+
         parsed = make_url(url)
         if parsed.drivername == "postgresql":
             parsed = parsed.set(drivername="postgresql+asyncpg")
@@ -165,15 +171,17 @@ class SQLAlchemyMetadataStore:
         if current < _SCHEMA_VERSION:
             logger.info("migrating metadata schema: %d -> %d", current, _SCHEMA_VERSION)
             SQLAlchemyMetadataStore._migrate_missing_columns(conn)
+            SQLAlchemyMetadataStore._migrate_missing_indexes(conn)
             conn.execute(
                 text("UPDATE rag_schema_meta SET value = :v WHERE key = 'schema_version'"),
                 {"v": _SCHEMA_VERSION},
             )
         else:
-            # Still run ADD-COLUMN for safety on first boot after upgrading code
-            # when the version row was set to _SCHEMA_VERSION by a prior boot
-            # that didn't actually add new columns (e.g. code downgrade + upgrade).
+            # Still run ADD-COLUMN / ADD-INDEX for safety on first boot after upgrading
+            # code when the version row was set to _SCHEMA_VERSION by a prior boot
+            # that didn't actually add new columns/indexes (e.g. code downgrade + upgrade).
             SQLAlchemyMetadataStore._migrate_missing_columns(conn)
+            SQLAlchemyMetadataStore._migrate_missing_indexes(conn)
 
     @staticmethod
     def _render_default_literal(val: object, dialect) -> str:
@@ -210,6 +218,21 @@ class SQLAlchemyMetadataStore:
                 sql = f"ALTER TABLE {safe_table} ADD COLUMN {safe_col} {col_type}{nullable}{default}"
                 conn.execute(text(sql))
                 logger.info("migrated column: %s.%s", table.name, column.name)
+
+    @staticmethod
+    def _migrate_missing_indexes(conn) -> None:
+        """Add any indexes that exist in the model but not in the database (schema evolution).
+
+        Uses CREATE INDEX IF NOT EXISTS so the statement is idempotent on both
+        SQLite and PostgreSQL — safe to call on every boot."""
+        # Schema version 2: index on rag_sources.file_hash for find_by_hash performance.
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_rag_sources_file_hash"
+                " ON rag_sources (file_hash)"
+            )
+        )
+        logger.info("ensured index: rag_sources.file_hash")
 
     async def create_source(self, source: Source) -> None:
         row = _SourceRow(

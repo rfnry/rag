@@ -21,6 +21,9 @@ class Violation:
     suggestion: str | None = None
 
 
+_MAX_TEXT_LENGTH_CEILING = 5_000_000
+
+
 @dataclass
 class ComplianceConfig:
     """Configuration for compliance operations."""
@@ -36,6 +39,10 @@ class ComplianceConfig:
             raise ValueError("concurrency must be >= 1")
         if self.max_text_length < 1:
             raise ValueError("max_text_length must be >= 1")
+        if self.max_text_length > _MAX_TEXT_LENGTH_CEILING:
+            raise ValueError(
+                f"max_text_length must be <= {_MAX_TEXT_LENGTH_CEILING}, got {self.max_text_length}"
+            )
         if self.threshold is not None and not 0.0 <= self.threshold <= 1.0:
             raise ValueError("threshold must be between 0.0 and 1.0")
 

@@ -192,6 +192,14 @@ class Neo4jGraphStore:
 
         if not self.password:
             raise ConfigurationError("Neo4jGraphStore requires a non-empty password")
+        if self.query_timeout <= 0:
+            raise ConfigurationError(f"query_timeout must be > 0, got {self.query_timeout}")
+        if self.connection_timeout <= 0:
+            raise ConfigurationError(f"connection_timeout must be > 0, got {self.connection_timeout}")
+        if self.connection_acquisition_timeout <= 0:
+            raise ConfigurationError(
+                f"connection_acquisition_timeout must be > 0, got {self.connection_acquisition_timeout}"
+            )
 
     async def initialize(self) -> None:
         """Create the driver, verify connectivity, and ensure indexes exist."""
@@ -212,7 +220,15 @@ class Neo4jGraphStore:
                 await session.run(query)
             await session.run(_FULLTEXT_INDEX_QUERY)
 
-        logger.info("neo4j graph store initialized (uri=%s, database=%s)", self.uri, self.database)
+        logger.info(
+            "neo4j graph store initialized: uri=%s database=%s query_timeout=%.1fs "
+            "connection_timeout=%.1fs connection_acquisition_timeout=%.1fs",
+            self.uri,
+            self.database,
+            self.query_timeout,
+            self.connection_timeout,
+            self.connection_acquisition_timeout,
+        )
 
     async def add_entities(
         self,

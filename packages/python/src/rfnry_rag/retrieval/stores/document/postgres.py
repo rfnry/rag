@@ -59,6 +59,11 @@ class PostgresDocumentStore:
             raise ConfigurationError(
                 f"headline_min_words ({headline_min_words}) must be <= headline_max_words ({headline_max_words})"
             )
+        if pool_timeout <= 0:
+            raise ConfigurationError(f"pool_timeout must be > 0, got {pool_timeout}")
+        # SQLAlchemy interprets -1 as "never recycle"; reject 0 or other negatives.
+        if pool_recycle != -1 and pool_recycle <= 0:
+            raise ConfigurationError(f"pool_recycle must be > 0 or -1 (disable), got {pool_recycle}")
         self._headline_max_words = headline_max_words
         self._headline_min_words = headline_min_words
         self._headline_max_fragments = headline_max_fragments

@@ -53,3 +53,8 @@ async def test_ingest_stream_caps_inflight_task_count() -> None:
     # Peak *concurrent executions* is bounded by the semaphore (concurrency=2).
     # It must not grow linearly with the stream size.
     assert inflight_peak <= 2
+
+
+def test_batch_config_batch_size_upper_bound() -> None:
+    with pytest.raises(ValueError, match="batch_size must be <= "):
+        BatchConfig(batch_size=100_001)

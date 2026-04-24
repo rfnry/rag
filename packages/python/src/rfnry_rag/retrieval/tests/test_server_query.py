@@ -64,9 +64,11 @@ class TestServerQuery:
         assert "what is X?" in retrieval_query
 
     async def test_query_without_generation_raises(self):
+        from rfnry_rag.retrieval.common.errors import ConfigurationError
+
         server = _make_server()
         server._generation_service = None
-        with pytest.raises(RuntimeError, match="query\\(\\) requires generation"):
+        with pytest.raises(ConfigurationError, match="generation"):
             await server.query("test")
 
     async def test_query_not_initialized_raises(self):
@@ -154,6 +156,15 @@ class TestServerQueryStream:
         assert events[0].type == "chunk"
         assert events[1].type == "sources"
 
+    async def test_query_stream_without_generation_raises(self):
+        from rfnry_rag.retrieval.common.errors import ConfigurationError
+
+        server = _make_server()
+        server._generation_service = None
+        with pytest.raises(ConfigurationError, match="generation"):
+            async for _ in server.query_stream("test"):
+                pass
+
 
 class TestServerGenerateStep:
     async def test_generate_step_delegates_to_step_service(self):
@@ -168,8 +179,10 @@ class TestServerGenerateStep:
         )
 
     async def test_generate_step_without_service_raises(self):
+        from rfnry_rag.retrieval.common.errors import ConfigurationError
+
         server = _make_server()
-        with pytest.raises(RuntimeError, match="step_lm_client"):
+        with pytest.raises(ConfigurationError, match="generation.step_lm_client"):
             await server.generate_step("query", [])
 
     async def test_generate_step_rejects_oversize_query(self):

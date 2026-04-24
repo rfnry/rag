@@ -94,6 +94,14 @@ def test_retrieval_config_accepts_sensible_bm25_max_chunks():
     assert cfg.bm25_max_chunks == 100_000
 
 
+def test_retrieval_config_bm25_max_indexes_bounds() -> None:
+    with pytest.raises(ConfigurationError, match="bm25_max_indexes"):
+        RetrievalConfig(bm25_max_indexes=0)
+    with pytest.raises(ConfigurationError, match="bm25_max_indexes"):
+        RetrievalConfig(bm25_max_indexes=1001)
+    assert RetrievalConfig().bm25_max_indexes == 16
+
+
 class TestContextualChunkingDeprecation:
     """`contextual_chunking` is renamed to `chunk_context_headers`."""
 
@@ -181,3 +189,27 @@ def test_retrieval_config_history_window_validates() -> None:
         RetrievalConfig(history_window=0)
     with pytest.raises(ConfigurationError, match="history_window"):
         RetrievalConfig(history_window=21)
+
+
+def test_tree_search_config_max_sources_per_query_validates() -> None:
+    with pytest.raises(ConfigurationError, match="max_sources_per_query"):
+        TreeSearchConfig(enabled=False, max_sources_per_query=0)
+    with pytest.raises(ConfigurationError, match="max_sources_per_query"):
+        TreeSearchConfig(enabled=False, max_sources_per_query=1001)
+    assert TreeSearchConfig(enabled=False).max_sources_per_query == 50
+
+
+def test_tree_indexing_config_upper_bounds() -> None:
+    with pytest.raises(ConfigurationError, match="toc_scan_pages"):
+        TreeIndexingConfig(toc_scan_pages=501)
+    with pytest.raises(ConfigurationError, match="max_pages_per_node"):
+        TreeIndexingConfig(max_pages_per_node=201)
+    with pytest.raises(ConfigurationError, match="max_tokens_per_node"):
+        TreeIndexingConfig(max_tokens_per_node=200_001)
+
+
+def test_tree_search_config_upper_bounds() -> None:
+    with pytest.raises(ConfigurationError, match="max_steps"):
+        TreeSearchConfig(max_steps=51)
+    with pytest.raises(ConfigurationError, match="max_context_tokens"):
+        TreeSearchConfig(max_context_tokens=500_001)

@@ -66,6 +66,12 @@ class QdrantVectorStore:
     ) -> None:
         if hybrid_prefetch_multiplier < 1:
             raise ConfigurationError("hybrid_prefetch_multiplier must be >= 1")
+        if timeout <= 0:
+            raise ConfigurationError(f"timeout must be > 0, got {timeout}")
+        if scroll_timeout <= 0:
+            raise ConfigurationError(f"scroll_timeout must be > 0, got {scroll_timeout}")
+        if write_timeout <= 0:
+            raise ConfigurationError(f"write_timeout must be > 0, got {write_timeout}")
         self._url = url
         self._timeout = timeout
         self._scroll_timeout = scroll_timeout
@@ -127,6 +133,17 @@ class QdrantVectorStore:
                 )
                 self._state[name] = _CollectionState(initialized=True, named_vectors=True)
                 logger.info("created collection '%s' (dim=%d, named vectors)", name, vector_size)
+
+        logger.info(
+            "qdrant vector store initialized: url=%s timeout=%ds scroll_timeout=%ds write_timeout=%ds "
+            "hybrid_prefetch_multiplier=%d collections=%s",
+            self._url,
+            self._timeout,
+            self._scroll_timeout,
+            self._write_timeout,
+            self._hybrid_prefetch_multiplier,
+            self._collections,
+        )
 
     async def _ensure_and_resolve(self, collection: str | None = None) -> tuple[str, bool] | None:
         """Async version: ensure collection exists and return (name, named_vectors).

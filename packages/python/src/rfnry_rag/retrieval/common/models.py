@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
+_MAX_TREE_DEPTH = 100
+_MAX_TREE_NODES = 10_000
+
 
 @dataclass
 class Source:
@@ -125,14 +128,26 @@ class TreeNode:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> TreeNode:
+    def from_dict(
+        cls,
+        data: dict[str, Any],
+        _depth: int = 0,
+        _node_count: list[int] | None = None,
+    ) -> TreeNode:
+        if _depth > _MAX_TREE_DEPTH:
+            raise ValueError(f"tree index depth exceeds {_MAX_TREE_DEPTH}")
+        if _node_count is None:
+            _node_count = [0]
+        _node_count[0] += 1
+        if _node_count[0] > _MAX_TREE_NODES:
+            raise ValueError(f"tree index node count exceeds {_MAX_TREE_NODES}")
         return cls(
             node_id=data["node_id"],
             title=data["title"],
             start_index=data["start_index"],
             end_index=data["end_index"],
             summary=data.get("summary"),
-            children=[cls.from_dict(c) for c in data.get("children", [])],
+            children=[cls.from_dict(c, _depth + 1, _node_count) for c in data.get("children", [])],
         )
 
 

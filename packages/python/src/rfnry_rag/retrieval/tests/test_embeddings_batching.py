@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,9 +11,18 @@ from rfnry_rag.retrieval.modules.ingestion.embeddings.cohere import (
     _COHERE_MAX_BATCH,
     _CohereEmbeddings,
 )
+from rfnry_rag.retrieval.modules.ingestion.embeddings.cohere import (
+    _EMBED_CONCURRENCY as _COHERE_EMBED_CONCURRENCY,
+)
+from rfnry_rag.retrieval.modules.ingestion.embeddings.openai import (
+    _EMBED_CONCURRENCY as _OPENAI_EMBED_CONCURRENCY,
+)
 from rfnry_rag.retrieval.modules.ingestion.embeddings.openai import (
     _OPENAI_MAX_BATCH,
     _OpenAIEmbeddings,
+)
+from rfnry_rag.retrieval.modules.ingestion.embeddings.voyage import (
+    _EMBED_CONCURRENCY as _VOYAGE_EMBED_CONCURRENCY,
 )
 from rfnry_rag.retrieval.modules.ingestion.embeddings.voyage import (
     _VOYAGE_MAX_BATCH,
@@ -150,3 +160,89 @@ async def test_cohere_embeddings_within_limit_single_call() -> None:
 
     assert calls == [96], f"expected single call of 96, got {calls}"
     assert len(result) == _COHERE_MAX_BATCH
+
+
+async def test_openai_embeddings_sub_batches_run_concurrently() -> None:
+    """Sub-batches must gather, not serialise."""
+    concurrent = 0
+    max_concurrent = 0
+
+    async def slow_create(input: list[str], **kwargs: object) -> object:
+        nonlocal concurrent, max_concurrent
+        concurrent += 1
+        max_concurrent = max(max_concurrent, concurrent)
+        await asyncio.sleep(0.02)
+        concurrent -= 1
+        return SimpleNamespace(data=[SimpleNamespace(embedding=[0.0]) for _ in input])
+
+    with patch("rfnry_rag.retrieval.modules.ingestion.embeddings.openai.AsyncOpenAI") as mock_cls:
+        fake_client = MagicMock()
+        fake_client.embeddings.create = AsyncMock(side_effect=slow_create)
+        mock_cls.return_value = fake_client
+
+        provider = LanguageModelProvider(provider="openai", model="text-embedding-3-small", api_key="sk-test")
+        emb = _OpenAIEmbeddings(provider=provider)
+        # Force _EMBED_CONCURRENCY + 1 sub-batches so at least 2 must overlap
+        n_chunks = _OPENAI_EMBED_CONCURRENCY + 1
+        result = await emb.embed(["x"] * (_OPENAI_MAX_BATCH * n_chunks))
+
+    assert len(result) == _OPENAI_MAX_BATCH * n_chunks
+    assert max_concurrent >= 2, f"expected concurrent calls >= 2, got max_concurrent={max_concurrent}"
+
+
+async def test_voyage_embeddings_sub_batches_run_concurrently() -> None:
+    """Sub-batches must gather, not serialise."""
+    concurrent = 0
+    max_concurrent = 0
+
+    async def slow_embed(texts: list[str], **kwargs: object) -> object:
+        nonlocal concurrent, max_concurrent
+        concurrent += 1
+        max_concurrent = max(max_concurrent, concurrent)
+        await asyncio.sleep(0.02)
+        concurrent -= 1
+        return SimpleNamespace(embeddings=[[0.0] for _ in texts])
+
+    with patch("rfnry_rag.retrieval.modules.ingestion.embeddings.voyage.voyageai") as mock_voyageai:
+        fake_client = MagicMock()
+        fake_client.embed = AsyncMock(side_effect=slow_embed)
+        mock_voyageai.AsyncClient.return_value = fake_client
+
+        provider = LanguageModelProvider(provider="voyage", model="voyage-3", api_key="vo-test")
+        emb = _VoyageEmbeddings(provider=provider)
+        # Force _EMBED_CONCURRENCY + 1 sub-batches so at least 2 must overlap
+        n_chunks = _VOYAGE_EMBED_CONCURRENCY + 1
+        result = await emb.embed(["x"] * (_VOYAGE_MAX_BATCH * n_chunks))
+
+    assert len(result) == _VOYAGE_MAX_BATCH * n_chunks
+    assert max_concurrent >= 2, f"expected concurrent calls >= 2, got max_concurrent={max_concurrent}"
+
+
+async def test_cohere_embeddings_sub_batches_run_concurrently() -> None:
+    """Sub-batches must gather, not serialise."""
+    concurrent = 0
+    max_concurrent = 0
+
+    async def slow_embed(texts: list[str], **kwargs: object) -> object:
+        nonlocal concurrent, max_concurrent
+        n = len(texts)
+        concurrent += 1
+        max_concurrent = max(max_concurrent, concurrent)
+        await asyncio.sleep(0.02)
+        concurrent -= 1
+        embeddings_ns = SimpleNamespace(float_=[[0.0] for _ in range(n)])
+        return SimpleNamespace(embeddings=embeddings_ns)
+
+    with patch("rfnry_rag.retrieval.modules.ingestion.embeddings.cohere.cohere") as mock_cohere:
+        fake_client = MagicMock()
+        fake_client.embed = AsyncMock(side_effect=slow_embed)
+        mock_cohere.AsyncClientV2.return_value = fake_client
+
+        provider = LanguageModelProvider(provider="cohere", model="embed-english-v3.0", api_key="co-test")
+        emb = _CohereEmbeddings(provider=provider)
+        # Force _EMBED_CONCURRENCY + 1 sub-batches so at least 2 must overlap
+        n_chunks = _COHERE_EMBED_CONCURRENCY + 1
+        result = await emb.embed(["x"] * (_COHERE_MAX_BATCH * n_chunks))
+
+    assert len(result) == _COHERE_MAX_BATCH * n_chunks
+    assert max_concurrent >= 2, f"expected concurrent calls >= 2, got max_concurrent={max_concurrent}"

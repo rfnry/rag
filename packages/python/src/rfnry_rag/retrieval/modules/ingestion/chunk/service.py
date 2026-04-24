@@ -115,10 +115,9 @@ class IngestionService:
         A method missing the ``required`` attribute is treated as required
         to preserve data integrity by default.
 
-        ``on_progress`` is invoked with ``(done, total)`` twice: once after
-        the required group completes and once after the optional group
-        completes. Group-level progress boundaries replace the previous
-        per-method firing.
+        ``on_progress`` fires once per non-empty group with a boundary
+        progress event, plus a final ``(total, total)`` event on successful
+        completion — regardless of which groups were configured.
         """
         required = [m for m in self._ingestion_methods if getattr(m, "required", True)]
         optional = [m for m in self._ingestion_methods if not getattr(m, "required", True)]
@@ -143,12 +142,17 @@ class IngestionService:
                 async with asyncio.TaskGroup() as tg:
                     for m in required:
                         tg.create_task(m.ingest(**ingest_kwargs), name=m.name)
+            except* (KeyboardInterrupt, SystemExit, asyncio.CancelledError) as eg:
+                # Non-failure BaseExceptions must propagate unwrapped so shutdown/
+                # interruption still cancels the surrounding task cleanly.
+                raise eg.exceptions[0] from None
             except* Exception as eg:
                 for exc in eg.exceptions:
                     logger.error("required ingestion method failed — aborting: %s", exc, exc_info=exc)
                 causes = "; ".join(str(e) for e in eg.exceptions)
                 raise IngestionError(f"required ingestion method failed: {causes}") from eg.exceptions[0]
 
+        # Fire mid-progress after the required group if it did any work.
         if required and on_progress is not None:
             await on_progress(len(required), total)
 
@@ -161,7 +165,9 @@ class IngestionService:
                 if isinstance(outcome, BaseException):
                     logger.warning("optional ingestion method '%s' failed: %s", method.name, outcome)
 
-        if optional and on_progress is not None:
+        # Unconditional tail event so callers watching for `done == total`
+        # see completion regardless of which groups were configured.
+        if on_progress is not None:
             await on_progress(total, total)
 
     async def ingest(

@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
 
 
@@ -121,8 +123,6 @@ async def test_ingest_text_empty_chunks_raises():
         chunker=chunker,
         ingestion_methods=[],
     )
-    import pytest
-
     from rfnry_rag.retrieval.common.errors import EmptyDocumentError
 
     with pytest.raises(EmptyDocumentError):
@@ -325,8 +325,9 @@ async def test_method_failure_does_not_abort_pipeline():
 # --- on_progress callback tests ---
 
 
-async def test_on_progress_fires_at_group_boundaries(tmp_path) -> None:
-    """Progress fires once after required group and once after optional group."""
+async def test_on_progress_fires_group_and_completion_events(tmp_path) -> None:
+    """Progress fires after any non-empty group AND a final (total, total)
+    event on success, regardless of which groups were configured."""
     calls: list[tuple[int, int]] = []
 
     async def progress(done: int, total: int) -> None:
@@ -335,14 +336,34 @@ async def test_on_progress_fires_at_group_boundaries(tmp_path) -> None:
     file_path = tmp_path / "sample.txt"
     file_path.write_text("hello world " * 50)
 
-    # Two required methods, zero optional → progress fires ONCE after the required
-    # group: (2, 2). The empty optional group is skipped entirely.
+    # 2 required + 0 optional → one mid-event + one completion event,
+    # both at (2, 2) because all work is in the required group.
     method_a = _mock_method(name="a", required=True)
     method_b = _mock_method(name="b", required=True)
     service = _make_service_advanced(ingestion_methods=[method_a, method_b])
 
     await service.ingest(file_path=file_path, on_progress=progress)
 
+    assert calls == [(2, 2), (2, 2)]
+
+
+async def test_on_progress_fires_completion_for_all_optional_methods(tmp_path) -> None:
+    """All-optional config must still emit a final (total, total) event."""
+    calls: list[tuple[int, int]] = []
+
+    async def progress(done: int, total: int) -> None:
+        calls.append((done, total))
+
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text("hello world " * 50)
+
+    a = _mock_method(name="a", required=False)
+    b = _mock_method(name="b", required=False)
+    service = _make_service_advanced(ingestion_methods=[a, b])
+
+    await service.ingest(file_path=file_path, on_progress=progress)
+
+    # No required methods → no mid-event. Optional group (2 methods, both succeed) → completion.
     assert calls == [(2, 2)]
 
 
@@ -422,3 +443,37 @@ async def test_optional_methods_run_concurrently_within_group(tmp_path) -> None:
     await service.ingest(file_path=file_path)
 
     assert max_concurrent >= 2
+
+
+async def test_dispatch_methods_propagates_cancellation_without_wrapping(tmp_path) -> None:
+    """CancelledError must propagate unwrapped, not re-wrapped as IngestionError.
+
+    The fix uses ``except* (KeyboardInterrupt, SystemExit, asyncio.CancelledError)``
+    before the ``except* Exception`` branch so that external task cancellation
+    (the real-world trigger) escapes the TaskGroup as a bare CancelledError rather
+    than getting caught by the generic ``except* Exception`` handler and re-raised
+    as IngestionError.
+
+    Note: raising CancelledError *inside* a child task body in Python 3.13 causes
+    TaskGroup to silently mark that task cancelled without surfacing an ExceptionGroup
+    to the host coroutine — so external cancellation (task.cancel()) is the correct
+    way to drive this test.
+    """
+    import asyncio
+
+    file_path = tmp_path / "sample.txt"
+    file_path.write_text("hello world " * 50)
+
+    async def blocking_ingest(**kwargs):
+        await asyncio.sleep(10)  # blocks until cancelled
+
+    m = _mock_method(name="cancel-me", required=True)
+    m.ingest = AsyncMock(side_effect=blocking_ingest)
+    service = _make_service_advanced(ingestion_methods=[m])
+
+    task = asyncio.create_task(service.ingest(file_path=file_path))
+    await asyncio.sleep(0)  # yield so the task starts and enters the TaskGroup
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task

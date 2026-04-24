@@ -79,6 +79,9 @@ class ContextTrackingConfig:
     detect_escalation: bool = True
 
 
+_MAX_TEXT_LENGTH_CEILING = 5_000_000
+
+
 @dataclass
 class AnalysisConfig:
     """Configuration for analysis operations."""
@@ -95,6 +98,10 @@ class AnalysisConfig:
     def __post_init__(self) -> None:
         if self.max_text_length < 1:
             raise ValueError("max_text_length must be >= 1")
+        if self.max_text_length > _MAX_TEXT_LENGTH_CEILING:
+            raise ValueError(
+                f"max_text_length must be <= {_MAX_TEXT_LENGTH_CEILING}, got {self.max_text_length}"
+            )
         if self.concurrency < 1:
             raise ValueError("concurrency must be >= 1")
         if self.generate_retrieval_hints and not self.retrieval_hint_scopes:
