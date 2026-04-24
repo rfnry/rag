@@ -67,6 +67,7 @@ def dxf_with_two_resistors(tmp_path: Path) -> Path:
     # Define a 'resistor' block
     blk = doc.blocks.new(name="resistor")
     blk.add_line((0, 0), (10, 0))
+    blk.add_line((5, -3), (5, 3))
     msp = doc.modelspace()
     msp.add_blockref("resistor", (0, 0))
     msp.add_blockref("resistor", (20, 0))
@@ -76,16 +77,22 @@ def dxf_with_two_resistors(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def dxf_with_wire_between_two_pins(tmp_path: Path) -> Path:
-    """Create a DXF with two INSERTs and a LINE connecting them."""
+    """Create a DXF with two INSERTs and a LINE connecting them.
+
+    Blocks have both horizontal + vertical geometry so _bbox_of_block_insert
+    produces a non-degenerate bbox. The connecting wire terminates within
+    a couple of modelspace units of each bbox (within _CONNECTION_TOL).
+    """
     import ezdxf
     path = tmp_path / "wire.dxf"
     doc = ezdxf.new()
     blk = doc.blocks.new(name="resistor")
     blk.add_line((0, 0), (10, 0))
+    blk.add_line((5, -5), (5, 5))  # vertical stroke so bbox has height
     msp = doc.modelspace()
     msp.add_blockref("resistor", (0, 0))
     msp.add_blockref("resistor", (50, 0))
-    # The connecting line ends must fall inside the bboxes we build for the inserts
+    # Wire ends that sit just inside each bbox (within _CONNECTION_TOL of its edge)
     msp.add_line((5, 5), (55, 5))
     doc.saveas(path)
     return path
@@ -156,7 +163,9 @@ async def test_extract_dxf_classifies_by_symbol_library(tmp_path: Path) -> None:
     import ezdxf
     path = tmp_path / "valve.dxf"
     doc = ezdxf.new()
-    doc.blocks.new(name="valve_gate").add_line((0, 0), (5, 0))
+    b = doc.blocks.new(name="valve_gate")
+    b.add_line((0, 0), (5, 0))
+    b.add_line((2, -2), (2, 2))
     msp = doc.modelspace()
     msp.add_blockref("valve_gate", (0, 0))
     doc.saveas(path)

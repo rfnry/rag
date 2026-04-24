@@ -15,6 +15,11 @@ from rfnry_rag.retrieval.modules.ingestion.drawing.models import (
 
 logger = get_logger("drawing/ingestion/extract_dxf")
 
+# Absolute tolerance (in modelspace units) for matching a wire endpoint to an
+# INSERT bbox. Kept small to avoid false-positive connections on busy drawings;
+# hop to Phase D if real-world drawings require a configurable tolerance.
+_CONNECTION_TOL = 2
+
 
 def _bbox_of_block_insert(insert: Any) -> list[int]:
     """Approximate axis-aligned bbox of an INSERT entity in integer modelspace coords.
@@ -72,15 +77,14 @@ def _find_component_at(
 ) -> DetectedComponent | None:
     """Locate the component whose bbox contains (x, y).
 
-    Uses a small tolerance (half the bbox's larger dimension, floored at 5 units)
-    so wire endpoints that connect at a block's port-region near the perimeter
-    still match. Zero-size dimensions (common for single-line blocks in the MVP
-    test fixtures) are inflated by the same tolerance.
+    Uses a small absolute tolerance (`_CONNECTION_TOL`) so wire endpoints
+    terminating just outside a block's bbox still register as connected,
+    without inviting false positives on busy drawings.
     """
     for c in components:
         bx, by, bw, bh = c.bbox
-        tol = max(5, (max(bw, bh) + 1) // 2)
-        if (bx - tol) <= x <= (bx + bw + tol) and (by - tol) <= y <= (by + bh + tol):
+        if (bx - _CONNECTION_TOL) <= x <= (bx + bw + _CONNECTION_TOL) and \
+           (by - _CONNECTION_TOL) <= y <= (by + bh + _CONNECTION_TOL):
             return c
     return None
 
