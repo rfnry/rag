@@ -1,5 +1,6 @@
 import asyncio
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 from rfnry_rag.retrieval.server import RagEngine
@@ -37,7 +38,7 @@ async def test_run_tree_search_fans_out_sources_concurrently() -> None:
 
     rag = RagEngine.__new__(RagEngine)
     rag._tree_search_service = tree_service
-    rag._config = SimpleNamespace(persistence=SimpleNamespace(metadata_store=metadata_store))  # type: ignore[assignment]
+    rag._config = cast(Any, SimpleNamespace(persistence=SimpleNamespace(metadata_store=metadata_store)))
 
     await rag._run_tree_search(query="q", knowledge_id=None)
 

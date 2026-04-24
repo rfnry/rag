@@ -1117,7 +1117,7 @@ class RagEngine:
 
         sources = await metadata_store.list_sources(knowledge_id=knowledge_id)
 
-        async def search_one(source) -> list[RetrievedChunk]:
+        async def search_one(source: Source) -> list[RetrievedChunk]:
             tree_json = await metadata_store.get_tree_index(source.source_id)
             if not tree_json:
                 return []
