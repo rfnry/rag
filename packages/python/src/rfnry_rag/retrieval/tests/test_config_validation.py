@@ -9,6 +9,8 @@ from rfnry_rag.retrieval.server import (
     RagEngine,
     RagServerConfig,
     RetrievalConfig,
+    TreeIndexingConfig,
+    TreeSearchConfig,
 )
 
 
@@ -133,3 +135,33 @@ def test_grounding_enabled_without_lm_client_rejected_at_config_time() -> None:
 
     with pytest.raises(ConfigurationError, match="grounding_enabled requires"):
         GenerationConfig(grounding_enabled=True, grounding_threshold=0.5, lm_client=None)
+
+
+def _config_with_metadata_store() -> RagServerConfig:
+    """Minimal config with a document retrieval path and metadata_store.
+
+    ``document_store`` satisfies the 'at least one retrieval path' check.
+    ``metadata_store`` satisfies the tree-requires-metadata_store cross-check,
+    so that the model=None check fires rather than the metadata_store check.
+    """
+    return RagServerConfig(
+        persistence=PersistenceConfig(
+            document_store=MagicMock(),
+            metadata_store=MagicMock(),
+        ),
+        ingestion=IngestionConfig(embeddings=None),
+    )
+
+
+def test_tree_indexing_enabled_without_model_rejected_at_init() -> None:
+    config = _config_with_metadata_store()
+    config.tree_indexing = TreeIndexingConfig(enabled=True, model=None)
+    with pytest.raises(ConfigurationError, match="tree_indexing.enabled requires tree_indexing.model"):
+        RagEngine(config)._validate_config()
+
+
+def test_tree_search_enabled_without_model_rejected_at_init() -> None:
+    config = _config_with_metadata_store()
+    config.tree_search = TreeSearchConfig(enabled=True, model=None)
+    with pytest.raises(ConfigurationError, match="tree_search.enabled requires tree_search.model"):
+        RagEngine(config)._validate_config()

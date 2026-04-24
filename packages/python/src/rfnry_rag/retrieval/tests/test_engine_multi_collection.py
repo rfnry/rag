@@ -261,16 +261,18 @@ async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
                 embeddings=embeddings,
                 lm_client=lm_client,
             ),
-            tree_indexing=TreeIndexingConfig(enabled=True),
+            tree_indexing=TreeIndexingConfig(enabled=True, model=MagicMock()),
         )
     )
     # Patch build_registry in every module that calls it at construction time
-    # during initialize() — GraphIngestion and AnalyzedIngestionService both
-    # call it in __init__, which rejects MagicMock provider objects via BAML's
-    # C extension.
+    # during initialize() — GraphIngestion, AnalyzedIngestionService, and the
+    # tree-indexing/tree-search paths in server.py all call it in __init__ or
+    # during _initialize_impl, which rejects MagicMock provider objects via
+    # BAML's C extension.
     _patches = [
         patch("rfnry_rag.retrieval.modules.ingestion.methods.graph.build_registry", return_value=MagicMock()),
         patch("rfnry_rag.retrieval.modules.ingestion.analyze.service.build_registry", return_value=MagicMock()),
+        patch("rfnry_rag.retrieval.server.build_registry", return_value=MagicMock()),
     ]
     for p in _patches:
         p.start()

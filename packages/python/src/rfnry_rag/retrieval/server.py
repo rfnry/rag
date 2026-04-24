@@ -414,6 +414,10 @@ class RagEngine:
             raise ConfigurationError("tree_indexing requires metadata_store")
         if cfg.tree_search.enabled and not p.metadata_store:
             raise ConfigurationError("tree_search requires metadata_store")
+        if cfg.tree_indexing.enabled and cfg.tree_indexing.model is None:
+            raise ConfigurationError("tree_indexing.enabled requires tree_indexing.model")
+        if cfg.tree_search.enabled and cfg.tree_search.model is None:
+            raise ConfigurationError("tree_search.enabled requires tree_search.model")
         if (
             cfg.tree_indexing.enabled
             and cfg.tree_search.enabled
