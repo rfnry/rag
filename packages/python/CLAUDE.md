@@ -99,7 +99,7 @@ Retrieval and ingestion are protocol-based plugin architectures. No mandatory ve
 - **Method classes** — `VectorRetrieval`, `DocumentRetrieval`, `GraphRetrieval` (retrieval); `VectorIngestion`, `DocumentIngestion`, `GraphIngestion`, `TreeIngestion` (ingestion). Each is self-contained with error isolation and timing logs.
 - **`MethodNamespace[T]`** — Generic container exposing methods as attributes (`rag.retrieval.vector`) and supporting iteration (`for m in rag.retrieval`).
 - **Dynamic assembly** — `RagEngine.initialize()` builds method lists from config, validates cross-config constraints via `_validate_config()`, assembles `RetrievalService` and `IngestionService` with method list dispatch.
-- **`AnalyzedIngestionService`** — 3-phase LLM pipeline (analyze → synthesize → ingest) for vision-analyzed documents. Uses `graph_store` directly for pre-extracted entities, delegates document storage to method list.
+- **`AnalyzedIngestionService`** — 3-phase LLM pipeline (analyze → synthesize → ingest) for vision-analyzed documents. Uses `graph_store` directly for pre-extracted entities, delegates document storage to method list. Phase A4: produces **3 vector kinds per page** — `description` (LLM prose), `raw_text` (PyMuPDF OCR, if non-empty), `table_row` (one vector per table row, column-header-prefixed); each payload tagged by `vector_role`. `full_text` for downstream document-store methods is now raw OCR text (fallback: LLM description + entities for L5X/XML).
 
 ### Error Hierarchy
 
@@ -153,7 +153,7 @@ The following contract tests act as regression guards — they enforce whole-cla
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking
 - Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules
-- 837 tests total across both SDKs
+- 861 tests total across both SDKs
 
 ## Config defaults and enforced bounds
 
@@ -161,6 +161,8 @@ The following contract tests act as regression guards — they enforce whole-cla
 
 - `IngestionConfig.dpi`: `72 ≤ dpi ≤ 600`
 - `IngestionConfig.chunk_context_headers` (was `contextual_chunking`, old name deprecated)
+- `IngestionConfig.chunk_size_unit`: `Literal["chars", "tokens"]`, default `"tokens"` (Phase A1). Default `chunk_size=375` tokens (was 500 chars), `chunk_overlap=40` (was 50).
+- `IngestionConfig.parent_chunk_size`: sentinel `-1` (default) resolves to `3 * chunk_size` in `__post_init__`; explicit `0` disables parent-child indexing (Phase A5).
 - `RetrievalConfig.top_k`: `1 ≤ top_k ≤ 200`
 - `RetrievalConfig.bm25_max_chunks`: `≤ 200_000`
 - `RetrievalConfig.bm25_max_indexes`: `1 ≤ n ≤ 1000`, default 16

@@ -10,6 +10,67 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-25 Phase A — RAG Quality Baseline
+
+Five RAG-quality tasks (9 commits: 5 feature + 4 follow-up) targeting
+retrieval fidelity at the chunking, ingestion, and retrieval layers.
+Test count 837 → 861. ruff + mypy clean on 317 source files.
+
+**A1 — Token-aware chunk sizing.**
+`SemanticChunker` and `IngestionConfig` accept `chunk_size_unit: Literal["chars","tokens"]`
+defaulting to `"tokens"`. Uses `tiktoken.get_encoding("cl100k_base")` with a
+word-count fallback when tiktoken is unavailable. Default `chunk_size` changed
+from 500 chars to **375 tokens**; `chunk_overlap` from 50 to **40**. New
+dependency `tiktoken>=0.5,<1.0`. New module `token_counter.py`.
+Commits: `5e7a37e`, `8d1a32b`.
+
+**A2 — Hard-split guard.**
+`RecursiveTextSplitter` now forces deterministic boundary slicing when the
+separator ladder reaches `""` or a piece exceeds `chunk_size` with no
+remaining separators. Previously emitted raw oversized chunks that embedding
+providers silently truncated. `ChunkedContent.was_hard_split: bool` surfaces
+the flag for generation provenance. New public
+`split_text_with_flags() -> list[tuple[str, bool]]`.
+Commits: `ccaaab8`, `3a4f7b8`.
+
+**A3 — Structure-aware chunking.**
+New `structure.py` with `find_atomic_regions`, `build_heading_spans`,
+`section_path_at`. Markdown tables and fenced code blocks are now atomic chunks
+(unless they exceed `chunk_size`). Markdown heading hierarchy populates
+`ChunkedContent.section` (e.g. `"Safety > Lockout procedures > Step 2"`).
+Closes a long-standing RAG failure where table headers and row values landed in
+separate chunks. Excludes heading-like lines inside code fences; strips
+CommonMark ATX closing `#` sequences. Parent-child path gets the same
+atomic-aware treatment.
+Commits: `189d363`, `ead6225`.
+
+**A4 — Multi-vector analyzed ingest.**
+`AnalyzedIngestionService.ingest` now produces 3 vector kinds per page:
+`description` (LLM prose enriched for embedding), `raw_text` (PyMuPDF
+`page.get_text()` output, conditional on non-empty), `table_row` (one vector
+per row per table, column-header-prefixed). Each payload tagged by
+`vector_role`. `full_text` passed to downstream document-store methods is now
+raw OCR text (fallback: LLM description with entities for L5X/XML).
+`PageAnalysis.raw_text: str` added with back-compat deserialization.
+Commits: `372548d`, `537906c`.
+
+**A5 — Parent-child on by default + score aggregation.**
+`IngestionConfig.parent_chunk_size` default flipped `0 → -1` sentinel,
+resolved to `3 * chunk_size` in `__post_init__`. Explicit
+`parent_chunk_size=0` still disables. `VectorRetrieval._expand_parents` now
+delegates to a new `_merge_children_into_parents` helper that groups children
+by `parent_id`, **sums child scores per parent**, and records
+`child_hit_count` / `expanded_from_children` in payload. Captures the
+multi-hit strength that was silently collapsed.
+Commit: `3078c18`.
+
+**Deferred to future round-6 (not in Phase A):**
+- Finding 6 — `chunk_context_headers` pollutes embeddings with filename/page-number.
+- Finding 7 — `len/4` token heuristic in tree indexing.
+- Finding 8 — RRF `k=60` hardcoded + flat weights + tree chunks under-weighted.
+- Finding 9 — Grounding gate `max(score)` ambiguous across score scales.
+- Finding 10 — BM25 tokeniser strips hyphens.
+
 ### 2026-04-24 Round 4 Review
 
 Cumulative fixes from the fourth-pass SDK audit. Primary achievement:
