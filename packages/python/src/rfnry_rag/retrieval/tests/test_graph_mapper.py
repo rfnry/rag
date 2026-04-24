@@ -162,7 +162,7 @@ def test_classify_relationship_keywords():
     assert _classify_relationship("control signal to VFD") == "CONTROLLED_BY"
     assert _classify_relationship("water flow to tank") == "FLOWS_TO"
     assert _classify_relationship("connects to panel") == "CONNECTS_TO"
-    assert _classify_relationship("some random relationship") == "CONNECTS_TO"
+    assert _classify_relationship("some random relationship") is None
 
 
 def test_page_entities_empty():
@@ -201,3 +201,47 @@ def test_cross_refs_pairwise_with_three_entities():
 
     relations = cross_refs_to_graph_relations(synthesis, page_analyses, knowledge_id="kb-1")
     assert len(relations) == 3
+
+
+def test_classify_relationship_returns_none_on_unknown() -> None:
+    from rfnry_rag.retrieval.stores.graph.mapper import _classify_relationship
+
+    assert _classify_relationship("foobarbaz-no-keywords") is None
+
+
+def test_classify_relationship_still_matches_keywords() -> None:
+    from rfnry_rag.retrieval.stores.graph.mapper import _classify_relationship
+
+    assert _classify_relationship("power feed from source") == "POWERED_BY"
+    assert _classify_relationship("control signal") == "CONTROLLED_BY"
+    assert _classify_relationship("flow direction") == "FLOWS_TO"
+    assert _classify_relationship("connects to downstream") == "CONNECTS_TO"
+
+
+def test_cross_refs_drops_unclassifiable_relationship() -> None:
+    """A cross-reference whose relationship text has no keyword should be dropped."""
+    from rfnry_rag.retrieval.stores.graph.mapper import cross_refs_to_graph_relations
+
+    page_analyses = [
+        PageAnalysis(
+            page_number=1,
+            description="Page 1",
+            entities=[
+                DiscoveredEntity(name="Motor M1", category="electrical_component", context="motor"),
+                DiscoveredEntity(name="Breaker CB-3", category="electrical_component", context="breaker"),
+            ],
+        ),
+    ]
+    synthesis = DocumentSynthesis(
+        cross_references=[
+            CrossReference(
+                source_page=1,
+                target_page=2,
+                relationship="foobarbaz-no-keywords",
+                shared_entities=["Motor M1", "Breaker CB-3"],
+            ),
+        ],
+    )
+
+    relations = cross_refs_to_graph_relations(synthesis, page_analyses, knowledge_id="kb-1")
+    assert len(relations) == 0

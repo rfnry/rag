@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import re
 
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.modules.ingestion.analyze.models import DocumentSynthesis, PageAnalysis
 from rfnry_rag.retrieval.stores.graph.models import GraphEntity, GraphRelation
+
+logger = get_logger(__name__)
 
 _ELECTRICAL_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bmotor\b", re.IGNORECASE), "motor"),
@@ -41,13 +44,17 @@ def _infer_entity_type(category: str, name: str) -> str:
     return "component"
 
 
-def _classify_relationship(relationship: str) -> str:
-    """Classify a cross-reference relationship string into a graph relationship type."""
+def _classify_relationship(relationship: str) -> str | None:
+    """Classify a cross-reference relationship string into a graph relationship type.
+
+    Returns None when no keyword matches — the caller is responsible for
+    dropping unclassifiable relations rather than defaulting to a fallback type.
+    """
     lower = relationship.lower()
     for keywords, rel_type in _RELATIONSHIP_KEYWORDS:
         if any(kw in lower for kw in keywords):
             return rel_type
-    return "CONNECTS_TO"
+    return None
 
 
 def page_entities_to_graph(page: PageAnalysis, source_id: str) -> list[GraphEntity]:
@@ -85,6 +92,14 @@ def cross_refs_to_graph_relations(
         if len(xref.shared_entities) < 2:
             continue
 
+        relation_type = _classify_relationship(xref.relationship)
+        if relation_type is None:
+            logger.debug(
+                "dropping unclassifiable cross-reference relationship: %r",
+                xref.relationship,
+            )
+            continue
+
         for i, e1_name in enumerate(xref.shared_entities):
             for e2_name in xref.shared_entities[i + 1 :]:
                 if e1_name in entity_lookup and e2_name in entity_lookup:
@@ -94,7 +109,7 @@ def cross_refs_to_graph_relations(
                             from_type=entity_lookup[e1_name],
                             to_entity=e2_name,
                             to_type=entity_lookup[e2_name],
-                            relation_type=_classify_relationship(xref.relationship),
+                            relation_type=relation_type,
                             knowledge_id=knowledge_id,
                             context=xref.relationship,
                         )
