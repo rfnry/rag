@@ -1,68 +1,64 @@
-"""Map structured analysis output (PageAnalysis, DocumentSynthesis) to graph entities and relations."""
+"""Map structured analysis output (PageAnalysis, DocumentSynthesis) to graph entities and relations.
 
+Vocabulary is consumer-supplied via ``GraphIngestionConfig``; the mapper carries
+no built-in domain assumptions. The ``unclassified_relation_default`` setting
+determines whether a cross-reference with no matching keyword becomes a
+generic ``MENTIONS`` edge (default) or is dropped (``None``).
+"""
 from __future__ import annotations
 
 import re
 
 from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.modules.ingestion.analyze.models import DocumentSynthesis, PageAnalysis
+from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.retrieval.stores.graph.models import GraphEntity, GraphRelation
 
 logger = get_logger(__name__)
 
-_ELECTRICAL_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"\bmotor\b", re.IGNORECASE), "motor"),
-    (re.compile(r"\bbreaker\b|\bCB[-\s]", re.IGNORECASE), "breaker"),
-    (re.compile(r"\bVFD\b|\bdrive\b", re.IGNORECASE), "vfd"),
-    (re.compile(r"\bPLC\b", re.IGNORECASE), "plc"),
-    (re.compile(r"\bpanel\b|\bMCC\b", re.IGNORECASE), "panel"),
-]
 
-_MECHANICAL_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"\bvalve\b", re.IGNORECASE), "valve"),
-    (re.compile(r"\bpump\b", re.IGNORECASE), "pump"),
-    (re.compile(r"\btank\b", re.IGNORECASE), "tank"),
-]
-
-_RELATIONSHIP_KEYWORDS: list[tuple[list[str], str]] = [
-    (["power", "feed"], "POWERED_BY"),
-    (["control"], "CONTROLLED_BY"),
-    (["flow"], "FLOWS_TO"),
-    (["connect"], "CONNECTS_TO"),
-]
-
-
-def _infer_entity_type(category: str, name: str) -> str:
-    """Infer a graph-friendly entity type from the category and name."""
-    patterns = _ELECTRICAL_PATTERNS + _MECHANICAL_PATTERNS
-    for pattern, entity_type in patterns:
-        if pattern.search(name):
-            return entity_type
-
+def _infer_entity_type(
+    category: str,
+    name: str,
+    config: GraphIngestionConfig,
+) -> str:
+    """Infer an entity type. Consumer patterns first, then category, then 'entity'."""
+    for pattern_str, type_name in config.entity_type_patterns:
+        if re.search(pattern_str, name, re.IGNORECASE):
+            return type_name
     if category:
         return category.lower()
-    return "component"
+    return "entity"
 
 
-def _classify_relationship(relationship: str) -> str | None:
-    """Classify a cross-reference relationship string into a graph relationship type.
+def _classify_relationship(
+    relationship: str,
+    config: GraphIngestionConfig,
+) -> str | None:
+    """Classify a cross-reference relationship via the consumer's keyword map.
 
-    Returns None when no keyword matches — the caller is responsible for
-    dropping unclassifiable relations rather than defaulting to a fallback type.
+    Returns ``None`` when no keyword matches AND
+    ``config.unclassified_relation_default is None`` (strict-drop mode).
+    Otherwise falls back to ``unclassified_relation_default`` (default
+    ``"MENTIONS"``).
     """
     lower = relationship.lower()
-    for keywords, rel_type in _RELATIONSHIP_KEYWORDS:
-        if any(kw in lower for kw in keywords):
+    for keyword, rel_type in config.relationship_keyword_map.items():
+        if keyword.lower() in lower:
             return rel_type
-    return None
+    return config.unclassified_relation_default
 
 
-def page_entities_to_graph(page: PageAnalysis, source_id: str) -> list[GraphEntity]:
-    """Convert PageAnalysis.entities to GraphEntity list."""
+def page_entities_to_graph(
+    page: PageAnalysis,
+    source_id: str,
+    config: GraphIngestionConfig,
+) -> list[GraphEntity]:
+    """Convert PageAnalysis.entities to GraphEntity list using config-driven type inference."""
     return [
         GraphEntity(
             name=e.name,
-            entity_type=_infer_entity_type(e.category, e.name),
+            entity_type=_infer_entity_type(e.category, e.name, config),
             category=e.category,
             value=e.value,
             properties={
@@ -80,22 +76,23 @@ def cross_refs_to_graph_relations(
     synthesis: DocumentSynthesis,
     page_analyses: list[PageAnalysis],
     knowledge_id: str | None,
+    config: GraphIngestionConfig,
 ) -> list[GraphRelation]:
-    """Convert DocumentSynthesis.cross_references to GraphRelation list via shared entities."""
+    """Convert DocumentSynthesis.cross_references to GraphRelation list."""
     entity_lookup: dict[str, str] = {}
     for pa in page_analyses:
         for e in pa.entities:
-            entity_lookup[e.name] = _infer_entity_type(e.category, e.name)
+            entity_lookup[e.name] = _infer_entity_type(e.category, e.name, config)
 
     relations: list[GraphRelation] = []
     for xref in synthesis.cross_references:
         if len(xref.shared_entities) < 2:
             continue
 
-        relation_type = _classify_relationship(xref.relationship)
+        relation_type = _classify_relationship(xref.relationship, config)
         if relation_type is None:
             logger.debug(
-                "dropping unclassifiable cross-reference relationship: %r",
+                "dropping unclassifiable cross-reference (no keyword match, no fallback): %r",
                 xref.relationship,
             )
             continue
@@ -114,5 +111,4 @@ def cross_refs_to_graph_relations(
                             context=xref.relationship,
                         )
                     )
-
     return relations
