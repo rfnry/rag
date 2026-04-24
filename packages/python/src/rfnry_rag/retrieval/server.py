@@ -26,6 +26,7 @@ from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestio
 from rfnry_rag.retrieval.modules.ingestion.drawing.service import DrawingIngestionService
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.modules.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
+from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.graph import GraphIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.tree import TreeIngestion
@@ -148,6 +149,10 @@ class IngestionConfig:
     # Optional nested config for the DrawingIngestion pipeline (Phase C).
     # None by default so existing consumers are unaffected.
     drawings: DrawingIngestionConfig | None = None
+    # Optional nested config for the analyze-path graph mapper (Phase D).
+    # None by default so existing consumers are unaffected; when provided,
+    # ``GraphIngestionConfig.__post_init__`` handles its own validation.
+    graph: GraphIngestionConfig | None = None
 
     def __post_init__(self) -> None:
         if self.chunk_size_unit not in ("chars", "tokens"):
