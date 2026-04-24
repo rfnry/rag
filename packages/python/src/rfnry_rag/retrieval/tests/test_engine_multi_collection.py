@@ -5,7 +5,7 @@ populated symmetrically at initialize() time for every configured collection.
 Passing an unknown collection name must raise, not silently fall back to the
 default pipeline (which previously mixed data across collections)."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -14,6 +14,7 @@ from rfnry_rag.retrieval.server import (
     PersistenceConfig,
     RagEngine,
     RagServerConfig,
+    TreeIndexingConfig,
 )
 
 
@@ -211,4 +212,83 @@ async def test_analyze_rejects_non_default_collection(tmp_path) -> None:
     xml_file.write_text("<root/>")
     with pytest.raises(ValueError, match="structured ingestion does not support collection routing"):
         await rag.analyze(xml_file, collection="secondary")
+    await rag.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# M1 regression: scoped-collection ingestion must mirror full method assembly
+# ---------------------------------------------------------------------------
+
+
+def _make_graph_store() -> MagicMock:
+    store = MagicMock()
+    store.initialize = AsyncMock()
+    store.shutdown = AsyncMock()
+    store.add_entities = AsyncMock()
+    store.add_relations = AsyncMock()
+    store.query_graph = AsyncMock(return_value=[])
+    store.delete_by_source = AsyncMock()
+    return store
+
+
+async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
+    """Build an engine with graph store and tree indexing enabled.
+
+    All four ingestion methods (vector, document, graph, tree) should be
+    assembled for every collection — including non-default ones.
+
+    build_registry is patched in GraphIngestion to avoid touching the BAML
+    C extension, which rejects MagicMock provider objects.
+    """
+    vector_store = _make_vector_store(collections)
+    embeddings = _make_embeddings()
+    metadata_store = _make_metadata_store()
+    document_store = MagicMock()
+    document_store.initialize = AsyncMock()
+    document_store.shutdown = AsyncMock()
+    graph_store = _make_graph_store()
+    lm_client = MagicMock()  # GraphIngestion only calls it at ingest time, not at init
+
+    engine = RagEngine(
+        RagServerConfig(
+            persistence=PersistenceConfig(
+                vector_store=vector_store,
+                metadata_store=metadata_store,
+                document_store=document_store,
+                graph_store=graph_store,
+            ),
+            ingestion=IngestionConfig(
+                embeddings=embeddings,
+                lm_client=lm_client,
+            ),
+            tree_indexing=TreeIndexingConfig(enabled=True),
+        )
+    )
+    # Patch build_registry in every module that calls it at construction time
+    # during initialize() — GraphIngestion and AnalyzedIngestionService both
+    # call it in __init__, which rejects MagicMock provider objects via BAML's
+    # C extension.
+    _patches = [
+        patch("rfnry_rag.retrieval.modules.ingestion.methods.graph.build_registry", return_value=MagicMock()),
+        patch("rfnry_rag.retrieval.modules.ingestion.analyze.service.build_registry", return_value=MagicMock()),
+    ]
+    for p in _patches:
+        p.start()
+    try:
+        await engine.initialize()
+    finally:
+        for p in _patches:
+            p.stop()
+    return engine
+
+
+async def test_scoped_ingestion_pipeline_includes_graph_and_tree(tmp_path) -> None:
+    """Non-default collection must get GraphIngestion + TreeIngestion when configured."""
+    rag = await _build_engine_with_all_methods(collections=["primary", "secondary"])
+    secondary_svc = rag._ingestion_by_collection["secondary"]
+    method_types = {type(m).__name__ for m in secondary_svc._ingestion_methods}
+    assert "VectorIngestion" in method_types
+    assert "DocumentIngestion" in method_types
+    assert "GraphIngestion" in method_types
+    assert "TreeIngestion" in method_types
     await rag.shutdown()

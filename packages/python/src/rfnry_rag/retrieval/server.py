@@ -1043,6 +1043,15 @@ class RagEngine:
             )
         if cfg.persistence.document_store:
             methods.append(DocumentIngestion(document_store=cfg.persistence.document_store))
+        if cfg.persistence.graph_store and cfg.ingestion.lm_client:
+            methods.append(
+                GraphIngestion(
+                    graph_store=cfg.persistence.graph_store,
+                    lm_client=cfg.ingestion.lm_client,
+                )
+            )
+        if self._tree_indexing_service is not None:
+            methods.append(TreeIngestion(tree_service=self._tree_indexing_service))
 
         return IngestionService(
             chunker=self._chunker,
