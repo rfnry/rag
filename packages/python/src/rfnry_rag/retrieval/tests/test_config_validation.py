@@ -165,3 +165,19 @@ def test_tree_search_enabled_without_model_rejected_at_init() -> None:
     config.tree_search = TreeSearchConfig(enabled=True, model=None)
     with pytest.raises(ConfigurationError, match="tree_search.enabled requires tree_search.model"):
         RagEngine(config)._validate_config()
+
+
+def test_retrieval_config_history_window_validates() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.server import RetrievalConfig
+
+    default = RetrievalConfig()
+    assert default.history_window == 3
+
+    custom = RetrievalConfig(history_window=1)
+    assert custom.history_window == 1
+
+    with pytest.raises(ConfigurationError, match="history_window"):
+        RetrievalConfig(history_window=0)
+    with pytest.raises(ConfigurationError, match="history_window"):
+        RetrievalConfig(history_window=21)

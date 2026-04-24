@@ -173,6 +173,7 @@ class RetrievalConfig:
     enrich_lm_client: LanguageModelClient | None = None
     parent_expansion: bool = True
     chunk_refiner: BaseChunkRefinement | None = None
+    history_window: int = 3
 
     def __post_init__(self) -> None:
         if self.top_k < 1:
@@ -186,6 +187,8 @@ class RetrievalConfig:
                 f"bm25_max_chunks must be <= 200_000, got {self.bm25_max_chunks} — "
                 "in-memory BM25 index at that size risks OOM; use sparse_embeddings instead"
             )
+        if not (1 <= self.history_window <= 20):
+            raise ConfigurationError(f"history_window must be 1-20, got {self.history_window}")
 
 
 @dataclass
@@ -938,8 +941,7 @@ class RagEngine:
         vectors = await self._config.ingestion.embeddings.embed([text])
         return vectors[0]
 
-    @staticmethod
-    def _build_retrieval_query(text: str, history: list[tuple[str, str]] | None) -> str:
+    def _build_retrieval_query(self, text: str, history: list[tuple[str, str]] | None) -> str:
         """Enrich the retrieval query with recent conversation context.
 
         When history is available, appends key terms from recent exchanges so
@@ -949,7 +951,7 @@ class RagEngine:
         if not history:
             return text
 
-        recent = history[-3:]
+        recent = history[-self._config.retrieval.history_window :]
         context_parts = []
         for human_msg, _assistant_msg in recent:
             context_parts.append(human_msg)
