@@ -367,6 +367,7 @@ class RagEngine:
     def __init__(self, config: RagServerConfig) -> None:
         self._config = config
         self._initialized = False
+        self._stores_opened = False  # set True before first store.initialize(); guards re-entrant shutdown
 
         self._ingestion_service: IngestionService | None = None
         self._structured_ingestion: AnalyzedIngestionService | None = None
@@ -502,6 +503,7 @@ class RagEngine:
         logger.info("ragengine initializing")
 
         # Initialize stores
+        self._stores_opened = True  # from this point forward, shutdown() must run teardown
         if persistence.metadata_store:
             await persistence.metadata_store.initialize()
         if persistence.document_store:
@@ -723,6 +725,9 @@ class RagEngine:
 
     async def shutdown(self) -> None:
         """Cleanup all store connections in reverse-init order."""
+        if not self._stores_opened:
+            return  # idempotent: no stores were opened, or shutdown already ran
+        self._stores_opened = False  # prevent re-entrant teardown on a second call
         persistence = self._config.persistence
         # Reverse-init order: vector → graph → document → metadata
         if persistence.vector_store:

@@ -74,3 +74,36 @@ async def test_shutdown_clears_service_refs() -> None:
     assert engine._ingestion_namespace is None
     assert engine._retrieval_by_collection == {}
     assert engine._ingestion_by_collection == {}
+
+
+async def test_shutdown_is_idempotent() -> None:
+    """Calling shutdown() twice must not re-invoke store shutdowns."""
+    vector = MagicMock()
+    vector.initialize = AsyncMock()
+    vector.shutdown = AsyncMock()
+    vector.collections = ["knowledge"]
+
+    metadata = MagicMock()
+    metadata.initialize = AsyncMock()
+    metadata.list_sources = AsyncMock(return_value=[])
+    metadata.shutdown = AsyncMock()
+
+    embeddings = MagicMock()
+    embeddings.model = "test"
+    embeddings.embedding_dimension = AsyncMock(return_value=128)
+
+    cfg = RagServerConfig(
+        persistence=PersistenceConfig(
+            metadata_store=metadata,
+            vector_store=vector,
+        ),
+        ingestion=IngestionConfig(embeddings=embeddings),
+    )
+    engine = RagEngine(cfg)
+    await engine.initialize()
+
+    await engine.shutdown()
+    await engine.shutdown()  # second call must be a no-op
+
+    assert vector.shutdown.await_count == 1, "vector.shutdown must be called exactly once"
+    assert metadata.shutdown.await_count == 1, "metadata.shutdown must be called exactly once"
