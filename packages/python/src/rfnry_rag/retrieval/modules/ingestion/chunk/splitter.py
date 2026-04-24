@@ -68,10 +68,17 @@ class RecursiveTextSplitter:
     def split_text_with_flags(self, text: str) -> list[tuple[str, bool]]:
         """Split text and return (chunk_text, was_hard_split) tuples.
 
-        ``was_hard_split`` is True for any chunk that was produced by the
-        hard-split fallback — i.e. the separator ladder reached ``""`` and the
-        resulting piece still exceeded ``chunk_size``, so it was force-sliced at
-        ``chunk_size`` boundaries.
+        ``was_hard_split`` is True when no natural word/sentence boundary was
+        available and character-level splitting was required. Two code paths
+        set the flag:
+
+        * **Char-level merge** — the separator ladder exhausted to ``""`` and
+          all chunks produced from that level are flagged, even those that fit
+          within ``chunk_size`` after merging.
+        * **Hard-slice loop** — the ladder found no separator at all (possible
+          with custom ``separators`` lists that omit ``""``) and a remaining
+          piece exceeded ``chunk_size``; it is force-sliced at ``chunk_size``
+          character boundaries.
         """
         return self._split_flagged(text, self._separators)
 
@@ -126,10 +133,6 @@ class RecursiveTextSplitter:
             chunks.append(joined)
 
         return chunks
-
-    def _split(self, text: str, separators: list[str]) -> list[str]:
-        """Recursively split text using progressively finer separators."""
-        return [chunk for chunk, _ in self._split_flagged(text, separators)]
 
     def _split_flagged(self, text: str, separators: list[str]) -> list[tuple[str, bool]]:
         """Recursively split text, returning (chunk_text, was_hard_split) pairs.

@@ -21,8 +21,8 @@ def test_hard_split_metadata_flagged_on_chunked_content() -> None:
     chunker = SemanticChunker(chunk_size=500, chunk_size_unit="chars", chunk_overlap=50)
     chunks = chunker.chunk([ParsedPage(page_number=1, content=blob, metadata={})])
 
-    # At least one chunk had to be hard-split
-    assert any(c.was_hard_split for c in chunks)
+    # Every chunk must carry the char-level hard-split flag
+    assert all(c.was_hard_split for c in chunks), [c.was_hard_split for c in chunks]
 
 
 def test_normal_prose_does_not_trigger_hard_split() -> None:
