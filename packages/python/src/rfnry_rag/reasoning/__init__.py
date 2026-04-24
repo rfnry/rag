@@ -11,6 +11,7 @@ from rfnry_rag.reasoning.common.errors import ComplianceError as ComplianceError
 from rfnry_rag.reasoning.common.errors import ConfigurationError as ConfigurationError
 from rfnry_rag.reasoning.common.errors import EvaluationError as EvaluationError
 from rfnry_rag.reasoning.common.errors import ReasoningError as ReasoningError
+from rfnry_rag.reasoning.common.errors import ReasoningInputError as ReasoningInputError
 from rfnry_rag.reasoning.common.language_model import LanguageModelClient as LanguageModelClient
 from rfnry_rag.reasoning.common.language_model import LanguageModelProvider as LanguageModelProvider
 from rfnry_rag.reasoning.modules.analysis.models import AnalysisConfig as AnalysisConfig
@@ -110,6 +111,7 @@ __all__ = [
     "PipelineResult",
     "PipelineServices",
     "ReasoningError",
+    "ReasoningInputError",
     "RetrievalHint",
     "TextWithMetadata",
     "Violation",

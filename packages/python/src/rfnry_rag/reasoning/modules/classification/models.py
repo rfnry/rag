@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from rfnry_rag.reasoning.common.errors import ReasoningInputError
+
 
 @dataclass
 class CategoryDefinition:
@@ -65,21 +67,21 @@ class ClassificationConfig:
 
     def __post_init__(self) -> None:
         if self.strategy not in ("llm", "hybrid"):
-            raise ValueError(f"Unknown strategy: {self.strategy}. Must be 'llm' or 'hybrid'.")
+            raise ReasoningInputError(f"Unknown strategy: {self.strategy}. Must be 'llm' or 'hybrid'.")
         if not 0.0 <= self.escalation_threshold <= 1.0:
-            raise ValueError("escalation_threshold must be between 0.0 and 1.0")
+            raise ReasoningInputError("escalation_threshold must be between 0.0 and 1.0")
         if self.top_k < 1:
-            raise ValueError("top_k must be >= 1")
+            raise ReasoningInputError("top_k must be >= 1")
         if self.concurrency < 1:
-            raise ValueError("concurrency must be >= 1")
+            raise ReasoningInputError("concurrency must be >= 1")
         if self.concurrency > 20:
-            raise ValueError("concurrency must be <= 20 — higher values risk overwhelming the LLM provider")
+            raise ReasoningInputError("concurrency must be <= 20 — higher values risk overwhelming the LLM provider")
         if self.max_text_length > _MAX_TEXT_LENGTH_CEILING:
-            raise ValueError(
+            raise ReasoningInputError(
                 f"max_text_length must be <= {_MAX_TEXT_LENGTH_CEILING}, got {self.max_text_length}"
             )
         if self.low_confidence_threshold is not None and not 0.0 <= self.low_confidence_threshold <= 1.0:
-            raise ValueError("low_confidence_threshold must be between 0.0 and 1.0")
+            raise ReasoningInputError("low_confidence_threshold must be between 0.0 and 1.0")
 
 
 @dataclass

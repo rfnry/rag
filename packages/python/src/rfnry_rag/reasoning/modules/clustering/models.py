@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from rfnry_rag.reasoning.common.errors import ReasoningInputError
+
 
 @dataclass
 class TextWithMetadata:
@@ -54,23 +56,23 @@ class ClusteringConfig:
 
     def __post_init__(self) -> None:
         if self.algorithm not in ("kmeans", "hdbscan"):
-            raise ValueError(f"Unknown algorithm: {self.algorithm}. Must be 'kmeans' or 'hdbscan'.")
+            raise ReasoningInputError(f"Unknown algorithm: {self.algorithm}. Must be 'kmeans' or 'hdbscan'.")
         if self.algorithm == "kmeans" and self.n_clusters < 2:
-            raise ValueError("n_clusters must be >= 2 for kmeans")
+            raise ReasoningInputError("n_clusters must be >= 2 for kmeans")
         if self.algorithm == "kmeans" and self.n_clusters > 1000:
-            raise ValueError(
+            raise ReasoningInputError(
                 f"n_clusters must be <= 1000, got {self.n_clusters} — "
                 "K-Means with k > 1000 is impractical and may cause memory issues"
             )
         if self.min_cluster_size < 2:
-            raise ValueError("min_cluster_size must be >= 2 for hdbscan")
+            raise ReasoningInputError("min_cluster_size must be >= 2 for hdbscan")
         if self.min_cluster_size > 10_000:
-            raise ValueError(
+            raise ReasoningInputError(
                 f"min_cluster_size must be <= 10_000, got {self.min_cluster_size} — "
                 "a min cluster size larger than most datasets defeats the purpose of HDBSCAN"
             )
         if self.samples_per_cluster < 1:
-            raise ValueError("samples_per_cluster must be >= 1")
+            raise ReasoningInputError("samples_per_cluster must be >= 1")
 
 
 @dataclass
