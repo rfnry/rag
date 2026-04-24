@@ -73,6 +73,8 @@ class BatchConfig:
     def __post_init__(self) -> None:
         if self.batch_size < 1:
             raise ValueError("batch_size must be >= 1")
+        if self.batch_size > 100_000:
+            raise ValueError(f"batch_size must be <= 100_000, got {self.batch_size}")
         if self.concurrency < 1:
             raise ValueError("concurrency must be >= 1")
         if self.concurrency > 20:
