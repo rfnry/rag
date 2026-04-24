@@ -102,3 +102,17 @@ def test_qdrant_store_does_not_warn_with_https(caplog) -> None:
 
     joined = "\n".join(r.message for r in caplog.records)
     assert "plaintext" not in joined.lower()
+
+
+def test_qdrant_hybrid_prefetch_multiplier_defaults_and_validates() -> None:
+    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+
+    default = QdrantVectorStore(url="http://fake", api_key="k")
+    assert default._hybrid_prefetch_multiplier == 4
+
+    custom = QdrantVectorStore(url="http://fake", api_key="k", hybrid_prefetch_multiplier=8)
+    assert custom._hybrid_prefetch_multiplier == 8
+
+    with pytest.raises(ConfigurationError, match="hybrid_prefetch_multiplier"):
+        QdrantVectorStore(url="http://fake", api_key="k", hybrid_prefetch_multiplier=0)

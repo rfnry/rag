@@ -62,12 +62,16 @@ class QdrantVectorStore:
         scroll_timeout: int = 30,
         write_timeout: int = 30,
         max_scroll_limit: int = 10_000,
+        hybrid_prefetch_multiplier: int = 4,
     ) -> None:
+        if hybrid_prefetch_multiplier < 1:
+            raise ConfigurationError("hybrid_prefetch_multiplier must be >= 1")
         self._url = url
         self._timeout = timeout
         self._scroll_timeout = scroll_timeout
         self._write_timeout = write_timeout
         self._max_scroll_limit = max_scroll_limit
+        self._hybrid_prefetch_multiplier = hybrid_prefetch_multiplier
         self._api_key = api_key
         self._client_instance: AsyncQdrantClient | None = AsyncQdrantClient(
             url=self._url, timeout=timeout, api_key=api_key
@@ -225,7 +229,7 @@ class QdrantVectorStore:
             return await self.search(vector=vector, top_k=top_k, filters=filters, collection=collection)
 
         query_filter = self._build_filter(filters)
-        fetch_k = top_k * 4
+        fetch_k = top_k * self._hybrid_prefetch_multiplier
 
         response = await self._client.query_points(
             collection_name=name,
