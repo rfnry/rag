@@ -10,6 +10,34 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-24 Phase F1 — Domain-bias contract widened to all BAML prompts
+
+The `test_baml_prompt_domain_agnostic` regression guard previously scanned
+only two prompt files (`ingestion/functions.baml` + `retrieval/functions.baml`).
+It now auto-discovers every `*.baml` file under both `retrieval/baml/baml_src`
+and `reasoning/baml/baml_src` (29 files), excluding only `clients.baml` and
+`generators.baml` (infrastructure with no prompt bodies) and
+`ingestion/drawing.baml` (whose enum-bound `electrical | p_and_id |
+mechanical | mixed` strings are `DrawingIngestionConfig`-bound domain
+labels rather than prompt examples — the drawing pipeline is inherently
+domain-tied via `DrawingIngestionConfig.default_domain`). Zero new
+violations were found; future prompts inherit the guardrail automatically.
+
+### 2026-04-24 Phase F2 — DrawingIngestionService status-transition + idempotency tests
+
+Two `@pytest.mark.skip(reason="Pending C4+...")` placeholders in
+`test_drawing_service_skeleton.py` were closed out as real e2e
+behavioural tests in `test_drawing_e2e_integration.py`:
+- `test_phase_methods_reject_status_skip_ahead` — codifies the strict
+  4-phase status sequence (`render → extracted → linked → completed`);
+  calling `link` on a `'rendered'` source or `ingest` on an `'extracted'`
+  source raises `IngestionError`.
+- `test_phase_methods_idempotent_on_reentry` — re-entering at a terminal
+  status is a no-op; no duplicate vector upserts, no duplicate graph
+  writes.
+
+Test count 997 → 999.
+
 ### 2026-04-25 Phase F3.5 — Gemini vision provider
 
 One task (1 commit) adding a third arm (`gemini`) to the existing

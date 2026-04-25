@@ -13,10 +13,21 @@ _EXCLUDED_RELATIVE: set[str] = {
     # Infrastructure — no prompt bodies at all.
     "clients.baml",
     "generators.baml",
-    # Drawing ingestion prompt: "electrical", "p_and_id", "mechanical" strings
-    # here are DrawingIngestionConfig-bound domain labels (the consumer-
-    # configurable enum of supported drawing domains), not prompt examples
-    # that bias the LLM. See DrawingIngestionConfig.default_domain.
+    # Drawing ingestion prompt: this file is exempt because the drawing
+    # pipeline is inherently domain-tied via DrawingIngestionConfig
+    # (default_domain, symbol_library, off_page_connector_patterns). Two
+    # categories of bias-listed terms appear here legitimately:
+    #   1. enum-bound labels in @description annotations and the prompt's
+    #      DOMAIN HINT enumeration ("electrical | p_and_id | mechanical |
+    #      mixed") — these are config-bound vocabulary, not prompt examples;
+    #   2. domain-flavoured illustrative examples in the SynthesizeDrawingSet
+    #      prompt body ("valve V-101 is documented on sheet 5", "wire/line
+    #      between components") — retained because the prompt's contrast
+    #      between deterministic wire connections and narrative cross-
+    #      references is clearer with concrete examples than with abstract
+    #      placeholders.
+    # If the drawing pipeline is ever generalised away from its
+    # electrical/P&ID/mechanical defaults, revisit this exclusion.
     "ingestion/drawing.baml",
 }
 
