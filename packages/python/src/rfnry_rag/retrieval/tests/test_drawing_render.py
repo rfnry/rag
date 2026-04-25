@@ -180,11 +180,11 @@ def test_render_dxf_modelspace_only_still_works(tmp_path: Path) -> None:
     doc.saveas(path)
 
     pages = render_dxf(path, dpi=150)
-    # ezdxf always seeds a default 'Layout1' alongside 'Model'; assert iterator
-    # is well-formed and modelspace is page_number=1 (the no-paperspace-content
-    # case still renders Layout1 — empty paperspace is acceptable per the plan).
+    # ezdxf.new() seeds Model + Layout1 deterministically — both render.
+    # Asserting the exact count (not >=1) catches a regression where
+    # the seeded Layout1 silently fails to render.
     assert isinstance(pages, list)
-    assert len(pages) >= 1
+    assert len(pages) == 2
     assert pages[0]["page_number"] == 1
     assert pages[0]["source_format"] == "dxf"
 

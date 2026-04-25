@@ -323,6 +323,57 @@ async def test_extract_dxf_per_layout_components(tmp_path: Path) -> None:
     assert rows[1]["data"]["analysis"]["page_number"] == 2
 
 
+async def test_extract_dxf_emits_off_page_connectors_per_layout(tmp_path: Path) -> None:
+    """OPC scan must run on every layout, not only modelspace.
+
+    Regression guard: the production code routes _extract_off_page_connectors
+    through every layout (modelspace + paperspace). If a future refactor pinned
+    the scan back to modelspace only, paperspace tags would silently disappear.
+    """
+    import ezdxf
+
+    path = tmp_path / "opc_per_layout.dxf"
+    doc = ezdxf.new()
+    blk = doc.blocks.new(name="comp_a")
+    blk.add_line((0, 0), (10, 0))
+    blk.add_line((5, -3), (5, 3))
+
+    msp = doc.modelspace()
+    msp.add_blockref("comp_a", (0, 0))
+    msp_text = msp.add_text("/A2")
+    msp_text.set_placement((5, 0))
+
+    ps1 = doc.layouts.get("Layout1")
+    ps1.add_blockref("comp_a", (50, 0))
+    ps1_text = ps1.add_text("/B7")
+    ps1_text.set_placement((55, 0))
+    doc.saveas(path)
+
+    metadata = _InMemoryMetadataStore()
+    svc = _make_service(metadata)
+    src = await svc.render(str(path), knowledge_id="k1")
+    src = await svc.extract(src.source_id)
+
+    rows = await metadata.get_page_analyses(src.source_id)
+    rows.sort(key=lambda r: r["page_number"])
+    # ezdxf.new() seeds Model + Layout1: page 1 = modelspace, page 2 = Layout1.
+    assert [r["page_number"] for r in rows] == [1, 2]
+
+    msp_analysis = rows[0]["data"]["analysis"]
+    msp_opcs = msp_analysis["off_page_connectors"]
+    assert len(msp_opcs) == 1
+    assert msp_opcs[0]["tag"] == "/A2"
+    msp_component_ids = {c["component_id"] for c in msp_analysis["components"]}
+    assert msp_opcs[0]["bound_component"] in msp_component_ids
+
+    ps1_analysis = rows[1]["data"]["analysis"]
+    ps1_opcs = ps1_analysis["off_page_connectors"]
+    assert len(ps1_opcs) == 1
+    assert ps1_opcs[0]["tag"] == "/B7"
+    ps1_component_ids = {c["component_id"] for c in ps1_analysis["components"]}
+    assert ps1_opcs[0]["bound_component"] in ps1_component_ids
+
+
 async def test_extract_dxf_corrupt_mtext_does_not_fail(
     tmp_path: Path, monkeypatch
 ) -> None:
