@@ -10,6 +10,37 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-25 R4 — Chunk position optimization (Lost-in-the-Middle mitigation)
+
+Liu et al. (TACL 2024, "Lost in the Middle: How Language Models Use Long
+Contexts") show that long-context LLMs exhibit U-shaped attention: tokens at
+the start and end of the prompt are attended to more than the middle. The
+retrieval pipeline emits chunks in score-descending order, which puts the
+second-best chunk in the attention-poor middle and wastes the
+recency-privileged tail on the lowest-scoring chunk.
+
+`chunks_to_context()` now accepts a keyword-only `ordering` parameter
+(`ChunkOrdering` enum) with three variants:
+
+- `SCORE_DESCENDING` (default; current behaviour) — score-descending
+  pass-through. Zero behavioural change for existing consumers.
+- `PRIMACY_RECENCY` — `evens + reversed(odds)`: best at start, second-best at
+  end, weakest in the middle. For input `[c0, c1, c2, c3, c4]` →
+  `[c0, c2, c4, c3, c1]`.
+- `SANDWICH` — `top_two + reversed(rest)`: top two strongest at the start,
+  remainder reversed at the end. For input `[c0, c1, c2, c3, c4]` →
+  `[c0, c1, c4, c3, c2]`.
+
+`GenerationConfig.chunk_ordering: ChunkOrdering = ChunkOrdering.SCORE_DESCENDING`
+threads the choice through both `GenerationService.generate()` /
+`generate_stream()` and `StepGenerationService.generate_step()` uniformly —
+no per-call-site knob. Single-chunk and two-chunk inputs are degenerate in
+all three orderings (no middle to protect).
+
+This is the start of the R-series (R1–R8 retrieval-quality roadmap items
+distinct from Phases A–F). Test count 1018 → 1027 (+4 unit-test functions;
+the short-input parametrize expands to 6 cases).
+
 ### 2026-04-24 Phase F1 — Domain-bias contract widened to all BAML prompts
 
 The `test_baml_prompt_domain_agnostic` regression guard previously scanned

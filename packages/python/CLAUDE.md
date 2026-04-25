@@ -90,7 +90,7 @@ The retrieval pipeline in `RagEngine` runs in this order:
    - **Tree** — Runs when `TreeSearchConfig.enabled`; loads stored tree indexes for up to `max_sources_per_query` sources, runs an LLM-backed navigation per source, and injects results into the RRF fusion pool alongside the other retrieval paths. See `server.py::_run_tree_search` for orchestration; per-source work runs concurrently via `asyncio.gather`. Uses `list_source_ids` + `get_tree_indexes` batch queries to eliminate N+1 DB lookups. Requires metadata store. Note: the `TreeRetrieval` class was removed in round-4 (it was never wired into `MethodNamespace`); tree search runs exclusively via `_run_tree_search` in `server.py`.
 3. **Reranking** (optional) — Cross-encoder reranking against original query (Cohere, Voyage)
 4. **Chunk refinement** (optional) — Extractive (context window) or abstractive (LLM summarization) refinement
-5. **Generation** (for `query()` only) — Grounding gate → LLM relevance gate → optional clarification → LLM generation
+5. **Generation** (for `query()` only) — Grounding gate → LLM relevance gate → optional clarification → LLM generation. Context assembly via `chunks_to_context()` accepts `GenerationConfig.chunk_ordering` (`ChunkOrdering.SCORE_DESCENDING` default, `PRIMACY_RECENCY`, or `SANDWICH`) to mitigate the Lost-in-the-Middle U-shaped-attention effect (Liu et al., TACL 2024). Same ordering threads through `GenerationService` and `StepGenerationService` — no per-call-site knob (R4, 2026-04-25).
 
 ### Modular Pipeline
 
@@ -181,7 +181,7 @@ The following contract tests act as regression guards — they enforce whole-cla
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking
 - Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules
-- 1018 tests total across both SDKs (Phase F adds +21 vs. the Phase E baseline of 997: F2 DrawingIngestionService status-transition + re-entry tests, F3.1 DXF TEXT/MTEXT off-page connectors, F3.2 DXF paperspace layout rendering, F3.5 Gemini vision provider)
+- 1027 tests total across both SDKs (Phase F adds +21 vs. the Phase E baseline of 997: F2 DrawingIngestionService status-transition + re-entry tests, F3.1 DXF TEXT/MTEXT off-page connectors, F3.2 DXF paperspace layout rendering, F3.5 Gemini vision provider; R4 adds +9 chunk-ordering unit cases)
 
 ## Config defaults and enforced bounds
 
@@ -220,6 +220,7 @@ The following contract tests act as regression guards — they enforce whole-cla
 - `TreeIndexingConfig.max_pages_per_node`: `≤ 200`
 - `TreeIndexingConfig.max_tokens_per_node`: `≤ 200_000`
 - `GenerationConfig`: `grounding_enabled=True` requires `grounding_threshold > 0` and an `lm_client`
+- `GenerationConfig.chunk_ordering`: `ChunkOrdering` enum, default `SCORE_DESCENDING`; opt-in `PRIMACY_RECENCY` or `SANDWICH` for Lost-in-the-Middle mitigation (R4, 2026-04-25)
 - Cross-config: `tree_indexing.max_tokens_per_node ≤ tree_search.max_context_tokens`
 - `BatchConfig.batch_size`: `≤ 100_000`
 - `BatchConfig.concurrency`: `1 ≤ concurrency ≤ 20`

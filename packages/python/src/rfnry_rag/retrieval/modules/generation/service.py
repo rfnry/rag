@@ -4,7 +4,7 @@ from baml_py import errors as baml_errors
 
 from rfnry_rag.retrieval.baml.baml_client.async_client import b
 from rfnry_rag.retrieval.common.errors import GenerationError
-from rfnry_rag.retrieval.common.formatting import chunks_to_context
+from rfnry_rag.retrieval.common.formatting import ChunkOrdering, chunks_to_context
 from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievedChunk
@@ -24,10 +24,12 @@ class GenerationService:
         relevance_gate_enabled: bool = False,
         guiding_enabled: bool = False,
         relevance_gate_lm_client: LanguageModelClient | None = None,
+        chunk_ordering: ChunkOrdering = ChunkOrdering.SCORE_DESCENDING,
     ) -> None:
         self._lm_client = lm_client
         self._system_prompt = system_prompt
         self._guiding_enabled = guiding_enabled
+        self._chunk_ordering = chunk_ordering
 
         self._grounding_enabled = grounding_enabled
         self._score_gate = ScoreGate(threshold=grounding_threshold) if grounding_enabled else None
@@ -127,7 +129,7 @@ class GenerationService:
                 return early_result
             return self._escalation_result(message or DEFAULT_ESCALATION, confidence)
 
-        context = chunks_to_context(relevant_chunks)
+        context = chunks_to_context(relevant_chunks, ordering=self._chunk_ordering)
         formatted_history = self._format_history(history)
         active_system_prompt = system_prompt if system_prompt is not None else self._system_prompt
 
@@ -185,7 +187,7 @@ class GenerationService:
                 yield StreamEvent(type="done", content=message or DEFAULT_ESCALATION, grounded=False)
             return
 
-        context = chunks_to_context(relevant_chunks)
+        context = chunks_to_context(relevant_chunks, ordering=self._chunk_ordering)
         formatted_history = self._format_history(history)
         active_system_prompt = system_prompt if system_prompt is not None else self._system_prompt
 

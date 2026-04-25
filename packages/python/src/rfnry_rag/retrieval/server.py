@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from rfnry_rag.retrieval.common.errors import ConfigurationError, InputError
+from rfnry_rag.retrieval.common.formatting import ChunkOrdering
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 
 if TYPE_CHECKING:
@@ -260,6 +261,7 @@ class GenerationConfig:
     relevance_gate_model: LanguageModelClient | None = None
     guiding_enabled: bool = False
     step_lm_client: LanguageModelClient | None = None
+    chunk_ordering: ChunkOrdering = ChunkOrdering.SCORE_DESCENDING
 
     def __post_init__(self) -> None:
         if self.grounding_threshold < 0 or self.grounding_threshold > 1:
@@ -764,13 +766,17 @@ class RagEngine:
                 relevance_gate_enabled=gen.relevance_gate_enabled,
                 guiding_enabled=gen.guiding_enabled,
                 relevance_gate_lm_client=relevance_gate_lm_client,
+                chunk_ordering=gen.chunk_ordering,
             )
             logger.info("generation: enabled")
         else:
             logger.info("generation: disabled (retrieval-only mode)")
 
         if gen.step_lm_client:
-            self._step_service = StepGenerationService(lm_client=gen.step_lm_client)
+            self._step_service = StepGenerationService(
+                lm_client=gen.step_lm_client,
+                chunk_ordering=gen.chunk_ordering,
+            )
             logger.info("step generation: enabled")
 
         self._knowledge_manager = KnowledgeManager(

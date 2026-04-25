@@ -2,7 +2,7 @@ from baml_py import errors as baml_errors
 
 from rfnry_rag.retrieval.baml.baml_client.async_client import b
 from rfnry_rag.retrieval.common.errors import GenerationError
-from rfnry_rag.retrieval.common.formatting import chunks_to_context
+from rfnry_rag.retrieval.common.formatting import ChunkOrdering, chunks_to_context
 from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievedChunk
@@ -14,8 +14,13 @@ logger = get_logger("generation/step")
 class StepGenerationService:
     """Single reasoning step generation for iterative retrieval loops."""
 
-    def __init__(self, lm_client: LanguageModelClient) -> None:
+    def __init__(
+        self,
+        lm_client: LanguageModelClient,
+        chunk_ordering: ChunkOrdering = ChunkOrdering.SCORE_DESCENDING,
+    ) -> None:
         self._lm_client = lm_client
+        self._chunk_ordering = chunk_ordering
         self._registry = build_registry(self._lm_client)
 
     async def generate_step(
@@ -28,7 +33,9 @@ class StepGenerationService:
         if not query or not query.strip():
             raise GenerationError("Query must not be empty")
 
-        chunk_context = chunks_to_context(chunks) if chunks else "(No context retrieved)"
+        chunk_context = (
+            chunks_to_context(chunks, ordering=self._chunk_ordering) if chunks else "(No context retrieved)"
+        )
         prior_reasoning = context or ""
 
         try:
