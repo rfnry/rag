@@ -10,6 +10,36 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-25 Phase F3.5 — Gemini vision provider
+
+One task (1 commit) adding a third arm (`gemini`) to the existing
+`Vision` facade alongside the OpenAI and Anthropic implementations.
+Consumers now select Gemini the same way they already select an LLM
+or embedding provider:
+`Vision(LanguageModelProvider(provider="gemini", model=..., api_key=...))`.
+
+Implementation mirrors `_AnthropicVision` / `_OpenAIVision` exactly —
+same constructor signature `(provider, max_tokens=4096, max_retries=3)`,
+same `async parse(file_path, pages)` contract, same
+`MAX_VISION_FILE_SIZE` guard, same unsupported-extension `ValueError`,
+same content-policy refusal `ValueError` on empty response, same
+`ParsedPage(page_number=1, ..., metadata={"vision_provider": "gemini",
+...})` return shape. The only differences are the SDK call
+(`client.aio.models.generate_content(model=..., contents=[Part.from_bytes(
+data=..., mime_type=...), VISION_EXTRACTION_PROMPT],
+config=GenerateContentConfig(max_output_tokens=...))` against
+`google.genai`) and the metadata `vision_provider` value.
+
+The `google-genai>=1.0.0` SDK exposes retries via
+`HttpOptions(retry_options=HttpRetryOptions(attempts=...))` rather than
+as a direct `Client` kwarg, so `max_retries` is wired through there to
+preserve facade-level signature parity. The facade's unsupported-provider
+error message now lists `gemini` alongside `anthropic` and `openai`.
+
+`MEDIA_TYPES` is unchanged — Gemini accepts the same `image/jpeg`,
+`image/png`, `image/gif`, and `image/webp` set the others already
+support. Test count 1011 → 1018 (5 unit + 2 facade dispatch).
+
 ### 2026-04-25 Phase F3.2 — DXF paperspace layout rendering
 
 One task (1 commit) generalising the DXF render + extract pipeline from

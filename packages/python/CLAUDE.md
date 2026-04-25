@@ -155,7 +155,7 @@ All LLM calls go through BAML for structured output parsing, retry/fallback poli
 ## Key Patterns
 
 - **Protocol-based abstraction** — No inheritance; `Protocol` classes define interfaces (`BaseEmbeddings` (in `rfnry_rag.common.protocols`), `BaseSemanticIndex`, `BaseReranking`, `BaseRetrievalMethod`, `BaseIngestionMethod`, `BaseQueryRewriting`, `BaseChunkRefinement`, `BaseRetrievalJudgment`, etc.). Any conforming object works.
-- **Facade pattern** — `Embeddings(LanguageModelProvider)`, `Vision(LanguageModelProvider)`, and `Reranking(LanguageModelProvider | LanguageModelClient)` are public facades that select the correct private provider implementation at runtime. Concrete providers (e.g. OpenAI, Voyage, Cohere) are private.
+- **Facade pattern** — `Embeddings(LanguageModelProvider)`, `Vision(LanguageModelProvider)`, and `Reranking(LanguageModelProvider | LanguageModelClient)` are public facades that select the correct private provider implementation at runtime. Concrete providers (e.g. OpenAI, Voyage, Cohere) are private. `Vision` dispatches to `_AnthropicVision`, `_OpenAIVision`, or `_GeminiVision` (Phase F3.5, 2026-04-25) based on `LanguageModelProvider.provider`.
 - **Modular pipeline** — Retrieval and ingestion methods are pluggable. Services receive `list[BaseRetrievalMethod]` / `list[BaseIngestionMethod]` and dispatch generically. Methods carry `weight` and `top_k` configuration. Per-method error isolation (catch, log, continue).
 - **Async-first** — All I/O is async. Services use `async def`, stores use asyncpg/aiosqlite.
 - **Service pattern** — Each module has a `Service` class with dependencies injected via `__init__`.
