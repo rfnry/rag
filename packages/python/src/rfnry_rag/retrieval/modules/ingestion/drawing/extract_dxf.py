@@ -14,6 +14,7 @@ from rfnry_rag.retrieval.modules.ingestion.drawing.models import (
     DrawingPageAnalysis,
     OffPageConnector,
 )
+from rfnry_rag.retrieval.modules.ingestion.drawing.render import _iter_renderable_layouts
 
 logger = get_logger("drawing/ingestion/extract_dxf")
 
@@ -218,15 +219,13 @@ def extract_dxf_analysis(
 
     doc = ezdxf.readfile(str(file_path))
 
-    layouts: list[Any] = [doc.modelspace()]
-    for name in doc.layouts.names_in_taborder():
-        if name.lower() == "model":
-            continue
-        layouts.append(doc.layouts.get(name))
-
+    # Single source of truth for layout enumeration — render.py uses the same
+    # helper, so renderer + extractor stay aligned for service.py's per-page
+    # merge by page_number. Drift here would silently misalign analysis with
+    # the rendered image.
     analyses: list[DrawingPageAnalysis] = [
         _analyse_layout(layout, idx, config)
-        for idx, layout in enumerate(layouts, start=1)
+        for idx, layout in enumerate(_iter_renderable_layouts(doc), start=1)
     ]
 
     logger.info(

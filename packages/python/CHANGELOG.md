@@ -44,7 +44,7 @@ Empty paperspace layouts still render as blank pages — Phase F3.2
 favours blank-page-on-empty over silent content loss. No new config
 field; paperspace iteration is the universal default. Per-layout DPI
 overrides, page-size detection from layout viewports, and invisible-
-layout suppression are deferred. Test count 1005 → 1010 (4 unit + 1
+layout suppression are deferred. Test count 1005 → 1011 (5 unit + 1
 e2e).
 
 ### 2026-04-26 Phase F3.1 — DXF TEXT/MTEXT off-page-connector detection

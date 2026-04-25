@@ -104,9 +104,11 @@ async def test_render_dxf_produces_per_layout_images(sample_dxf: Path) -> None:
     assert src.status == "rendered"
     assert src.metadata["source_format"] == "dxf"
     rows = await metadata.get_page_analyses(src.source_id)
-    # ezdxf always seeds a default Layout1 alongside Model — empty paperspace
-    # still renders per Phase F3.2 (we accept blank pages over silent loss).
-    assert len(rows) >= 1
+    # ezdxf.new() seeds Model + Layout1 deterministically — both render.
+    # Empty paperspace still emits a (blank) page per Phase F3.2; we accept
+    # blank pages over silent loss. Asserting the exact count (not >=1)
+    # catches a regression where the seeded Layout1 silently fails to render.
+    assert len(rows) == 2
     assert rows[0]["page_number"] == 1
     assert rows[0]["data"]["source_format"] == "dxf"
 
