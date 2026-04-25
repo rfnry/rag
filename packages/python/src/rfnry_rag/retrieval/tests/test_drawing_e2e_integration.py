@@ -292,6 +292,41 @@ async def test_phase_methods_idempotent_on_reentry(simple_rlc_dxf: Path) -> None
     assert gstore.relations_calls == relation_calls_after_first
 
 
+async def test_dxf_paperspace_end_to_end(tmp_path: Path) -> None:
+    """A DXF with components on modelspace + Layout1 + Layout2 ingests every layout's
+    components into the vector store, with payloads tagged by per-layout page_number.
+    """
+    import ezdxf
+
+    path = tmp_path / "multi_layout.dxf"
+    doc = ezdxf.new()
+    doc.layouts.new("Layout2")
+    blk = doc.blocks.new(name="comp_a")
+    blk.add_line((0, 0), (10, 0))
+    blk.add_line((5, -3), (5, 3))
+
+    doc.modelspace().add_blockref("comp_a", (0, 0))
+    doc.layouts.get("Layout1").add_blockref("comp_a", (50, 0))
+    doc.layouts.get("Layout2").add_blockref("comp_a", (100, 0))
+    doc.saveas(path)
+
+    metadata = _InMemoryMetadataStore()
+    vstore = _RecordingVectorStore()
+    gstore = _RecordingGraphStore()
+    svc = _make_service(metadata, vector_store=vstore, graph_store=gstore)
+
+    src = await svc.render(str(path), knowledge_id="k1")
+    src = await svc.extract(src.source_id)
+    src = await svc.link(src.source_id)
+    src = await svc.ingest(src.source_id)
+    assert src.status == "completed"
+
+    pages_seen = sorted({p.payload["page_number"] for p in vstore.upserted})
+    assert pages_seen == [1, 2, 3]
+    assert len(vstore.upserted) == 3
+    assert all(p.payload["symbol_class"] == "comp_a" for p in vstore.upserted)
+
+
 async def test_dxf_end_to_end_off_page_connector_reaches_page_analysis(
     two_blocks_with_off_page_text_dxf: Path,
 ) -> None:

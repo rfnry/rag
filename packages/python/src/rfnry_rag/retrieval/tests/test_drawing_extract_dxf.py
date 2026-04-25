@@ -291,6 +291,38 @@ async def test_extract_dxf_ignores_non_matching_text(tmp_path: Path) -> None:
     assert analysis["off_page_connectors"] == []
 
 
+async def test_extract_dxf_per_layout_components(tmp_path: Path) -> None:
+    """Modelspace + Layout1 each carry one INSERT → two DrawingPageAnalysis objects."""
+    import ezdxf
+
+    path = tmp_path / "two_layouts.dxf"
+    doc = ezdxf.new()
+    blk = doc.blocks.new(name="comp_a")
+    blk.add_line((0, 0), (10, 0))
+    blk.add_line((5, -3), (5, 3))
+
+    msp = doc.modelspace()
+    msp.add_blockref("comp_a", (0, 0))
+    ps1 = doc.layouts.get("Layout1")
+    ps1.add_blockref("comp_a", (50, 0))
+    doc.saveas(path)
+
+    metadata = _InMemoryMetadataStore()
+    svc = _make_service(metadata)
+    src = await svc.render(str(path), knowledge_id="k1")
+    src = await svc.extract(src.source_id)
+
+    rows = await metadata.get_page_analyses(src.source_id)
+    rows.sort(key=lambda r: r["page_number"])
+    assert [r["page_number"] for r in rows] == [1, 2]
+    msp_components = rows[0]["data"]["analysis"]["components"]
+    ps1_components = rows[1]["data"]["analysis"]["components"]
+    assert len(msp_components) == 1
+    assert len(ps1_components) == 1
+    assert rows[0]["data"]["analysis"]["page_number"] == 1
+    assert rows[1]["data"]["analysis"]["page_number"] == 2
+
+
 async def test_extract_dxf_corrupt_mtext_does_not_fail(
     tmp_path: Path, monkeypatch
 ) -> None:

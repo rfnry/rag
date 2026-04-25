@@ -10,6 +10,43 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-25 Phase F3.2 — DXF paperspace layout rendering
+
+One task (1 commit) generalising the DXF render + extract pipeline from
+modelspace-only to every layout. `render_dxf` previously rendered only
+`doc.modelspace()`; multi-sheet drawings (the mainstream CAD workflow)
+silently lost their per-sheet content. The renderer now iterates
+`[doc.modelspace()] + [doc.layouts.get(name) for name in
+doc.layouts.names_in_taborder() if name.lower() != "model"]` and emits
+one splitter-shaped page dict per layout, modelspace at `page_number=1`
+and paperspace layouts following in DXF tab order. The renderer's
+`RenderContext` is built once per document and reused across layouts;
+each layout gets a fresh `matplotlib` figure that is closed
+per-iteration to bound the figure cache.
+
+API change: `render_dxf` and `extract_dxf_analysis` now return
+`list[...]` instead of a single value. `service.py::render` calls
+`render_dxf(...)` directly (was wrapping a single dict in `[ ]`);
+`service.py::extract` calls `extract_dxf_analysis(...)` directly (was
+wrapping a single `DrawingPageAnalysis` in `[ ]`). Internal-only
+refactor — no public SDK consumer touched.
+
+`extract_dxf_analysis` mirrors the page split: each rendered page has a
+matching `DrawingPageAnalysis` with `page_number` aligned to the
+renderer's numbering. The shared per-layout walk (`_analyse_layout`)
+runs the existing `INSERT` -> `DetectedComponent`, `LINE` ->
+`DetectedConnection`, and `TEXT`/`MTEXT` -> `OffPageConnector` passes
+against `layout.query(...)` instead of `msp.query(...)`. DXF page
+dicts now carry `has_images=False` (was `True`) to match the
+splitter schema for image-derived flags.
+
+Empty paperspace layouts still render as blank pages — Phase F3.2
+favours blank-page-on-empty over silent content loss. No new config
+field; paperspace iteration is the universal default. Per-layout DPI
+overrides, page-size detection from layout viewports, and invisible-
+layout suppression are deferred. Test count 1005 → 1010 (4 unit + 1
+e2e).
+
 ### 2026-04-26 Phase F3.1 — DXF TEXT/MTEXT off-page-connector detection
 
 One task (1 commit) closing the Phase C deferral that left

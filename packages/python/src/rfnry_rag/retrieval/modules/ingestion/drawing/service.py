@@ -108,7 +108,7 @@ class DrawingIngestionService:
             )
             source_format = "pdf"
         else:  # .dxf
-            pages = [await asyncio.to_thread(render_dxf, path, self._config.dpi)]
+            pages = await asyncio.to_thread(render_dxf, path, self._config.dpi)
             source_format = "dxf"
 
         source_id = str(uuid4())
@@ -181,10 +181,9 @@ class DrawingIngestionService:
             )
         elif source_format == "dxf":
             file_path = Path(source.metadata["file_path"])
-            analysis = await asyncio.to_thread(
+            analyses = await asyncio.to_thread(
                 extract_dxf_analysis, file_path, self._config
             )
-            analyses = [analysis]
         else:
             raise IngestionError(
                 f"unsupported source_format for extract: {source_format!r}"

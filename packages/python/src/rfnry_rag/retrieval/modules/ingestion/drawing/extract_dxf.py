@@ -102,9 +102,9 @@ def _infer_domain(components: list[DetectedComponent]) -> str:
 
 
 def _extract_off_page_connectors(
-    msp: Any, components: list[DetectedComponent], patterns: list[str]
+    layout: Any, components: list[DetectedComponent], patterns: list[str]
 ) -> list[OffPageConnector]:
-    """Scan modelspace TEXT + MTEXT for off-page-connector tags.
+    """Scan a layout's TEXT + MTEXT for off-page-connector tags.
 
     First-match-wins across the configured regex list; entities with no match
     are ignored (label/annotation text is normal noise). MTEXT formatting
@@ -113,7 +113,7 @@ def _extract_off_page_connectors(
     """
     compiled = [re.compile(p) for p in patterns]
     out: list[OffPageConnector] = []
-    for e in msp.query("TEXT MTEXT"):
+    for e in layout.query("TEXT MTEXT"):
         if e.dxftype() == "MTEXT":
             try:
                 payload = e.plain_text(split=False)
@@ -149,24 +149,14 @@ def _extract_off_page_connectors(
     return out
 
 
-def extract_dxf_analysis(
-    file_path: Path, config: DrawingIngestionConfig
+def _analyse_layout(
+    layout: Any, page_number: int, config: DrawingIngestionConfig
 ) -> DrawingPageAnalysis:
-    """Parse a DXF into a DrawingPageAnalysis via ezdxf entity walk.
-
-    Only modelspace is scanned; paperspace layouts are deferred.
-    INSERT -> DetectedComponent (classified via config.symbol_library).
-    LINE whose endpoints fall inside two distinct INSERT bboxes -> DetectedConnection.
-    TEXT/MTEXT matching config.off_page_connector_patterns -> OffPageConnector.
-    """
-    import ezdxf
-
-    doc = ezdxf.readfile(str(file_path))
-    msp = doc.modelspace()
+    """Walk one layout's INSERT/LINE/TEXT/MTEXT entities into a DrawingPageAnalysis."""
     symbol_library = config.symbol_library or {}
 
     components: list[DetectedComponent] = []
-    for e in msp.query("INSERT"):
+    for e in layout.query("INSERT"):
         block_name = e.dxf.name
         domain, symbol_class = _classify_block_name(block_name, symbol_library)
         components.append(
@@ -185,7 +175,7 @@ def extract_dxf_analysis(
         )
 
     connections: list[DetectedConnection] = []
-    for line in msp.query("LINE"):
+    for line in layout.query("LINE"):
         x1, y1 = float(line.dxf.start.x), float(line.dxf.start.y)
         x2, y2 = float(line.dxf.end.x), float(line.dxf.end.y)
         src_c = _find_component_at(x1, y1, components)
@@ -200,17 +190,11 @@ def extract_dxf_analysis(
             )
 
     off_page_connectors = _extract_off_page_connectors(
-        msp, components, config.off_page_connector_patterns or []
+        layout, components, config.off_page_connector_patterns or []
     )
 
-    logger.info(
-        "[drawing/extract_dxf] components=%d connections=%d off_page=%d",
-        len(components),
-        len(connections),
-        len(off_page_connectors),
-    )
     return DrawingPageAnalysis(
-        page_number=1,
+        page_number=page_number,
         components=components,
         connections=connections,
         off_page_connectors=off_page_connectors,
@@ -218,3 +202,38 @@ def extract_dxf_analysis(
         page_type="drawing",
         notes=[],
     )
+
+
+def extract_dxf_analysis(
+    file_path: Path, config: DrawingIngestionConfig
+) -> list[DrawingPageAnalysis]:
+    """Parse every layout in a DXF into a list of DrawingPageAnalysis (one per page).
+
+    Mirrors render_dxf's page split: modelspace is page 1, then paperspace
+    layouts in DXF tab order (Model alias skipped). INSERT, LINE, TEXT, MTEXT
+    are scanned per-layout so multi-sheet drawings expose every layout's
+    components, wires, and off-page tags.
+    """
+    import ezdxf
+
+    doc = ezdxf.readfile(str(file_path))
+
+    layouts: list[Any] = [doc.modelspace()]
+    for name in doc.layouts.names_in_taborder():
+        if name.lower() == "model":
+            continue
+        layouts.append(doc.layouts.get(name))
+
+    analyses: list[DrawingPageAnalysis] = [
+        _analyse_layout(layout, idx, config)
+        for idx, layout in enumerate(layouts, start=1)
+    ]
+
+    logger.info(
+        "[drawing/extract_dxf] pages=%d components=%d connections=%d off_page=%d",
+        len(analyses),
+        sum(len(a.components) for a in analyses),
+        sum(len(a.connections) for a in analyses),
+        sum(len(a.off_page_connectors) for a in analyses),
+    )
+    return analyses

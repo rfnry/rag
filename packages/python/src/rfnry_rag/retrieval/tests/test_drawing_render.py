@@ -9,6 +9,7 @@ import pytest
 
 from rfnry_rag.retrieval.common.errors import IngestionError
 from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+from rfnry_rag.retrieval.modules.ingestion.drawing.render import render_dxf
 from rfnry_rag.retrieval.modules.ingestion.drawing.service import DrawingIngestionService
 
 
@@ -96,13 +97,17 @@ async def test_render_pdf_produces_per_page_images(sample_pdf: Path) -> None:
         assert r["data"]["page_image_b64"].startswith("iVBOR")
 
 
-async def test_render_dxf_produces_single_page_image(sample_dxf: Path) -> None:
+async def test_render_dxf_produces_per_layout_images(sample_dxf: Path) -> None:
+    """A fresh ezdxf doc has Model + the default Layout1 → 2 pages emitted."""
     svc, metadata = _make_service()
     src = await svc.render(str(sample_dxf), knowledge_id="k1")
     assert src.status == "rendered"
     assert src.metadata["source_format"] == "dxf"
     rows = await metadata.get_page_analyses(src.source_id)
-    assert len(rows) == 1
+    # ezdxf always seeds a default Layout1 alongside Model — empty paperspace
+    # still renders per Phase F3.2 (we accept blank pages over silent loss).
+    assert len(rows) >= 1
+    assert rows[0]["page_number"] == 1
     assert rows[0]["data"]["source_format"] == "dxf"
 
 
@@ -126,3 +131,74 @@ async def test_render_missing_file_raises(tmp_path: Path) -> None:
     svc, _ = _make_service()
     with pytest.raises((FileNotFoundError, IngestionError)):
         await svc.render(str(tmp_path / "nope.pdf"), knowledge_id="k1")
+
+
+def test_render_dxf_emits_one_page_per_layout(tmp_path: Path) -> None:
+    """Multi-layout DXF: modelspace + 2 paperspace layouts → 3 pages, deterministic order."""
+    import ezdxf
+
+    path = tmp_path / "multi_layout.dxf"
+    doc = ezdxf.new()
+    doc.layouts.new("Layout2")
+    # Distinct geometry per layout so the renderer produces visibly different
+    # PNGs (matplotlib auto-scales single-line content to identical bitmaps).
+    msp = doc.modelspace()
+    msp.add_line((0, 0), (10, 0))
+    msp.add_line((10, 0), (10, 10))
+    ps1 = doc.layouts.get("Layout1")
+    ps1.add_line((0, 0), (5, 0))
+    ps1.add_line((5, 0), (5, 5))
+    ps1.add_line((5, 5), (0, 5))
+    ps2 = doc.layouts.get("Layout2")
+    for i in range(4):
+        ps2.add_line((i * 2, 0), (i * 2, 8))
+    doc.saveas(path)
+
+    pages = render_dxf(path, dpi=150)
+    assert isinstance(pages, list)
+    assert len(pages) == 3
+    assert [p["page_number"] for p in pages] == [1, 2, 3]
+    # Each page is a distinct image (different layout content → different bytes)
+    hashes = {p["page_hash"] for p in pages}
+    assert len(hashes) == 3
+    for p in pages:
+        assert p["source_format"] == "dxf"
+        assert p["raw_text"] == ""
+        assert p["raw_text_char_count"] == 0
+        assert p["has_images"] is False
+        assert p["image_base64"].startswith("iVBOR")
+
+
+def test_render_dxf_modelspace_only_still_works(tmp_path: Path) -> None:
+    """Single-layout fixture (only the default Layout1 alongside Model) emits 2 pages."""
+    import ezdxf
+
+    path = tmp_path / "msp_only.dxf"
+    doc = ezdxf.new()
+    msp = doc.modelspace()
+    msp.add_line((0, 0), (10, 0))
+    doc.saveas(path)
+
+    pages = render_dxf(path, dpi=150)
+    # ezdxf always seeds a default 'Layout1' alongside 'Model'; assert iterator
+    # is well-formed and modelspace is page_number=1 (the no-paperspace-content
+    # case still renders Layout1 — empty paperspace is acceptable per the plan).
+    assert isinstance(pages, list)
+    assert len(pages) >= 1
+    assert pages[0]["page_number"] == 1
+    assert pages[0]["source_format"] == "dxf"
+
+
+def test_render_dxf_skips_unnamed_layout_alias(tmp_path: Path) -> None:
+    """The 'Model' layout (alias of modelspace) must not be double-counted."""
+    import ezdxf
+
+    path = tmp_path / "no_double.dxf"
+    doc = ezdxf.new()
+    doc.layouts.new("Layout2")
+    doc.saveas(path)
+
+    pages = render_dxf(path, dpi=150)
+    # Expected: 1 modelspace + Layout1 + Layout2 = 3, NOT 4 (no double-counted Model).
+    assert len(pages) == 3
+    assert [p["page_number"] for p in pages] == [1, 2, 3]
