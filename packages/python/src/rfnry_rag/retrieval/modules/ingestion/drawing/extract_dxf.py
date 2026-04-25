@@ -1,6 +1,7 @@
 """Parse DXF entities into DrawingPageAnalysis without any vision LLM."""
 from __future__ import annotations
 
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ from rfnry_rag.retrieval.modules.ingestion.drawing.models import (
     DetectedComponent,
     DetectedConnection,
     DrawingPageAnalysis,
+    OffPageConnector,
 )
 
 logger = get_logger("drawing/ingestion/extract_dxf")
@@ -99,15 +101,63 @@ def _infer_domain(components: list[DetectedComponent]) -> str:
     return counter.most_common(1)[0][0]
 
 
+def _extract_off_page_connectors(
+    msp: Any, components: list[DetectedComponent], patterns: list[str]
+) -> list[OffPageConnector]:
+    """Scan modelspace TEXT + MTEXT for off-page-connector tags.
+
+    First-match-wins across the configured regex list; entities with no match
+    are ignored (label/annotation text is normal noise). MTEXT formatting
+    codes are stripped via plain_text(); a corrupt MTEXT is skipped rather
+    than aborting the parse so one bad entity can't sink an entire sheet.
+    """
+    compiled = [re.compile(p) for p in patterns]
+    out: list[OffPageConnector] = []
+    for e in msp.query("TEXT MTEXT"):
+        if e.dxftype() == "MTEXT":
+            try:
+                payload = e.plain_text(split=False)
+            except Exception:
+                logger.debug(
+                    "[drawing/extract_dxf] skipping corrupt MTEXT handle=%s",
+                    getattr(e.dxf, "handle", "?"),
+                )
+                continue
+        else:
+            payload = e.dxf.text
+        if not payload:
+            continue
+
+        match = None
+        for cre in compiled:
+            match = cre.search(payload)
+            if match is not None:
+                break
+        if match is None:
+            continue
+
+        x, y = float(e.dxf.insert.x), float(e.dxf.insert.y)
+        bound = _find_component_at(x, y, components)
+        tag = match.group(0)
+        out.append(
+            OffPageConnector(
+                tag=tag,
+                bound_component=bound.component_id if bound is not None else None,
+                target_hint=tag,
+            )
+        )
+    return out
+
+
 def extract_dxf_analysis(
     file_path: Path, config: DrawingIngestionConfig
 ) -> DrawingPageAnalysis:
     """Parse a DXF into a DrawingPageAnalysis via ezdxf entity walk.
 
-    Only modelspace is scanned; paperspace layouts are deferred to Phase D.
+    Only modelspace is scanned; paperspace layouts are deferred.
     INSERT -> DetectedComponent (classified via config.symbol_library).
     LINE whose endpoints fall inside two distinct INSERT bboxes -> DetectedConnection.
-    TEXT/MTEXT-based off-page-connector detection is deferred to Phase D.
+    TEXT/MTEXT matching config.off_page_connector_patterns -> OffPageConnector.
     """
     import ezdxf
 
@@ -149,16 +199,21 @@ def extract_dxf_analysis(
                 )
             )
 
+    off_page_connectors = _extract_off_page_connectors(
+        msp, components, config.off_page_connector_patterns or []
+    )
+
     logger.info(
-        "[drawing/extract_dxf] components=%d connections=%d",
+        "[drawing/extract_dxf] components=%d connections=%d off_page=%d",
         len(components),
         len(connections),
+        len(off_page_connectors),
     )
     return DrawingPageAnalysis(
         page_number=1,
         components=components,
         connections=connections,
-        off_page_connectors=[],
+        off_page_connectors=off_page_connectors,
         domain=_infer_domain(components),
         page_type="drawing",
         notes=[],

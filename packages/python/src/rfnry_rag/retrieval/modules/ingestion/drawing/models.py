@@ -97,7 +97,7 @@ class DetectedConnection:
 @dataclass
 class OffPageConnector:
     tag: str
-    bound_component: str
+    bound_component: str | None = None
     target_hint: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -111,7 +111,7 @@ class OffPageConnector:
     def from_dict(cls, d: dict[str, Any]) -> OffPageConnector:
         return cls(
             tag=d["tag"],
-            bound_component=d["bound_component"],
+            bound_component=d.get("bound_component"),
             target_hint=d.get("target_hint"),
         )
 

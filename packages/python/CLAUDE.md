@@ -111,7 +111,11 @@ Retrieval and ingestion are protocol-based plugin architectures. No mandatory ve
   unresolved candidates remain. Symbol vocabularies, off-page-connector
   regexes, and wire_style→relation_type mapping are fully consumer-
   configurable via `DrawingIngestionConfig` (ships IEC 60617 + ISA 5.1
-  defaults). Phase C (2026-04-25).
+  defaults). The DXF extractor scans modelspace `TEXT` + `MTEXT` against
+  `config.off_page_connector_patterns` to populate
+  `DrawingPageAnalysis.off_page_connectors`, anchoring each tag to the
+  underlying component when its insertion point sits inside a component
+  bbox (Phase F3.1, 2026-04-26). Phase C (2026-04-25).
 - **Graph ingestion is consumer-agnostic by default.** The analyze-path graph
   mapper at `stores/graph/mapper.py` takes a `GraphIngestionConfig` so
   consumers supply their own entity-type regex patterns, relationship

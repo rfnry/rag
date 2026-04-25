@@ -182,3 +182,147 @@ async def test_extract_dxf_classifies_by_symbol_library(tmp_path: Path) -> None:
     # properties.domain reflects the lookup
     assert c["properties"] is not None
     assert c["properties"].get("domain") == "p_and_id"
+
+
+async def test_extract_dxf_emits_off_page_connectors_from_text(tmp_path: Path) -> None:
+    """A TEXT entity reading '/A2' inside an INSERT bbox is emitted as bound OffPageConnector."""
+    import ezdxf
+    path = tmp_path / "opc_text.dxf"
+    doc = ezdxf.new()
+    blk = doc.blocks.new(name="resistor")
+    blk.add_line((0, 0), (10, 0))
+    blk.add_line((5, -3), (5, 3))
+    msp = doc.modelspace()
+    msp.add_blockref("resistor", (0, 0))
+    text = msp.add_text("/A2")
+    text.set_placement((5, 0))
+    doc.saveas(path)
+
+    metadata = _InMemoryMetadataStore()
+    svc = _make_service(metadata)
+    src = await svc.render(str(path), knowledge_id="k1")
+    src = await svc.extract(src.source_id)
+    rows = await metadata.get_page_analyses(src.source_id)
+    analysis = rows[0]["data"]["analysis"]
+    opcs = analysis["off_page_connectors"]
+    assert len(opcs) == 1
+    opc = opcs[0]
+    assert opc["tag"] == "/A2"
+    assert opc["target_hint"] == "/A2"
+    component_ids = {c["component_id"] for c in analysis["components"]}
+    assert opc["bound_component"] in component_ids
+
+
+async def test_extract_dxf_emits_off_page_connectors_from_mtext(tmp_path: Path) -> None:
+    """An MTEXT carrying formatting codes is stripped to plain text before regex match."""
+    import ezdxf
+    path = tmp_path / "opc_mtext.dxf"
+    doc = ezdxf.new()
+    blk = doc.blocks.new(name="resistor")
+    blk.add_line((0, 0), (10, 0))
+    blk.add_line((5, -3), (5, 3))
+    msp = doc.modelspace()
+    msp.add_blockref("resistor", (0, 0))
+    msp.add_mtext("{\\C1;/A2}", dxfattribs={"insert": (5, 0)})
+    doc.saveas(path)
+
+    metadata = _InMemoryMetadataStore()
+    svc = _make_service(metadata)
+    src = await svc.render(str(path), knowledge_id="k1")
+    src = await svc.extract(src.source_id)
+    rows = await metadata.get_page_analyses(src.source_id)
+    analysis = rows[0]["data"]["analysis"]
+    opcs = analysis["off_page_connectors"]
+    assert len(opcs) == 1
+    opc = opcs[0]
+    assert opc["tag"] == "/A2"
+    # Formatting codes must not leak through
+    assert "\\C1" not in opc["tag"]
+    assert "{" not in opc["tag"]
+
+
+async def test_extract_dxf_unbound_off_page_connector(tmp_path: Path) -> None:
+    """A TEXT outside any component bbox emits an OffPageConnector with bound_component=None."""
+    import ezdxf
+    path = tmp_path / "opc_unbound.dxf"
+    doc = ezdxf.new()
+    blk = doc.blocks.new(name="resistor")
+    blk.add_line((0, 0), (10, 0))
+    blk.add_line((5, -3), (5, 3))
+    msp = doc.modelspace()
+    msp.add_blockref("resistor", (0, 0))
+    # Place far away from the block bbox (well beyond _CONNECTION_TOL).
+    text = msp.add_text("/A2")
+    text.set_placement((500, 500))
+    doc.saveas(path)
+
+    metadata = _InMemoryMetadataStore()
+    svc = _make_service(metadata)
+    src = await svc.render(str(path), knowledge_id="k1")
+    src = await svc.extract(src.source_id)
+    rows = await metadata.get_page_analyses(src.source_id)
+    analysis = rows[0]["data"]["analysis"]
+    opcs = analysis["off_page_connectors"]
+    assert len(opcs) == 1
+    assert opcs[0]["tag"] == "/A2"
+    assert opcs[0]["bound_component"] is None
+
+
+async def test_extract_dxf_ignores_non_matching_text(tmp_path: Path) -> None:
+    """A TEXT carrying a label (not an off-page tag) must NOT produce a connector."""
+    import ezdxf
+    path = tmp_path / "label_only.dxf"
+    doc = ezdxf.new()
+    blk = doc.blocks.new(name="resistor")
+    blk.add_line((0, 0), (10, 0))
+    blk.add_line((5, -3), (5, 3))
+    msp = doc.modelspace()
+    msp.add_blockref("resistor", (0, 0))
+    text = msp.add_text("R1 10k")
+    text.set_placement((5, 0))
+    doc.saveas(path)
+
+    metadata = _InMemoryMetadataStore()
+    svc = _make_service(metadata)
+    src = await svc.render(str(path), knowledge_id="k1")
+    src = await svc.extract(src.source_id)
+    rows = await metadata.get_page_analyses(src.source_id)
+    analysis = rows[0]["data"]["analysis"]
+    assert analysis["off_page_connectors"] == []
+
+
+async def test_extract_dxf_corrupt_mtext_does_not_fail(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """If MText.plain_text() raises, parse continues and the entity is skipped."""
+    import ezdxf
+    from ezdxf.entities import MText
+
+    path = tmp_path / "opc_corrupt_mtext.dxf"
+    doc = ezdxf.new()
+    blk = doc.blocks.new(name="resistor")
+    blk.add_line((0, 0), (10, 0))
+    blk.add_line((5, -3), (5, 3))
+    msp = doc.modelspace()
+    msp.add_blockref("resistor", (0, 0))
+    # One healthy TEXT alongside the broken MTEXT — proves the loop continues.
+    text = msp.add_text("/A2")
+    text.set_placement((5, 0))
+    msp.add_mtext("/B7", dxfattribs={"insert": (5, 0)})
+    doc.saveas(path)
+
+    metadata = _InMemoryMetadataStore()
+    svc = _make_service(metadata)
+    # Render first; matplotlib's DXF frontend also calls plain_text(), so the
+    # monkeypatch is installed only around the extract step under test.
+    src = await svc.render(str(path), knowledge_id="k1")
+
+    def _broken_plain_text(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError("corrupt MTEXT")
+
+    monkeypatch.setattr(MText, "plain_text", _broken_plain_text)
+    src = await svc.extract(src.source_id)
+    rows = await metadata.get_page_analyses(src.source_id)
+    analysis = rows[0]["data"]["analysis"]
+    tags = sorted(o["tag"] for o in analysis["off_page_connectors"])
+    assert tags == ["/A2"]

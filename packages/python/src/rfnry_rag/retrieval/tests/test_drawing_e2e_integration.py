@@ -116,6 +116,27 @@ def simple_rlc_dxf(tmp_path: Path) -> Path:
     return path
 
 
+@pytest.fixture
+def two_blocks_with_off_page_text_dxf(tmp_path: Path) -> Path:
+    """A DXF with two INSERTs and a TEXT '/A2' anchored over the first block."""
+    import ezdxf
+    path = tmp_path / "two_blocks_opc.dxf"
+    doc = ezdxf.new()
+
+    blk = doc.blocks.new(name="comp_a")
+    blk.add_line((0, 0), (10, 0))
+    blk.add_line((5, -3), (5, 3))
+
+    msp = doc.modelspace()
+    msp.add_blockref("comp_a", (0, 0))
+    msp.add_blockref("comp_a", (50, 0))
+    text = msp.add_text("/A2")
+    text.set_placement((5, 0))
+
+    doc.saveas(path)
+    return path
+
+
 def _make_service(metadata, *, vector_store=None, graph_store=None, config=None):
     return DrawingIngestionService(
         config=config or DrawingIngestionConfig(enabled=True),
@@ -269,3 +290,23 @@ async def test_phase_methods_idempotent_on_reentry(simple_rlc_dxf: Path) -> None
     assert len(vstore.upserted) == vector_count_after_first
     assert gstore.entities_calls == entity_calls_after_first
     assert gstore.relations_calls == relation_calls_after_first
+
+
+async def test_dxf_end_to_end_off_page_connector_reaches_page_analysis(
+    two_blocks_with_off_page_text_dxf: Path,
+) -> None:
+    """A TEXT off-page tag in the DXF is observable on DrawingPageAnalysis after extract."""
+    metadata = _InMemoryMetadataStore()
+    svc = _make_service(metadata)
+
+    src = await svc.render(str(two_blocks_with_off_page_text_dxf), knowledge_id="k1")
+    src = await svc.extract(src.source_id)
+
+    rows = await metadata.get_page_analyses(src.source_id)
+    analysis = rows[0]["data"]["analysis"]
+    opcs = analysis["off_page_connectors"]
+    assert len(opcs) == 1
+    assert opcs[0]["tag"] == "/A2"
+    assert opcs[0]["target_hint"] == "/A2"
+    component_ids = {c["component_id"] for c in analysis["components"]}
+    assert opcs[0]["bound_component"] in component_ids

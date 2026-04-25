@@ -10,6 +10,27 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-26 Phase F3.1 — DXF TEXT/MTEXT off-page-connector detection
+
+One task (1 commit) closing the Phase C deferral that left
+`extract_dxf_analysis` emitting `off_page_connectors=[]` even when the
+DXF carried explicit cross-sheet tags. The extractor now scans modelspace
+`TEXT` + `MTEXT` after the existing `INSERT` + `LINE` pass, regex-matches
+each payload against `config.off_page_connector_patterns` (first-match
+wins), binds the connector to the underlying component when the text
+sits inside a component bbox (reusing `_find_component_at` +
+`_CONNECTION_TOL`), and falls through to `bound_component=None` when it
+does not. MTEXT formatting codes are stripped via `MText.plain_text()`;
+a corrupt MTEXT is skipped with a debug log rather than aborting the
+whole sheet. Test count 999 → 1005 (5 unit + 1 e2e).
+
+`OffPageConnector.bound_component` is now `str | None` (was `str`); the
+linker passes (`pair_off_page_connectors`, `parse_target_hints`) skip
+unbound connectors so a floating sheet annotation can't generate a
+`DetectedConnection` with a `None` component id. JSONB round-trip via
+`from_dict` switched from `d["bound_component"]` to
+`d.get("bound_component")` to honour the new optionality.
+
 ### 2026-04-26 Phase E — Remove `QueryAnalysis.domain_hint`
 
 One task (1 commit) deleting the query-side `domain_hint` field entirely.

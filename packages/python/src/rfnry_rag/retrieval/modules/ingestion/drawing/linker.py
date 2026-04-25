@@ -35,6 +35,10 @@ def pair_off_page_connectors(
     by_tag: dict[str, list[tuple[int, str]]] = defaultdict(list)
     for pa in pages:
         for opc in pa.off_page_connectors:
+            # Unbound connectors (no on-page anchor) can't form a paired
+            # DetectedConnection — skip; they remain available as page metadata.
+            if opc.bound_component is None:
+                continue
             by_tag[opc.tag].append((pa.page_number, opc.bound_component))
 
     pairings: list[DetectedConnection] = []
@@ -77,6 +81,8 @@ def parse_target_hints(
         for opc in pa.off_page_connectors:
             if not opc.target_hint:
                 continue
+            if opc.bound_component is None:
+                continue
             m = _SHEET_HINT_RE.search(opc.target_hint)
             if not m:
                 continue
@@ -85,6 +91,8 @@ def parse_target_hints(
             if target_pa is None:
                 continue
             for target_opc in target_pa.off_page_connectors:
+                if target_opc.bound_component is None:
+                    continue
                 if target_opc.tag == opc.tag or _tags_similar(target_opc.tag, opc.tag):
                     pairings.append(
                         DetectedConnection(
