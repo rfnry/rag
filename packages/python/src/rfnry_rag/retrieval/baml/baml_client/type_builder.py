@@ -20,7 +20,7 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(type_builder.TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["AnswerQualityJudgment","CompressedContext","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","DrawingSetSynthesis","ExtractedSection","ExtractedStructure","HypotheticalDocument","Merge","NarrativeXref","OffPageConnector","PageAnalysis","Port","QueryAnalysis","QueryVariants","RankedChunk","ReasoningStep","RelevanceJudgment","RetrievalNecessityJudgment","StepBackQuery","SynthesisCrossReference","SynthesisPageCluster","TocDetectionResult","TocEntry","TocStructure","ToolDrillDown","ToolFetchPages","ToolResolvedPages",]
+          ["AnswerQualityJudgment","CompressedContext","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","DrawingSetSynthesis","ExtractedSection","ExtractedStructure","HypotheticalDocument","Merge","NarrativeXref","OffPageConnector","PageAnalysis","Port","QueryAnalysis","QueryVariants","RankedChunk","ReasoningStep","RelevanceJudgment","RetrievalNecessityJudgment","StepBackQuery","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries","TocDetectionResult","TocEntry","TocStructure","ToolDrillDown","ToolFetchPages","ToolResolvedPages",]
         ), enums=set(
           []
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
@@ -31,7 +31,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
     # #########################################################################
-    # Generated classes 32
+    # Generated classes 33
     # #########################################################################
 
     @property
@@ -139,6 +139,10 @@ class TypeBuilder(type_builder.TypeBuilder):
         return SynthesisPageClusterViewer(self)
 
     @property
+    def SyntheticQueries(self) -> "SyntheticQueriesViewer":
+        return SyntheticQueriesViewer(self)
+
+    @property
     def TocDetectionResult(self) -> "TocDetectionResultViewer":
         return TocDetectionResultViewer(self)
 
@@ -170,7 +174,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
 # #########################################################################
-# Generated classes 32
+# Generated classes 33
 # #########################################################################
 
 class AnswerQualityJudgmentAst:
@@ -1423,6 +1427,45 @@ class SynthesisPageClusterProperties:
     @property
     def reason(self) -> type_builder.ClassPropertyViewer:
         return type_builder.ClassPropertyViewer(self.__bldr.property("reason"))
+    
+    
+
+
+class SyntheticQueriesAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("SyntheticQueries")
+        self._properties: typing.Set[str] = set([  "queries",  ])
+        self._props = SyntheticQueriesProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "SyntheticQueriesProperties":
+        return self._props
+
+
+class SyntheticQueriesViewer(SyntheticQueriesAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class SyntheticQueriesProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def queries(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("queries"))
     
     
 

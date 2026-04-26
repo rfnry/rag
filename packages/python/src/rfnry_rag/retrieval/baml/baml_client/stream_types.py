@@ -23,7 +23,7 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
     value: StreamStateValueT
     state: typing_extensions.Literal["Pending", "Incomplete", "Complete"]
 # #########################################################################
-# Generated classes (32)
+# Generated classes (33)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -163,6 +163,9 @@ class SynthesisCrossReference(BaseModel):
 class SynthesisPageCluster(BaseModel):
     pages: typing.List[int]
     reason: typing.Optional[str] = None
+
+class SyntheticQueries(BaseModel):
+    queries: typing.List[str] = Field(description='Short questions the passage directly answers, one per facet.')
 
 class TocDetectionResult(BaseModel):
     has_toc: typing.Optional[bool] = Field(default=None, description='whether the page contains a table of contents')

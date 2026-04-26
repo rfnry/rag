@@ -48,6 +48,7 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     # ---- retrieval / ingestion ----
     "AnalyzePage": [],  # image type — no text injection risk
     "ExtractEntitiesFromText": ["text"],
+    "GenerateSyntheticQueries": ["passage", "num_queries"],
     "AnalyzeDrawingPage": ["symbol_library", "off_page_patterns"],
     # page_image is image type; symbol_library + off_page_patterns are fenced;
     # domain_hint is operator config (from DrawingIngestionConfig.default_domain)

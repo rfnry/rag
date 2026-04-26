@@ -27,11 +27,15 @@ class VectorIngestion:
         embeddings: BaseEmbeddings,
         embedding_model_name: str,
         sparse_embeddings: BaseSparseEmbeddings | None = None,
+        include_synthetic_in_embeddings: bool = True,
+        include_synthetic_in_bm25: bool = True,
     ) -> None:
         self._store = vector_store
         self._embeddings = embeddings
         self._sparse = sparse_embeddings
         self._embedding_model_name = embedding_model_name
+        self._include_synthetic_in_embeddings = include_synthetic_in_embeddings
+        self._include_synthetic_in_bm25 = include_synthetic_in_bm25
 
     @property
     def name(self) -> str:
@@ -53,11 +57,20 @@ class VectorIngestion:
     ) -> None:
         start = time.perf_counter()
         try:
-            texts = [c.embedding_text for c in chunks]
+            texts = [
+                c.text_for_embedding(include_synthetic=self._include_synthetic_in_embeddings)
+                for c in chunks
+            ]
             if self._sparse is not None:
+                # Sparse path is BM25-style: gate on include_synthetic_in_bm25 separately
+                # so consumers can route synthetic queries to dense-only or sparse-only.
+                sparse_texts = [
+                    c.text_for_bm25(include_synthetic=self._include_synthetic_in_bm25)
+                    for c in chunks
+                ]
                 vectors, sparse_vectors = await asyncio.gather(
                     embed_batched(self._embeddings, texts),
-                    self._embed_sparse_safe(texts),
+                    self._embed_sparse_safe(sparse_texts),
                 )
             else:
                 vectors = await embed_batched(self._embeddings, texts)
@@ -133,6 +146,9 @@ class VectorIngestion:
                         "tags": tags,
                         "source_name": metadata.get("name", ""),
                         "file_url": metadata.get("file_url", ""),
+                        # R3: empty list when document expansion is disabled.
+                        # Stored unconditionally for debugging/audit transparency.
+                        "synthetic_queries": list(getattr(chunk, "synthetic_queries", []) or []),
                     },
                 )
             )

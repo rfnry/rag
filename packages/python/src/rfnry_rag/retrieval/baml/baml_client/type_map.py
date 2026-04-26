@@ -94,6 +94,9 @@ type_map = {
     "types.SynthesisPageCluster": types.SynthesisPageCluster,
     "stream_types.SynthesisPageCluster": stream_types.SynthesisPageCluster,
 
+    "types.SyntheticQueries": types.SyntheticQueries,
+    "stream_types.SyntheticQueries": stream_types.SyntheticQueries,
+
     "types.TocDetectionResult": types.TocDetectionResult,
     "stream_types.TocDetectionResult": stream_types.TocDetectionResult,
 

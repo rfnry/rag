@@ -117,6 +117,42 @@ class PersistenceConfig:
 
 
 @dataclass
+class DocumentExpansionConfig:
+    """Opt-in document expansion at index time (R3).
+
+    When enabled, each chunk gets ``num_queries`` LLM-generated synthetic
+    questions appended to its embedding/BM25 text — a docT5query-style
+    expansion that bridges the user-vocabulary-vs-document-vocabulary gap.
+    BEIR shows this beats vanilla BM25 on 11/18 datasets while preserving
+    BM25's generalization.
+
+    Defaults are disabled and ``lm_client`` is None — consumers must opt in.
+    """
+
+    enabled: bool = False
+    num_queries: int = 5
+    lm_client: LanguageModelClient | None = None
+    include_in_embeddings: bool = True
+    include_in_bm25: bool = True
+    concurrency: int = 5
+
+    def __post_init__(self) -> None:
+        if not (1 <= self.num_queries <= 20):
+            raise ConfigurationError(
+                f"DocumentExpansionConfig.num_queries={self.num_queries} out of range [1, 20]"
+            )
+        if not (1 <= self.concurrency <= 100):
+            raise ConfigurationError(
+                f"DocumentExpansionConfig.concurrency={self.concurrency} out of range [1, 100]"
+            )
+        if self.enabled and self.lm_client is None:
+            raise ConfigurationError(
+                "DocumentExpansionConfig.enabled=True requires lm_client — provide a LanguageModelClient "
+                "(no opinionated default model; consumer chooses)."
+            )
+
+
+@dataclass
 class IngestionConfig:
     embeddings: BaseEmbeddings | None = None
     vision: BaseVision | None = None
@@ -154,6 +190,10 @@ class IngestionConfig:
     # None by default so existing consumers are unaffected; when provided,
     # ``GraphIngestionConfig.__post_init__`` handles its own validation.
     graph: GraphIngestionConfig | None = None
+    # Opt-in LLM-driven synthetic-query expansion at index time (R3).
+    # ``DocumentExpansionConfig`` defaults to disabled; consumers must set
+    # ``enabled=True`` AND provide ``lm_client`` to activate.
+    document_expansion: DocumentExpansionConfig = field(default_factory=lambda: DocumentExpansionConfig())
 
     def __post_init__(self) -> None:
         if self.chunk_size_unit not in ("chars", "tokens"):
@@ -431,6 +471,7 @@ class RagEngine:
 
         self._chunker: SemanticChunker | None = None
         self._embedding_model_name: str = ""
+        self._expansion_registry: Any = None  # Built in _initialize_impl when document_expansion is enabled
 
     @property
     def knowledge(self) -> KnowledgeManager:
@@ -571,6 +612,8 @@ class RagEngine:
                     embeddings=ingestion.embeddings,
                     embedding_model_name=self._embedding_model_name,
                     sparse_embeddings=ingestion.sparse_embeddings,
+                    include_synthetic_in_embeddings=ingestion.document_expansion.include_in_embeddings,
+                    include_synthetic_in_bm25=ingestion.document_expansion.include_in_bm25,
                 )
             )
             retrieval_methods.append(
@@ -643,6 +686,14 @@ class RagEngine:
         self._retrieval_namespace = MethodNamespace(retrieval_methods)
         self._ingestion_namespace = MethodNamespace(ingestion_methods)
 
+        # Build expansion registry once (shared across all collection-scoped services)
+        # Registry construction is cheap but should not be repeated per-ingest.
+        self._expansion_registry = (
+            build_registry(ingestion.document_expansion.lm_client)
+            if ingestion.document_expansion.enabled and ingestion.document_expansion.lm_client
+            else None
+        )
+
         # Build services
         self._ingestion_service = IngestionService(
             chunker=self._chunker,
@@ -653,6 +704,8 @@ class RagEngine:
             on_ingestion_complete=self._on_ingestion_complete,
             vision_parser=ingestion.vision,
             chunk_context_headers=ingestion.chunk_context_headers,
+            document_expansion=ingestion.document_expansion,
+            expansion_registry=self._expansion_registry,
         )
 
         # Analyzed ingestion — shares document method from main list, graph store passed directly
@@ -1301,6 +1354,8 @@ class RagEngine:
                     embeddings=cfg.ingestion.embeddings,
                     embedding_model_name=self._embedding_model_name,
                     sparse_embeddings=cfg.ingestion.sparse_embeddings,
+                    include_synthetic_in_embeddings=cfg.ingestion.document_expansion.include_in_embeddings,
+                    include_synthetic_in_bm25=cfg.ingestion.document_expansion.include_in_bm25,
                 )
             )
         if cfg.persistence.document_store:
@@ -1325,6 +1380,8 @@ class RagEngine:
             on_ingestion_complete=self._on_ingestion_complete,
             vision_parser=cfg.ingestion.vision,
             chunk_context_headers=cfg.ingestion.chunk_context_headers,
+            document_expansion=cfg.ingestion.document_expansion,
+            expansion_registry=self._expansion_registry,
         )
 
     async def _retrieve_chunks(

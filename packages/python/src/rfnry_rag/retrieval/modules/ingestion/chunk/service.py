@@ -19,6 +19,7 @@ from rfnry_rag.retrieval.common.models import Source
 from rfnry_rag.retrieval.common.page_range import parse_page_range
 from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker
 from rfnry_rag.retrieval.modules.ingestion.chunk.context import contextualize_chunks
+from rfnry_rag.retrieval.modules.ingestion.chunk.expand import expand_chunks
 from rfnry_rag.retrieval.modules.ingestion.chunk.parsers.pdf import PDFParser
 from rfnry_rag.retrieval.modules.ingestion.chunk.parsers.text import TextParser
 from rfnry_rag.retrieval.modules.ingestion.models import ParsedPage
@@ -27,7 +28,10 @@ from rfnry_rag.retrieval.modules.ingestion.vision.constants import IMAGE_EXTENSI
 from rfnry_rag.retrieval.stores.metadata.base import BaseMetadataStore
 
 if TYPE_CHECKING:
+    from baml_py import ClientRegistry
+
     from rfnry_rag.retrieval.modules.ingestion.base import BaseIngestionMethod
+    from rfnry_rag.retrieval.server import DocumentExpansionConfig
 
 logger = get_logger("chunk/ingestion")
 
@@ -54,6 +58,8 @@ class IngestionService:
         on_ingestion_complete: Callable[[str | None], Awaitable[None]] | None = None,
         vision_parser: BaseVision | None = None,
         chunk_context_headers: bool = True,
+        document_expansion: DocumentExpansionConfig | None = None,
+        expansion_registry: ClientRegistry | None = None,
     ) -> None:
         self._chunker = chunker
         self._ingestion_methods = ingestion_methods
@@ -63,6 +69,8 @@ class IngestionService:
         self._on_ingestion_complete = on_ingestion_complete
         self._vision_parser = vision_parser
         self._chunk_context_headers = chunk_context_headers
+        self._document_expansion = document_expansion
+        self._expansion_registry = expansion_registry
 
     def _resolve_weight(self, source_type: str | None) -> float:
         if self._source_type_weights is None:
@@ -228,6 +236,10 @@ class IngestionService:
             source_name = (metadata or {}).get("name", file_path.name)
             chunks = contextualize_chunks(chunks, source_name=source_name, source_type=source_type)
 
+        if self._document_expansion is not None and self._document_expansion.enabled:
+            assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__
+            chunks = await expand_chunks(chunks, self._document_expansion, self._expansion_registry)
+
         full_text = "\n\n".join(f"[Page {p.page_number}]\n{p.content}" for p in pages)
         title = metadata.get("name", file_path.name)
 
@@ -289,6 +301,10 @@ class IngestionService:
         if self._chunk_context_headers:
             source_name = (metadata or {}).get("name", "text-input")
             chunks = contextualize_chunks(chunks, source_name=source_name, source_type=source_type)
+
+        if self._document_expansion is not None and self._document_expansion.enabled:
+            assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__
+            chunks = await expand_chunks(chunks, self._document_expansion, self._expansion_registry)
 
         source_id = str(uuid4())
         title = metadata.get("name", "text-input")

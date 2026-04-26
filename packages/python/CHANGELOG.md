@@ -10,6 +10,66 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-26 R3 — Document expansion at index time (synthetic queries per chunk)
+
+Bridge the user-vocabulary-vs-document-vocabulary gap with docT5query-style
+expansion: opt-in LLM-generated synthetic questions per chunk, folded into
+embedding text and BM25 text at index time. BEIR (Thakur et al., NeurIPS
+2021) shows this beats vanilla BM25 on 11 of 18 datasets while preserving
+BM25's generalization.
+
+Public API:
+
+- New `DocumentExpansionConfig` dataclass (next to `IngestionConfig` in
+  `server.py`). Defaults: `enabled=False`, `num_queries=5`,
+  `lm_client=None`, `include_in_embeddings=True`, `include_in_bm25=True`,
+  `concurrency=5`. Bounds: `num_queries` ∈ [1, 20], `concurrency` ∈
+  [1, 100]. `enabled=True` requires `lm_client` (no opinionated default
+  model — consumer chooses).
+- `IngestionConfig.document_expansion: DocumentExpansionConfig` (default
+  factory; consumers opt in by setting `enabled=True` + providing
+  `lm_client`).
+- `ChunkedContent.synthetic_queries: list[str]` field (always populated
+  when expansion ran; empty otherwise — useful for debugging / audit).
+- `ChunkedContent.text_for_embedding(*, include_synthetic: bool = True)`
+  and `text_for_bm25(*, include_synthetic: bool = True)` — explicit
+  gating methods. The `embedding_text` property remains backward-
+  compatible (delegates to `text_for_embedding(include_synthetic=True)`).
+- New BAML function `GenerateSyntheticQueries(passage, num_queries) ->
+  SyntheticQueries` (wrapper class with `queries: string[]`, mirroring
+  the existing `QueryVariants` shape). Both string params fenced;
+  classified in `USER_CONTROLLED_PARAMS`. Prompt body audited
+  domain-agnostic.
+- New helper `expand_chunks(chunks, config, registry)` in
+  `modules/ingestion/chunk/expand.py` (sibling to `chunk/context.py`,
+  Convention 4). Bounded concurrency via `run_concurrent`. LLM failures
+  raise `IngestionError` with the offending `chunk_index`.
+
+Cost / latency shape (consumer-visible):
+
+- Cost: enabling expansion adds N LLM calls per ingest where N = chunk
+  count. With `num_queries=5` and a typical 800-token model context,
+  expect roughly 800 input + 200 output tokens per call.
+- Latency: at the default `concurrency=5`, a 2 000-chunk file takes
+  ~400 round-trips × ~500 ms ≈ 3 minutes for the expansion step alone.
+  Tune `concurrency` upward if your provider tier permits it.
+
+Implementation notes:
+
+- `expand_chunks` always stores `synthetic_queries` on the chunk;
+  `include_in_embeddings` and `include_in_bm25` gate **what gets sent to
+  the embedding model / BM25 indexer**, not whether queries are stored.
+  This keeps the `ChunkedContent` shape predictable and lets consumers
+  inspect queries even when both flags are `False`.
+- `VectorIngestion` now accepts `include_synthetic_in_embeddings` /
+  `include_synthetic_in_bm25` constructor kwargs; `RagEngine` threads
+  them through from `IngestionConfig.document_expansion`.
+- Vector payload carries `synthetic_queries: list[str]` unconditionally
+  (empty list when expansion disabled) for transparency.
+
+Test count 1027 → 1035 (+8 unit tests in
+`test_document_expansion.py`).
+
 ### 2026-04-25 R4 — Chunk position optimization (Lost-in-the-Middle mitigation)
 
 Liu et al. (TACL 2024, "Lost in the Middle: How Language Models Use Long

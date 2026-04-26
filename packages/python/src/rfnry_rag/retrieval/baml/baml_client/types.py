@@ -41,7 +41,7 @@ def all_succeeded(checks: typing.Dict[CheckName, Check]) -> bool:
 # #########################################################################
 
 # #########################################################################
-# Generated classes (32)
+# Generated classes (33)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -181,6 +181,9 @@ class SynthesisCrossReference(BaseModel):
 class SynthesisPageCluster(BaseModel):
     pages: typing.List[int]
     reason: str
+
+class SyntheticQueries(BaseModel):
+    queries: typing.List[str] = Field(description='Short questions the passage directly answers, one per facet.')
 
 class TocDetectionResult(BaseModel):
     has_toc: bool = Field(description='whether the page contains a table of contents')

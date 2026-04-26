@@ -15,6 +15,7 @@ from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestio
 from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.multi_query import MultiQueryRewriting
 from rfnry_rag.retrieval.server import (
+    DocumentExpansionConfig,
     GenerationConfig,
     IngestionConfig,
     RetrievalConfig,
@@ -33,6 +34,7 @@ _CONFIGS_TO_AUDIT: list[type] = [
     LanguageModelClient,
     BatchConfig,
     MultiQueryRewriting,
+    DocumentExpansionConfig,
 ]
 
 

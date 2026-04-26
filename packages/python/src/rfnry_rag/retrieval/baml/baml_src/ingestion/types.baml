@@ -18,3 +18,7 @@ class DiscoveredTable {
   columns string[]
   rows map<string, string>[]
 }
+
+class SyntheticQueries {
+  queries string[] @description("Short questions the passage directly answers, one per facet.")
+}

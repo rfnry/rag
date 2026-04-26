@@ -181,7 +181,7 @@ The following contract tests act as regression guards — they enforce whole-cla
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking
 - Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules
-- 1027 tests total across both SDKs (Phase F adds +21 vs. the Phase E baseline of 997: F2 DrawingIngestionService status-transition + re-entry tests, F3.1 DXF TEXT/MTEXT off-page connectors, F3.2 DXF paperspace layout rendering, F3.5 Gemini vision provider; R4 adds +9 chunk-ordering unit cases)
+- 1035 tests total across both SDKs (Phase F adds +21 vs. the Phase E baseline of 997: F2 DrawingIngestionService status-transition + re-entry tests, F3.1 DXF TEXT/MTEXT off-page connectors, F3.2 DXF paperspace layout rendering, F3.5 Gemini vision provider; R4 adds +9 chunk-ordering unit cases; R3 adds +8 document-expansion unit cases)
 
 ## Config defaults and enforced bounds
 
@@ -193,6 +193,7 @@ The following contract tests act as regression guards — they enforce whole-cla
 - `IngestionConfig.chunk_context_headers` (was `contextual_chunking`, old name deprecated)
 - `IngestionConfig.chunk_size_unit`: `Literal["chars", "tokens"]`, default `"tokens"` (Phase A1). Default `chunk_size=375` tokens (was 500 chars), `chunk_overlap=40` (was 50).
 - `IngestionConfig.parent_chunk_size`: sentinel `-1` (default) resolves to `3 * chunk_size` in `__post_init__`; explicit `0` disables parent-child indexing (Phase A5).
+- `IngestionConfig.document_expansion`: nested `DocumentExpansionConfig` (R3, 2026-04-26). Defaults disabled. When `enabled=True`, `lm_client` is required; bounds `num_queries ∈ [1, 20]` (default 5) and `concurrency ∈ [1, 100]` (default 5). `include_in_embeddings` / `include_in_bm25` independently gate which downstream consumer receives the synthetic-query block; `synthetic_queries` is always stored on `ChunkedContent` for transparency. Explicit gating methods `text_for_embedding(*, include_synthetic=...)` / `text_for_bm25(*, include_synthetic=...)` complement the backward-compatible `embedding_text` property.
 - `DrawingIngestionConfig.dpi`: `150 ≤ dpi ≤ 600`, default 400 (higher than
   analyze's 300 — schematics need legible line weights)
 - `DrawingIngestionConfig.analyze_concurrency`: `1 ≤ n ≤ 100`, default 5

@@ -125,6 +125,12 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="GenerateStepBackQuery", llm_response=llm_response, mode="request")
         return typing.cast(types.StepBackQuery, __result__)
 
+    def GenerateSyntheticQueries(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> types.SyntheticQueries:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="GenerateSyntheticQueries", llm_response=llm_response, mode="request")
+        return typing.cast(types.SyntheticQueries, __result__)
+
     def JudgeAnswerQuality(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> types.AnswerQualityJudgment:
@@ -282,6 +288,12 @@ class LlmStreamParser:
     ) -> stream_types.StepBackQuery:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="GenerateStepBackQuery", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.StepBackQuery, __result__)
+
+    def GenerateSyntheticQueries(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> stream_types.SyntheticQueries:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="GenerateSyntheticQueries", llm_response=llm_response, mode="stream")
+        return typing.cast(stream_types.SyntheticQueries, __result__)
 
     def JudgeAnswerQuality(
         self, llm_response: str, baml_options: BamlCallOptions = {},
