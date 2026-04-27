@@ -94,6 +94,8 @@ The retrieval pipeline in `RagEngine` runs in this order:
 
 **Optional trace** (R8.1, 2026-04-27) — pass `trace=True` to `RagEngine.query()` or call `RetrievalService.retrieve(..., trace=True)` directly to receive a `RetrievalTrace` (in `retrieval/common/models.py`) capturing the full per-stage state: `query`, `rewritten_queries`, `per_method_results` (keyed by `BaseRetrievalMethod.name`, includes empty-result methods), `fused_results`, `reranked_results`, `refined_results`, `final_results`, `grounding_decision`, `confidence`, `routing_decision` (R1 placeholder), `timings`, `knowledge_id`. Default `trace=False` is byte-for-byte unchanged. The `None` vs `[]` distinction is load-bearing: `reranked_results is None` means "reranker not configured", `[]` means "ran with no input". `query_stream` does not collect a trace (deferred). Failure classification (R8.2) and benchmark harness (R8.3) build on top.
 
+**Failure classification** (R8.2, 2026-04-27) — `classify_failure(query, trace) -> FailureClassification` in `retrieval/modules/evaluation/failure_analysis.py` (re-exported from `rfnry_rag.retrieval.modules.evaluation`). Pure inspection function on a `RetrievalTrace`: returns one of seven `FailureType` verdicts (`VOCABULARY_MISMATCH`, `CHUNK_BOUNDARY`, `SCOPE_MISS`, `ENTITY_NOT_INDEXED`, `LOW_RELEVANCE`, `INSUFFICIENT_CONTEXT`, `UNKNOWN`) plus a `signals` dict reporting the trace-derived values that drove the verdict. First-match-wins priority order documented in the module docstring; test #8 in `test_failure_classification.py` is the regression guard. Heuristic-only (no LLM, no new deps); LLM-backed classifier deferred. Three module-private thresholds (`_VOCABULARY_MISMATCH_THRESHOLD=0.4`, `_HIGH_RELEVANCE_THRESHOLD=0.7`, `_LOW_RELEVANCE_THRESHOLD=0.3`) live at module scope, not on a config dataclass — promote to a `FailureAnalysisConfig` if a real consumer needs to tune them. Caller's responsibility to invoke only on failed cases. R8.3's benchmark harness aggregates the verdicts into a failure-distribution report.
+
 ### Modular Pipeline
 
 Retrieval and ingestion are protocol-based plugin architectures. No mandatory vector DB or embeddings — at least one retrieval path (vector, document, or graph) must be configured.
@@ -183,7 +185,7 @@ The following contract tests act as regression guards — they enforce whole-cla
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking
 - Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules
-- 1044 tests total across both SDKs (Phase F adds +21 vs. the Phase E baseline of 997: F2 DrawingIngestionService status-transition + re-entry tests, F3.1 DXF TEXT/MTEXT off-page connectors, F3.2 DXF paperspace layout rendering, F3.5 Gemini vision provider; R4 adds +9 chunk-ordering unit cases; R3 adds +8 document-expansion unit cases; R8.1 adds +9 retrieval-trace unit cases)
+- 1052 tests total across both SDKs (Phase F adds +21 vs. the Phase E baseline of 997: F2 DrawingIngestionService status-transition + re-entry tests, F3.1 DXF TEXT/MTEXT off-page connectors, F3.2 DXF paperspace layout rendering, F3.5 Gemini vision provider; R4 adds +9 chunk-ordering unit cases; R3 adds +8 document-expansion unit cases; R8.1 adds +9 retrieval-trace unit cases; R8.2 adds +8 failure-classification unit cases)
 
 ## Config defaults and enforced bounds
 

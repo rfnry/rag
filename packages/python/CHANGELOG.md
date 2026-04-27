@@ -10,6 +10,55 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-27 R8.2 — Heuristic failure classification
+
+R8.1 produced traces; R8.2 turns them into actionable diagnostics. New
+pure-inspection function `classify_failure(query, trace) ->
+FailureClassification` reads a `RetrievalTrace` and returns one of seven
+`FailureType` verdicts (`VOCABULARY_MISMATCH`, `CHUNK_BOUNDARY`,
+`SCOPE_MISS`, `ENTITY_NOT_INDEXED`, `LOW_RELEVANCE`,
+`INSUFFICIENT_CONTEXT`, `UNKNOWN`) so a benchmark report can answer
+"which class of failure dominates my workload" without paying per-case
+LLM cost. Without this, "your retrieval failed" stays opaque; with it,
+"40% of failures are vocabulary_mismatch — enable R3 expansion to fix
+the dominant class" becomes a one-line diagnostic. R8.3's benchmark
+harness consumes it.
+
+Public API:
+
+- New module `retrieval/modules/evaluation/failure_analysis.py` exporting
+  `FailureType`, `FailureClassification`, and `classify_failure`. All
+  three re-exported from `rfnry_rag.retrieval.modules.evaluation`.
+- `FailureClassification` carries `type: FailureType`, `reasoning: str`
+  (one-sentence explanation), and `signals: dict[str, Any]` (the
+  trace-derived values that drove the verdict, including the threshold
+  compared against — for transparency and for downstream consumers
+  that want to override).
+- Heuristic-only first pass: no LLM calls, no new dependencies. An
+  LLM-backed classifier is a documented follow-up.
+
+Heuristic priority (first-match wins; documented in module + function
+docstrings, with test #8 as regression guard): `VOCABULARY_MISMATCH`
+beats `CHUNK_BOUNDARY` beats `SCOPE_MISS` beats `ENTITY_NOT_INDEXED`
+beats `LOW_RELEVANCE` beats `INSUFFICIENT_CONTEXT` beats `UNKNOWN`.
+Three module-private threshold constants — `_VOCABULARY_MISMATCH_THRESHOLD`
+(0.4), `_HIGH_RELEVANCE_THRESHOLD` (0.7), `_LOW_RELEVANCE_THRESHOLD`
+(0.3) — live at module scope, not on a config dataclass. They are
+heuristic defaults; if a consumer needs to tune them, promote to a
+`FailureAnalysisConfig` then.
+
+`ENTITY_NOT_INDEXED` uses a generic capitalized-multi-char-token regex
+(`\b[A-Z][A-Z0-9_-]{2,}\b`) — matches `R-101`, `PumpModelX`,
+`EntityXYZ`, but also `JSON`, `HTTP`. The matched token is reported in
+`signals["matched_token"]` so consumers can judge false positives.
+Convention 1 (consumer-agnostic): no domain vocabulary baked into any
+literal.
+
+Caller's responsibility to invoke only on failed cases — R8.3's
+benchmark calls it on every case where the produced answer doesn't
+match the expected. Test count 1044 → 1052 (+8 unit tests in
+`test_failure_classification.py`).
+
 ### 2026-04-27 R8.1 — RetrievalTrace dataclass + opt-in trace=True flag
 
 Vector retrieval is opaque: when an answer is wrong, there's no evidence
