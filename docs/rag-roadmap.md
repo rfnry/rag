@@ -6,6 +6,45 @@ For the research analysis behind these decisions, see [rfnry-rag Long-Context St
 
 ---
 
+## Status at a glance
+
+Last updated: 2026-04-27.
+
+### Phase 1 — Foundation (independent, small scope)
+
+| Item | Status | Commit / Notes |
+|---|---|---|
+| **R3** — Document Expansion at Index Time | ✅ Done | `3eb2545` (2026-04-26). Synthetic queries per chunk via opt-in BAML, default off, consumer provides `lm_client`. |
+| **R4** — Chunk Position Optimization | ✅ Done | `0038a88` (2026-04-25). `ChunkOrdering` enum (SCORE_DESCENDING / PRIMACY_RECENCY / SANDWICH) on `GenerationConfig`. |
+| **R7** — Local Cross-Encoder Reranking | ⏭ Dropped | Out of focus for now; revisit if there's demand. |
+
+Phase 1 closed.
+
+### Phase 2 — Intelligence (observability + adaptation)
+
+| Item | Status | Notes |
+|---|---|---|
+| **R8** — Retrieval Evaluation & Diagnostics | ✅ Done | 6 commits ending `6db0724` (2026-04-27). R8.1 `RetrievalTrace` + opt-in `trace=True`; R8.2 heuristic `classify_failure`; R8.3 `RagEngine.benchmark` + `rfnry-rag benchmark` CLI. Test count 1035 → 1060 (+25). |
+| **R1** — Context-Aware Routing | ⏳ Next | Largest single-feature impact overall. R8's traces now make `AUTO` tunable. |
+| **R5** — Adaptive Retrieval Parameters | ⏸ Blocked on R1 | Needs query classifier; classifier is shared with R6. |
+
+### Phase 3 — Advanced (build on Phases 1+2)
+
+| Item | Status | Notes |
+|---|---|---|
+| **R2** — RAPTOR-Style Summarization Retrieval | ⏸ Future | New ingestion + retrieval method pair. Requires the embedding/vector infrastructure to be well-tested. |
+| **R6** — Multi-Hop Iterative Retrieval | ⏸ Future | Benefits from R5's classifier and R1's long-context fallback. |
+
+### Recommended next pick
+
+**R1** — Context-Aware Routing. With R8 shipped, the trace + failure-distribution layer is in place to tune `AUTO` mode against a benchmark. Highest single-feature impact in the roadmap.
+
+### Out of scope (explicitly NOT planned)
+
+More embedding providers · Agent / chain orchestration · Fine-tuned dense retrievers · Advanced chunking strategies · Streaming reranking / streaming fusion. See "What This Roadmap Does NOT Include" at the bottom for rationale.
+
+---
+
 ## Conventions from Phases A-E
 
 Phases A-E established patterns that new roadmap items MUST follow. Any design in R1-R8 that conflicts with these is either wrong or needs explicit justification in the per-feature design.
