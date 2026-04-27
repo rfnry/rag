@@ -106,10 +106,16 @@ Public API:
   `FailureType`, `FailureClassification`, and `classify_failure`. All
   three re-exported from `rfnry_rag.retrieval.modules.evaluation`.
 - `FailureClassification` carries `type: FailureType`, `reasoning: str`
-  (one-sentence explanation), and `signals: dict[str, Any]` (the
-  trace-derived values that drove the verdict, including the threshold
-  compared against — for transparency and for downstream consumers
-  that want to override).
+  (one-sentence explanation), and `signals: dict[str, str | float | int
+  | bool | None]` (the trace-derived values that drove the verdict,
+  including the threshold compared against — for transparency and for
+  downstream consumers that want to override). Tightened from the
+  initial `dict[str, Any]` in polish commit `c37dc8d` to keep the
+  payload JSON-serializable for R8.3's report output.
+- `FailureClassification` is `frozen=True`. The dataclass contains a
+  `dict` field, so it is NOT auto-hashable — that's why R8.3's
+  failure-distribution Counter keys on `FailureType.name` (string),
+  not on the dataclass itself.
 - Heuristic-only first pass: no LLM calls, no new dependencies. An
   LLM-backed classifier is a documented follow-up.
 
