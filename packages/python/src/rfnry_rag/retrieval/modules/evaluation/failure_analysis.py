@@ -50,7 +50,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
 
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk
@@ -91,7 +90,7 @@ class FailureType(Enum):
     UNKNOWN = "unknown"
 
 
-@dataclass
+@dataclass(frozen=True)
 class FailureClassification:
     """Verdict from `classify_failure`.
 
@@ -103,7 +102,7 @@ class FailureClassification:
 
     type: FailureType
     reasoning: str
-    signals: dict[str, Any] = field(default_factory=dict)
+    signals: dict[str, str | float | int | bool | None] = field(default_factory=dict)
 
 
 def _max_score(chunks: list[RetrievedChunk]) -> float | None:
@@ -139,7 +138,7 @@ def classify_failure(query: str, trace: RetrievalTrace) -> FailureClassification
 
     vector_top = _max_score(vector_results)
     if not document_results and vector_top is not None and vector_top < _VOCABULARY_MISMATCH_THRESHOLD:
-        signals: dict[str, Any] = {
+        signals: dict[str, str | float | int | bool | None] = {
             "document_results_count": 0,
             "vector_top_score": vector_top,
             "vocabulary_mismatch_threshold": _VOCABULARY_MISMATCH_THRESHOLD,
