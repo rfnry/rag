@@ -164,3 +164,26 @@ async def test_retrieve_trace_routing_decision_is_none_placeholder() -> None:
     assert trace.routing_decision is None
 
 
+async def test_rag_engine_retrieve_with_trace_returns_trace_alongside_chunks() -> None:
+    """`engine.retrieve(text, trace=True)` returns (chunks, trace) with the
+    raw-retrieval-trace shape: grounding_decision and confidence are None
+    (no grounding stage runs), and final_results carries the post-refinement
+    chunks the caller actually receives.
+    """
+    from rfnry_rag.retrieval.common.models import RetrievalTrace
+
+    incoming_chunks = [_chunk("c1")]
+    incoming_trace = RetrievalTrace(query="query", final_results=list(incoming_chunks))
+    server = _make_engine_for_query((incoming_chunks, incoming_trace))
+
+    chunks, trace = await server.retrieve("query", trace=True)
+
+    assert chunks == incoming_chunks
+    assert trace is not None
+    assert trace.query == "query"
+    assert trace.grounding_decision is None
+    assert trace.confidence is None
+    assert trace.final_results  # populated with the post-refinement chunks
+    assert trace.final_results[0].chunk_id == "c1"
+
+

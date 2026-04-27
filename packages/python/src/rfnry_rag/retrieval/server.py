@@ -1216,12 +1216,23 @@ class RagEngine:
         knowledge_id: str | None = None,
         min_score: float | None = None,
         collection: str | None = None,
-    ) -> list[RetrievedChunk]:
-        """Low-level retrieval only, no LLM generation."""
+        trace: bool = False,
+    ) -> tuple[list[RetrievedChunk], RetrievalTrace | None]:
+        """Low-level retrieval only, no LLM generation.
+
+        Returns ``(chunks, trace)``. With ``trace=False`` (default), the second
+        element is ``None`` so callers may unpack ``chunks, _ = await rag.retrieve(...)``
+        for chunks-only access. With ``trace=True``, returns the post-refinement
+        :class:`RetrievalTrace` with ``grounding_decision`` and ``confidence``
+        left as ``None`` (no generation/grounding stage runs in raw retrieval);
+        ``final_results`` carries the post-min-score-filter chunks.
+        """
         self._check_initialized()
         _validate_query_text(text)
-        chunks, _ = await self._retrieve_chunks(text, knowledge_id, None, min_score, collection)
-        return chunks
+        chunks, trace_obj = await self._retrieve_chunks(
+            text, knowledge_id, None, min_score, collection, trace=trace
+        )
+        return chunks, trace_obj
 
     async def generate_step(
         self,

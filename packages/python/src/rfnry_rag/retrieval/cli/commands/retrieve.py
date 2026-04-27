@@ -33,7 +33,7 @@ async def _retrieve(server_config, text, knowledge_id, min_score, mode):
 
     try:
         async with RagEngine(server_config) as rag:
-            chunks = await rag.retrieve(text, knowledge_id=knowledge_id, min_score=min_score)
+            chunks, _ = await rag.retrieve(text, knowledge_id=knowledge_id, min_score=min_score)
             if mode == OutputMode.JSON:
                 print_json({"chunks": [asdict(c) for c in chunks]})
             else:

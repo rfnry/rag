@@ -213,7 +213,7 @@ After fusion, two optional stages run in sequence:
 
 ```python
 async with RagEngine(config) as rag:
-    chunks = await rag.retrieve("part number 8842-A", knowledge_id="helios")
+    chunks, _ = await rag.retrieve("part number 8842-A", knowledge_id="helios")
     for chunk in chunks:
         print(f"[{chunk.score:.2f}] {chunk.content[:100]}...")
 ```
@@ -269,7 +269,7 @@ async with RagEngine(config) as rag:
     max_steps = 5
 
     for _ in range(max_steps):
-        chunks = await rag.retrieve(query, knowledge_id="helios")
+        chunks, _ = await rag.retrieve(query, knowledge_id="helios")
         result = await rag.generate_step(query=query, chunks=chunks, context=reasoning)
         reasoning = result.text
         if result.done:

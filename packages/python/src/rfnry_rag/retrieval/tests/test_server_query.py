@@ -126,7 +126,7 @@ class TestServerRetrieve:
     async def test_retrieve_returns_chunks_no_generation(self):
         server = _make_server()
         server._generation_service = None
-        chunks = await server.retrieve("test")
+        chunks, _ = await server.retrieve("test")
 
         assert len(chunks) == 2
         assert chunks[0].chunk_id == "c1"
@@ -136,7 +136,7 @@ class TestServerRetrieve:
         server._structured_retrieval = AsyncMock()
         server._structured_retrieval.retrieve = AsyncMock(return_value=[_chunk("extra", 0.95)])
 
-        chunks = await server.retrieve("test")
+        chunks, _ = await server.retrieve("test")
         ids = {c.chunk_id for c in chunks}
         assert "extra" in ids
 
@@ -198,7 +198,7 @@ class TestMinScore:
         server._retrieval_service.retrieve = AsyncMock(
             return_value=([_chunk("high", 0.9), _chunk("mid", 0.5), _chunk("low", 0.3)], None)
         )
-        chunks = await server.retrieve("test", min_score=0.4)
+        chunks, _ = await server.retrieve("test", min_score=0.4)
         ids = [c.chunk_id for c in chunks]
         assert "high" in ids
         assert "mid" in ids
@@ -207,7 +207,7 @@ class TestMinScore:
     async def test_retrieve_no_filter_when_none(self):
         server = _make_server()
         server._retrieval_service.retrieve = AsyncMock(return_value=([_chunk("a", 0.9), _chunk("b", 0.1)], None))
-        chunks = await server.retrieve("test", min_score=None)
+        chunks, _ = await server.retrieve("test", min_score=None)
         assert len(chunks) == 2
 
     async def test_query_filters_by_min_score(self):
