@@ -94,13 +94,13 @@ async def test_retrieve_with_document_store():
         ),
     )
     service = _make_service(document_method=mock_document)
-    results = await service.retrieve(query="FBD-20254", knowledge_id="kb-1")
+    results, _ = await service.retrieve(query="FBD-20254", knowledge_id="kb-1")
     assert len(results) == 2
     mock_document.search.assert_called_once()
 
 
 async def test_retrieve_without_document_store():
     service = _make_service(document_method=None)
-    results = await service.retrieve(query="test query", knowledge_id="kb-1")
+    results, _ = await service.retrieve(query="test query", knowledge_id="kb-1")
     assert len(results) == 1
     assert results[0].chunk_id == "chunk-1"

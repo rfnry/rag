@@ -27,7 +27,7 @@ async def test_retrieve_includes_tree_chunks():
         _chunk("tree-root-1", 1.0),
     ]
 
-    results = await service.retrieve("test query", tree_chunks=tree_chunks)
+    results, _ = await service.retrieve("test query", tree_chunks=tree_chunks)
 
     result_ids = {r.chunk_id for r in results}
     # Tree chunks should appear alongside vector results
@@ -42,7 +42,7 @@ async def test_retrieve_without_tree_chunks():
     """When tree_chunks is None (default), retrieval works as before."""
     service = _make_service()
 
-    results = await service.retrieve("test query")
+    results, _ = await service.retrieve("test query")
 
     result_ids = {r.chunk_id for r in results}
     assert "v1" in result_ids

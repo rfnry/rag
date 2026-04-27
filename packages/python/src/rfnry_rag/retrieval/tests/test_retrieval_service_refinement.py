@@ -30,7 +30,7 @@ class TestChunkRefinementWiring:
         refiner.refine = AsyncMock(return_value=[_chunk("refined")])
         service = _make_service(chunk_refiner=refiner)
 
-        results = await service.retrieve("test query")
+        results, _ = await service.retrieve("test query")
 
         refiner.refine.assert_awaited_once()
         assert results[0].chunk_id == "refined"
@@ -61,7 +61,7 @@ class TestChunkRefinementWiring:
 
     async def test_no_refiner_skips_refinement(self):
         service = _make_service(chunk_refiner=None)
-        results = await service.retrieve("test query")
+        results, _ = await service.retrieve("test query")
         assert len(results) == 2
         assert results[0].chunk_id == "v1"
 
@@ -76,7 +76,7 @@ class TestChunkRefinementWiring:
         )
 
         service = RetrievalService(retrieval_methods=[mock_vector], top_k=5, chunk_refiner=refiner)
-        results = await service.retrieve("test query")
+        results, _ = await service.retrieve("test query")
 
         refiner.refine.assert_not_awaited()
         assert results == []

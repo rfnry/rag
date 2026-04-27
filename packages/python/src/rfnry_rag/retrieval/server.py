@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     from rfnry_rag.retrieval.modules.retrieval.tree.service import TreeSearchService
 from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.retrieval.common.logging import get_logger
-from rfnry_rag.retrieval.common.models import RetrievedChunk, Source
+from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk, Source
 from rfnry_rag.retrieval.modules.generation.models import QueryResult, StepResult, StreamEvent
 from rfnry_rag.retrieval.modules.generation.service import GenerationService
 from rfnry_rag.retrieval.modules.generation.step import StepGenerationService
@@ -1161,6 +1162,7 @@ class RagEngine:
         min_score: float | None = None,
         collection: str | None = None,
         system_prompt: str | None = None,
+        trace: bool = False,
     ) -> QueryResult:
         """Full pipeline: retrieval + grounding + LLM generation."""
         self._check_initialized()
@@ -1168,10 +1170,24 @@ class RagEngine:
         if not self._generation_service:
             raise ConfigurationError("query() requires generation.lm_client to be configured")
 
-        chunks = await self._retrieve_chunks(text, knowledge_id, history, min_score, collection)
-        return await self._generation_service.generate(
+        chunks, trace_obj = await self._retrieve_chunks(
+            text, knowledge_id, history, min_score, collection, trace=trace
+        )
+        grounding_start = time.perf_counter() if trace_obj is not None else 0.0
+        result = await self._generation_service.generate(
             query=text, chunks=chunks, history=history, system_prompt=system_prompt
         )
+        if trace_obj is not None:
+            trace_obj.timings["grounding"] = time.perf_counter() - grounding_start
+            trace_obj.confidence = result.confidence
+            if result.clarification is not None:
+                trace_obj.grounding_decision = "clarification"
+            elif result.grounded:
+                trace_obj.grounding_decision = "grounded"
+            else:
+                trace_obj.grounding_decision = "ungrounded"
+            result.trace = trace_obj
+        return result
 
     async def query_stream(
         self,
@@ -1188,7 +1204,7 @@ class RagEngine:
         if not self._generation_service:
             raise ConfigurationError("query_stream() requires generation.lm_client to be configured")
 
-        chunks = await self._retrieve_chunks(text, knowledge_id, history, min_score, collection)
+        chunks, _ = await self._retrieve_chunks(text, knowledge_id, history, min_score, collection)
         async for event in self._generation_service.generate_stream(
             query=text, chunks=chunks, history=history, system_prompt=system_prompt
         ):
@@ -1204,7 +1220,8 @@ class RagEngine:
         """Low-level retrieval only, no LLM generation."""
         self._check_initialized()
         _validate_query_text(text)
-        return await self._retrieve_chunks(text, knowledge_id, None, min_score, collection)
+        chunks, _ = await self._retrieve_chunks(text, knowledge_id, None, min_score, collection)
+        return chunks
 
     async def generate_step(
         self,
@@ -1391,8 +1408,14 @@ class RagEngine:
         history: list[tuple[str, str]] | None,
         min_score: float | None,
         collection: str | None,
-    ) -> list[RetrievedChunk]:
-        """Shared retrieval: unstructured + structured merge + score filter."""
+        trace: bool = False,
+    ) -> tuple[list[RetrievedChunk], RetrievalTrace | None]:
+        """Shared retrieval: unstructured + structured merge + score filter.
+
+        When `trace=True`, returns the unstructured-pipeline trace alongside
+        the merged chunks. The trace's `final_results` reflect the
+        post-min-score-filter view returned to the caller.
+        """
         unstructured, structured = self._get_retrieval(collection)
         retrieval_query = self._build_retrieval_query(text, history)
 
@@ -1405,28 +1428,39 @@ class RagEngine:
 
         tree_kwargs: dict[str, Any] = {"tree_chunks": tree_chunks} if tree_chunks else {}
 
+        trace_obj: RetrievalTrace | None = None
         if structured:
             # return_exceptions so one path failing doesn't kill the query.
             # The inner search service already degrades per-variant; this makes
             # the structured-vs-unstructured merge consistent.
             results = await asyncio.gather(
-                unstructured.retrieve(query=retrieval_query, knowledge_id=knowledge_id, **tree_kwargs),
+                unstructured.retrieve(
+                    query=retrieval_query, knowledge_id=knowledge_id, trace=trace, **tree_kwargs
+                ),
                 structured.retrieve(query=retrieval_query, knowledge_id=knowledge_id),
                 return_exceptions=True,
             )
-            unstructured_chunks = results[0] if not isinstance(results[0], BaseException) else []
-            structured_chunks = results[1] if not isinstance(results[1], BaseException) else []
             if isinstance(results[0], BaseException):
                 logger.warning("unstructured retrieval failed: %s", results[0])
+                unstructured_chunks: list[RetrievedChunk] = []
+            else:
+                unstructured_chunks, trace_obj = results[0]
+            structured_chunks = results[1] if not isinstance(results[1], BaseException) else []
             if isinstance(results[1], BaseException):
                 logger.warning("structured retrieval failed: %s", results[1])
             chunks = self._merge_retrieval_results(unstructured_chunks, structured_chunks)  # type: ignore[arg-type]
         else:
-            chunks = await unstructured.retrieve(query=retrieval_query, knowledge_id=knowledge_id, **tree_kwargs)
+            chunks, trace_obj = await unstructured.retrieve(
+                query=retrieval_query, knowledge_id=knowledge_id, trace=trace, **tree_kwargs
+            )
 
         if min_score is not None:
             chunks = [c for c in chunks if c.score >= min_score]
-        return chunks
+
+        if trace_obj is not None:
+            trace_obj.final_results = list(chunks)
+
+        return chunks, trace_obj
 
     async def _run_tree_search(
         self,

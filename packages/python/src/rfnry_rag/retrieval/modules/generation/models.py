@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from rfnry_rag.retrieval.common.models import RetrievalTrace
+
 
 @dataclass
 class SourceReference:
@@ -28,6 +30,7 @@ class QueryResult:
     confidence: float = 0.0
     clarification: Clarification | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    trace: RetrievalTrace | None = None
 
 
 @dataclass

@@ -1,9 +1,10 @@
 import asyncio
+import time
 from typing import Any
 
 from rfnry_rag.common.logging import query_logging_enabled
 from rfnry_rag.retrieval.common.logging import get_logger
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk
 from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod
 from rfnry_rag.retrieval.modules.retrieval.refinement.base import BaseChunkRefinement
 from rfnry_rag.retrieval.modules.retrieval.search.fusion import reciprocal_rank_fusion
@@ -49,9 +50,14 @@ class RetrievalService:
         knowledge_id: str | None = None,
         top_k: int | None = None,
         tree_chunks: list[RetrievedChunk] | None = None,
-    ) -> list[RetrievedChunk]:
+        trace: bool = False,
+    ) -> tuple[list[RetrievedChunk], RetrievalTrace | None]:
         if not query or not query.strip():
-            return []
+            if trace:
+                return [], RetrievalTrace(query=query, knowledge_id=knowledge_id)
+            return [], None
+
+        trace_obj: RetrievalTrace | None = RetrievalTrace(query=query, knowledge_id=knowledge_id) if trace else None
 
         top_k = top_k if top_k is not None else self._top_k
         fetch_k = top_k * 4
@@ -66,6 +72,7 @@ class RetrievalService:
 
         queries = [query]
         if self._query_rewriter:
+            rewriting_start = time.perf_counter() if trace_obj is not None else 0.0
             try:
                 rewritten = await self._query_rewriter.rewrite(query)
                 queries.extend(rewritten)
@@ -75,23 +82,43 @@ class RetrievalService:
                         len(queries),
                         len(rewritten),
                     )
+                if trace_obj is not None:
+                    trace_obj.rewritten_queries = list(rewritten)
             except Exception as exc:
                 logger.exception("query rewriter failed: %s — proceeding with original query", exc)
+                # Rewriter failure leaves rewritten_queries=[] (not the partial
+                # variants) — the trace records "rewriter ran and produced no
+                # usable variants".
+            if trace_obj is not None:
+                trace_obj.timings["rewriting"] = time.perf_counter() - rewriting_start
 
-        search_tasks = [self._search_single_query(q, fetch_k, filters, knowledge_id) for q in queries]
+        retrieval_start = time.perf_counter() if trace_obj is not None else 0.0
+        search_tasks = [
+            self._search_single_query(q, fetch_k, filters, knowledge_id, collect_per_method=trace_obj is not None)
+            for q in queries
+        ]
         query_results = await asyncio.gather(*search_tasks, return_exceptions=True)
 
         all_result_lists: list[list[RetrievedChunk]] = []
         all_weights: list[float] = []
         successes = 0
+        # Per-method aggregation seeded with every declared method so the
+        # "ran-and-empty" vs "not configured" distinction survives even when
+        # every variant returned [] for a given method.
+        per_method: dict[str, list[RetrievedChunk]] = (
+            {m.name: [] for m in self._retrieval_methods} if trace_obj is not None else {}
+        )
         for idx, outcome in enumerate(query_results):
             if isinstance(outcome, BaseException):
                 logger.warning("query variant %d failed: %s — skipping", idx, outcome)
                 continue
             successes += 1
-            result_lists, weights = outcome
+            result_lists, weights, by_method = outcome
             all_result_lists.extend(result_lists)
             all_weights.extend(weights)
+            if trace_obj is not None and by_method is not None:
+                for method_name, results in by_method.items():
+                    per_method.setdefault(method_name, []).extend(results)
 
         # If every query variant errored, don't silently return [] — callers
         # need to distinguish total failure from legitimately empty results.
@@ -100,11 +127,18 @@ class RetrievalService:
 
             raise RetrievalError("all retrieval query variants failed")
 
+        if trace_obj is not None:
+            if tree_chunks:
+                per_method["tree"] = list(tree_chunks)
+            trace_obj.per_method_results = per_method
+            trace_obj.timings["retrieval"] = time.perf_counter() - retrieval_start
+
         if tree_chunks:
             all_result_lists.append(tree_chunks)
             all_weights.append(1.0)
             logger.info("%d tree search candidates added to fusion", len(tree_chunks))
 
+        fusion_start = time.perf_counter() if trace_obj is not None else 0.0
         if len(all_result_lists) > 1:
             fused = reciprocal_rank_fusion(
                 all_result_lists,
@@ -117,17 +151,36 @@ class RetrievalService:
         else:
             fused = []
 
-        if self._reranking and fused:
-            fused = await self._reranking.rerank(query, fused, top_k=top_k)
-            logger.info("top %d selected after reranking", len(fused))
+        if trace_obj is not None:
+            trace_obj.fused_results = list(fused)
+            trace_obj.timings["fusion"] = time.perf_counter() - fusion_start
+
+        if self._reranking:
+            reranking_start = time.perf_counter() if trace_obj is not None else 0.0
+            if fused:
+                fused = await self._reranking.rerank(query, fused, top_k=top_k)
+                logger.info("top %d selected after reranking", len(fused))
+            if trace_obj is not None:
+                # Reranker is configured: trace records the post-reranking
+                # state even when the input was empty (an empty list, not None).
+                trace_obj.reranked_results = list(fused)
+                trace_obj.timings["reranking"] = time.perf_counter() - reranking_start
         else:
             fused = fused[:top_k]
 
-        if self._chunk_refiner and fused:
-            fused = await self._chunk_refiner.refine(query, fused)
-            logger.info("chunk refinement: %d chunks after refinement", len(fused))
+        if self._chunk_refiner:
+            refinement_start = time.perf_counter() if trace_obj is not None else 0.0
+            if fused:
+                fused = await self._chunk_refiner.refine(query, fused)
+                logger.info("chunk refinement: %d chunks after refinement", len(fused))
+            if trace_obj is not None:
+                trace_obj.refined_results = list(fused)
+                trace_obj.timings["refinement"] = time.perf_counter() - refinement_start
 
-        return fused
+        if trace_obj is not None:
+            trace_obj.final_results = list(fused)
+
+        return fused, trace_obj
 
     async def _search_single_query(
         self,
@@ -135,10 +188,18 @@ class RetrievalService:
         fetch_k: int,
         filters: dict[str, Any] | None,
         knowledge_id: str | None,
-    ) -> tuple[list[list[RetrievedChunk]], list[float]]:
-        """Run all retrieval methods in parallel for a single query."""
+        collect_per_method: bool = False,
+    ) -> tuple[list[list[RetrievedChunk]], list[float], dict[str, list[RetrievedChunk]] | None]:
+        """Run all retrieval methods in parallel for a single query.
+
+        When `collect_per_method=True`, also returns a method-name → results
+        map (including empty-result methods) for trace aggregation. The hot
+        fusion path still receives the same `(result_lists, weights)` shape
+        as before — empty-result methods are dropped from those arrays so
+        RRF/source-weight handling is byte-for-byte unchanged.
+        """
         if not self._retrieval_methods:
-            return [], []
+            return [], [], ({} if collect_per_method else None)
 
         gathered = await asyncio.gather(
             *(
@@ -154,11 +215,14 @@ class RetrievalService:
 
         result_lists = []
         weights = []
+        by_method: dict[str, list[RetrievedChunk]] | None = {} if collect_per_method else None
         for method, results in zip(self._retrieval_methods, gathered, strict=True):
+            if by_method is not None:
+                by_method[method.name] = list(results) if results else []
             if results:
                 result_lists.append(results)
                 weights.append(method.weight)
-        return result_lists, weights
+        return result_lists, weights, by_method
 
     def _apply_source_weights(self, results: list[RetrievedChunk]) -> list[RetrievedChunk]:
         if not self._source_type_weights:

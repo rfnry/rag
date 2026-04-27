@@ -85,6 +85,36 @@ class RetrievedChunk:
 
 
 @dataclass
+class RetrievalTrace:
+    """Full per-query pipeline state for observability of vector retrieval.
+
+    Without this, R1's AUTO routing and R5's adaptive weights are unobservable
+    — tuning either blind wastes effort. Constructible with just `query=...`;
+    every other field has a safe default so a partial trace can be filled
+    progressively as stages run.
+
+    `None` vs `[]` distinction matters and is load-bearing for downstream
+    failure classification (R8.2): `None` means "stage did not run" (e.g.
+    reranker disabled), while `[]` means "stage ran and produced no results".
+    Conflating them would erase the signal R8.2's SCOPE_MISS / DRIFT
+    classifiers depend on.
+    """
+
+    query: str
+    rewritten_queries: list[str] = field(default_factory=list)
+    per_method_results: dict[str, list[RetrievedChunk]] = field(default_factory=dict)
+    fused_results: list[RetrievedChunk] = field(default_factory=list)
+    reranked_results: list[RetrievedChunk] | None = None
+    refined_results: list[RetrievedChunk] | None = None
+    final_results: list[RetrievedChunk] = field(default_factory=list)
+    grounding_decision: str | None = None
+    confidence: float | None = None
+    routing_decision: str | None = None
+    timings: dict[str, float] = field(default_factory=dict)
+    knowledge_id: str | None = None
+
+
+@dataclass
 class ContentMatch:
     source_id: str
     title: str

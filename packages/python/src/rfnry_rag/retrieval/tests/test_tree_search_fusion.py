@@ -26,12 +26,14 @@ async def test_tree_chunks_threaded_into_single_unstructured_call() -> None:
     and discarding the first result set."""
     engine = _make_engine(metadata_store=object(), tree_search_service=object())
 
-    unstructured = SimpleNamespace(retrieve=AsyncMock(return_value=[_chunk("u1"), _chunk("u2"), _chunk("t1")]))
+    unstructured = SimpleNamespace(
+        retrieve=AsyncMock(return_value=([_chunk("u1"), _chunk("u2"), _chunk("t1")], None))
+    )
     engine._get_retrieval = cast(Any, lambda _c: (unstructured, None))  # type: ignore[method-assign]
     engine._build_retrieval_query = cast(Any, lambda text, history: text)  # type: ignore[method-assign]
     engine._run_tree_search = cast(Any, AsyncMock(return_value=[_chunk("t1")]))  # type: ignore[method-assign]
 
-    chunks = await engine._retrieve_chunks(
+    chunks, _ = await engine._retrieve_chunks(
         text="q", history=None, knowledge_id=None, min_score=None, collection="default"
     )
 
@@ -46,7 +48,7 @@ async def test_no_tree_chunks_passes_no_tree_kwarg() -> None:
     """When tree search returns nothing, the tree_chunks kwarg is omitted."""
     engine = _make_engine(metadata_store=object(), tree_search_service=object())
 
-    unstructured = SimpleNamespace(retrieve=AsyncMock(return_value=[_chunk("u1")]))
+    unstructured = SimpleNamespace(retrieve=AsyncMock(return_value=([_chunk("u1")], None)))
     engine._get_retrieval = cast(Any, lambda _c: (unstructured, None))  # type: ignore[method-assign]
     engine._build_retrieval_query = cast(Any, lambda text, history: text)  # type: ignore[method-assign]
     engine._run_tree_search = cast(Any, AsyncMock(return_value=[]))  # type: ignore[method-assign]
@@ -62,11 +64,11 @@ async def test_no_tree_chunks_passes_no_tree_kwarg() -> None:
 async def test_tree_search_without_service_skips_tree_path() -> None:
     engine = _make_engine(metadata_store=None, tree_search_service=None)
 
-    unstructured = SimpleNamespace(retrieve=AsyncMock(return_value=[_chunk("u1")]))
+    unstructured = SimpleNamespace(retrieve=AsyncMock(return_value=([_chunk("u1")], None)))
     engine._get_retrieval = cast(Any, lambda _c: (unstructured, None))  # type: ignore[method-assign]
     engine._build_retrieval_query = cast(Any, lambda text, history: text)  # type: ignore[method-assign]
 
-    chunks = await engine._retrieve_chunks(
+    chunks, _ = await engine._retrieve_chunks(
         text="q", history=None, knowledge_id=None, min_score=None, collection="default"
     )
 

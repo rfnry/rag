@@ -236,7 +236,7 @@ def _make_retrieval_service(query_rewriter=None):
 async def test_retrieve_without_rewriter_unchanged():
     """When no rewriter is configured, retrieve() works exactly as before."""
     service = _make_retrieval_service(query_rewriter=None)
-    results = await service.retrieve(query="test query", knowledge_id="kb-1")
+    results, _ = await service.retrieve(query="test query", knowledge_id="kb-1")
     assert len(results) == 1
     assert results[0].chunk_id == "chunk-1"
 
@@ -265,7 +265,7 @@ async def test_retrieve_with_rewriter_searches_original_and_rewritten():
         top_k=5,
         query_rewriter=mock_rewriter,
     )
-    results = await service.retrieve(query="test query", knowledge_id="kb-1")
+    results, _ = await service.retrieve(query="test query", knowledge_id="kb-1")
 
     assert mock_vector.search.call_count == 3
     chunk_ids = {r.chunk_id for r in results}
@@ -299,7 +299,7 @@ async def test_retrieve_with_rewriter_deduplicates_via_fusion():
         top_k=5,
         query_rewriter=mock_rewriter,
     )
-    results = await service.retrieve(query="test query")
+    results, _ = await service.retrieve(query="test query")
 
     assert len(results) == 1
     assert results[0].chunk_id == "shared-1"
@@ -311,7 +311,7 @@ async def test_retrieve_with_rewriter_failure_still_works():
     mock_rewriter.rewrite = AsyncMock(side_effect=RuntimeError("LLM down"))
 
     service = _make_retrieval_service(query_rewriter=mock_rewriter)
-    results = await service.retrieve(query="test query", knowledge_id="kb-1")
+    results, _ = await service.retrieve(query="test query", knowledge_id="kb-1")
 
     assert len(results) == 1
     assert results[0].chunk_id == "chunk-1"

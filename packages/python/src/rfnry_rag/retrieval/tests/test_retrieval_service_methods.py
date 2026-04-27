@@ -33,7 +33,7 @@ async def test_dispatch_single_method():
         ],
     )
     service = RetrievalService(retrieval_methods=[vector], top_k=5)
-    results = await service.retrieve(query="test", knowledge_id="kb-1")
+    results, _ = await service.retrieve(query="test", knowledge_id="kb-1")
     assert len(results) == 1
     assert results[0].chunk_id == "c1"
     vector.search.assert_called_once()
@@ -58,7 +58,7 @@ async def test_dispatch_multiple_methods_fused():
         ],
     )
     service = RetrievalService(retrieval_methods=[vector, document], top_k=5)
-    results = await service.retrieve(query="test")
+    results, _ = await service.retrieve(query="test")
     assert len(results) == 2
     ids = {r.chunk_id for r in results}
     assert "c1" in ids
@@ -67,7 +67,7 @@ async def test_dispatch_multiple_methods_fused():
 
 async def test_empty_method_list():
     service = RetrievalService(retrieval_methods=[], top_k=5)
-    results = await service.retrieve(query="test")
+    results, _ = await service.retrieve(query="test")
     assert results == []
 
 
@@ -80,7 +80,7 @@ async def test_failed_method_returns_empty_others_succeed():
     )
     graph = _mock_method("graph", [])
     service = RetrievalService(retrieval_methods=[vector, graph], top_k=5)
-    results = await service.retrieve(query="test")
+    results, _ = await service.retrieve(query="test")
     assert len(results) == 1
 
 
@@ -93,7 +93,7 @@ async def test_tree_chunks_injected():
     )
     tree_chunk = RetrievedChunk(chunk_id="tree-1", source_id="s2", content="tree", score=0.7)
     service = RetrievalService(retrieval_methods=[vector], top_k=5)
-    results = await service.retrieve(query="test", tree_chunks=[tree_chunk])
+    results, _ = await service.retrieve(query="test", tree_chunks=[tree_chunk])
     ids = {r.chunk_id for r in results}
     assert "tree-1" in ids
 
@@ -113,7 +113,7 @@ async def test_reranker_applied():
         ]
     )
     service = RetrievalService(retrieval_methods=[vector], reranking=reranker, top_k=1)
-    results = await service.retrieve(query="test")
+    results, _ = await service.retrieve(query="test")
     assert len(results) == 1
     assert results[0].chunk_id == "c2"
 
@@ -135,7 +135,7 @@ async def test_method_weight_affects_fusion_scores():
     )
 
     service = RetrievalService(retrieval_methods=[high_weight, low_weight], top_k=5)
-    results = await service.retrieve(query="test")
+    results, _ = await service.retrieve(query="test")
 
     scores = {r.chunk_id: r.score for r in results}
     assert scores["v1"] > scores["d1"]

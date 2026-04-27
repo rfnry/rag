@@ -10,6 +10,48 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-27 R8.1 — RetrievalTrace dataclass + opt-in trace=True flag
+
+Vector retrieval is opaque: when an answer is wrong, there's no evidence
+of which stage drifted. R8.1 adds a `RetrievalTrace` dataclass capturing
+the full per-query pipeline state (rewritten queries, per-method raw
+results, fused, reranked, refined, final, grounding decision, confidence,
+per-stage timings) so R8.2 (failure classification) and R8.3 (benchmark
+harness) have something concrete to read. Tuning R1's AUTO routing or
+R5's adaptive weights without this would be blind.
+
+Public API:
+
+- New `RetrievalTrace` dataclass in `retrieval/common/models.py` next to
+  `RetrievedChunk`. 12 fields total: `query`, `rewritten_queries`,
+  `per_method_results`, `fused_results`, `reranked_results`,
+  `refined_results`, `final_results`, `grounding_decision`, `confidence`,
+  `routing_decision` (R1 placeholder), `timings`, plus `knowledge_id`
+  (R8.2 coordination — used to detect SCOPE_MISS). Constructible with
+  just `query=...`; every other field has a safe default.
+- `QueryResult.trace: RetrievalTrace | None = None` — new optional field.
+  Existing consumers unaffected.
+- `RetrievalService.retrieve(...)` signature change:
+  `-> list[RetrievedChunk]` becomes
+  `-> tuple[list[RetrievedChunk], RetrievalTrace | None]`. New
+  `trace: bool = False` parameter. Default path is byte-for-byte
+  unchanged: returns `(chunks, None)` and skips all collection logic.
+  Internal callers in `RagEngine._retrieve_chunks` and the test suite
+  unpack the tuple.
+- `RagEngine.query(..., trace: bool = False)` threads the flag through
+  retrieval, populates `grounding_decision` / `confidence` post-grounding,
+  and attaches the trace to `QueryResult.trace`. `query_stream` is out
+  of scope — streaming-mode trace is deferred.
+
+`None` vs `[]` distinction is load-bearing: `reranked_results is None`
+iff the reranker is not configured (same shape for `refined_results`).
+`per_method_results` always includes every declared method as a key, with
+`[]` for "ran and produced nothing". Conflating these would erase the
+signal R8.2's classifiers depend on.
+
+No new dependencies, no new BAML, no DB persistence. Test count
+1035 → 1043 (+8 unit tests in `test_retrieval_trace.py`).
+
 ### 2026-04-26 R3 — Document expansion at index time (synthetic queries per chunk)
 
 Bridge the user-vocabulary-vs-document-vocabulary gap with docT5query-style

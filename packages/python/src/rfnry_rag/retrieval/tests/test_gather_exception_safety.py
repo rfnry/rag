@@ -29,15 +29,17 @@ async def test_one_failing_query_does_not_crash_retrieval() -> None:
 
     call_counter = {"n": 0}
 
-    async def flaky(q: str, *_a: Any, **_kw: Any) -> tuple[list[list[RetrievedChunk]], list[float]]:
+    async def flaky(
+        q: str, *_a: Any, **_kw: Any
+    ) -> tuple[list[list[RetrievedChunk]], list[float], dict[str, list[RetrievedChunk]] | None]:
         call_counter["n"] += 1
         if call_counter["n"] == 2:
             raise RuntimeError("boom")
-        return ([[_chunk(f"c{call_counter['n']}")]], [1.0])
+        return ([[_chunk(f"c{call_counter['n']}")]], [1.0], None)
 
     service._search_single_query = flaky  # type: ignore[method-assign,assignment]
 
-    results = await service.retrieve(query="q")
+    results, _ = await service.retrieve(query="q")
     assert results
     assert {c.chunk_id for c in results} >= {"c1", "c3"}
 

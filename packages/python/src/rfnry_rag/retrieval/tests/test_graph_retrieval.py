@@ -127,7 +127,7 @@ async def test_retrieve_with_graph_store():
     mock_graph = _make_graph_method(graph_results)
 
     service = _make_service(graph_method=mock_graph)
-    results = await service.retrieve(query="what connects to Motor M1?", knowledge_id="kb-1")
+    results, _ = await service.retrieve(query="what connects to Motor M1?", knowledge_id="kb-1")
 
     mock_graph.search.assert_called_once()
     assert len(results) >= 2
@@ -137,7 +137,7 @@ async def test_retrieve_with_graph_store():
 
 async def test_retrieve_without_graph_store():
     service = _make_service(graph_method=None)
-    results = await service.retrieve(query="test query", knowledge_id="kb-1")
+    results, _ = await service.retrieve(query="test query", knowledge_id="kb-1")
 
     assert len(results) == 1
     assert results[0].chunk_id == "chunk-1"
@@ -152,7 +152,7 @@ async def test_graph_store_empty_result_no_fusion():
     )
 
     service = _make_service(graph_method=mock_graph)
-    results = await service.retrieve(query="test query", knowledge_id="kb-1")
+    results, _ = await service.retrieve(query="test query", knowledge_id="kb-1")
 
     assert len(results) == 1
     assert results[0].chunk_id == "chunk-1"
@@ -180,6 +180,6 @@ async def test_graph_and_document_store_together():
     )
 
     service = _make_service(graph_method=mock_graph, document_method=mock_document)
-    results = await service.retrieve(query="Motor M1", knowledge_id="kb-1")
+    results, _ = await service.retrieve(query="Motor M1", knowledge_id="kb-1")
 
     assert len(results) == 3

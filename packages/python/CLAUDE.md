@@ -92,6 +92,8 @@ The retrieval pipeline in `RagEngine` runs in this order:
 4. **Chunk refinement** (optional) — Extractive (context window) or abstractive (LLM summarization) refinement
 5. **Generation** (for `query()` only) — Grounding gate → LLM relevance gate → optional clarification → LLM generation. Context assembly via `chunks_to_context()` accepts `GenerationConfig.chunk_ordering` (`ChunkOrdering.SCORE_DESCENDING` default, `PRIMACY_RECENCY`, or `SANDWICH`) to mitigate the Lost-in-the-Middle U-shaped-attention effect (Liu et al., TACL 2024). Same ordering threads through `GenerationService` and `StepGenerationService` — no per-call-site knob (R4, 2026-04-25).
 
+**Optional trace** (R8.1, 2026-04-27) — pass `trace=True` to `RagEngine.query()` or call `RetrievalService.retrieve(..., trace=True)` directly to receive a `RetrievalTrace` (in `retrieval/common/models.py`) capturing the full per-stage state: `query`, `rewritten_queries`, `per_method_results` (keyed by `BaseRetrievalMethod.name`, includes empty-result methods), `fused_results`, `reranked_results`, `refined_results`, `final_results`, `grounding_decision`, `confidence`, `routing_decision` (R1 placeholder), `timings`, `knowledge_id`. Default `trace=False` is byte-for-byte unchanged. The `None` vs `[]` distinction is load-bearing: `reranked_results is None` means "reranker not configured", `[]` means "ran with no input". `query_stream` does not collect a trace (deferred). Failure classification (R8.2) and benchmark harness (R8.3) build on top.
+
 ### Modular Pipeline
 
 Retrieval and ingestion are protocol-based plugin architectures. No mandatory vector DB or embeddings — at least one retrieval path (vector, document, or graph) must be configured.
@@ -181,7 +183,7 @@ The following contract tests act as regression guards — they enforce whole-cla
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking
 - Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules
-- 1035 tests total across both SDKs (Phase F adds +21 vs. the Phase E baseline of 997: F2 DrawingIngestionService status-transition + re-entry tests, F3.1 DXF TEXT/MTEXT off-page connectors, F3.2 DXF paperspace layout rendering, F3.5 Gemini vision provider; R4 adds +9 chunk-ordering unit cases; R3 adds +8 document-expansion unit cases)
+- 1043 tests total across both SDKs (Phase F adds +21 vs. the Phase E baseline of 997: F2 DrawingIngestionService status-transition + re-entry tests, F3.1 DXF TEXT/MTEXT off-page connectors, F3.2 DXF paperspace layout rendering, F3.5 Gemini vision provider; R4 adds +9 chunk-ordering unit cases; R3 adds +8 document-expansion unit cases; R8.1 adds +8 retrieval-trace unit cases)
 
 ## Config defaults and enforced bounds
 

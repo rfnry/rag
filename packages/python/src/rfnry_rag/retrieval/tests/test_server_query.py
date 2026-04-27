@@ -23,7 +23,7 @@ def _make_server() -> RagEngine:
     server._config = config
     server._initialized = True
     server._retrieval_service = AsyncMock()
-    server._retrieval_service.retrieve = AsyncMock(return_value=[_chunk("c1"), _chunk("c2")])
+    server._retrieval_service.retrieve = AsyncMock(return_value=([_chunk("c1"), _chunk("c2")], None))
     server._structured_retrieval = None
     server._generation_service = AsyncMock()
     server._generation_service.generate = AsyncMock(return_value=_query_result())
@@ -196,7 +196,7 @@ class TestMinScore:
     async def test_retrieve_filters_by_min_score(self):
         server = _make_server()
         server._retrieval_service.retrieve = AsyncMock(
-            return_value=[_chunk("high", 0.9), _chunk("mid", 0.5), _chunk("low", 0.3)]
+            return_value=([_chunk("high", 0.9), _chunk("mid", 0.5), _chunk("low", 0.3)], None)
         )
         chunks = await server.retrieve("test", min_score=0.4)
         ids = [c.chunk_id for c in chunks]
@@ -206,13 +206,15 @@ class TestMinScore:
 
     async def test_retrieve_no_filter_when_none(self):
         server = _make_server()
-        server._retrieval_service.retrieve = AsyncMock(return_value=[_chunk("a", 0.9), _chunk("b", 0.1)])
+        server._retrieval_service.retrieve = AsyncMock(return_value=([_chunk("a", 0.9), _chunk("b", 0.1)], None))
         chunks = await server.retrieve("test", min_score=None)
         assert len(chunks) == 2
 
     async def test_query_filters_by_min_score(self):
         server = _make_server()
-        server._retrieval_service.retrieve = AsyncMock(return_value=[_chunk("high", 0.9), _chunk("low", 0.2)])
+        server._retrieval_service.retrieve = AsyncMock(
+            return_value=([_chunk("high", 0.9), _chunk("low", 0.2)], None)
+        )
         await server.query("test", min_score=0.5)
 
         gen_call = server._generation_service.generate.call_args
