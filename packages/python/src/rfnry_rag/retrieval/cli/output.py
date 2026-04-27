@@ -11,6 +11,7 @@ from rfnry_rag.common.cli import get_output_mode as get_output_mode
 
 if TYPE_CHECKING:
     from rfnry_rag.retrieval.common.models import Chunk, RetrievedChunk, Source, SourceStats
+    from rfnry_rag.retrieval.modules.evaluation.benchmark import BenchmarkReport
     from rfnry_rag.retrieval.modules.generation.models import QueryResult
 
 
@@ -114,6 +115,37 @@ def print_stats(stats: SourceStats) -> None:
     print(f"  Avg chunk size: {stats.avg_chunk_size} chars")
     print(f"  Processing time: {stats.processing_time:.1f}s")
     print(f"  Hits: {stats.total_hits} (grounded: {stats.grounded_hits}, ungrounded: {stats.ungrounded_hits})")
+
+
+def print_benchmark_report(report: BenchmarkReport) -> None:
+    """Human-readable benchmark report summary.
+
+    Mirrors the table style of `print_stats` / `print_query_result`:
+    plain `print` lines, two-space indent, `None` rendered as `n/a`.
+    """
+    print(f"\nBenchmark report ({report.total_cases} cases)\n")
+    print(f"  EM:        {report.generation_em:.3f}")
+    print(f"  F1:        {report.generation_f1:.3f}")
+    if report.retrieval_recall is None:
+        print("  Recall:    n/a")
+        print("  Precision: n/a")
+    else:
+        print(f"  Recall:    {report.retrieval_recall:.3f}")
+        precision = report.retrieval_precision if report.retrieval_precision is not None else 0.0
+        print(f"  Precision: {precision:.3f}")
+    if report.llm_judge_score is None:
+        print("  LLM judge: n/a")
+    else:
+        print(f"  LLM judge: {report.llm_judge_score:.3f}")
+    if report.failure_distribution:
+        print("\nFailure distribution:")
+        for failure_type, count in sorted(
+            report.failure_distribution.items(), key=lambda kv: (-kv[1], kv[0])
+        ):
+            print(f"  {failure_type}: {count}")
+    else:
+        print("\nNo failures classified.")
+    print()
 
 
 def print_error(message: str, mode: OutputMode) -> None:

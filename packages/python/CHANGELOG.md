@@ -10,6 +10,61 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-27 R8.3 — Benchmark harness + CLI
+
+R8.1 captured traces; R8.2 classified failures; R8.3 ships the
+user-facing payoff: aggregate metrics PLUS per-case traces PLUS
+failure-class distribution in one report. New `RagEngine.benchmark(cases)
+-> BenchmarkReport` (Python API) and `rfnry-rag benchmark cases.json -k
+<knowledge_id> [-o report.json]` (CLI). Closes the R8 phase by exposing
+trace + failure-distribution aggregation as a single user-facing report,
+which gates Phase 2 R1/R5 on observability before tuning.
+
+Public API (re-exported from `rfnry_rag.retrieval`):
+
+- `BenchmarkCase(query, expected_answer, expected_source_ids=None)` —
+  one evaluation case.
+- `BenchmarkConfig(concurrency=1, failure_threshold=0.5)` — runner
+  knobs. `concurrency` bounded `[1, 20]`; `failure_threshold` bounded
+  `[0.0, 1.0]`. Both validated in `__post_init__`; registered in the
+  bounds-contract test (Convention 2).
+- `BenchmarkCaseResult(case, result, failure, metrics)` — per-case
+  detail. `result` is the full `QueryResult` (with `trace` from R8.1);
+  `failure` is `FailureClassification | None` from R8.2; `metrics`
+  carries per-case `em`, `f1`, optional `retrieval_recall`,
+  `retrieval_precision`, `llm_judge`.
+- `BenchmarkReport(total_cases, retrieval_recall, retrieval_precision,
+  generation_em, generation_f1, llm_judge_score, failure_distribution,
+  per_case_results)` — aggregate. `retrieval_recall` /
+  `retrieval_precision` are `None` when at least one case omits
+  `expected_source_ids` (N/A is distinct from 0.0).
+  `failure_distribution` is a `dict[str, int]` keyed on
+  `FailureType.name` (`"VOCABULARY_MISMATCH"`, etc).
+- `run_benchmark(cases, query_fn, config=None, llm_judge=None)` — the
+  underlying orchestrator; takes a callable so tests can stub without
+  a full engine.
+
+`failure_distribution` keys on `FailureType.name` rather than
+`FailureClassification`: the dataclass is `frozen=True` but contains a
+`dict[str, ...]` field, so Python does not generate `__hash__` for it
+and using it as a `Counter` key would raise `TypeError: unhashable type`
+at runtime. Keying on the name also makes `--output report.json`
+human-readable without post-processing.
+
+Failure rule: F1 strictly below `failure_threshold` (default 0.5 — an
+honest mid-point: weaker is too generous; stricter mis-classifies
+legitimate paraphrases) OR `trace.grounding_decision == "ungrounded"`.
+The second clause catches the small-but-real "F1 was technically high
+but grounding still flagged it ungrounded" category.
+
+CLI: `rfnry-rag benchmark CASES_FILE -k <knowledge_id> [-o report.json]
+[-c concurrency] [--failure-threshold T]`. Exit code 0 on success
+regardless of failure rate (treating failure-rate as a CI signal is a
+follow-up). Pretty stdout summary shows totals, EM, F1, optional LLM
+judge, and the per-failure-type histogram.
+
+7 tests added (6 unit + 1 CLI smoke); test count 1052 -> 1059.
+
 ### 2026-04-27 R8.2 — Heuristic failure classification
 
 R8.1 produced traces; R8.2 turns them into actionable diagnostics. New

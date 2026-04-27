@@ -17,6 +17,13 @@ if TYPE_CHECKING:
 from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk, Source
+from rfnry_rag.retrieval.modules.evaluation.benchmark import (
+    BenchmarkCase,
+    BenchmarkConfig,
+    BenchmarkReport,
+    run_benchmark,
+)
+from rfnry_rag.retrieval.modules.evaluation.metrics import LLMJudgment
 from rfnry_rag.retrieval.modules.generation.models import QueryResult, StepResult, StreamEvent
 from rfnry_rag.retrieval.modules.generation.service import GenerationService
 from rfnry_rag.retrieval.modules.generation.step import StepGenerationService
@@ -1255,6 +1262,30 @@ class RagEngine:
             chunks=chunks,
             context=context,
         )
+
+    async def benchmark(
+        self,
+        cases: list[BenchmarkCase],
+        config: BenchmarkConfig | None = None,
+        knowledge_id: str | None = None,
+        llm_judge: LLMJudgment | None = None,
+    ) -> BenchmarkReport:
+        """Run cases, collect traces (R8.1) + classifications (R8.2), aggregate.
+
+        Each case is executed via `query(..., trace=True)` so the report
+        carries the full per-case trace alongside the aggregate metrics.
+        Concurrency is bounded by `config.concurrency` (default 1, serial).
+        Pass `llm_judge` only when paying per-case judge LLM cost is
+        intended; the judge is `None` in the report when omitted.
+        """
+        self._check_initialized()
+        if not self._generation_service:
+            raise ConfigurationError("benchmark() requires generation.lm_client to be configured")
+
+        async def _run_one(query_text: str, *, trace: bool) -> QueryResult:
+            return await self.query(query_text, knowledge_id=knowledge_id, trace=trace)
+
+        return await run_benchmark(cases, _run_one, config=config, llm_judge=llm_judge)
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for a list of texts using the configured provider."""

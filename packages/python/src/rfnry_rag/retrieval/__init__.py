@@ -30,6 +30,13 @@ from rfnry_rag.retrieval.common.models import TreeIndex as TreeIndex
 from rfnry_rag.retrieval.common.models import TreeNode as TreeNode
 from rfnry_rag.retrieval.common.models import TreePage as TreePage
 from rfnry_rag.retrieval.common.models import TreeSearchResult as TreeSearchResult
+from rfnry_rag.retrieval.modules.evaluation import BenchmarkCase as BenchmarkCase
+from rfnry_rag.retrieval.modules.evaluation import BenchmarkCaseResult as BenchmarkCaseResult
+from rfnry_rag.retrieval.modules.evaluation import BenchmarkConfig as BenchmarkConfig
+from rfnry_rag.retrieval.modules.evaluation import BenchmarkReport as BenchmarkReport
+from rfnry_rag.retrieval.modules.evaluation import FailureClassification as FailureClassification
+from rfnry_rag.retrieval.modules.evaluation import FailureType as FailureType
+from rfnry_rag.retrieval.modules.evaluation import classify_failure as classify_failure
 from rfnry_rag.retrieval.modules.evaluation.metrics import ExactMatch as ExactMatch
 from rfnry_rag.retrieval.modules.evaluation.metrics import F1Score as F1Score
 from rfnry_rag.retrieval.modules.evaluation.metrics import LLMJudgment as LLMJudgment
@@ -93,6 +100,10 @@ __all__ = [
     "BaseIngestionMethod",
     "BaseRetrievalJudgment",
     "BaseRetrievalMethod",
+    "BenchmarkCase",
+    "BenchmarkCaseResult",
+    "BenchmarkConfig",
+    "BenchmarkReport",
     "ConfigurationError",
     "ContentMatch",
     "DocumentIngestion",
@@ -104,6 +115,8 @@ __all__ = [
     "ExactMatch",
     "ExtractiveRefinement",
     "F1Score",
+    "FailureClassification",
+    "FailureType",
     "FastEmbedSparseEmbeddings",
     "FilesystemDocumentStore",
     "GenerationConfig",
@@ -166,4 +179,5 @@ __all__ = [
     "VectorIngestion",
     "VectorRetrieval",
     "Vision",
+    "classify_failure",
 ]

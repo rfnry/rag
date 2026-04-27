@@ -28,6 +28,7 @@ def run_async(coro):
 
 
 def main() -> None:
+    import rfnry_rag.retrieval.cli.commands.benchmark
     import rfnry_rag.retrieval.cli.commands.ingest
     import rfnry_rag.retrieval.cli.commands.init
     import rfnry_rag.retrieval.cli.commands.knowledge

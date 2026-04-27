@@ -10,6 +10,7 @@ from dataclasses import fields
 from typing import Any
 
 from rfnry_rag.common.language_model import LanguageModelClient
+from rfnry_rag.retrieval.modules.evaluation.benchmark import BenchmarkConfig
 from rfnry_rag.retrieval.modules.ingestion.chunk.batch import BatchConfig
 from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
@@ -35,6 +36,7 @@ _CONFIGS_TO_AUDIT: list[type] = [
     BatchConfig,
     MultiQueryRewriting,
     DocumentExpansionConfig,
+    BenchmarkConfig,
 ]
 
 
