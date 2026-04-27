@@ -1,10 +1,14 @@
 """Benchmark harness for retrieval + generation quality (R8.3).
 
 Pure orchestration over R8.1's `RetrievalTrace` and R8.2's
-`classify_failure`, plus the existing `ExactMatch`, `F1Score`,
-`LLMJudgment`, `RetrievalRecall`, `RetrievalPrecision` metrics. No new
-metric implementations and no new LLM calls beyond what the existing
-metrics already do.
+`classify_failure`. Reuses the existing `ExactMatch` and `F1Score` from
+`metrics.py`, and (when configured) `LLMJudgment` for per-case judging.
+Adds a source-id-based `retrieval_recall` / `retrieval_precision`
+computation distinct from the content-based `RetrievalRecall` /
+`RetrievalPrecision` in `retrieval_metrics.py` — this measures whether
+the benchmark's `expected_source_ids` were retrieved, not chunk-content
+overlap with the expected answer. No new metric implementations and no
+new LLM calls beyond what the configured metrics already do.
 
 R8.3 ships the user-facing payoff of R8.1 + R8.2: aggregate metrics
 (EM / F1 / optional LLM-judge / retrieval recall+precision) PLUS
@@ -195,6 +199,10 @@ async def run_benchmark(
     """
     cfg = config or BenchmarkConfig()
 
+    logger.info(
+        "benchmark starting: %d cases, concurrency=%d", len(cases), cfg.concurrency
+    )
+
     em_metric = ExactMatch()
     f1_metric = F1Score()
 
@@ -247,6 +255,14 @@ async def run_benchmark(
     for r in per_case_results:
         if r.failure is not None:
             distribution[r.failure.type.name] += 1
+
+    logger.info(
+        "benchmark complete: total=%d em=%.3f f1=%.3f failures=%d",
+        n,
+        generation_em,
+        generation_f1,
+        sum(distribution.values()),
+    )
 
     return BenchmarkReport(
         total_cases=n,

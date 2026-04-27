@@ -13,6 +13,7 @@ Bias-term hygiene: fixtures use generic identifiers (`q1`, `case_a`,
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -23,6 +24,7 @@ from rfnry_rag.retrieval.modules.evaluation import (
     BenchmarkConfig,
     run_benchmark,
 )
+from rfnry_rag.retrieval.modules.evaluation.metrics import LLMJudgment
 from rfnry_rag.retrieval.modules.generation.models import QueryResult, SourceReference
 
 
@@ -205,3 +207,26 @@ async def test_benchmark_concurrency_bounds_in_flight_calls() -> None:
 
     assert max_in_flight <= 3
     assert max_in_flight >= 2
+
+
+# 7. LLM-judge branch --------------------------------------------------------
+
+
+async def test_benchmark_runs_llm_judge_when_configured() -> None:
+    """When `llm_judge=` is passed, judge runs once per case and `llm_judge_score` averages them."""
+    cases = [
+        BenchmarkCase(query=f"q{i}", expected_answer=f"answer {i}")
+        for i in range(3)
+    ]
+
+    async def query_fn(text: str, *, trace: bool) -> QueryResult:
+        idx = int(text[1:])
+        return _result(f"answer {idx}")
+
+    judge = LLMJudgment.__new__(LLMJudgment)  # bypass __init__ — we replace `score` below
+    judge.score = AsyncMock(return_value=0.7)  # type: ignore[method-assign]
+
+    report = await run_benchmark(cases, query_fn, llm_judge=judge)
+
+    assert report.llm_judge_score == pytest.approx(0.7)
+    assert judge.score.await_count == len(cases)

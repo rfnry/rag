@@ -63,7 +63,28 @@ regardless of failure rate (treating failure-rate as a CI signal is a
 follow-up). Pretty stdout summary shows totals, EM, F1, optional LLM
 judge, and the per-failure-type histogram.
 
-7 tests added (6 unit + 1 CLI smoke); test count 1052 -> 1059.
+Reuses the existing `ExactMatch` and `F1Score` from `metrics.py`, and
+(when configured) `LLMJudgment` for per-case judging. Adds a
+source-id-based `retrieval_recall` / `retrieval_precision` computation
+distinct from the content-based `RetrievalRecall` / `RetrievalPrecision`
+in `retrieval_metrics.py` — this measures whether the benchmark's
+`expected_source_ids` were retrieved, not chunk-content overlap with the
+expected answer. No new metric implementations and no new LLM calls
+beyond what the configured metrics already do.
+
+Cost / latency shape (consumer-visible):
+
+- Cost: each case runs one full `engine.query`, so a benchmark of N
+  cases consumes N generation LLM calls. Passing
+  `llm_judge=LLMJudgment(...)` doubles LLM calls (1 generation + 1 judge
+  per case). Failed-case classification (R8.2) is heuristic-only — no
+  extra LLM calls.
+- Latency: 1 000 cases serially (default `concurrency=1`) at ~2 s per
+  `query` runs ~30 minutes. Bound `BenchmarkConfig.concurrency` (max 20)
+  for parallelism — the same `run_concurrent` helper R3 uses.
+
+8 tests added (6 unit + 1 CLI smoke + 1 LLM-judge unit); test count
+1052 -> 1060.
 
 ### 2026-04-27 R8.2 — Heuristic failure classification
 

@@ -130,9 +130,12 @@ def print_benchmark_report(report: BenchmarkReport) -> None:
         print("  Recall:    n/a")
         print("  Precision: n/a")
     else:
+        # `retrieval_recall` and `retrieval_precision` are set as a pair in
+        # `run_benchmark` — both `None` or both populated — so reaching this
+        # branch guarantees `retrieval_precision is not None`.
         print(f"  Recall:    {report.retrieval_recall:.3f}")
-        precision = report.retrieval_precision if report.retrieval_precision is not None else 0.0
-        print(f"  Precision: {precision:.3f}")
+        assert report.retrieval_precision is not None  # invariant: paired with recall
+        print(f"  Precision: {report.retrieval_precision:.3f}")
     if report.llm_judge_score is None:
         print("  LLM judge: n/a")
     else:

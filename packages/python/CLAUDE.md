@@ -187,7 +187,7 @@ The following contract tests act as regression guards — they enforce whole-cla
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking
 - Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules
-- 1059 tests total across both SDKs (Phase F adds +21 vs. the Phase E baseline of 997: F2 DrawingIngestionService status-transition + re-entry tests, F3.1 DXF TEXT/MTEXT off-page connectors, F3.2 DXF paperspace layout rendering, F3.5 Gemini vision provider; R4 adds +9 chunk-ordering unit cases; R3 adds +8 document-expansion unit cases; R8.1 adds +9 retrieval-trace unit cases; R8.2 adds +8 failure-classification unit cases; R8.3 adds +7 benchmark-harness unit + CLI cases)
+- 1060 tests total across both SDKs (Phase F adds +21 vs. the Phase E baseline of 997: F2 DrawingIngestionService status-transition + re-entry tests, F3.1 DXF TEXT/MTEXT off-page connectors, F3.2 DXF paperspace layout rendering, F3.5 Gemini vision provider; R4 adds +9 chunk-ordering unit cases; R3 adds +8 document-expansion unit cases; R8.1 adds +9 retrieval-trace unit cases; R8.2 adds +8 failure-classification unit cases; R8.3 adds +8 benchmark-harness unit + CLI cases (6 unit + 1 CLI + 1 LLM-judge unit))
 
 ## Config defaults and enforced bounds
 
