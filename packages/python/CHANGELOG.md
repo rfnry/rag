@@ -50,7 +50,7 @@ iff the reranker is not configured (same shape for `refined_results`).
 signal R8.2's classifiers depend on.
 
 No new dependencies, no new BAML, no DB persistence. Test count
-1035 → 1043 (+8 unit tests in `test_retrieval_trace.py`).
+1035 → 1044 (+9 retrieval-trace unit tests in `test_retrieval_trace.py`).
 
 ### 2026-04-26 R3 — Document expansion at index time (synthetic queries per chunk)
 

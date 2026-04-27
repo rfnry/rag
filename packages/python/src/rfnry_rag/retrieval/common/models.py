@@ -98,6 +98,14 @@ class RetrievalTrace:
     reranker disabled), while `[]` means "stage ran and produced no results".
     Conflating them would erase the signal R8.2's SCOPE_MISS / DRIFT
     classifiers depend on.
+
+    `per_method_results` is keyed by `BaseRetrievalMethod.name` for configured
+    methods, plus a synthetic `"tree"` key when tree-search results were
+    merged in at the service layer (tree search is not a registered
+    `BaseRetrievalMethod`). Across multiple query variants
+    (HyDE / multi-query / step-back), each method's per-variant results are
+    concatenated — not deduplicated; fusion handles dedupe at the
+    `fused_results` stage.
     """
 
     query: str

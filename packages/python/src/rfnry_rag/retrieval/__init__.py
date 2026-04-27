@@ -22,6 +22,7 @@ from rfnry_rag.retrieval.common.errors import TreeSearchError as TreeSearchError
 from rfnry_rag.retrieval.common.language_model import LanguageModelClient as LanguageModelClient
 from rfnry_rag.retrieval.common.language_model import LanguageModelProvider as LanguageModelProvider
 from rfnry_rag.retrieval.common.models import ContentMatch as ContentMatch
+from rfnry_rag.retrieval.common.models import RetrievalTrace as RetrievalTrace
 from rfnry_rag.retrieval.common.models import RetrievedChunk as RetrievedChunk
 from rfnry_rag.retrieval.common.models import Source as Source
 from rfnry_rag.retrieval.common.models import SparseVector as SparseVector
@@ -141,6 +142,7 @@ __all__ = [
     "RetrievalPrecision",
     "RetrievalRecall",
     "RetrievalService",
+    "RetrievalTrace",
     "RetrievedChunk",
     "SQLAlchemyMetadataStore",
     "SemanticChunker",
