@@ -20,6 +20,7 @@ from rfnry_rag.retrieval.server import (
     GenerationConfig,
     IngestionConfig,
     RetrievalConfig,
+    RoutingConfig,
     TreeIndexingConfig,
     TreeSearchConfig,
 )
@@ -37,6 +38,7 @@ _CONFIGS_TO_AUDIT: list[type] = [
     MultiQueryRewriting,
     DocumentExpansionConfig,
     BenchmarkConfig,
+    RoutingConfig,
 ]
 
 

@@ -79,9 +79,11 @@ from rfnry_rag.retrieval.modules.retrieval.search.service import RetrievalServic
 from rfnry_rag.retrieval.server import GenerationConfig as GenerationConfig
 from rfnry_rag.retrieval.server import IngestionConfig as IngestionConfig
 from rfnry_rag.retrieval.server import PersistenceConfig as PersistenceConfig
+from rfnry_rag.retrieval.server import QueryMode as QueryMode
 from rfnry_rag.retrieval.server import RagEngine as RagEngine
 from rfnry_rag.retrieval.server import RagServerConfig as RagServerConfig
 from rfnry_rag.retrieval.server import RetrievalConfig as RetrievalConfig
+from rfnry_rag.retrieval.server import RoutingConfig as RoutingConfig
 from rfnry_rag.retrieval.server import TreeIndexingConfig as TreeIndexingConfig
 from rfnry_rag.retrieval.server import TreeSearchConfig as TreeSearchConfig
 from rfnry_rag.retrieval.stores.document.filesystem import FilesystemDocumentStore as FilesystemDocumentStore
@@ -144,6 +146,7 @@ __all__ = [
     "PersistenceConfig",
     "PostgresDocumentStore",
     "QdrantVectorStore",
+    "QueryMode",
     "QueryResult",
     "RagEngine",
     "RagError",
@@ -157,6 +160,7 @@ __all__ = [
     "RetrievalService",
     "RetrievalTrace",
     "RetrievedChunk",
+    "RoutingConfig",
     "SQLAlchemyMetadataStore",
     "SemanticChunker",
     "Source",

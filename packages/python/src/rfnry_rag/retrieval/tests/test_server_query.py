@@ -5,7 +5,7 @@ import pytest
 
 from rfnry_rag.retrieval.common.models import RetrievedChunk
 from rfnry_rag.retrieval.modules.generation.models import QueryResult, StreamEvent
-from rfnry_rag.retrieval.server import RagEngine, RagServerConfig
+from rfnry_rag.retrieval.server import RagEngine, RagServerConfig, RoutingConfig
 
 
 def _chunk(chunk_id: str, score: float = 0.9) -> RetrievedChunk:
@@ -19,6 +19,7 @@ def _query_result(answer: str = "The answer is 42.") -> QueryResult:
 def _make_server() -> RagEngine:
     config = MagicMock(spec=RagServerConfig)
     config.retrieval = SimpleNamespace(history_window=3)
+    config.routing = RoutingConfig()
     server = RagEngine.__new__(RagEngine)
     server._config = config
     server._initialized = True

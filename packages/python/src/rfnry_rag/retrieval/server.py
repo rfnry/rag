@@ -4,6 +4,7 @@ import asyncio
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -381,6 +382,43 @@ class TreeSearchConfig:
             )
 
 
+class QueryMode(Enum):
+    """User-facing routing strategy chosen per `RagEngine` instance.
+
+    R1.2 lights up `RETRIEVAL` (default, backward-compat) and `DIRECT`.
+    `HYBRID` lands in R1.3 and `AUTO` in R1.4 — selecting either today
+    raises `ConfigurationError`. The string values are reserved (matching
+    `RetrievalTrace.routing_decision` enumeration).
+    """
+
+    RETRIEVAL = "retrieval"
+    DIRECT = "direct"
+    HYBRID = "hybrid"
+    AUTO = "auto"
+
+
+@dataclass
+class RoutingConfig:
+    """Top-level routing strategy.
+
+    R1.2 introduces this as the dispatch knob between RETRIEVAL (existing
+    pipeline) and DIRECT (full corpus into the prompt; no retrieval).
+    `hybrid_answerability_model` is declared now for forward compatibility
+    with R1.3 — R1.2 does not enforce required-when-HYBRID; R1.3 will.
+    """
+
+    mode: QueryMode = QueryMode.RETRIEVAL
+    direct_context_threshold: int = 150_000
+    hybrid_answerability_model: LanguageModelClient | None = None
+
+    def __post_init__(self) -> None:
+        if not (1_000 <= self.direct_context_threshold <= 2_000_000):
+            raise ConfigurationError(
+                f"RoutingConfig.direct_context_threshold={self.direct_context_threshold} "
+                "out of range [1_000, 2_000_000]"
+            )
+
+
 @dataclass
 class RagServerConfig:
     persistence: PersistenceConfig
@@ -389,6 +427,7 @@ class RagServerConfig:
     generation: GenerationConfig = field(default_factory=GenerationConfig)
     tree_indexing: TreeIndexingConfig = field(default_factory=TreeIndexingConfig)
     tree_search: TreeSearchConfig = field(default_factory=TreeSearchConfig)
+    routing: RoutingConfig = field(default_factory=RoutingConfig)
 
 
 def _derive_embedding_model_name(embeddings: BaseEmbeddings) -> str:
@@ -1171,12 +1210,46 @@ class RagEngine:
         system_prompt: str | None = None,
         trace: bool = False,
     ) -> QueryResult:
-        """Full pipeline: retrieval + grounding + LLM generation."""
+        """Full pipeline: dispatches on `RoutingConfig.mode`.
+
+        RETRIEVAL (default) runs the existing retrieve-then-generate path.
+        DIRECT loads the entire corpus into the prompt and skips retrieval.
+        HYBRID and AUTO are reserved for R1.3 / R1.4 and currently raise.
+        """
         self._check_initialized()
         _validate_query_text(text)
         if not self._generation_service:
             raise ConfigurationError("query() requires generation.lm_client to be configured")
 
+        mode = self._config.routing.mode
+        if mode == QueryMode.RETRIEVAL:
+            return await self._query_via_retrieval(
+                text, knowledge_id, history, min_score, collection, system_prompt, trace
+            )
+        if mode == QueryMode.DIRECT:
+            return await self._query_via_direct_context(
+                text, knowledge_id, history, system_prompt, trace
+            )
+        # HYBRID / AUTO are declared in QueryMode so consumers can wire them
+        # explicitly today; the engine refuses rather than silently falling
+        # back to RETRIEVAL — silent fallback would mask a misconfiguration.
+        raise ConfigurationError(
+            f"QueryMode.{mode.name} is not yet implemented in R1.2; "
+            "HYBRID lands in R1.3 and AUTO in R1.4. Use RETRIEVAL or DIRECT for now."
+        )
+
+    async def _query_via_retrieval(
+        self,
+        text: str,
+        knowledge_id: str | None,
+        history: list[tuple[str, str]] | None,
+        min_score: float | None,
+        collection: str | None,
+        system_prompt: str | None,
+        trace: bool,
+    ) -> QueryResult:
+        """Existing retrieve-then-generate pipeline (RETRIEVAL mode)."""
+        assert self._generation_service is not None
         chunks, trace_obj = await self._retrieve_chunks(
             text, knowledge_id, history, min_score, collection, trace=trace
         )
@@ -1186,6 +1259,7 @@ class RagEngine:
         )
         if trace_obj is not None:
             trace_obj.timings["grounding"] = time.perf_counter() - grounding_start
+            trace_obj.routing_decision = "retrieval"
             trace_obj.confidence = result.confidence
             if result.clarification is not None:
                 trace_obj.grounding_decision = "clarification"
@@ -1193,6 +1267,48 @@ class RagEngine:
                 trace_obj.grounding_decision = "grounded"
             else:
                 trace_obj.grounding_decision = "ungrounded"
+            result.trace = trace_obj
+        return result
+
+    async def _query_via_direct_context(
+        self,
+        text: str,
+        knowledge_id: str | None,
+        history: list[tuple[str, str]] | None,
+        system_prompt: str | None,
+        trace: bool,
+    ) -> QueryResult:
+        """DIRECT: load the entire corpus and answer from full context.
+
+        Skips both grounding and clarification gates: the grounding gate
+        scores chunk-level relevance against the query, but DIRECT puts
+        the full corpus in the prompt — if the answer isn't there, no
+        grounding-retry will fix it. Clarification gates exist for
+        ambiguous queries against limited chunks; DIRECT has the entire
+        corpus, so the clarification heuristic doesn't apply. Both gates
+        would burn LLM calls without changing the outcome.
+        """
+        assert self._generation_service is not None
+        load_start = time.perf_counter() if trace else 0.0
+        corpus = await self._load_full_corpus(knowledge_id)
+        load_elapsed = time.perf_counter() - load_start if trace else 0.0
+
+        trace_obj: RetrievalTrace | None = None
+        if trace:
+            trace_obj = RetrievalTrace(
+                query=text,
+                knowledge_id=knowledge_id,
+                routing_decision="direct",
+            )
+            trace_obj.timings["direct_context_load"] = load_elapsed
+
+        gen_start = time.perf_counter() if trace else 0.0
+        result = await self._generation_service.generate_from_corpus(
+            query=text, corpus=corpus, history=history, system_prompt=system_prompt
+        )
+        if trace_obj is not None:
+            trace_obj.timings["generation"] = time.perf_counter() - gen_start
+            trace_obj.confidence = result.confidence
             result.trace = trace_obj
         return result
 

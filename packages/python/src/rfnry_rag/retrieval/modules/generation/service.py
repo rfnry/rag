@@ -157,6 +157,48 @@ class GenerationService:
             sources=sources,
         )
 
+    async def generate_from_corpus(
+        self,
+        query: str,
+        corpus: str,
+        history: list[tuple[str, str]] | None = None,
+        system_prompt: str | None = None,
+    ) -> QueryResult:
+        """Generate from a full corpus string (R1.2 DIRECT mode).
+
+        Skips grounding and clarification gates by design: with the entire
+        corpus in the prompt, the chunk-level relevance signal those gates
+        depend on no longer applies. Returns `sources=[]` because DIRECT
+        does not assemble chunk-level source attribution.
+        """
+        if not query or not query.strip():
+            raise GenerationError("Query must not be empty")
+
+        formatted_history = self._format_history(history)
+        active_system_prompt = system_prompt if system_prompt is not None else self._system_prompt
+
+        logger.info("LLM generation (direct corpus): %d chars", len(corpus))
+        try:
+            answer = await b.GenerateAnswer(
+                system_prompt=active_system_prompt,
+                context=corpus,
+                query=query,
+                history=formatted_history,
+                baml_options={"client_registry": self._registry},
+            )
+        except baml_errors.BamlValidationError as exc:
+            raise GenerationError(f"GenerateAnswer returned unparseable response: {exc}") from exc
+        except Exception as exc:
+            raise GenerationError(f"LLM generation failed: {exc}") from exc
+        logger.info("LLM response: %d chars", len(answer))
+
+        return QueryResult(
+            answer=answer,
+            grounded=True,
+            confidence=0.0,
+            sources=[],
+        )
+
     async def generate_stream(
         self,
         query: str,

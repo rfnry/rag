@@ -10,6 +10,61 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-28 R1.2 — DIRECT context mode
+
+Lights up `mode="direct"` user-facing — the strategy that loads the entire
+corpus into the LLM prompt and answers from full context, skipping
+retrieval. Best fit: small-to-medium corpora (≤ ~150K tokens) where the
+LLM seeing everything beats chunking-then-retrieval. With prompt caching,
+repeat queries against the same `knowledge_id` amortize the corpus-load
+cost across calls. Builds on R1.1's `_load_full_corpus` + corpus-token
+plumbing.
+
+- New `QueryMode` enum with reserved string values `"retrieval"`,
+  `"direct"`, `"hybrid"`, `"auto"` — matching the
+  `RetrievalTrace.routing_decision` enumeration. `RETRIEVAL` and
+  `DIRECT` are live in R1.2; `HYBRID` raises `ConfigurationError`
+  pointing to R1.3, `AUTO` to R1.4. Refusing rather than silently
+  falling back to RETRIEVAL prevents misconfiguration from going
+  unnoticed.
+- New `RoutingConfig` dataclass at `rfnry_rag.retrieval.server`,
+  re-exported from `rfnry_rag.retrieval`. Fields:
+  - `mode: QueryMode = QueryMode.RETRIEVAL` — default preserves
+    backward compatibility byte-for-byte.
+  - `direct_context_threshold: int = 150_000` — bounded
+    `1_000 ≤ n ≤ 2_000_000` (covers small models up to current
+    frontier 1M+ context). R1.4's AUTO mode will read this; R1.2
+    declares it for forward-compat.
+  - `hybrid_answerability_model: LanguageModelClient | None = None` —
+    placeholder for R1.3's HYBRID mode. R1.2 does not enforce
+    required-when-HYBRID; R1.3 will.
+- `RagServerConfig.routing: RoutingConfig = field(default_factory=RoutingConfig)`.
+  Registered in `_CONFIGS_TO_AUDIT` (bounds-contract guard).
+- `RagEngine.query()` now dispatches on `config.routing.mode`:
+  - `RETRIEVAL` → existing retrieve-then-generate path (extracted to
+    `_query_via_retrieval` for clarity).
+  - `DIRECT` → new `_query_via_direct_context`: loads full corpus via
+    `_load_full_corpus`, calls
+    `GenerationService.generate_from_corpus`, returns `QueryResult`
+    with `chunks=[]` (honest — DIRECT didn't retrieve).
+  - `HYBRID` / `AUTO` → `ConfigurationError` ("not yet implemented in
+    R1.2; HYBRID lands in R1.3 and AUTO in R1.4").
+- New `GenerationService.generate_from_corpus(query, corpus, history,
+  system_prompt)` skips both grounding and clarification gates by
+  design: with the entire corpus in the prompt, the chunk-level
+  relevance signal those gates depend on no longer applies; running
+  them would burn LLM calls without changing the outcome.
+- `RetrievalTrace.routing_decision` (R8.1 placeholder) is now
+  populated for the first time: `"retrieval"` when the existing
+  pipeline runs, `"direct"` when DIRECT runs. R1.3 will populate
+  `"hybrid_rag"` / `"hybrid_lc"`.
+- Trade-off documented: when the consumer enables DIRECT against a
+  corpus exceeding model context, the LLM provider raises and the
+  engine surfaces the error. R1.4's AUTO mode will pre-check
+  `direct_context_threshold` before routing to DIRECT to prevent this.
+- 7 new unit tests in `tests/test_routing_direct_mode.py`. Total:
+  1075 (up from 1068).
+
 ### 2026-04-28 R1.1 — Token counting + corpus loader (plumbing)
 
 Phase 2 R1 series turns rfnry-rag from "always retrieves" into a routing
