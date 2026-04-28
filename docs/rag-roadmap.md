@@ -26,18 +26,20 @@ Phase 1 closed.
 |---|---|---|
 | **R8** — Retrieval Evaluation & Diagnostics | ✅ Done | 6 commits ending `6db0724` (2026-04-27). R8.1 `RetrievalTrace` + opt-in `trace=True`; R8.2 heuristic `classify_failure`; R8.3 `RagEngine.benchmark` + `rfnry-rag benchmark` CLI. Test count 1035 → 1060 (+25). |
 | **R1** — Context-Aware Routing | ✅ Done | 8 commits ending `75139a6` (2026-04-28). R1.1 token counting + corpus loader; R1.2 `QueryMode` enum + `RoutingConfig` + DIRECT mode; R1.3 HYBRID (SELF-ROUTE) with `CheckAnswerability` BAML; R1.4 AUTO mode (recommended for new users). Test count 1060 → 1091 (+31). |
-| **R5** — Adaptive Retrieval Parameters | ⏳ Next | Needs query classifier; classifier is shared with R6. R1's trace + R8's benchmark provide the observability needed to tune adaptive weights. |
+| **R5** — Adaptive Retrieval Parameters | ✅ Done | 7 commits ending `7530c6a` (2026-04-28). R5.1 query classifier (heuristic + opt-in LLM, `ClassifyQueryComplexity` BAML, `AdaptiveRetrievalConfig`); R5.2 dynamic top_k by complexity + task-aware method-weight multipliers by query_type (4 default profiles); R5.3 confidence-based retry loop (2× top_k → rewriter swap → LC escalation via R1.2's DIRECT). New `routing_decision="retrieval_then_direct"`. Test count 1091 → 1120 (+29). |
 
 ### Phase 3 — Advanced (build on Phases 1+2)
 
 | Item | Status | Notes |
 |---|---|---|
-| **R2** — RAPTOR-Style Summarization Retrieval | ⏸ Future | New ingestion + retrieval method pair. Requires the embedding/vector infrastructure to be well-tested. |
+| **R2** — RAPTOR-Style Summarization Retrieval | ⏳ Next | New ingestion + retrieval method pair. Requires the embedding/vector infrastructure to be well-tested. R5 + R8 are now in place. |
 | **R6** — Multi-Hop Iterative Retrieval | ⏸ Future | Benefits from R5's classifier and R1's long-context fallback. |
 
 ### Recommended next pick
 
-**R5** — Adaptive Retrieval Parameters. R1 + R8 together provide the trace + benchmark + failure-classification layers needed to tune adaptive top_k / weights against measurable workloads. R5's query classifier also unblocks R6.
+**R6** — Multi-Hop Iterative Retrieval. With R5's classifier shipped, R6's "is this an entity-relationship query?" check reuses the same `classify_query` infrastructure. R1's DIRECT escalation is also available as the multi-hop fallback when graph traversal exhausts. R2 (RAPTOR) is more disruptive (new ingestion + retrieval method pair) and can wait.
+
+Phase 2 closed.
 
 ### Out of scope (explicitly NOT planned)
 
