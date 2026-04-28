@@ -188,7 +188,13 @@ class RetrievalService:
 
         if tree_chunks:
             all_result_lists.append(tree_chunks)
-            all_weights.append(1.0)
+            # Tree search merges into the fusion pool here, bypassing
+            # `_search_single_query`'s per-method multiplier site. Apply
+            # the adaptive `tree` multiplier explicitly so the default
+            # profiles' tree entries (1.2 / 0.8) are actually reachable.
+            # Disabled-adaptive path: `method_multipliers` is empty →
+            # `.get("tree", 1.0)` returns 1.0 → behaviour unchanged.
+            all_weights.append(1.0 * method_multipliers.get("tree", 1.0))
             logger.info("%d tree search candidates added to fusion", len(tree_chunks))
 
         fusion_start = time.perf_counter() if trace_obj is not None else 0.0

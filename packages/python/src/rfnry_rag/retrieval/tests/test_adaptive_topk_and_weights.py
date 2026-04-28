@@ -177,6 +177,106 @@ async def test_adaptive_task_weights_factual_boosts_vector_dominant() -> None:
     assert multipliers["graph"] == 0.8
 
 
+async def test_adaptive_partial_override_falls_back_to_defaults_for_other_query_types() -> None:
+    """Consumer provides FACTUAL only — COMPARATIVE classification must fall
+    back to the default COMPARATIVE profile, not return `{}`.
+
+    Regression guard for the documented partial-override contract: full
+    replacement at the dict level would mean classifying as a query type
+    the consumer didn't override gives no boost — contradicting plan,
+    docstring, and CHANGELOG.
+    """
+    method_v = _mock_method("vector", [_chunk("chunk_v")])
+    method_d = _mock_method("document", [_chunk("chunk_d")])
+    method_g = _mock_method("graph", [_chunk("chunk_g")])
+    # Distinguishable override: vector=9.0 is wildly different from any default,
+    # so we can tell unambiguously whether the consumer's profile or the
+    # default profile is in effect.
+    adaptive = AdaptiveRetrievalConfig(
+        enabled=True,
+        task_weight_profiles={"FACTUAL": {"vector": 9.0}},
+    )
+    service = RetrievalService(
+        retrieval_methods=[method_v, method_d, method_g], top_k=5, adaptive_config=adaptive
+    )
+
+    # Classify as COMPARATIVE — the consumer DID NOT override this profile,
+    # so the default COMPARATIVE multipliers must be applied.
+    with patch(
+        _CLASSIFY_PATH,
+        new=AsyncMock(return_value=_classification(query_type=QueryType.COMPARATIVE)),
+    ):
+        _chunks, trace = await service.retrieve(query="q1", trace=True)
+
+    assert trace is not None
+    assert trace.adaptive is not None
+    multipliers = trace.adaptive["applied_multipliers"]
+    # Default COMPARATIVE profile: vector=0.8, document=1.2, graph=0.8, tree=1.2
+    assert multipliers["vector"] == 0.8
+    assert multipliers["document"] == 1.2
+    assert multipliers["graph"] == 0.8
+    assert multipliers["tree"] == 1.2
+
+    # Sibling assertion: classifying as FACTUAL applies the consumer's override,
+    # confirming the override path still works (vector=9.0, not the default 1.2).
+    method_v.search.reset_mock()
+    method_d.search.reset_mock()
+    method_g.search.reset_mock()
+    with patch(
+        _CLASSIFY_PATH,
+        new=AsyncMock(return_value=_classification(query_type=QueryType.FACTUAL)),
+    ):
+        _chunks, trace = await service.retrieve(query="q1", trace=True)
+
+    assert trace is not None
+    assert trace.adaptive is not None
+    assert trace.adaptive["applied_multipliers"]["vector"] == 9.0
+
+
+async def test_adaptive_tree_multiplier_applied_when_tree_chunks_present() -> None:
+    """Tree search merges into fusion at a separate site — multiplier must apply.
+
+    Regression guard for the tree-multiplier-unreachable bug: tree_chunks
+    are appended to the fusion pool with a hardcoded weight, bypassing
+    `_search_single_query`'s per-method multiplier application. The
+    default profiles' `tree` entries (1.2 / 0.8) must affect the weight
+    pushed into RRF — otherwise operators reading
+    `trace.adaptive["applied_multipliers"]["tree"]` would be misled.
+    """
+    method_v = _mock_method("vector", [_chunk("chunk_v")])
+    adaptive = AdaptiveRetrievalConfig(enabled=True)
+    service = RetrievalService(
+        retrieval_methods=[method_v], top_k=5, adaptive_config=adaptive
+    )
+
+    # COMPARATIVE has tree=1.2 in the default profile.
+    classify_patch = patch(
+        _CLASSIFY_PATH,
+        new=AsyncMock(return_value=_classification(query_type=QueryType.COMPARATIVE)),
+    )
+    rrf_patch = patch(
+        "rfnry_rag.retrieval.modules.retrieval.search.service.reciprocal_rank_fusion",
+        return_value=[],
+    )
+    with classify_patch, rrf_patch as mock_rrf:
+        _chunks, trace = await service.retrieve(
+            query="q1",
+            tree_chunks=[_chunk("chunk_tree")],
+            trace=True,
+        )
+
+    assert trace is not None
+    assert trace.adaptive is not None
+    assert trace.adaptive["applied_multipliers"]["tree"] == 1.2
+
+    # Spy on the fusion call: the weights array passed to RRF must include
+    # 1.2 from the tree path (1.0 hardcoded * 1.2 multiplier).
+    assert mock_rrf.called
+    _args, kwargs = mock_rrf.call_args
+    method_weights = kwargs["method_weights"]
+    assert 1.2 in method_weights
+
+
 async def test_adaptive_trace_records_classification_and_effective_topk() -> None:
     """`trace.adaptive` carries complexity, query_type, top_k, multipliers, source."""
     method_v = _mock_method("vector", [_chunk("chunk_v")])

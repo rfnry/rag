@@ -214,12 +214,14 @@ async def _compute_adaptive_params(
       observable behavioural gain over "the existing default".
     - `multipliers` maps method-name -> float using consumer-provided
       `task_weight_profiles` when present, else `_DEFAULT_TASK_WEIGHT_PROFILES`.
-      Override semantics are full replacement at the QueryType level: a consumer
-      who provides only the FACTUAL profile gets defaults for the other three
-      query types. Inside a profile, methods absent from the dict fall back to
-      multiplier 1.0 (no change). Full replacement at type-level matches how
-      consumers think about "I want a custom FACTUAL profile" without forcing
-      them to re-state every method per-key.
+      Override semantics are per-QueryType-key fallback to defaults: a consumer
+      who provides only the FACTUAL profile still gets the default profiles for
+      the other three query types (so classifying as COMPARATIVE applies the
+      default COMPARATIVE multipliers, not `{}`). Inside a profile, methods
+      absent from the dict fall back to multiplier 1.0 (no change). This matches
+      how consumers think about "I want a custom FACTUAL profile" without
+      forcing them to re-state every method per-key, AND without silently
+      stripping the other QueryType profiles.
     - `elapsed_seconds` is the wall-clock time spent in classification, surfaced
       so the trace can populate `timings["classification"]` without re-measuring.
     """
@@ -235,8 +237,16 @@ async def _compute_adaptive_params(
     else:
         effective_top_k = base_top_k
 
-    profiles = config.task_weight_profiles or _DEFAULT_TASK_WEIGHT_PROFILES
-    profile = profiles.get(classification.query_type.name, {})
+    # Per-QueryType-key fallback to defaults: a consumer who provides only
+    # the FACTUAL profile gets defaults for the other three query types.
+    # Full replacement at the dict level would mean classifying as
+    # COMPARATIVE returns {} (no boost), contradicting the documented
+    # contract — see the `multipliers` paragraph in this docstring.
+    overrides = config.task_weight_profiles or {}
+    profile = (
+        overrides.get(classification.query_type.name)
+        or _DEFAULT_TASK_WEIGHT_PROFILES.get(classification.query_type.name, {})
+    )
     multipliers = dict(profile)
 
     return classification, effective_top_k, multipliers, elapsed
