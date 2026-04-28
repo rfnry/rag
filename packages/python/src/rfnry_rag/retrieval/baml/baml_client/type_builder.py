@@ -20,7 +20,7 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(type_builder.TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["AnswerQualityJudgment","CompressedContext","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","DrawingSetSynthesis","ExtractedSection","ExtractedStructure","HypotheticalDocument","Merge","NarrativeXref","OffPageConnector","PageAnalysis","Port","QueryAnalysis","QueryVariants","RankedChunk","ReasoningStep","RelevanceJudgment","RetrievalNecessityJudgment","StepBackQuery","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries","TocDetectionResult","TocEntry","TocStructure","ToolDrillDown","ToolFetchPages","ToolResolvedPages",]
+          ["AnswerQualityJudgment","AnswerabilityVerdict","CompressedContext","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","DrawingSetSynthesis","ExtractedSection","ExtractedStructure","HypotheticalDocument","Merge","NarrativeXref","OffPageConnector","PageAnalysis","Port","QueryAnalysis","QueryVariants","RankedChunk","ReasoningStep","RelevanceJudgment","RetrievalNecessityJudgment","StepBackQuery","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries","TocDetectionResult","TocEntry","TocStructure","ToolDrillDown","ToolFetchPages","ToolResolvedPages",]
         ), enums=set(
           []
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
@@ -31,12 +31,16 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
     # #########################################################################
-    # Generated classes 33
+    # Generated classes 34
     # #########################################################################
 
     @property
     def AnswerQualityJudgment(self) -> "AnswerQualityJudgmentViewer":
         return AnswerQualityJudgmentViewer(self)
+
+    @property
+    def AnswerabilityVerdict(self) -> "AnswerabilityVerdictViewer":
+        return AnswerabilityVerdictViewer(self)
 
     @property
     def CompressedContext(self) -> "CompressedContextViewer":
@@ -174,7 +178,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
 # #########################################################################
-# Generated classes 33
+# Generated classes 34
 # #########################################################################
 
 class AnswerQualityJudgmentAst:
@@ -212,6 +216,49 @@ class AnswerQualityJudgmentProperties:
     @property
     def score(self) -> type_builder.ClassPropertyViewer:
         return type_builder.ClassPropertyViewer(self.__bldr.property("score"))
+    
+    @property
+    def reasoning(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("reasoning"))
+    
+    
+
+
+class AnswerabilityVerdictAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("AnswerabilityVerdict")
+        self._properties: typing.Set[str] = set([  "answerable",  "reasoning",  ])
+        self._props = AnswerabilityVerdictProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "AnswerabilityVerdictProperties":
+        return self._props
+
+
+class AnswerabilityVerdictViewer(AnswerabilityVerdictAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class AnswerabilityVerdictProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def answerable(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("answerable"))
     
     @property
     def reasoning(self) -> type_builder.ClassPropertyViewer:

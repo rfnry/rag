@@ -10,6 +10,61 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-28 R1.3 — HYBRID mode (SELF-ROUTE)
+
+Lights up `mode="hybrid"` user-facing — the SELF-ROUTE strategy from
+Google DeepMind: run RAG first, ask the LLM whether the retrieved chunks
+suffice, and only escalate to the expensive full-corpus path when they
+don't. ~77% of queries are resolvable by RAG alone in their published
+benchmarks, so HYBRID's net cost is roughly 35-61% of pure DIRECT with
+accuracy near pure DIRECT. Builds on R1.1's `_load_full_corpus` and
+R1.2's `QueryMode` / `RoutingConfig` / `generate_from_corpus`.
+
+- New BAML function `CheckAnswerability(query, context) -> AnswerabilityVerdict`
+  in `retrieval/baml/baml_src/generation/`. `AnswerabilityVerdict
+  { answerable bool, reasoning string }`. Both string params fenced with
+  the standard `======== <TAG> START/END ========` markers and registered
+  in `USER_CONTROLLED_PARAMS`. Prompt body is consumer-agnostic — passes
+  the F1 domain-bias contract.
+- `RoutingConfig.__post_init__` now enforces: `mode=HYBRID` requires
+  `hybrid_answerability_model` to be non-`None`. The R1.2 forward-compat
+  field becomes a hard requirement when HYBRID is selected. Existing
+  `direct_context_threshold` bounds check is preserved.
+- `RagEngine.query()` dispatches `HYBRID` to new `_query_via_hybrid`:
+  1. Retrieves chunks via the existing pipeline (`_retrieve_chunks`).
+  2. Formats chunks via `chunks_to_context(...)`.
+  3. Calls `b.CheckAnswerability(query, context)` against a registry
+     built from `RoutingConfig.hybrid_answerability_model`.
+  4. `verdict.answerable=True` → generate from chunks via the existing
+     `GenerationService.generate` path; `routing_decision="hybrid_rag"`.
+  5. `verdict.answerable=False` → load the full corpus via
+     `_load_full_corpus`, generate via `generate_from_corpus`;
+     `routing_decision="hybrid_lc"`.
+- Failure-handling: if `CheckAnswerability` raises (rate limit, timeout,
+  malformed JSON), `_check_answerability` logs a warning and returns
+  `(True, ...)` so the engine degrades to the cheaper RAG path rather
+  than silently escalating to LC on a transient error. The trace's
+  `answerability_check` timing is recorded in either path.
+- `RetrievalTrace.routing_decision` now populates the remaining R8.1
+  enum values: `"hybrid_rag"` (RAG path under HYBRID; chunks were
+  sufficient) or `"hybrid_lc"` (LC escalation; chunks judged
+  insufficient). Combined with R1.2's `"retrieval"` / `"direct"`, the
+  R8.1 enum is fully realized.
+- `AUTO` continues to raise `ConfigurationError` ("not yet implemented in
+  R1.3; AUTO lands in R1.4. Use RETRIEVAL, DIRECT, or HYBRID for now.")
+  rather than silently falling back.
+- 8 new unit tests in `tests/test_routing_hybrid_mode.py`. Total: 1083
+  (up from 1075).
+
+Per-query cost shape: HYBRID adds one cheap LLM call per query (the
+answerability check, ~$0.005 / ~200 ms on Sonnet-class models) on top of
+RAG. The escalation rate determines whether the extra cost is offset by
+DIRECT's full-corpus savings on the answerable subset. R1.3 ships
+without a verdict cache — caching answerability per `(query, chunks)`
+hash is a future optimization once a real workload exposes the hit
+rate. Streaming HYBRID is out of scope (deferred alongside
+`query_stream`'s trace gap).
+
 ### 2026-04-28 R1.2 — DIRECT context mode
 
 Lights up `mode="direct"` user-facing — the strategy that loads the entire

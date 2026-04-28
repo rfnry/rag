@@ -120,12 +120,8 @@ async def test_query_mode_direct_sets_routing_decision_in_trace() -> None:
     assert retrieval_result.trace.routing_decision == "retrieval"
 
 
-async def test_query_mode_hybrid_raises_not_implemented_in_r1_2() -> None:
-    """HYBRID and AUTO raise ConfigurationError pointing to R1.3 / R1.4."""
-    hybrid = _make_engine(mode=QueryMode.HYBRID)
-    with pytest.raises(ConfigurationError, match="not yet implemented"):
-        await hybrid.query("q1", knowledge_id="kb-1")
-
+async def test_query_mode_auto_raises_not_implemented_in_r1_3() -> None:
+    """AUTO raises ConfigurationError pointing to R1.4 (HYBRID is live in R1.3)."""
     auto = _make_engine(mode=QueryMode.AUTO)
     with pytest.raises(ConfigurationError, match="not yet implemented"):
         await auto.query("q1", knowledge_id="kb-1")

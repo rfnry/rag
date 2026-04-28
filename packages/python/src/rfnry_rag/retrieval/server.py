@@ -8,8 +8,9 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from rfnry_rag.retrieval.baml.baml_client.async_client import b
 from rfnry_rag.retrieval.common.errors import ConfigurationError, InputError
-from rfnry_rag.retrieval.common.formatting import ChunkOrdering
+from rfnry_rag.retrieval.common.formatting import ChunkOrdering, chunks_to_context
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 
 if TYPE_CHECKING:
@@ -402,9 +403,9 @@ class RoutingConfig:
     """Top-level routing strategy.
 
     R1.2 introduces this as the dispatch knob between RETRIEVAL (existing
-    pipeline) and DIRECT (full corpus into the prompt; no retrieval).
-    `hybrid_answerability_model` is declared now for forward compatibility
-    with R1.3 — R1.2 does not enforce required-when-HYBRID; R1.3 will.
+    pipeline) and DIRECT (full corpus into the prompt; no retrieval). R1.3
+    lights up HYBRID — RAG-then-answerability-check (SELF-ROUTE) — and
+    enforces `hybrid_answerability_model` as required for that mode.
     """
 
     mode: QueryMode = QueryMode.RETRIEVAL
@@ -416,6 +417,10 @@ class RoutingConfig:
             raise ConfigurationError(
                 f"RoutingConfig.direct_context_threshold={self.direct_context_threshold} "
                 "out of range [1_000, 2_000_000]"
+            )
+        if self.mode == QueryMode.HYBRID and self.hybrid_answerability_model is None:
+            raise ConfigurationError(
+                "RoutingConfig.mode=HYBRID requires hybrid_answerability_model"
             )
 
 
@@ -519,6 +524,7 @@ class RagEngine:
         self._chunker: SemanticChunker | None = None
         self._embedding_model_name: str = ""
         self._expansion_registry: Any = None  # Built in _initialize_impl when document_expansion is enabled
+        self._answerability_registry: Any = None  # Built in _initialize_impl when mode=HYBRID
 
     @property
     def knowledge(self) -> KnowledgeManager:
@@ -740,6 +746,9 @@ class RagEngine:
             if ingestion.document_expansion.enabled and ingestion.document_expansion.lm_client
             else None
         )
+
+        if cfg.routing.mode == QueryMode.HYBRID and cfg.routing.hybrid_answerability_model is not None:
+            self._answerability_registry = build_registry(cfg.routing.hybrid_answerability_model)
 
         # Build services
         self._ingestion_service = IngestionService(
@@ -1214,7 +1223,9 @@ class RagEngine:
 
         RETRIEVAL (default) runs the existing retrieve-then-generate path.
         DIRECT loads the entire corpus into the prompt and skips retrieval.
-        HYBRID and AUTO are reserved for R1.3 / R1.4 and currently raise.
+        HYBRID runs RAG first, then asks the LLM whether the chunks suffice;
+        on "no", escalates to a DIRECT-style full-corpus generation.
+        AUTO is reserved for R1.4 and currently raises.
         """
         self._check_initialized()
         _validate_query_text(text)
@@ -1230,12 +1241,16 @@ class RagEngine:
             return await self._query_via_direct_context(
                 text, knowledge_id, history, system_prompt, trace
             )
-        # HYBRID / AUTO are declared in QueryMode so consumers can wire them
-        # explicitly today; the engine refuses rather than silently falling
-        # back to RETRIEVAL — silent fallback would mask a misconfiguration.
+        if mode == QueryMode.HYBRID:
+            return await self._query_via_hybrid(
+                text, knowledge_id, history, min_score, collection, system_prompt, trace
+            )
+        # AUTO is declared in QueryMode so consumers can wire it explicitly
+        # today; the engine refuses rather than silently falling back to
+        # RETRIEVAL — silent fallback would mask a misconfiguration.
         raise ConfigurationError(
-            f"QueryMode.{mode.name} is not yet implemented in R1.2; "
-            "HYBRID lands in R1.3 and AUTO in R1.4. Use RETRIEVAL or DIRECT for now."
+            f"QueryMode.{mode.name} is not yet implemented in R1.3; "
+            "AUTO lands in R1.4. Use RETRIEVAL, DIRECT, or HYBRID for now."
         )
 
     async def _query_via_retrieval(
@@ -1311,6 +1326,102 @@ class RagEngine:
             trace_obj.confidence = result.confidence
             result.trace = trace_obj
         return result
+
+    async def _query_via_hybrid(
+        self,
+        text: str,
+        knowledge_id: str | None,
+        history: list[tuple[str, str]] | None,
+        min_score: float | None,
+        collection: str | None,
+        system_prompt: str | None,
+        trace: bool,
+    ) -> QueryResult:
+        """HYBRID (SELF-ROUTE): RAG first, then ask the LLM if chunks suffice.
+
+        Phase 1 retrieves chunks via the existing pipeline. Phase 2 calls
+        `b.CheckAnswerability` with the chunks-as-context. On `answerable=True`
+        we generate from chunks (`routing_decision="hybrid_rag"`); on
+        `answerable=False` we load the full corpus and generate from it
+        (`routing_decision="hybrid_lc"`).
+        """
+        assert self._generation_service is not None
+        chunks, trace_obj = await self._retrieve_chunks(
+            text, knowledge_id, history, min_score, collection, trace=trace
+        )
+        context = chunks_to_context(chunks, ordering=self._config.generation.chunk_ordering)
+
+        answerable, _reasoning = await self._check_answerability(text, context, trace_obj)
+
+        if answerable:
+            gen_start = time.perf_counter() if trace_obj is not None else 0.0
+            result = await self._generation_service.generate(
+                query=text, chunks=chunks, history=history, system_prompt=system_prompt
+            )
+            if trace_obj is not None:
+                trace_obj.timings["generation"] = time.perf_counter() - gen_start
+                # `hybrid_rag` distinguishes "RAG path under HYBRID" from plain
+                # `retrieval` so consumers can attribute SELF-ROUTE wins (chunks
+                # were sufficient) vs escalations (`hybrid_lc`) downstream.
+                trace_obj.routing_decision = "hybrid_rag"
+                trace_obj.confidence = result.confidence
+                if result.clarification is not None:
+                    trace_obj.grounding_decision = "clarification"
+                elif result.grounded:
+                    trace_obj.grounding_decision = "grounded"
+                else:
+                    trace_obj.grounding_decision = "ungrounded"
+                result.trace = trace_obj
+            return result
+
+        load_start = time.perf_counter() if trace_obj is not None else 0.0
+        corpus = await self._load_full_corpus(knowledge_id)
+        if trace_obj is not None:
+            trace_obj.timings["direct_context_load"] = time.perf_counter() - load_start
+
+        gen_start = time.perf_counter() if trace_obj is not None else 0.0
+        result = await self._generation_service.generate_from_corpus(
+            query=text, corpus=corpus, history=history, system_prompt=system_prompt
+        )
+        if trace_obj is not None:
+            trace_obj.timings["generation"] = time.perf_counter() - gen_start
+            # `hybrid_lc` flags an LC escalation (chunks judged insufficient);
+            # downstream cost analysis subtracts these from `hybrid_rag` to
+            # quantify SELF-ROUTE's expensive-path hit rate.
+            trace_obj.routing_decision = "hybrid_lc"
+            trace_obj.confidence = result.confidence
+            result.trace = trace_obj
+        return result
+
+    async def _check_answerability(
+        self,
+        query: str,
+        context: str,
+        trace_obj: RetrievalTrace | None,
+    ) -> tuple[bool, str]:
+        """Run `b.CheckAnswerability` and record timing on the trace.
+
+        Returns `(answerable, reasoning)`. On exception, returns
+        `(True, "check_failed: <exc>")` and logs a warning. We treat a
+        failed check as answerable=True to degrade to the cheaper RAG path
+        rather than silently escalating to LC on a transient error
+        (rate limit, timeout, malformed JSON).
+        """
+        start = time.perf_counter()
+        try:
+            verdict = await b.CheckAnswerability(
+                query=query,
+                context=context,
+                baml_options={"client_registry": self._answerability_registry},
+            )
+            if trace_obj is not None:
+                trace_obj.timings["answerability_check"] = time.perf_counter() - start
+            return bool(verdict.answerable), str(verdict.reasoning)
+        except Exception as exc:
+            if trace_obj is not None:
+                trace_obj.timings["answerability_check"] = time.perf_counter() - start
+            logger.warning("answerability check failed; degrading to RAG: %s", exc)
+            return True, f"check_failed: {exc}"
 
     async def query_stream(
         self,

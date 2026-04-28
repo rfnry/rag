@@ -127,6 +127,21 @@ class BamlAsyncClient:
                 "query": query,
             })
             return typing.cast(types.QueryAnalysis, __result__.cast_to(types, types, stream_types, False, __runtime__))
+    async def CheckAnswerability(self, query: str,context: str,
+        baml_options: BamlCallOptions = {},
+    ) -> types.AnswerabilityVerdict:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            # Use streaming internally when on_tick is provided
+            __stream__ = self.stream.CheckAnswerability(query=query,context=context,
+                baml_options=baml_options)
+            return await __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="CheckAnswerability", args={
+                "query": query,"context": context,
+            })
+            return typing.cast(types.AnswerabilityVerdict, __result__.cast_to(types, types, stream_types, False, __runtime__))
     async def CheckRelevance(self, query: str,passage: str,
         baml_options: BamlCallOptions = {},
     ) -> types.RelevanceJudgment:
@@ -517,6 +532,18 @@ class BamlStreamClient:
           lambda x: typing.cast(types.QueryAnalysis, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
+    def CheckAnswerability(self, query: str,context: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlStream[stream_types.AnswerabilityVerdict, types.AnswerabilityVerdict]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="CheckAnswerability", args={
+            "query": query,"context": context,
+        })
+        return baml_py.BamlStream[stream_types.AnswerabilityVerdict, types.AnswerabilityVerdict](
+          __result__,
+          lambda x: typing.cast(stream_types.AnswerabilityVerdict, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(types.AnswerabilityVerdict, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
     def CheckRelevance(self, query: str,passage: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlStream[stream_types.RelevanceJudgment, types.RelevanceJudgment]:
@@ -822,6 +849,13 @@ class BamlHttpRequestClient:
             "query": query,
         }, mode="request")
         return __result__
+    async def CheckAnswerability(self, query: str,context: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="CheckAnswerability", args={
+            "query": query,"context": context,
+        }, mode="request")
+        return __result__
     async def CheckRelevance(self, query: str,passage: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
@@ -1010,6 +1044,13 @@ class BamlHttpStreamRequestClient:
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="AnalyzeQuery", args={
             "query": query,
+        }, mode="stream")
+        return __result__
+    async def CheckAnswerability(self, query: str,context: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="CheckAnswerability", args={
+            "query": query,"context": context,
         }, mode="stream")
         return __result__
     async def CheckRelevance(self, query: str,passage: str,

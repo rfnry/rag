@@ -31,6 +31,7 @@ from pathlib import Path
 USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     # ---- retrieval / generation ----
     "GenerateAnswer": ["context", "query"],
+    "CheckAnswerability": ["query", "context"],
     "CheckRelevance": ["query", "passage"],
     "SynthesizeDocument": [],  # page_analyses is pipeline-generated
     "GenerateReasoningStep": ["query", "context"],  # prior_reasoning is pipeline-generated
