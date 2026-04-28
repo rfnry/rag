@@ -143,3 +143,5 @@ async def test_query_mode_direct_returns_query_result_shape_unchanged() -> None:
     assert result.trace is not None
     # DIRECT doesn't retrieve; final_results is honest about that.
     assert result.trace.final_results == []
+    # DIRECT has no chunk-level attribution — `sources` must be empty.
+    assert result.sources == []

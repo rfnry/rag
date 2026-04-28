@@ -65,6 +65,13 @@ plumbing.
 - 7 new unit tests in `tests/test_routing_direct_mode.py`. Total:
   1075 (up from 1068).
 
+Per-query cost shape: DIRECT pays the full corpus token count on the
+prompt side every query — typically 10-100× larger than RETRIEVAL's
+top-k chunk subset. Provider-level prompt caching amortizes this on
+repeat queries against the same `knowledge_id` (transparent to the SDK,
+no opt-in required). The first query against a given corpus is unmetered
+by caching and pays the full token bill; budget accordingly.
+
 ### 2026-04-28 R1.1 — Token counting + corpus loader (plumbing)
 
 Phase 2 R1 series turns rfnry-rag from "always retrieves" into a routing
