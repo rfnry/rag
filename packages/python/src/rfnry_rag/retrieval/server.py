@@ -1332,6 +1332,13 @@ class RagEngine:
             return ""
 
         sources = await persistence.metadata_store.list_sources(knowledge_id=knowledge_id)
+        # Pin the corpus prefix to a stable function of WHICH sources are
+        # present, not WHEN they were ingested. The metadata store today orders
+        # by `created_at DESC`, which means re-ingesting a source bumps it to
+        # the front and busts the entire prompt cache. Sorting by source_id
+        # here makes re-ingestion cache-invalidate only the affected slot, and
+        # adding a new source only changes the suffix below existing ones.
+        sources = sorted(sources, key=lambda s: s.source_id)
         document_store = persistence.document_store
         vector_store = persistence.vector_store
         parts: list[str] = []

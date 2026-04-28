@@ -162,3 +162,39 @@ async def test_load_full_corpus_prefers_document_store_over_vector_scroll() -> N
     assert "[Source: doc_a]" in corpus
     document_store.get.assert_awaited_once_with("source_a")
     vector_store.scroll.assert_not_called()
+
+
+async def test_get_corpus_tokens_returns_zero_for_empty_knowledge_scope() -> None:
+    metadata_store = SimpleNamespace(
+        list_sources=AsyncMock(return_value=[]),
+        update_source=AsyncMock(),
+    )
+    km = KnowledgeManager(metadata_store=metadata_store)  # type: ignore[arg-type]
+
+    total = await km.get_corpus_tokens(knowledge_id="kb-empty")
+
+    assert total == 0
+    metadata_store.update_source.assert_not_called()
+
+
+async def test_load_full_corpus_returns_empty_string_for_empty_knowledge_scope() -> None:
+    from rfnry_rag.retrieval.server import RagEngine
+
+    metadata_store = SimpleNamespace(list_sources=AsyncMock(return_value=[]))
+    document_store = SimpleNamespace(get=AsyncMock())
+    vector_store = SimpleNamespace(scroll=AsyncMock())
+
+    engine = RagEngine.__new__(RagEngine)
+    engine._config = SimpleNamespace(  # type: ignore[assignment]
+        persistence=SimpleNamespace(
+            metadata_store=metadata_store,
+            document_store=document_store,
+            vector_store=vector_store,
+        )
+    )
+
+    corpus = await engine._load_full_corpus(knowledge_id="kb-empty")
+
+    assert corpus == ""
+    document_store.get.assert_not_called()
+    vector_store.scroll.assert_not_called()

@@ -119,6 +119,11 @@ class KnowledgeManager:
             return 0
 
         sources = await self._metadata_store.list_sources(knowledge_id=knowledge_id)
+        # Deterministic order regardless of metadata-store sort. Helps with
+        # concurrency, test fixture stability, and keeps R1.2's prompt-caching
+        # prefix pinned to source_id rather than created_at (mirrors the same
+        # sort applied in `RagEngine._load_full_corpus`).
+        sources = sorted(sources, key=lambda s: s.source_id)
         total = 0
         # Sequential per-source: lazy-compute touches the document store + the
         # metadata store per legacy row, which is rare in practice. Batching is
@@ -133,11 +138,17 @@ class KnowledgeManager:
             if self._document_store is not None:
                 text = await self._document_store.get(source.source_id) or ""
             token_count = count_tokens(text) if text else 0
-            source.metadata["estimated_tokens"] = token_count
-            await self._metadata_store.update_source(
-                source.source_id,
-                metadata=source.metadata,
-            )
+            # Only writeback when we actually computed something. Writing a
+            # zero would poison the cache forever — `cached is not None` above
+            # would short-circuit subsequent calls even after a document store
+            # is later configured or the source is re-ingested. Empty-text
+            # legacy sources stay un-cached so retries can succeed.
+            if text and token_count > 0:
+                source.metadata["estimated_tokens"] = token_count
+                await self._metadata_store.update_source(
+                    source.source_id,
+                    metadata=source.metadata,
+                )
             total += token_count
         return total
 
