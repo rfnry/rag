@@ -8,7 +8,7 @@ For the research analysis behind these decisions, see [rfnry-rag Long-Context St
 
 ## Status at a glance
 
-Last updated: 2026-04-27.
+Last updated: 2026-04-28.
 
 ### Phase 1 — Foundation (independent, small scope)
 
@@ -25,8 +25,8 @@ Phase 1 closed.
 | Item | Status | Notes |
 |---|---|---|
 | **R8** — Retrieval Evaluation & Diagnostics | ✅ Done | 6 commits ending `6db0724` (2026-04-27). R8.1 `RetrievalTrace` + opt-in `trace=True`; R8.2 heuristic `classify_failure`; R8.3 `RagEngine.benchmark` + `rfnry-rag benchmark` CLI. Test count 1035 → 1060 (+25). |
-| **R1** — Context-Aware Routing | ⏳ Next | Largest single-feature impact overall. R8's traces now make `AUTO` tunable. |
-| **R5** — Adaptive Retrieval Parameters | ⏸ Blocked on R1 | Needs query classifier; classifier is shared with R6. |
+| **R1** — Context-Aware Routing | ✅ Done | 8 commits ending `75139a6` (2026-04-28). R1.1 token counting + corpus loader; R1.2 `QueryMode` enum + `RoutingConfig` + DIRECT mode; R1.3 HYBRID (SELF-ROUTE) with `CheckAnswerability` BAML; R1.4 AUTO mode (recommended for new users). Test count 1060 → 1091 (+31). |
+| **R5** — Adaptive Retrieval Parameters | ⏳ Next | Needs query classifier; classifier is shared with R6. R1's trace + R8's benchmark provide the observability needed to tune adaptive weights. |
 
 ### Phase 3 — Advanced (build on Phases 1+2)
 
@@ -37,7 +37,7 @@ Phase 1 closed.
 
 ### Recommended next pick
 
-**R1** — Context-Aware Routing. With R8 shipped, the trace + failure-distribution layer is in place to tune `AUTO` mode against a benchmark. Highest single-feature impact in the roadmap.
+**R5** — Adaptive Retrieval Parameters. R1 + R8 together provide the trace + benchmark + failure-classification layers needed to tune adaptive top_k / weights against measurable workloads. R5's query classifier also unblocks R6.
 
 ### Out of scope (explicitly NOT planned)
 
