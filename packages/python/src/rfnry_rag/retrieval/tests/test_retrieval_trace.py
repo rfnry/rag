@@ -155,7 +155,7 @@ async def test_retrieve_trace_timings_only_includes_stages_that_ran() -> None:
 
 
 async def test_retrieve_trace_routing_decision_is_none_placeholder() -> None:
-    """R1 will populate this later; R8.1 leaves it as None."""
+    """Default value before any stage populates it; R1.2/R1.3 populate it during query dispatch."""
     method_a = _mock_method("method_a", [_chunk("chunk_a")])
     service = RetrievalService(retrieval_methods=[method_a], top_k=5)
 

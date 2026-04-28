@@ -386,10 +386,9 @@ class TreeSearchConfig:
 class QueryMode(Enum):
     """User-facing routing strategy chosen per `RagEngine` instance.
 
-    `RETRIEVAL` (default, backward-compat), `DIRECT`, and `HYBRID` are live.
-    `AUTO` lands in R1.4 — selecting it today raises `ConfigurationError`.
-    The string values are reserved (matching `RetrievalTrace.routing_decision`
-    enumeration).
+    All four modes — `RETRIEVAL` (default, backward-compat), `DIRECT`,
+    `HYBRID`, and `AUTO` — are live as of R1.4. The string values match
+    the `RetrievalTrace.routing_decision` enumeration.
     """
 
     RETRIEVAL = "retrieval"
@@ -405,7 +404,9 @@ class RoutingConfig:
     R1.2 introduces this as the dispatch knob between RETRIEVAL (existing
     pipeline) and DIRECT (full corpus into the prompt; no retrieval). R1.3
     lights up HYBRID — RAG-then-answerability-check (SELF-ROUTE) — and
-    enforces `hybrid_answerability_model` as required for that mode.
+    enforces `hybrid_answerability_model` as required for that mode. R1.4
+    lights up AUTO — per-query routing between RETRIEVAL and DIRECT based
+    on `direct_context_threshold` versus the corpus token count.
     """
 
     mode: QueryMode = QueryMode.RETRIEVAL

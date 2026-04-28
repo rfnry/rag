@@ -6,10 +6,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Resolves 45 findings from the 2026-04-23 comprehensive review across
-correctness, security, operational safety, and hardening. 25 commits; 689
-tests passing (up from 629).
-
 ### 2026-04-28 R1.4 — AUTO mode
 
 Lights up `mode="auto"` user-facing — the recommended mode for new users.
@@ -151,7 +147,7 @@ plumbing.
   - `DIRECT` → new `_query_via_direct_context`: loads full corpus via
     `_load_full_corpus`, calls
     `GenerationService.generate_from_corpus`, returns `QueryResult`
-    with `chunks=[]` (honest — DIRECT didn't retrieve).
+    with `sources=[]` (honest — DIRECT didn't retrieve).
   - `HYBRID` / `AUTO` → `ConfigurationError` ("not yet implemented in
     R1.2; HYBRID lands in R1.3 and AUTO in R1.4").
 - New `GenerationService.generate_from_corpus(query, corpus, history,
