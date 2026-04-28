@@ -6,6 +6,67 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-04-28 R5.3 — Confidence expansion + LC escalation
+
+Closes the R5 series with a self-healing retry loop wrapped around
+`_retrieve_chunks` inside `RagEngine._query_via_retrieval`. When the first
+retrieval attempt returns weak chunks (`max(score) < grounding_threshold`),
+the loop retries with `top_k *= 2` (capped at `AdaptiveRetrievalConfig.
+top_k_max`). After `max_expansion_retries` exhausted with chunks still
+weak, optional LC escalation routes to `_query_via_direct_context` when
+`KnowledgeManager.get_corpus_tokens(knowledge_id) <= RoutingConfig.
+direct_context_threshold`; otherwise the engine proceeds with the last
+(weak) chunks and logs the decision for operator visibility.
+
+R5.3 is opt-in via `AdaptiveRetrievalConfig.confidence_expansion=True`
+(default `False`). When disabled, `_query_via_retrieval` runs byte-for-byte
+unchanged — no extra retries, no escalation, and the new
+`expansion_attempts` / `expansion_outcome` / `final_top_k` keys stay
+absent from `trace.adaptive` (distinct from "ran with 0 retries", which
+sets the keys with `expansion_attempts == 0`).
+
+- `RagEngine._query_via_retrieval` now wraps the existing single
+  `_retrieve_chunks` call with a retry loop. The loop lives at the engine
+  layer (NOT in `RetrievalService`): the engine has access to
+  `KnowledgeManager.get_corpus_tokens` for the LC-escalation decision and
+  `_query_via_direct_context` for the actual escalation. Service-level
+  concerns shouldn't know about cross-strategy escalation.
+- HYBRID is naturally excluded — `_query_via_hybrid` calls
+  `_retrieve_chunks` directly, not `_query_via_retrieval`. HYBRID has its
+  own answerability check; expansion would double up.
+- New static helper `RagEngine._max_chunk_score(chunks)` returns
+  `max(score)` or `None` for empty input. New classmethod
+  `RagEngine._should_expand(chunks, threshold)` returns
+  `_max_chunk_score(chunks) is None or _max_chunk_score(chunks) < threshold`.
+  The boundary is `<` not `<=` — a chunk score equal to the threshold is
+  NOT considered weak (matches `GenerationConfig.grounding_threshold`'s
+  existing semantics).
+- `RagEngine._retrieve_chunks` gains an optional `top_k: int | None = None`
+  parameter that overrides `RetrievalConfig.top_k` for that call only,
+  threaded through to `RetrievalService.retrieve`. Used by the retry loop
+  to retry with `top_k * 2` without mutating the service-level default.
+- The threshold source is `GenerationConfig.grounding_threshold` (existing
+  field — single source of truth). R5.3 does NOT add a new threshold knob.
+- `top_k` doubling is capped at `AdaptiveRetrievalConfig.top_k_max`. If
+  R5.2 already chose `top_k_max` for a COMPLEX query, the first expansion
+  step is a no-op and the loop falls through to step 2.
+- Step 2 (rewriter swap) ships as a no-op placeholder — only one rewriter
+  is configured today. TODO comment marks the future enhancement: a
+  consumer-supplied `AdaptiveRetrievalConfig.expansion_rewriters:
+  list[BaseQueryRewriting]` list to rotate through. Out of scope for R5.3.
+- New `RetrievalTrace.routing_decision` value: `"retrieval_then_direct"`.
+  Distinct from plain `"direct"` (AUTO chose DIRECT directly): the cost
+  shape differs (RAG-then-LC vs LC-only) and debugging consumers need to
+  attribute escalations. Five values now: `"retrieval"`, `"direct"`,
+  `"hybrid_rag"`, `"hybrid_lc"`, `"retrieval_then_direct"` —
+  `RetrievalTrace.routing_decision` docstring updated to enumerate them.
+- New `trace.adaptive` keys when expansion runs:
+  `expansion_attempts: int`, `expansion_outcome: "succeeded" |
+  "exhausted_proceeded" | "exhausted_escalated_to_lc"`, `final_top_k: int`.
+  Absent (not zero/None) when `confidence_expansion=False`.
+- 8 new unit tests in `tests/test_confidence_expansion.py`. Total test
+  count: 1109 → 1117.
+
 ### 2026-04-28 R5.2 — Dynamic top_k + task-aware method weights
 
 Lights up the first two consumer-facing R5 mechanisms on top of R5.1's

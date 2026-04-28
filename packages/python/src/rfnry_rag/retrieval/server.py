@@ -1312,6 +1312,29 @@ class RagEngine:
             text, knowledge_id, history, min_score, collection, system_prompt, trace
         )
 
+    @staticmethod
+    def _max_chunk_score(chunks: list[RetrievedChunk]) -> float | None:
+        """Max `score` across chunks; `None` for empty input."""
+        if not chunks:
+            return None
+        return max(c.score for c in chunks)
+
+    @classmethod
+    def _should_expand(
+        cls, chunks: list[RetrievedChunk], threshold: float
+    ) -> bool:
+        """True when retrieval signal is weak — empty OR strict-below threshold.
+
+        Boundary is `<` not `<=`: a query at exactly the threshold is NOT
+        considered weak. Matches `GenerationConfig.grounding_threshold`'s
+        existing semantics — `grounding_threshold` gates "is this answer
+        grounded?", and a chunk score equal to the threshold is grounded.
+        """
+        max_score = cls._max_chunk_score(chunks)
+        if max_score is None:
+            return True
+        return max_score < threshold
+
     async def _query_via_retrieval(
         self,
         text: str,
@@ -1322,11 +1345,113 @@ class RagEngine:
         system_prompt: str | None,
         trace: bool,
     ) -> QueryResult:
-        """Existing retrieve-then-generate pipeline (RETRIEVAL mode)."""
+        """Existing retrieve-then-generate pipeline (RETRIEVAL mode).
+
+        R5.3's confidence-expansion retry loop is wrapped here (NOT in
+        `RetrievalService`): the engine has access to
+        `KnowledgeManager.get_corpus_tokens` for the LC-escalation
+        decision and `_query_via_direct_context` for the actual
+        escalation — service-level concerns shouldn't know about
+        cross-strategy escalation. HYBRID's RAG branch calls
+        `_retrieve_chunks` directly (not `_query_via_retrieval`), so
+        HYBRID is naturally excluded from expansion (HYBRID has its own
+        answerability check; expansion would double up).
+        """
         assert self._generation_service is not None
+        # Defensive lookups: tests construct minimally-wired engines via
+        # `SimpleNamespace`, which may omit `adaptive` / `generation`.
+        # Production `RagServerConfig` always provides both; treating
+        # missing fields as "disabled" preserves the test ergonomics.
+        adaptive = getattr(self._config.retrieval, "adaptive", None)
+        expansion_enabled = (
+            adaptive is not None
+            and adaptive.enabled
+            and adaptive.confidence_expansion
+        )
+        generation_cfg = getattr(self._config, "generation", None)
+        grounding_threshold = (
+            generation_cfg.grounding_threshold if generation_cfg is not None else 0.5
+        )
+        base_top_k = getattr(self._config.retrieval, "top_k", 5)
+
         chunks, trace_obj = await self._retrieve_chunks(
             text, knowledge_id, history, min_score, collection, trace=trace
         )
+
+        attempts = 0
+        final_top_k = base_top_k
+        outcome: str | None = None
+        if expansion_enabled:
+            assert adaptive is not None  # narrowed by `expansion_enabled` truth
+            expanded_top_k = base_top_k
+            while attempts < adaptive.max_expansion_retries and self._should_expand(
+                chunks, grounding_threshold
+            ):
+                attempts += 1
+                if attempts == 1:
+                    expanded_top_k = min(expanded_top_k * 2, adaptive.top_k_max)
+                # Step 2 (attempts == 2): rewriter swap. R5.3 ships this as a
+                # no-op placeholder — only one rewriter is configured today.
+                # TODO: future enhancement could add
+                # `AdaptiveRetrievalConfig.expansion_rewriters: list[BaseQueryRewriting]`
+                # and rotate through them here. Out of scope for R5.3.
+                logger.info(
+                    "confidence expansion retry %d/%d (top_k=%d, grounding_threshold=%.2f)",
+                    attempts,
+                    adaptive.max_expansion_retries,
+                    expanded_top_k,
+                    grounding_threshold,
+                )
+                chunks, trace_obj = await self._retrieve_chunks(
+                    text,
+                    knowledge_id,
+                    history,
+                    min_score,
+                    collection,
+                    trace=trace,
+                    top_k=expanded_top_k,
+                )
+            final_top_k = expanded_top_k
+
+            if self._should_expand(chunks, grounding_threshold):
+                # Retries exhausted with chunks still weak. Try LC escalation
+                # if the corpus fits the direct-context threshold.
+                assert self._knowledge_manager is not None
+                tokens = await self._knowledge_manager.get_corpus_tokens(knowledge_id)
+                threshold = self._config.routing.direct_context_threshold
+                if tokens <= threshold:
+                    logger.info(
+                        "expansion exhausted; escalating to DIRECT mode (tokens=%d ≤ threshold=%d)",
+                        tokens,
+                        threshold,
+                    )
+                    direct_result = await self._query_via_direct_context(
+                        text, knowledge_id, history, system_prompt, trace
+                    )
+                    if direct_result.trace is not None:
+                        # `retrieval_then_direct` distinguishes "RETRIEVAL ran,
+                        # expansion failed, escalated" from plain `"direct"`
+                        # ("AUTO chose DIRECT directly"). Different cost shape
+                        # (RAG-then-LC vs LC-only), different debugging signal.
+                        direct_result.trace.routing_decision = "retrieval_then_direct"
+                        if direct_result.trace.adaptive is None:
+                            direct_result.trace.adaptive = {}
+                        direct_result.trace.adaptive["expansion_attempts"] = attempts
+                        direct_result.trace.adaptive["expansion_outcome"] = (
+                            "exhausted_escalated_to_lc"
+                        )
+                        direct_result.trace.adaptive["final_top_k"] = final_top_k
+                    return direct_result
+                logger.info(
+                    "expansion exhausted; corpus too large for DIRECT escalation "
+                    "(tokens=%d > threshold=%d); proceeding with best-effort RAG",
+                    tokens,
+                    threshold,
+                )
+                outcome = "exhausted_proceeded"
+            else:
+                outcome = "succeeded"
+
         grounding_start = time.perf_counter() if trace_obj is not None else 0.0
         result = await self._generation_service.generate(
             query=text, chunks=chunks, history=history, system_prompt=system_prompt
@@ -1341,6 +1466,12 @@ class RagEngine:
                 trace_obj.grounding_decision = "grounded"
             else:
                 trace_obj.grounding_decision = "ungrounded"
+            if expansion_enabled and outcome is not None:
+                if trace_obj.adaptive is None:
+                    trace_obj.adaptive = {}
+                trace_obj.adaptive["expansion_attempts"] = attempts
+                trace_obj.adaptive["expansion_outcome"] = outcome
+                trace_obj.adaptive["final_top_k"] = final_top_k
             result.trace = trace_obj
         return result
 
@@ -1883,12 +2014,18 @@ class RagEngine:
         min_score: float | None,
         collection: str | None,
         trace: bool = False,
+        top_k: int | None = None,
     ) -> tuple[list[RetrievedChunk], RetrievalTrace | None]:
         """Shared retrieval: unstructured + structured merge + score filter.
 
         When `trace=True`, returns the unstructured-pipeline trace alongside
         the merged chunks. The trace's `final_results` reflect the
         post-min-score-filter view returned to the caller.
+
+        `top_k` overrides the configured `RetrievalConfig.top_k` for this
+        call only; passed through to `RetrievalService.retrieve`. R5.3's
+        confidence-expansion loop uses this to retry with `top_k * 2`
+        without mutating the service-level default.
         """
         unstructured, structured = self._get_retrieval(collection)
         retrieval_query = self._build_retrieval_query(text, history)
@@ -1901,6 +2038,8 @@ class RagEngine:
             )
 
         tree_kwargs: dict[str, Any] = {"tree_chunks": tree_chunks} if tree_chunks else {}
+        if top_k is not None:
+            tree_kwargs["top_k"] = top_k
 
         trace_obj: RetrievalTrace | None = None
         if structured:

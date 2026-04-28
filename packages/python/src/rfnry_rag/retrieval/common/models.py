@@ -123,7 +123,21 @@ class RetrievalTrace:
     `complexity`, `query_type`, `effective_top_k`, `applied_multipliers`,
     `classification_source`. Asserting via `trace.adaptive["applied_multipliers"]`
     is the supported way for consumers / tests to inspect per-method weights
-    without reaching into service internals.
+    without reaching into service internals. R5.3 adds three more keys when
+    confidence expansion runs: `expansion_attempts: int`,
+    `expansion_outcome: "succeeded" | "exhausted_proceeded" | "exhausted_escalated_to_lc"`,
+    and `final_top_k: int`. These keys are absent (not zero/None) when
+    `confidence_expansion=False` — keeping "didn't run" distinct from
+    "ran with 0 retries".
+
+    `routing_decision` enumerates five values:
+    `"retrieval" | "direct" | "hybrid_rag" | "hybrid_lc" | "retrieval_then_direct"`.
+    `"retrieval_then_direct"` (R5.3) flags the LC-escalation case where
+    RETRIEVAL ran, confidence expansion exhausted with weak chunks, and
+    the engine fell back to `_query_via_direct_context`. Distinct from
+    plain `"direct"` (AUTO chose DIRECT directly) because the cost shape
+    differs (RAG-then-LC vs LC-only) and debugging consumers need to
+    attribute escalations.
     """
 
     query: str
