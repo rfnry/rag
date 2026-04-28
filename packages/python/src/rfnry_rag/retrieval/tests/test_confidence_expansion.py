@@ -136,8 +136,13 @@ async def test_expansion_disabled_runs_single_attempt() -> None:
 
 
 async def test_expansion_succeeds_on_first_attempt_when_above_threshold() -> None:
-    """First call returns strong chunks → no retry; outcome=succeeded, attempts=0."""
-    engine = _make_engine(confidence_expansion=True, grounding_threshold=0.5)
+    """First call returns strong chunks → no retry; outcome=succeeded, attempts=0.
+
+    Locks the contract that even with 0 retries, `final_top_k` is reported
+    (as `base_top_k`) — "didn't need to retry" is distinct from "didn't run
+    expansion at all", and consumers can rely on the key being present.
+    """
+    engine = _make_engine(confidence_expansion=True, base_top_k=5, grounding_threshold=0.5)
     strong = [_chunk(score=0.8)]
     trace = RetrievalTrace(query="q1", knowledge_id="kb-1", adaptive={})
     engine._retrieve_chunks = AsyncMock(return_value=(strong, trace))  # type: ignore[method-assign]
@@ -149,6 +154,7 @@ async def test_expansion_succeeds_on_first_attempt_when_above_threshold() -> Non
     assert result.trace.adaptive is not None
     assert result.trace.adaptive["expansion_attempts"] == 0
     assert result.trace.adaptive["expansion_outcome"] == "succeeded"
+    assert result.trace.adaptive["final_top_k"] == 5
 
 
 async def test_expansion_doubles_top_k_on_first_retry() -> None:
@@ -333,3 +339,67 @@ async def test_expansion_uses_grounding_threshold_from_generation_config() -> No
     )
     await strong_engine.query("q1", knowledge_id="kb-1", trace=True)
     assert strong_engine._retrieve_chunks.await_count == 1
+
+
+async def test_expansion_escalation_preserves_r5_2_adaptive_classification_keys() -> None:
+    """LC escalation MERGES the pre-escalation classifier verdict onto the DIRECT trace.
+
+    A consumer debugging "why did this escalate?" needs both signals:
+
+    - R5.2's classifier verdict (`complexity`, `query_type`,
+      `effective_top_k`, `applied_multipliers`, `classification_source`)
+      explains what the classifier said about the failed retrieval.
+    - R5.3's expansion keys (`expansion_attempts`, `expansion_outcome`,
+      `final_top_k`) explain why the engine gave up on RAG and escalated.
+
+    Without the merge, the classifier verdict would be silently dropped at
+    the escalation boundary because `_query_via_direct_context` returns a
+    fresh trace whose `adaptive` is `None`.
+    """
+    engine = _make_engine(
+        confidence_expansion=True,
+        max_expansion_retries=2,
+        grounding_threshold=0.5,
+        direct_context_threshold=150_000,
+        corpus_tokens=50_000,
+    )
+    weak = [_chunk(score=0.1)]
+    # Classifier verdict the failed retrieval was based on — R5.2's adaptive
+    # block carries these keys; the merge must preserve them.
+    pre_escalation_adaptive = {
+        "complexity": "COMPLEX",
+        "query_type": "ENTITY_RELATIONSHIP",
+        "effective_top_k": 15,
+        "applied_multipliers": {"vector": 0.8, "graph": 1.5},
+        "classification_source": "heuristic",
+    }
+    trace_with_classification = RetrievalTrace(
+        query="q1",
+        knowledge_id="kb-1",
+        adaptive=dict(pre_escalation_adaptive),
+    )
+    engine._retrieve_chunks = AsyncMock(  # type: ignore[method-assign]
+        side_effect=[
+            (weak, trace_with_classification),
+            (weak, trace_with_classification),
+            (weak, trace_with_classification),
+        ]
+    )
+    engine._load_full_corpus = AsyncMock(return_value="corpus body")  # type: ignore[method-assign]
+
+    result = await engine.query("q1", knowledge_id="kb-1", trace=True)
+
+    assert result.trace is not None
+    assert result.trace.adaptive is not None
+    # R5.2 keys preserved across the escalation boundary.
+    assert result.trace.adaptive["complexity"] == "COMPLEX"
+    assert result.trace.adaptive["query_type"] == "ENTITY_RELATIONSHIP"
+    assert result.trace.adaptive["effective_top_k"] == 15
+    assert result.trace.adaptive["applied_multipliers"] == {"vector": 0.8, "graph": 1.5}
+    assert result.trace.adaptive["classification_source"] == "heuristic"
+    # R5.3 keys layered on top.
+    assert result.trace.adaptive["expansion_outcome"] == "exhausted_escalated_to_lc"
+    assert result.trace.adaptive["expansion_attempts"] == 2
+    assert "final_top_k" in result.trace.adaptive
+    # Routing decision distinguishes RAG-then-LC from plain DIRECT.
+    assert result.trace.routing_decision == "retrieval_then_direct"

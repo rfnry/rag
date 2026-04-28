@@ -1434,13 +1434,25 @@ class RagEngine:
                         # ("AUTO chose DIRECT directly"). Different cost shape
                         # (RAG-then-LC vs LC-only), different debugging signal.
                         direct_result.trace.routing_decision = "retrieval_then_direct"
-                        if direct_result.trace.adaptive is None:
-                            direct_result.trace.adaptive = {}
-                        direct_result.trace.adaptive["expansion_attempts"] = attempts
-                        direct_result.trace.adaptive["expansion_outcome"] = (
-                            "exhausted_escalated_to_lc"
-                        )
-                        direct_result.trace.adaptive["final_top_k"] = final_top_k
+                        # Merge order (R5.3 polish): start with whatever the
+                        # DIRECT trace carries (likely None — DIRECT didn't run
+                        # adaptive), layer R5.2's pre-escalation classifier
+                        # verdict (`complexity`, `query_type`, `effective_top_k`,
+                        # `applied_multipliers`, `classification_source`) on top
+                        # so a consumer debugging "why did this escalate?" can
+                        # see the verdict that drove the failed retrieval, then
+                        # layer R5.3's expansion keys on top of THAT. Without
+                        # this merge the classifier verdict would be silently
+                        # dropped at the escalation boundary.
+                        merged: dict[str, Any] = {}
+                        if direct_result.trace.adaptive is not None:
+                            merged.update(direct_result.trace.adaptive)
+                        if trace_obj is not None and trace_obj.adaptive is not None:
+                            merged.update(trace_obj.adaptive)
+                        merged["expansion_attempts"] = attempts
+                        merged["expansion_outcome"] = "exhausted_escalated_to_lc"
+                        merged["final_top_k"] = final_top_k
+                        direct_result.trace.adaptive = merged
                     return direct_result
                 logger.info(
                     "expansion exhausted; corpus too large for DIRECT escalation "

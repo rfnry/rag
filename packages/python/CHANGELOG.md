@@ -25,6 +25,14 @@ unchanged — no extra retries, no escalation, and the new
 absent from `trace.adaptive` (distinct from "ran with 0 retries", which
 sets the keys with `expansion_attempts == 0`).
 
+Per-query cost shape: each expansion retry adds one full retrieval pipeline
+call (rewrite + multi-path + fusion + rerank) — at default config that's
+~200 ms per retry. The optional LC escalation additionally fires one
+full-corpus DIRECT call (~$0.10 cached on Sonnet-class). Worst case
+(`max_expansion_retries=2` + escalation): 3× retrieval cost + 1× DIRECT
+cost. Tune `max_expansion_retries` and the `confidence_expansion` flag
+based on the failure-distribution from R8.3's benchmark.
+
 - `RagEngine._query_via_retrieval` now wraps the existing single
   `_retrieve_chunks` call with a retry loop. The loop lives at the engine
   layer (NOT in `RetrievalService`): the engine has access to
