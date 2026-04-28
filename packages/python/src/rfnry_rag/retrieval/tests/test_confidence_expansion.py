@@ -403,3 +403,78 @@ async def test_expansion_escalation_preserves_r5_2_adaptive_classification_keys(
     assert "final_top_k" in result.trace.adaptive
     # Routing decision distinguishes RAG-then-LC from plain DIRECT.
     assert result.trace.routing_decision == "retrieval_then_direct"
+
+
+async def test_expansion_escalation_preserves_pre_escalation_timings() -> None:
+    """LC escalation MERGES pre-escalation RAG timings onto the DIRECT trace.
+
+    `routing_decision="retrieval_then_direct"` exists specifically to flag
+    the RAG-then-LC cost shape for debugging consumers. If only DIRECT-stage
+    timings (`direct_context_load`, `generation`) survive the escalation,
+    the cost-shape attribution is broken — consumers can't see the
+    rewriting / retrieval / fusion / reranking / classification / retry
+    overhead that was paid before the escalation.
+
+    The merge layers RAG timings UNDER DIRECT timings (DIRECT wins on
+    key collision; none expected since RAG and DIRECT stage names are
+    distinct). Both sets must be present in the final trace.
+    """
+    engine = _make_engine(
+        confidence_expansion=True,
+        max_expansion_retries=2,
+        grounding_threshold=0.5,
+        direct_context_threshold=150_000,
+        corpus_tokens=50_000,
+    )
+    weak = [_chunk(score=0.1)]
+    # Pre-escalation RAG timings — what the retrieval pipeline accumulated
+    # before the engine gave up and escalated to DIRECT.
+    pre_escalation_timings = {
+        "retrieval": 0.05,
+        "fusion": 0.01,
+        "classification": 0.001,
+    }
+    trace_with_timings = RetrievalTrace(
+        query="q1",
+        knowledge_id="kb-1",
+        adaptive={},
+    )
+    trace_with_timings.timings.update(pre_escalation_timings)
+    engine._retrieve_chunks = AsyncMock(  # type: ignore[method-assign]
+        side_effect=[
+            (weak, trace_with_timings),
+            (weak, trace_with_timings),
+            (weak, trace_with_timings),
+        ]
+    )
+    engine._load_full_corpus = AsyncMock(return_value="corpus body")  # type: ignore[method-assign]
+
+    # Patch `_query_via_direct_context` to return a result whose trace
+    # carries known DIRECT-stage timings — this is what the escalation
+    # path attaches.
+    direct_trace = RetrievalTrace(
+        query="q1",
+        knowledge_id="kb-1",
+        routing_decision="direct",
+    )
+    direct_trace.timings.update({"direct_context_load": 0.02, "generation": 1.5})
+    direct_qr = _query_result(answer="lc answer")
+    direct_qr.trace = direct_trace
+    engine._query_via_direct_context = AsyncMock(return_value=direct_qr)  # type: ignore[method-assign]
+
+    result = await engine.query("q1", knowledge_id="kb-1", trace=True)
+
+    assert result.trace is not None
+    # Both RAG-stage and DIRECT-stage timings must be present so consumers
+    # can attribute the full RAG-then-LC cost shape.
+    assert "retrieval" in result.trace.timings
+    assert "fusion" in result.trace.timings
+    assert "classification" in result.trace.timings
+    assert "direct_context_load" in result.trace.timings
+    assert "generation" in result.trace.timings
+    # Values are preserved (not zeroed / overwritten).
+    assert result.trace.timings["retrieval"] == 0.05
+    assert result.trace.timings["fusion"] == 0.01
+    assert result.trace.timings["classification"] == 0.001
+    assert result.trace.timings["direct_context_load"] == 0.02
+    assert result.trace.timings["generation"] == 1.5

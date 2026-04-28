@@ -193,3 +193,27 @@ def test_adaptive_llm_classification_requires_enrich_lm_client() -> None:
         ),
     )
     RagEngine(good_config)._validate_config()
+
+
+def test_adaptive_confidence_expansion_requires_enabled() -> None:
+    """`confidence_expansion=True AND enabled=False` is a silent no-op
+    footgun — `_query_via_retrieval` requires BOTH flags before firing
+    the retry loop. Surface the misconfig at construction time so it
+    can't ship to production.
+
+    Regression guard mirroring the `use_llm_classification` precedent.
+    Lives in `__post_init__` (not `_validate_config`) because both
+    fields are on the same dataclass — single-config invariant, not
+    cross-config.
+    """
+    # confidence_expansion=True without enabled=True -> ConfigurationError.
+    with pytest.raises(
+        ConfigurationError, match="confidence_expansion.*enabled"
+    ):
+        AdaptiveRetrievalConfig(enabled=False, confidence_expansion=True)
+
+    # enabled=True + confidence_expansion=True succeeds (the live path).
+    AdaptiveRetrievalConfig(enabled=True, confidence_expansion=True)
+
+    # Both False (the default) succeeds — back-compat for existing consumers.
+    AdaptiveRetrievalConfig(enabled=False, confidence_expansion=False)

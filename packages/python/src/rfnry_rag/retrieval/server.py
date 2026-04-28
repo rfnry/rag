@@ -304,6 +304,18 @@ class AdaptiveRetrievalConfig:
                 f"AdaptiveRetrievalConfig.max_expansion_retries={self.max_expansion_retries} "
                 "out of range [0, 5]"
             )
+        # Single-config invariant: confidence_expansion is gated by `enabled`
+        # in `_query_via_retrieval` (both flags must be True before the retry
+        # loop fires). `enabled=False, confidence_expansion=True` is therefore
+        # a silent no-op — surface it as a config error so consumers don't
+        # ship the misconfig and wonder why expansion never runs. Mirrors the
+        # `use_llm_classification` cross-config guard, but lives here (not in
+        # `_validate_config`) because both fields are on this dataclass.
+        if self.confidence_expansion and not self.enabled:
+            raise ConfigurationError(
+                "AdaptiveRetrievalConfig.confidence_expansion=True requires enabled=True; "
+                "confidence expansion is gated by adaptive retrieval being enabled."
+            )
 
 
 @dataclass
@@ -1453,6 +1465,21 @@ class RagEngine:
                         merged["expansion_outcome"] = "exhausted_escalated_to_lc"
                         merged["final_top_k"] = final_top_k
                         direct_result.trace.adaptive = merged
+                        # Merge pre-escalation RAG timings onto the DIRECT trace
+                        # so consumers can attribute the full RAG-then-LC cost
+                        # shape (the whole point of `routing_decision="retrieval_then_direct"`).
+                        # Without this, the RAG-stage timings (rewriting, retrieval,
+                        # fusion, reranking, classification, retry overhead) would
+                        # be silently dropped — only DIRECT-stage timings
+                        # (`direct_context_load`, `generation`) would survive.
+                        # DIRECT timings take precedence on key collision (none
+                        # expected — RAG and DIRECT stage names are distinct).
+                        if trace_obj is not None and trace_obj.timings:
+                            merged_timings = {
+                                **trace_obj.timings,
+                                **direct_result.trace.timings,
+                            }
+                            direct_result.trace.timings = merged_timings
                     return direct_result
                 logger.info(
                     "expansion exhausted; corpus too large for DIRECT escalation "

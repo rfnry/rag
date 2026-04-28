@@ -73,7 +73,8 @@ based on the failure-distribution from R8.3's benchmark.
   "exhausted_proceeded" | "exhausted_escalated_to_lc"`, `final_top_k: int`.
   Absent (not zero/None) when `confidence_expansion=False`.
 - 8 new unit tests in `tests/test_confidence_expansion.py`. Total test
-  count: 1109 → 1117.
+  count: 1109 → 1117 (polish commit added +1 regression test;
+  cumulative R5: 1091 → 1118 (+27)).
 
 ### 2026-04-28 R5.2 — Dynamic top_k + task-aware method weights
 
@@ -127,7 +128,7 @@ classifier call, no multipliers, `trace.adaptive` stays `None`.
   (default fallback) leaves byte-for-byte behaviour for un-profiled
   methods.
 - 7 new unit tests in `tests/test_adaptive_topk_and_weights.py`. Total
-  test count: 1100 → 1107.
+  test count: 1100 → 1107 (polish commit added +2 regression tests).
 
 ### 2026-04-28 R5.1 — Query classifier (heuristic + LLM, plumbing for R5.2/R5.3/R6)
 
@@ -189,7 +190,7 @@ retrieve` runs unchanged; the new `AdaptiveRetrievalConfig` defaults
   default, comparative complex, entity-relationship priority over
   procedural, procedural detection, complexity by length-or-entity-count,
   signals shape, LLM-path BAML invocation, and LLM-failure heuristic
-  fallback. Total 1091 → 1099 passed.
+  fallback. Total 1091 → 1099 passed (polish commit added +1 regression test).
 
 ### 2026-04-28 R1.4 — AUTO mode
 
