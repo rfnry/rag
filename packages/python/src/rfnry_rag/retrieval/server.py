@@ -1305,6 +1305,85 @@ class RagEngine:
         vectors = await self._config.ingestion.embeddings.embed([text])
         return vectors[0]
 
+    async def _load_full_corpus(self, knowledge_id: str | None) -> str:
+        """Concatenate every source's text under ``knowledge_id`` into one string.
+
+        Plumbing for R1's DIRECT / HYBRID modes — they need the whole corpus
+        in-prompt, not retrieval-ranked chunks. Caller is responsible for the
+        downstream model-context-limit check; this method does not truncate.
+
+        Strategy per source: prefer the document store (lossless, original
+        text). Fall back to a vector-store scroll only when the document store
+        is absent or returns nothing — the vector path is lossy because chunk
+        boundaries can land mid-sentence and table-row chunks are flattened
+        into linear text. Skips parent chunks (`chunk_type == "parent"`) on
+        the scroll path so Phase A5's parent-child indexing doesn't double
+        the emitted text.
+
+        Sequential per-source: a knowledge with N sources issues N reads.
+        Acceptable for R1.1 — DIRECT mode invokes this once per query, not
+        per chunk. Batch fetch via `IN (?, ?, ...)` is straightforward to add
+        if a real workload exposes the latency.
+
+        Returns the empty string when the knowledge has no sources.
+        """
+        persistence = self._config.persistence
+        if persistence.metadata_store is None:
+            return ""
+
+        sources = await persistence.metadata_store.list_sources(knowledge_id=knowledge_id)
+        document_store = persistence.document_store
+        vector_store = persistence.vector_store
+        parts: list[str] = []
+        for source in sources:
+            text: str | None = None
+            if document_store is not None:
+                text = await document_store.get(source.source_id)
+            if not text and vector_store is not None:
+                text = await self._reconstruct_corpus_from_vector_scroll(
+                    vector_store,
+                    source.source_id,
+                )
+            if not text:
+                continue
+            name = source.metadata.get("name", source.source_id)
+            parts.append(f"[Source: {name}]\n{text}")
+        return "\n\n".join(parts)
+
+    @staticmethod
+    async def _reconstruct_corpus_from_vector_scroll(
+        vector_store: BaseVectorStore,
+        source_id: str,
+    ) -> str:
+        """Reassemble text by scrolling child chunks for ``source_id``.
+
+        Lossy fallback — chunk boundaries are not guaranteed to align with
+        sentence/paragraph boundaries, and table-row chunks emit one linear
+        line per row. Filters parent chunks (`chunk_type == "parent"`) so
+        Phase A5's parent-child indexing doesn't double-count text.
+        """
+        offset: str | None = None
+        ordered: list[tuple[int, str]] = []
+        while True:
+            results, next_offset = await vector_store.scroll(
+                filters={"source_id": source_id},
+                limit=500,
+                offset=offset,
+            )
+            for r in results:
+                if r.payload.get("chunk_type", "child") == "parent":
+                    continue
+                content = r.payload.get("content", "")
+                if not content:
+                    continue
+                idx = r.payload.get("chunk_index", 0)
+                ordered.append((idx, content))
+            if next_offset is None or not results:
+                break
+            offset = next_offset
+        ordered.sort(key=lambda pair: pair[0])
+        return "\n\n".join(text for _, text in ordered)
+
     def _build_retrieval_query(self, text: str, history: list[tuple[str, str]] | None) -> str:
         """Enrich the retrieval query with recent conversation context.
 

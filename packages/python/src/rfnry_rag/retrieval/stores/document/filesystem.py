@@ -168,6 +168,15 @@ class FilesystemDocumentStore:
         results = sorted(merged.values(), key=lambda m: m.score, reverse=True)
         return results[:top_k]
 
+    async def get(self, source_id: str) -> str | None:
+        """Return the stored full text for ``source_id``, or None if absent."""
+        _safe_path_component(source_id, field="source_id")
+        file_path = await self._find_file(source_id)
+        if file_path is None:
+            return None
+        parsed = await asyncio.to_thread(self._parse_file, file_path)
+        return parsed.get("content")
+
     async def delete_content(self, source_id: str) -> None:
         file_path = await self._find_file(source_id)
         if file_path is None:

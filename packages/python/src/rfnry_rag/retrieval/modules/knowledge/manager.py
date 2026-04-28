@@ -6,6 +6,7 @@ from typing import Any
 
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import Chunk, Source, SourceStats
+from rfnry_rag.retrieval.modules.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.retrieval.stores.document.base import BaseDocumentStore
 from rfnry_rag.retrieval.stores.graph.base import BaseGraphStore
 from rfnry_rag.retrieval.stores.metadata.base import BaseMetadataStore
@@ -101,6 +102,44 @@ class KnowledgeManager:
             return []
         sources = await self._metadata_store.list_sources(knowledge_id=knowledge_id)
         return [s for s in sources if s.stale]
+
+    async def get_corpus_tokens(self, knowledge_id: str | None = None) -> int:
+        """Sum estimated token counts across every source in scope.
+
+        Reads `Source.estimated_tokens` (backed by `metadata["estimated_tokens"]`)
+        when populated. Sources ingested before R1.1 lack the count; for those
+        we lazy-compute by reading source text from the document store and
+        write the result back via `update_source(metadata=...)` so subsequent
+        calls short-circuit. Vector-scroll fallback for legacy sources without
+        a document store is intentionally NOT implemented here — the legacy
+        path is rare and adding scroll-based reconstruction here would
+        duplicate `RagEngine._load_full_corpus`.
+        """
+        if not self._metadata_store:
+            return 0
+
+        sources = await self._metadata_store.list_sources(knowledge_id=knowledge_id)
+        total = 0
+        # Sequential per-source: lazy-compute touches the document store + the
+        # metadata store per legacy row, which is rare in practice. Batching is
+        # straightforward to add later if a hot-path consumer needs it.
+        for source in sources:
+            cached = source.estimated_tokens
+            if cached is not None:
+                total += cached
+                continue
+
+            text = ""
+            if self._document_store is not None:
+                text = await self._document_store.get(source.source_id) or ""
+            token_count = count_tokens(text) if text else 0
+            source.metadata["estimated_tokens"] = token_count
+            await self._metadata_store.update_source(
+                source.source_id,
+                metadata=source.metadata,
+            )
+            total += token_count
+        return total
 
     async def purge_stale(self, knowledge_id: str | None = None) -> int:
         """Remove all stale sources. Returns the count of removed sources."""

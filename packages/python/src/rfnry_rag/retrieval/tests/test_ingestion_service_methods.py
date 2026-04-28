@@ -113,7 +113,9 @@ async def test_ingest_text_method_receives_correct_args():
     assert call_kwargs["full_text"] == "Hello world"
     assert len(call_kwargs["chunks"]) == 1
     assert call_kwargs["tags"] == []
-    assert call_kwargs["metadata"] == {"name": "test-doc"}
+    # `estimated_tokens` is stamped onto the metadata blob at ingest time (R1.1).
+    assert call_kwargs["metadata"]["name"] == "test-doc"
+    assert call_kwargs["metadata"]["estimated_tokens"] == 2
 
 
 async def test_ingest_text_empty_chunks_raises():

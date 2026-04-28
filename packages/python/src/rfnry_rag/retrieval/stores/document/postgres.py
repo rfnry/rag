@@ -170,6 +170,15 @@ class PostgresDocumentStore:
             return await self._search_postgres(query, knowledge_id, source_type, top_k)
         return await self._search_fallback(query, knowledge_id, source_type, top_k)
 
+    async def get(self, source_id: str) -> str | None:
+        """Return the stored full text for ``source_id``, or None if absent."""
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(_SourceContentRow.content).where(_SourceContentRow.source_id == source_id)
+            )
+            row = result.scalar_one_or_none()
+            return row
+
     async def delete_content(self, source_id: str) -> None:
         async with self._session_factory() as session:
             await session.execute(delete(_SourceContentRow).where(_SourceContentRow.source_id == source_id))

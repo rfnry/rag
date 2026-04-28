@@ -10,6 +10,45 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-28 R1.1 — Token counting + corpus loader (plumbing)
+
+Phase 2 R1 series turns rfnry-rag from "always retrieves" into a routing
+engine that picks RETRIEVAL/DIRECT/HYBRID per query. R1.1 ships the
+prerequisite signal layer: per-source token counts populated at ingest,
+corpus-token + corpus-text loaders for the higher-level R1 sub-tasks
+(R1.2/R1.3/R1.4) to consume. No user-facing behavior change in this
+slice — `mode="retrieval"` (the default) does not exercise any of this
+code.
+
+- `Source.estimated_tokens: int | None` is now exposed as a property
+  reading `metadata["estimated_tokens"]` with `int(...)` coercion. Stored
+  in the metadata blob rather than a dedicated column so R1.1 ships
+  without a schema migration; promote to a column only when a real
+  consumer needs to query/sort by token count.
+- `IngestionService.ingest` and `ingest_text` populate
+  `metadata["estimated_tokens"]` at ingest time. The file path sums per
+  parsed-page `count_tokens(p.content)` rather than counting decorated
+  `full_text` so page-marker decoration doesn't inflate the number.
+- `KnowledgeManager.get_corpus_tokens(knowledge_id) -> int` sums tokens
+  across every source in scope. Sources lacking a count (legacy rows
+  ingested before R1.1) are lazy-computed by reading source text from
+  the document store and writing the result back via
+  `update_source(metadata=...)`. Sequential per-source — the legacy
+  path is rare; batching is straightforward to add later.
+- `RagEngine._load_full_corpus(knowledge_id) -> str` (private) returns
+  every source's text concatenated under `[Source: <name>]` separators.
+  Document store preferred; vector-scroll fallback when document store
+  is absent or empty (lossy — chunk boundaries can land mid-sentence,
+  table-row chunks flatten to linear text). Skips `chunk_type ==
+  "parent"` payloads on the scroll path so Phase A5's parent-child
+  indexing doesn't double-count text. Returns `""` for a knowledge with
+  no sources.
+- Adds `BaseDocumentStore.get(source_id) -> str | None` to the protocol
+  with implementations on `PostgresDocumentStore` and
+  `FilesystemDocumentStore`. Required by the corpus loader.
+- 6 new unit tests in `tests/test_corpus_token_counting.py`. Total:
+  1066 (up from 1060).
+
 ### 2026-04-27 R8.3 — Benchmark harness + CLI
 
 R8.1 captured traces; R8.2 classified failures; R8.3 ships the

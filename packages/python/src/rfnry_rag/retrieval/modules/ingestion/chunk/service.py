@@ -22,6 +22,7 @@ from rfnry_rag.retrieval.modules.ingestion.chunk.context import contextualize_ch
 from rfnry_rag.retrieval.modules.ingestion.chunk.expand import expand_chunks
 from rfnry_rag.retrieval.modules.ingestion.chunk.parsers.pdf import PDFParser
 from rfnry_rag.retrieval.modules.ingestion.chunk.parsers.text import TextParser
+from rfnry_rag.retrieval.modules.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.retrieval.modules.ingestion.models import ParsedPage
 from rfnry_rag.retrieval.modules.ingestion.vision.base import BaseVision
 from rfnry_rag.retrieval.modules.ingestion.vision.constants import IMAGE_EXTENSIONS
@@ -243,6 +244,12 @@ class IngestionService:
         full_text = "\n\n".join(f"[Page {p.page_number}]\n{p.content}" for p in pages)
         title = metadata.get("name", file_path.name)
 
+        # Stamp the per-source token estimate into the metadata blob so R1's
+        # routing layer can sum corpus size without re-reading content. Sum of
+        # per-page counts (not count_tokens(full_text)) so the page-marker
+        # decoration we added above doesn't inflate the number.
+        metadata["estimated_tokens"] = sum(count_tokens(p.content) for p in pages)
+
         await self._dispatch_methods(
             source_id=source_id,
             knowledge_id=knowledge_id,
@@ -308,6 +315,8 @@ class IngestionService:
 
         source_id = str(uuid4())
         title = metadata.get("name", "text-input")
+
+        metadata["estimated_tokens"] = count_tokens(content)
 
         await self._dispatch_methods(
             source_id=source_id,

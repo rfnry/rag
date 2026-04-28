@@ -26,6 +26,17 @@ class Source:
     source_type: str | None = None
     source_weight: float = 1.0
 
+    # Stored in `metadata["estimated_tokens"]` rather than a dedicated column so
+    # R1.1 ships without a schema migration; legacy rows return None and are
+    # lazy-computed by `KnowledgeManager.get_corpus_tokens`. Promote to a column
+    # only if a real consumer needs to query/sort by token count.
+    @property
+    def estimated_tokens(self) -> int | None:
+        value = self.metadata.get("estimated_tokens")
+        if value is None:
+            return None
+        return int(value)
+
 
 @dataclass
 class Chunk:
