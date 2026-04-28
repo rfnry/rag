@@ -386,10 +386,10 @@ class TreeSearchConfig:
 class QueryMode(Enum):
     """User-facing routing strategy chosen per `RagEngine` instance.
 
-    R1.2 lights up `RETRIEVAL` (default, backward-compat) and `DIRECT`.
-    `HYBRID` lands in R1.3 and `AUTO` in R1.4 — selecting either today
-    raises `ConfigurationError`. The string values are reserved (matching
-    `RetrievalTrace.routing_decision` enumeration).
+    `RETRIEVAL` (default, backward-compat), `DIRECT`, and `HYBRID` are live.
+    `AUTO` lands in R1.4 — selecting it today raises `ConfigurationError`.
+    The string values are reserved (matching `RetrievalTrace.routing_decision`
+    enumeration).
     """
 
     RETRIEVAL = "retrieval"
@@ -1437,6 +1437,14 @@ class RagEngine:
         _validate_query_text(text)
         if not self._generation_service:
             raise ConfigurationError("query_stream() requires generation.lm_client to be configured")
+
+        mode = self._config.routing.mode
+        if mode != QueryMode.RETRIEVAL:
+            raise ConfigurationError(
+                f"query_stream() does not support mode={mode.name}; "
+                "use query() or set RoutingConfig(mode=RETRIEVAL). "
+                "Streaming for non-retrieval modes is deferred."
+            )
 
         chunks, _ = await self._retrieve_chunks(text, knowledge_id, history, min_score, collection)
         async for event in self._generation_service.generate_stream(

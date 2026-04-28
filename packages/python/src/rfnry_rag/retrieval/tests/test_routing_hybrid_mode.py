@@ -226,3 +226,18 @@ async def test_query_mode_hybrid_trace_includes_answerability_timing() -> None:
     assert result.trace is not None
     assert "answerability_check" in result.trace.timings
     assert result.trace.timings["answerability_check"] >= 0.0
+
+
+@pytest.mark.parametrize("mode", [QueryMode.DIRECT, QueryMode.HYBRID, QueryMode.AUTO])
+async def test_query_stream_refuses_non_retrieval_modes(mode: QueryMode) -> None:
+    """`query_stream()` raises `ConfigurationError` for any non-RETRIEVAL mode.
+
+    R1.2 + R1.3 both left this gap open: a consumer who configures
+    `mode=DIRECT` / `mode=HYBRID` / `mode=AUTO` and calls `query_stream(...)`
+    silently got RAG-only behavior. Streaming for non-retrieval modes is
+    deferred — refuse explicitly.
+    """
+    engine = _make_engine(mode=mode)
+    with pytest.raises(ConfigurationError, match="does not support mode"):
+        async for _event in engine.query_stream("q1", knowledge_id="kb-1"):
+            pass
