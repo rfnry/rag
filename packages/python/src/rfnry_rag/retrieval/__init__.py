@@ -69,6 +69,12 @@ from rfnry_rag.retrieval.modules.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.retrieval.modules.retrieval.refinement.abstractive import AbstractiveRefinement as AbstractiveRefinement
 from rfnry_rag.retrieval.modules.retrieval.refinement.base import BaseChunkRefinement as BaseChunkRefinement
 from rfnry_rag.retrieval.modules.retrieval.refinement.extractive import ExtractiveRefinement as ExtractiveRefinement
+from rfnry_rag.retrieval.modules.retrieval.search.classification import (
+    QueryClassification as QueryClassification,
+)
+from rfnry_rag.retrieval.modules.retrieval.search.classification import QueryComplexity as QueryComplexity
+from rfnry_rag.retrieval.modules.retrieval.search.classification import QueryType as QueryType
+from rfnry_rag.retrieval.modules.retrieval.search.classification import classify_query as classify_query
 from rfnry_rag.retrieval.modules.retrieval.search.reranking.facade import Reranking as Reranking
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.hyde import HyDeRewriting as HyDeRewriting
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.multi_query import (
@@ -76,6 +82,7 @@ from rfnry_rag.retrieval.modules.retrieval.search.rewriting.multi_query import (
 )
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.step_back import StepBackRewriting as StepBackRewriting
 from rfnry_rag.retrieval.modules.retrieval.search.service import RetrievalService as RetrievalService
+from rfnry_rag.retrieval.server import AdaptiveRetrievalConfig as AdaptiveRetrievalConfig
 from rfnry_rag.retrieval.server import GenerationConfig as GenerationConfig
 from rfnry_rag.retrieval.server import IngestionConfig as IngestionConfig
 from rfnry_rag.retrieval.server import PersistenceConfig as PersistenceConfig
@@ -98,6 +105,7 @@ from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore as Qdrant
 
 __all__ = [
     "AbstractiveRefinement",
+    "AdaptiveRetrievalConfig",
     "BaseChunkRefinement",
     "BaseIngestionMethod",
     "BaseRetrievalJudgment",
@@ -146,8 +154,11 @@ __all__ = [
     "PersistenceConfig",
     "PostgresDocumentStore",
     "QdrantVectorStore",
+    "QueryClassification",
+    "QueryComplexity",
     "QueryMode",
     "QueryResult",
+    "QueryType",
     "RagEngine",
     "RagError",
     "RagServerConfig",
@@ -184,4 +195,5 @@ __all__ = [
     "VectorRetrieval",
     "Vision",
     "classify_failure",
+    "classify_query",
 ]

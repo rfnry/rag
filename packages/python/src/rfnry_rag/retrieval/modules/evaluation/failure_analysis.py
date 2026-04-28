@@ -47,12 +47,14 @@ relevant but didn't suffice".
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from enum import Enum
 
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk
+from rfnry_rag.retrieval.modules.retrieval.search.classification import (
+    _ENTITY_TOKEN_PATTERN,
+)
 
 logger = get_logger("evaluation.failure_analysis")
 
@@ -70,14 +72,11 @@ _HIGH_RELEVANCE_THRESHOLD = 0.7
 # are noise even if non-empty.
 _LOW_RELEVANCE_THRESHOLD = 0.3
 
-# Generic "entity-like" token: leading capital, then 2+ chars from
-# {A-Z, 0-9, _, -}. Matches `R-101`, `PumpModelX`, `EntityXYZ`,
-# `ServiceABC`. Excludes single-char tokens (`R`) and pure-lowercase
-# words. Domain vocabulary is intentionally NOT baked in (Convention 1).
-# The regex is deliberately permissive — a `JSON` or `HTTP` will match
-# too. The `signals["matched_token"]` field reports what triggered the
-# classification so consumers can judge.
-_ENTITY_TOKEN_PATTERN = re.compile(r"\b[A-Z][A-Z0-9_-]{2,}\b")
+# Generic "entity-like" token shared with the R5.1 query classifier —
+# imported from `modules/retrieval/search/classification.py` so the two
+# paths cannot drift. The regex is deliberately permissive (`JSON`,
+# `HTTP` will match too); the `signals["matched_token"]` field reports
+# what triggered the classification so consumers can judge.
 
 
 class FailureType(Enum):

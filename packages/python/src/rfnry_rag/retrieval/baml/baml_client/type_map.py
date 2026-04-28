@@ -73,6 +73,9 @@ type_map = {
     "types.QueryAnalysis": types.QueryAnalysis,
     "stream_types.QueryAnalysis": stream_types.QueryAnalysis,
 
+    "types.QueryClassification": types.QueryClassification,
+    "stream_types.QueryClassification": stream_types.QueryClassification,
+
     "types.QueryVariants": types.QueryVariants,
     "stream_types.QueryVariants": stream_types.QueryVariants,
 
@@ -118,5 +121,9 @@ type_map = {
     "types.ToolResolvedPages": types.ToolResolvedPages,
     "stream_types.ToolResolvedPages": stream_types.ToolResolvedPages,
 
+
+    "types.QueryComplexity": types.QueryComplexity,
+
+    "types.QueryType": types.QueryType,
 
 }

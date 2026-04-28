@@ -23,7 +23,7 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
     value: StreamStateValueT
     state: typing_extensions.Literal["Pending", "Incomplete", "Complete"]
 # #########################################################################
-# Generated classes (34)
+# Generated classes (35)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -130,6 +130,11 @@ class QueryAnalysis(BaseModel):
     keywords: typing.List[str]
     entity_references: typing.List[str]
     intent: typing.Optional[str] = None
+
+class QueryClassification(BaseModel):
+    complexity: typing.Optional[types.QueryComplexity] = None
+    query_type: typing.Optional[types.QueryType] = None
+    reasoning: typing.Optional[str] = None
 
 class QueryVariants(BaseModel):
     variants: typing.List[str] = Field(description='Alternative query formulations')

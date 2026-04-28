@@ -41,6 +41,7 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     "GenerateStepBackQuery": ["query"],
     # ---- retrieval / retrieval ----
     "AnalyzeQuery": ["query"],
+    "ClassifyQueryComplexity": ["query"],
     "RerankChunks": ["query", "passages"],
     "JudgeRetrievalNecessity": ["query"],  # knowledge_description is operator config
     "CompressRetrievedContext": ["query", "passages"],

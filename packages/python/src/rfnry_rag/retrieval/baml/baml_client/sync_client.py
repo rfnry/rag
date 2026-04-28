@@ -164,6 +164,20 @@ class BamlSyncClient:
                 "query": query,"passage": passage,
             })
             return typing.cast(types.RelevanceJudgment, __result__.cast_to(types, types, stream_types, False, __runtime__))
+    def ClassifyQueryComplexity(self, query: str,
+        baml_options: BamlCallOptions = {},
+    ) -> types.QueryClassification:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            __stream__ = self.stream.ClassifyQueryComplexity(query=query,
+                baml_options=baml_options)
+            return __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = self.__options.merge_options(baml_options).call_function_sync(function_name="ClassifyQueryComplexity", args={
+                "query": query,
+            })
+            return typing.cast(types.QueryClassification, __result__.cast_to(types, types, stream_types, False, __runtime__))
     def CompressRetrievedContext(self, query: str,passages: str,
         baml_options: BamlCallOptions = {},
     ) -> types.CompressedContext:
@@ -541,6 +555,18 @@ class BamlStreamClient:
           lambda x: typing.cast(types.RelevanceJudgment, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
+    def ClassifyQueryComplexity(self, query: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlSyncStream[stream_types.QueryClassification, types.QueryClassification]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_sync_stream(function_name="ClassifyQueryComplexity", args={
+            "query": query,
+        })
+        return baml_py.BamlSyncStream[stream_types.QueryClassification, types.QueryClassification](
+          __result__,
+          lambda x: typing.cast(stream_types.QueryClassification, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(types.QueryClassification, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
     def CompressRetrievedContext(self, query: str,passages: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlSyncStream[stream_types.CompressedContext, types.CompressedContext]:
@@ -848,6 +874,13 @@ class BamlHttpRequestClient:
             "query": query,"passage": passage,
         }, mode="request")
         return __result__
+    def ClassifyQueryComplexity(self, query: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="ClassifyQueryComplexity", args={
+            "query": query,
+        }, mode="request")
+        return __result__
     def CompressRetrievedContext(self, query: str,passages: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
@@ -1043,6 +1076,13 @@ class BamlHttpStreamRequestClient:
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="CheckRelevance", args={
             "query": query,"passage": passage,
+        }, mode="stream")
+        return __result__
+    def ClassifyQueryComplexity(self, query: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="ClassifyQueryComplexity", args={
+            "query": query,
         }, mode="stream")
         return __result__
     def CompressRetrievedContext(self, query: str,passages: str,

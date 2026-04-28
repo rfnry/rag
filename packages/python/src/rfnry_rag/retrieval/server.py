@@ -260,6 +260,53 @@ class IngestionConfig:
 
 
 @dataclass
+class AdaptiveRetrievalConfig:
+    """Adaptive retrieval (R5) — query-aware top_k, weights, and expansion.
+
+    R5.1 ships this as plumbing only: `enabled=False` is the default and
+    `RetrievalService.retrieve` does not yet read these fields. R5.2
+    consumes `top_k_min`/`top_k_max` and `task_weight_profiles` for
+    per-query adaptation; R5.3 consumes `confidence_expansion` and
+    `max_expansion_retries` for confidence-driven re-retrieval.
+
+    The cross-config rule "`enabled=True AND use_llm_classification=True`
+    requires `RetrievalConfig.enrich_lm_client`" lives in
+    `RagEngine._validate_config` (cross-config invariants live there by
+    convention — see `tree_indexing.max_tokens_per_node`).
+    """
+
+    enabled: bool = False
+    top_k_min: int = 3
+    top_k_max: int = 15
+    use_llm_classification: bool = False
+    # unbounded: per-method weights are consumer overrides; the fusion stage
+    # normalises them at consume time, so no upper bound is meaningful here.
+    task_weight_profiles: dict[str, dict[str, float]] | None = None  # unbounded: see comment above
+    confidence_expansion: bool = False
+    max_expansion_retries: int = 2
+
+    def __post_init__(self) -> None:
+        if not (1 <= self.top_k_min <= 50):
+            raise ConfigurationError(
+                f"AdaptiveRetrievalConfig.top_k_min={self.top_k_min} out of range [1, 50]"
+            )
+        if not (1 <= self.top_k_max <= 200):
+            raise ConfigurationError(
+                f"AdaptiveRetrievalConfig.top_k_max={self.top_k_max} out of range [1, 200]"
+            )
+        if self.top_k_min > self.top_k_max:
+            raise ConfigurationError(
+                f"AdaptiveRetrievalConfig.top_k_min={self.top_k_min} cannot exceed "
+                f"top_k_max={self.top_k_max}"
+            )
+        if not (0 <= self.max_expansion_retries <= 5):
+            raise ConfigurationError(
+                f"AdaptiveRetrievalConfig.max_expansion_retries={self.max_expansion_retries} "
+                "out of range [0, 5]"
+            )
+
+
+@dataclass
 class RetrievalConfig:
     top_k: int = 5
     reranker: BaseReranking | None = None
@@ -274,6 +321,7 @@ class RetrievalConfig:
     parent_expansion: bool = True
     chunk_refiner: BaseChunkRefinement | None = None
     history_window: int = 3
+    adaptive: AdaptiveRetrievalConfig = field(default_factory=AdaptiveRetrievalConfig)
 
     def __post_init__(self) -> None:
         if self.top_k < 1:
@@ -610,6 +658,17 @@ class RagEngine:
             raise ConfigurationError(
                 "bm25_enabled cannot be used together with sparse_embeddings — "
                 "sparse embeddings supersede BM25. Disable one."
+            )
+
+        if (
+            cfg.retrieval.adaptive.enabled
+            and cfg.retrieval.adaptive.use_llm_classification
+            and cfg.retrieval.enrich_lm_client is None
+        ):
+            raise ConfigurationError(
+                "AdaptiveRetrievalConfig.use_llm_classification=True requires "
+                "RetrievalConfig.enrich_lm_client — provide a LanguageModelClient "
+                "(no opinionated default model; consumer chooses)."
             )
 
     async def initialize(self) -> None:

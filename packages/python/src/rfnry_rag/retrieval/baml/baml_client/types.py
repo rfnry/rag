@@ -37,11 +37,22 @@ def get_checks(checks: typing.Dict[CheckName, Check]) -> typing.List[Check]:
 def all_succeeded(checks: typing.Dict[CheckName, Check]) -> bool:
     return all(check.status == "succeeded" for check in get_checks(checks))
 # #########################################################################
-# Generated enums (0)
+# Generated enums (2)
 # #########################################################################
 
+class QueryComplexity(str, Enum):
+    SIMPLE = "SIMPLE"
+    MODERATE = "MODERATE"
+    COMPLEX = "COMPLEX"
+
+class QueryType(str, Enum):
+    FACTUAL = "FACTUAL"
+    COMPARATIVE = "COMPARATIVE"
+    ENTITY_RELATIONSHIP = "ENTITY_RELATIONSHIP"
+    PROCEDURAL = "PROCEDURAL"
+
 # #########################################################################
-# Generated classes (34)
+# Generated classes (35)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -148,6 +159,11 @@ class QueryAnalysis(BaseModel):
     keywords: typing.List[str]
     entity_references: typing.List[str]
     intent: str
+
+class QueryClassification(BaseModel):
+    complexity: QueryComplexity
+    query_type: QueryType
+    reasoning: str
 
 class QueryVariants(BaseModel):
     variants: typing.List[str] = Field(description='Alternative query formulations')

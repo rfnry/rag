@@ -16,6 +16,7 @@ from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestio
 from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.multi_query import MultiQueryRewriting
 from rfnry_rag.retrieval.server import (
+    AdaptiveRetrievalConfig,
     DocumentExpansionConfig,
     GenerationConfig,
     IngestionConfig,
@@ -39,6 +40,7 @@ _CONFIGS_TO_AUDIT: list[type] = [
     DocumentExpansionConfig,
     BenchmarkConfig,
     RoutingConfig,
+    AdaptiveRetrievalConfig,
 ]
 
 

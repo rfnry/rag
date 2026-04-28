@@ -6,6 +6,67 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-04-28 R5.1 — Query classifier (heuristic + LLM, plumbing for R5.2/R5.3/R6)
+
+Ships the prerequisite layer R5.2 (dynamic top_k + task-aware weights) and
+R5.3 (confidence expansion) need: a pure async function that classifies a
+query into a `(complexity, query_type)` pair via either a heuristic path
+(default, free, deterministic regex) or an opt-in LLM path (more accurate,
+one extra ~$0.001 LLM call). R5.1 is invisible plumbing — `RetrievalService.
+retrieve` runs unchanged; the new `AdaptiveRetrievalConfig` defaults
+`enabled=False` so consumers see zero diff.
+
+- New module `modules/retrieval/search/classification.py` exporting:
+  - `QueryComplexity` enum (`SIMPLE`, `MODERATE`, `COMPLEX`).
+  - `QueryType` enum (`FACTUAL`, `COMPARATIVE`, `ENTITY_RELATIONSHIP`,
+    `PROCEDURAL`) — strict 4-label allowlist describing query SHAPE; adding
+    a fifth label requires explicit redesign.
+  - `QueryClassification` frozen dataclass (`complexity`, `query_type`,
+    `signals`, `source: Literal["heuristic", "llm"]`).
+  - Pure async `classify_query(text, lm_client=None) -> QueryClassification`.
+    Heuristic by default; LLM-backed when `lm_client` is provided. Never
+    raises — on LLM exception, logs a warning and returns the heuristic
+    result so a classifier failure cannot block retrieval (mirrors R1.3's
+    "degrade to RAG on answerability check failure").
+  - `_ENTITY_TOKEN_PATTERN` (`\b[A-Z][A-Z0-9_-]{2,}\b`) lives here and is
+    imported by R8.2's `failure_analysis.py` — one compiled regex for the
+    entity-shape pattern across the codebase, no drift between the two
+    consumers.
+- New BAML function `ClassifyQueryComplexity(query: string) -> QueryClassification`
+  in `retrieval/baml/baml_src/retrieval/`. BAML enums `QueryComplexity` and
+  `QueryType` mirror the Python enum value strings exactly so the BAML-to-
+  Python conversion in `_llm_classify` is a clean
+  `QueryComplexity[verdict.complexity.value.upper()]`. Domain-agnostic
+  prompt body (passes the `test_baml_prompt_domain_agnostic` contract);
+  `query` parameter fenced with the canonical START/END markers per
+  Convention 3 and registered in `USER_CONTROLLED_PARAMS`.
+- New `AdaptiveRetrievalConfig` dataclass on `RetrievalConfig.adaptive`:
+  - `enabled: bool = False`, `top_k_min: int = 3` (bounded `[1, 50]`),
+    `top_k_max: int = 15` (bounded `[1, 200]`), `use_llm_classification:
+    bool = False`, `task_weight_profiles: dict[str, dict[str, float]] |
+    None = None` (unbounded — consumer overrides), `confidence_expansion:
+    bool = False`, `max_expansion_retries: int = 2` (bounded `[0, 5]`).
+  - Cross-field check `top_k_min <= top_k_max` enforced in `__post_init__`.
+  - Cross-config check `enabled=True AND use_llm_classification=True
+    requires RetrievalConfig.enrich_lm_client` enforced in
+    `RagEngine._validate_config()` (consistent with the existing
+    `tree_indexing.max_tokens_per_node <= tree_search.max_context_tokens`
+    cross-config invariant).
+- Re-exports from `rfnry_rag.retrieval`: `classify_query`,
+  `QueryClassification`, `QueryComplexity`, `QueryType`,
+  `AdaptiveRetrievalConfig` (mirrors R8.2's `classify_failure` /
+  `FailureType` / `FailureClassification` re-export pattern).
+- Contract-test extensions: `_CONFIGS_TO_AUDIT += [AdaptiveRetrievalConfig]`
+  in `test_config_bounds_contract.py`;
+  `USER_CONTROLLED_PARAMS["ClassifyQueryComplexity"] = ["query"]` in
+  `test_baml_prompt_fence_contract.py`. Both extensions are registrations —
+  no new contract test files.
+- 8 new unit tests in `tests/test_query_classifier.py` covering factual
+  default, comparative complex, entity-relationship priority over
+  procedural, procedural detection, complexity by length-or-entity-count,
+  signals shape, LLM-path BAML invocation, and LLM-failure heuristic
+  fallback. Total 1091 → 1099 passed.
+
 ### 2026-04-28 R1.4 — AUTO mode
 
 Lights up `mode="auto"` user-facing — the recommended mode for new users.
