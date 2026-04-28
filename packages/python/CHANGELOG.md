@@ -6,6 +6,60 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-04-28 R5.2 — Dynamic top_k + task-aware method weights
+
+Lights up the first two consumer-facing R5 mechanisms on top of R5.1's
+classifier plumbing: per-query `top_k` adjustment based on classified
+complexity, and per-query method-weight multipliers based on classified
+query type. Both consume R5.1's `classify_query` ONCE per
+`RetrievalService.retrieve` call (BEFORE query rewriting, so the classifier
+sees the original user query rather than LLM-generated variants).
+
+R5.2 is opt-in via `AdaptiveRetrievalConfig.enabled=True`. When disabled
+(default), `RetrievalService.retrieve` runs byte-for-byte unchanged — no
+classifier call, no multipliers, `trace.adaptive` stays `None`.
+
+- `RetrievalService.__init__` gains two optional kwargs: `adaptive_config`
+  and `classifier_lm_client`. `RagEngine.initialize()` and the
+  per-collection builder (`_build_retrieval_pipeline`) now thread
+  `RetrievalConfig.adaptive` and `RetrievalConfig.enrich_lm_client` through
+  to the service.
+- New helper `_compute_adaptive_params(query, base_top_k, config, lm_client,
+  classify_fn)` in `modules/retrieval/search/classification.py`. Returns
+  `(classification, effective_top_k, multipliers, elapsed_seconds)`.
+  Complexity → top_k: SIMPLE → `top_k_min`, MODERATE → `base_top_k` (the
+  static `RetrievalConfig.top_k` — promoting MODERATE to its own knob would
+  add a third tunable for R8.3 calibration with no observable behavioural
+  gain), COMPLEX → `top_k_max`. The `classify_fn` parameter is injected by
+  the consumer so test patches at the consumer's import surface (e.g.
+  `service.classify_query`) reach every adaptive call.
+- Module-level `_DEFAULT_TASK_WEIGHT_PROFILES` constant in
+  `classification.py` — research-informed first cut, calibrate via R8.3
+  benchmark before relying on these in production. Override semantics:
+  full replacement at the `QueryType` level (a consumer who provides only
+  the FACTUAL profile gets defaults for the other three query types);
+  per-method fallback to 1.0 within a profile (methods absent from the
+  profile dict get no boost / no penalty). Default profiles:
+  - FACTUAL — vector-dominant: `{vector: 1.2, document: 0.8, graph: 0.8, tree: 0.8}`
+  - COMPARATIVE — document/tree-dominant: `{vector: 0.8, document: 1.2, graph: 0.8, tree: 1.2}`
+  - ENTITY_RELATIONSHIP — graph-dominant: `{vector: 0.8, document: 0.8, graph: 1.5, tree: 0.8}`
+  - PROCEDURAL — document/tree-dominant: `{vector: 1.0, document: 1.2, graph: 0.8, tree: 1.2}`
+- `RetrievalTrace.adaptive: dict[str, Any] | None` — new optional field,
+  `None` when adaptive didn't run; otherwise carries `complexity`,
+  `query_type`, `effective_top_k`, `applied_multipliers`,
+  `classification_source`. Asserting via
+  `trace.adaptive["applied_multipliers"]` is the supported public surface
+  for inspecting per-method weights without reaching into service
+  internals. `trace.timings["classification"]` records the wall-clock time
+  the classifier took.
+- Multipliers applied inside `_search_single_query` when constructing the
+  parallel `weights` array for RRF fusion — the existing fusion code
+  already accepts per-method weights, no change there. Multiplier of 1.0
+  (default fallback) leaves byte-for-byte behaviour for un-profiled
+  methods.
+- 7 new unit tests in `tests/test_adaptive_topk_and_weights.py`. Total
+  test count: 1100 → 1107.
+
 ### 2026-04-28 R5.1 — Query classifier (heuristic + LLM, plumbing for R5.2/R5.3/R6)
 
 Ships the prerequisite layer R5.2 (dynamic top_k + task-aware weights) and

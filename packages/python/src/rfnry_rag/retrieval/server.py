@@ -881,6 +881,8 @@ class RagEngine:
             source_type_weights=retrieval.source_type_weights,
             query_rewriter=retrieval.query_rewriter,
             chunk_refiner=retrieval.chunk_refiner,
+            adaptive_config=retrieval.adaptive,
+            classifier_lm_client=retrieval.enrich_lm_client,
         )
 
         # Structured retrieval (unchanged)
@@ -1818,6 +1820,8 @@ class RagEngine:
             source_type_weights=retrieval.source_type_weights,
             query_rewriter=retrieval.query_rewriter,
             chunk_refiner=retrieval.chunk_refiner,
+            adaptive_config=retrieval.adaptive,
+            classifier_lm_client=retrieval.enrich_lm_client,
         )
         structured: StructuredRetrievalService | None = None
         if ingestion.embeddings:

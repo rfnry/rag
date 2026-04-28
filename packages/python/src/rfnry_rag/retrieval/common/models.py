@@ -117,6 +117,13 @@ class RetrievalTrace:
     (HyDE / multi-query / step-back), each method's per-variant results are
     concatenated — not deduplicated; fusion handles dedupe at the
     `fused_results` stage.
+
+    `adaptive` (R5.2) is `None` when the adaptive pipeline did not run (the
+    default — `AdaptiveRetrievalConfig.enabled=False`); otherwise carries
+    `complexity`, `query_type`, `effective_top_k`, `applied_multipliers`,
+    `classification_source`. Asserting via `trace.adaptive["applied_multipliers"]`
+    is the supported way for consumers / tests to inspect per-method weights
+    without reaching into service internals.
     """
 
     query: str
@@ -129,6 +136,7 @@ class RetrievalTrace:
     grounding_decision: str | None = None
     confidence: float | None = None
     routing_decision: str | None = None
+    adaptive: dict[str, Any] | None = None
     timings: dict[str, float] = field(default_factory=dict)
     knowledge_id: str | None = None
 

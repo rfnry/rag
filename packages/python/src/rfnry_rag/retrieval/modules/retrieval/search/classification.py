@@ -12,22 +12,28 @@ Adding a fifth label requires explicit redesign across this module, the
 BAML enum, and downstream consumers (R5.2 task-aware weights, R5.3
 confidence escalation, R6 multi-hop).
 
-R5.1 is invisible plumbing: nothing in `RetrievalService.retrieve`
-consumes the classifier yet. R5.2 starts dispatch on `query_type`; R5.3
-escalates on `complexity` confidence; R6 will share the same classifier
-to decide multi-hop entry.
+R5.2 lights up the first two consumer-facing mechanisms:
+`_compute_adaptive_params` is the shared entry point both `RetrievalService`
+(dynamic top_k + per-method weight multipliers) and future R5.3 / R6
+consumers call. R5.3 will escalate on `complexity` confidence; R6 will
+share the same classifier to decide multi-hop entry.
 """
 
 from __future__ import annotations
 
 import re
+import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from rfnry_rag.retrieval.baml.baml_client.async_client import b
 from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.retrieval.common.logging import get_logger
+
+if TYPE_CHECKING:
+    from rfnry_rag.retrieval.server import AdaptiveRetrievalConfig
 
 logger = get_logger("retrieval.search.classification")
 
@@ -168,3 +174,69 @@ async def classify_query(
     if lm_client is None:
         return _heuristic_classify(text)
     return await _llm_classify(text, lm_client)
+
+
+# Research-informed first cut — R8.3's benchmark harness will calibrate
+# these from empirical recall/F1 deltas across query-type buckets. Until
+# that calibration runs, treat the numbers as defensible defaults, not
+# tuned production values. Keys are `QueryType.name` (uppercase); methods
+# absent from a profile fall back to multiplier 1.0 in the lookup helper.
+_DEFAULT_TASK_WEIGHT_PROFILES: dict[str, dict[str, float]] = {
+    "FACTUAL":             {"vector": 1.2, "document": 0.8, "graph": 0.8, "tree": 0.8},
+    "COMPARATIVE":         {"vector": 0.8, "document": 1.2, "graph": 0.8, "tree": 1.2},
+    "ENTITY_RELATIONSHIP": {"vector": 0.8, "document": 0.8, "graph": 1.5, "tree": 0.8},
+    "PROCEDURAL":          {"vector": 1.0, "document": 1.2, "graph": 0.8, "tree": 1.2},
+}
+
+
+async def _compute_adaptive_params(
+    query: str,
+    base_top_k: int,
+    config: AdaptiveRetrievalConfig,
+    lm_client: LanguageModelClient | None,
+    classify_fn: Callable[[str, LanguageModelClient | None], Awaitable[QueryClassification]],
+) -> tuple[QueryClassification, int, dict[str, float], float]:
+    """Run the classifier once and derive per-query top_k + method multipliers.
+
+    `classify_fn` is parameterised so each consumer (currently `RetrievalService`)
+    can supply its own module-local reference to `classify_query`. That keeps the
+    test surface predictable: tests patch the consumer's import (e.g.
+    `service.classify_query`) and the patch reaches every adaptive call without
+    helper-internal binding shielding it.
+
+    Returned tuple is `(classification, effective_top_k, multipliers, elapsed_seconds)`:
+    - `classification` is exposed so the trace can record the verdict alongside the
+      derived parameters without forcing the caller to re-await `classify_query`.
+    - `effective_top_k` maps `QueryComplexity` -> int. MODERATE intentionally maps
+      to `base_top_k` (the static `RetrievalConfig.top_k`) rather than to a
+      separate config field — promoting MODERATE to its own knob would create a
+      third tunable that R8.3 calibration would have to optimise against, with no
+      observable behavioural gain over "the existing default".
+    - `multipliers` maps method-name -> float using consumer-provided
+      `task_weight_profiles` when present, else `_DEFAULT_TASK_WEIGHT_PROFILES`.
+      Override semantics are full replacement at the QueryType level: a consumer
+      who provides only the FACTUAL profile gets defaults for the other three
+      query types. Inside a profile, methods absent from the dict fall back to
+      multiplier 1.0 (no change). Full replacement at type-level matches how
+      consumers think about "I want a custom FACTUAL profile" without forcing
+      them to re-state every method per-key.
+    - `elapsed_seconds` is the wall-clock time spent in classification, surfaced
+      so the trace can populate `timings["classification"]` without re-measuring.
+    """
+    start = time.perf_counter()
+    classifier_lm = lm_client if config.use_llm_classification else None
+    classification = await classify_fn(query, classifier_lm)
+    elapsed = time.perf_counter() - start
+
+    if classification.complexity is QueryComplexity.SIMPLE:
+        effective_top_k = config.top_k_min
+    elif classification.complexity is QueryComplexity.COMPLEX:
+        effective_top_k = config.top_k_max
+    else:
+        effective_top_k = base_top_k
+
+    profiles = config.task_weight_profiles or _DEFAULT_TASK_WEIGHT_PROFILES
+    profile = profiles.get(classification.query_type.name, {})
+    multipliers = dict(profile)
+
+    return classification, effective_top_k, multipliers, elapsed
