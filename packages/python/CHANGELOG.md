@@ -33,13 +33,14 @@ retrieve` runs unchanged; the new `AdaptiveRetrievalConfig` defaults
     entity-shape pattern across the codebase, no drift between the two
     consumers.
 - New BAML function `ClassifyQueryComplexity(query: string) -> QueryClassification`
-  in `retrieval/baml/baml_src/retrieval/`. BAML enums `QueryComplexity` and
-  `QueryType` mirror the Python enum value strings exactly so the BAML-to-
-  Python conversion in `_llm_classify` is a clean
-  `QueryComplexity[verdict.complexity.value.upper()]`. Domain-agnostic
-  prompt body (passes the `test_baml_prompt_domain_agnostic` contract);
-  `query` parameter fenced with the canonical START/END markers per
-  Convention 3 and registered in `USER_CONTROLLED_PARAMS`.
+  in `retrieval/baml/baml_src/retrieval/`. BAML enum *values* (uppercase,
+  e.g. `"SIMPLE"`) match the Python enum *member names*, so the BAML-to-
+  Python conversion in `_llm_classify` is `QueryComplexity[verdict.complexity.value.upper()]`.
+  The `.upper()` is a defensive guard against future BAML value-case
+  drift, not a strict requirement (BAML values are already uppercase).
+  Domain-agnostic prompt body (passes the `test_baml_prompt_domain_agnostic`
+  contract); `query` parameter fenced with the canonical START/END markers
+  per Convention 3 and registered in `USER_CONTROLLED_PARAMS`.
 - New `AdaptiveRetrievalConfig` dataclass on `RetrievalConfig.adaptive`:
   - `enabled: bool = False`, `top_k_min: int = 3` (bounded `[1, 50]`),
     `top_k_max: int = 15` (bounded `[1, 200]`), `use_llm_classification:

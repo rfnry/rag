@@ -128,8 +128,11 @@ async def _llm_classify(text: str, lm_client: LanguageModelClient) -> QueryClass
     # Fall back to the heuristic on any LLM failure: a classifier failure
     # must never make the SDK worse than running with no classifier.
     # Mirrors R1.3's "degrade to RAG on answerability check failure".
-    registry = build_registry(lm_client)
+    # `build_registry` is inside the try because it can raise
+    # `ConfigurationError` on `BOUNDARY_API_KEY` collision — covering it
+    # keeps the "never raises" promise in `classify_query`'s docstring.
     try:
+        registry = build_registry(lm_client)
         verdict = await b.ClassifyQueryComplexity(
             query=text,
             baml_options={"client_registry": registry},

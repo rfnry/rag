@@ -18,11 +18,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from rfnry_rag.retrieval import (
+    AdaptiveRetrievalConfig,
+    IngestionConfig,
+    PersistenceConfig,
     QueryClassification,
     QueryComplexity,
     QueryType,
+    RagEngine,
+    RagServerConfig,
+    RetrievalConfig,
     classify_query,
 )
+from rfnry_rag.retrieval.common.errors import ConfigurationError
 
 
 async def test_classify_query_factual_simple_default() -> None:
@@ -147,3 +154,42 @@ async def test_classify_query_llm_path_falls_back_to_heuristic_on_exception(
     assert result.complexity is QueryComplexity.SIMPLE
     assert result.query_type is QueryType.FACTUAL
     assert any("query classification" in record.message.lower() for record in caplog.records)
+
+
+def _mock_embeddings() -> MagicMock:
+    m = MagicMock()
+    m.model = "test"
+    return m
+
+
+def test_adaptive_llm_classification_requires_enrich_lm_client() -> None:
+    """`adaptive.enabled=True AND use_llm_classification=True` requires
+    `RetrievalConfig.enrich_lm_client` — enforced in `_validate_config`.
+
+    Regression guard for the cross-config rule introduced in R5.1.
+    """
+    base_persistence = PersistenceConfig(vector_store=MagicMock())
+    base_ingestion = IngestionConfig(embeddings=_mock_embeddings())
+
+    # Missing enrich_lm_client -> ConfigurationError
+    bad_config = RagServerConfig(
+        persistence=base_persistence,
+        ingestion=base_ingestion,
+        retrieval=RetrievalConfig(
+            adaptive=AdaptiveRetrievalConfig(enabled=True, use_llm_classification=True),
+            enrich_lm_client=None,
+        ),
+    )
+    with pytest.raises(ConfigurationError, match="use_llm_classification.*enrich_lm_client"):
+        RagEngine(bad_config)._validate_config()
+
+    # Inverse: providing a non-None enrich_lm_client does NOT raise.
+    good_config = RagServerConfig(
+        persistence=PersistenceConfig(vector_store=MagicMock()),
+        ingestion=IngestionConfig(embeddings=_mock_embeddings()),
+        retrieval=RetrievalConfig(
+            adaptive=AdaptiveRetrievalConfig(enabled=True, use_llm_classification=True),
+            enrich_lm_client=MagicMock(),
+        ),
+    )
+    RagEngine(good_config)._validate_config()
