@@ -1225,7 +1225,8 @@ class RagEngine:
         DIRECT loads the entire corpus into the prompt and skips retrieval.
         HYBRID runs RAG first, then asks the LLM whether the chunks suffice;
         on "no", escalates to a DIRECT-style full-corpus generation.
-        AUTO is reserved for R1.4 and currently raises.
+        AUTO picks DIRECT or RETRIEVAL per query based on corpus size
+        (`RoutingConfig.direct_context_threshold`).
         """
         self._check_initialized()
         _validate_query_text(text)
@@ -1245,12 +1246,8 @@ class RagEngine:
             return await self._query_via_hybrid(
                 text, knowledge_id, history, min_score, collection, system_prompt, trace
             )
-        # AUTO is declared in QueryMode so consumers can wire it explicitly
-        # today; the engine refuses rather than silently falling back to
-        # RETRIEVAL — silent fallback would mask a misconfiguration.
-        raise ConfigurationError(
-            f"QueryMode.{mode.name} is not yet implemented in R1.3; "
-            "AUTO lands in R1.4. Use RETRIEVAL, DIRECT, or HYBRID for now."
+        return await self._query_via_auto(
+            text, knowledge_id, history, min_score, collection, system_prompt, trace
         )
 
     async def _query_via_retrieval(
@@ -1392,6 +1389,56 @@ class RagEngine:
             trace_obj.confidence = result.confidence
             result.trace = trace_obj
         return result
+
+    async def _query_via_auto(
+        self,
+        text: str,
+        knowledge_id: str | None,
+        history: list[tuple[str, str]] | None,
+        min_score: float | None,
+        collection: str | None,
+        system_prompt: str | None,
+        trace: bool,
+    ) -> QueryResult:
+        """AUTO: pick DIRECT or RETRIEVAL per query based on corpus token count.
+
+        Reads `KnowledgeManager.get_corpus_tokens` and compares against
+        `RoutingConfig.direct_context_threshold`. Below-or-equal routes to
+        DIRECT (cheaper-and-better at small sizes); above routes to RETRIEVAL.
+        Both delegated paths populate `routing_decision` themselves — AUTO
+        adds no new enum value (AUTO is the chosen mode, not the chosen route).
+        """
+        assert self._knowledge_manager is not None
+        tokens = await self._knowledge_manager.get_corpus_tokens(knowledge_id)
+        threshold = self._config.routing.direct_context_threshold
+
+        # `tokens <= threshold` (not `<`) so corpora exactly at the threshold
+        # take the DIRECT path — DIRECT is the cheaper-and-better strategy
+        # for small corpora, and the LLM provider's context window is the
+        # actual hard limit, not this routing knob.
+        if tokens <= threshold:
+            # AUTO does NOT route to HYBRID. HYBRID adds an answerability LLM
+            # call to every query; AUTO's job is to pick the cheapest correct
+            # strategy. Consumers who want SELF-ROUTE behaviour opt in with
+            # `mode="hybrid"` explicitly. See plan §"Why AUTO doesn't route
+            # to HYBRID" for the cost-shape argument.
+            logger.info(
+                "auto routing: tokens=%d threshold=%d → DIRECT",
+                tokens,
+                threshold,
+            )
+            return await self._query_via_direct_context(
+                text, knowledge_id, history, system_prompt, trace
+            )
+
+        logger.info(
+            "auto routing: tokens=%d threshold=%d → RETRIEVAL",
+            tokens,
+            threshold,
+        )
+        return await self._query_via_retrieval(
+            text, knowledge_id, history, min_score, collection, system_prompt, trace
+        )
 
     async def _check_answerability(
         self,

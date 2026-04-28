@@ -1,10 +1,9 @@
 """R1.2 — QueryMode + RoutingConfig + DIRECT context mode dispatch.
 
 Lights up `mode="direct"` user-facing. RETRIEVAL stays the default (backward
-compat); HYBRID and AUTO raise `ConfigurationError` until R1.3 / R1.4 land.
-DIRECT skips retrieval, loads the full corpus via R1.1's `_load_full_corpus`,
-and routes through `GenerationService.generate_from_corpus` (gates skipped —
-the entire corpus is in the prompt).
+compat). DIRECT skips retrieval, loads the full corpus via R1.1's
+`_load_full_corpus`, and routes through `GenerationService.generate_from_corpus`
+(gates skipped — the entire corpus is in the prompt).
 """
 
 from types import SimpleNamespace
@@ -118,13 +117,6 @@ async def test_query_mode_direct_sets_routing_decision_in_trace() -> None:
     retrieval_result = await retrieval.query("q1", knowledge_id="kb-1", trace=True)
     assert retrieval_result.trace is not None
     assert retrieval_result.trace.routing_decision == "retrieval"
-
-
-async def test_query_mode_auto_raises_not_implemented_in_r1_3() -> None:
-    """AUTO raises ConfigurationError pointing to R1.4 (HYBRID is live in R1.3)."""
-    auto = _make_engine(mode=QueryMode.AUTO)
-    with pytest.raises(ConfigurationError, match="not yet implemented"):
-        await auto.query("q1", knowledge_id="kb-1")
 
 
 async def test_query_mode_direct_returns_query_result_shape_unchanged() -> None:

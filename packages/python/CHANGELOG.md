@@ -10,6 +10,56 @@ Resolves 45 findings from the 2026-04-23 comprehensive review across
 correctness, security, operational safety, and hardening. 25 commits; 689
 tests passing (up from 629).
 
+### 2026-04-28 R1.4 — AUTO mode
+
+Lights up `mode="auto"` user-facing — the recommended mode for new users.
+AUTO routes to RETRIEVAL or DIRECT per query based on corpus token count
+versus `RoutingConfig.direct_context_threshold` (default 150_000 — the
+Anthropic-tested boundary for prompt-cached long-context performance).
+The dataclass default stays `QueryMode.RETRIEVAL` so existing consumers
+are byte-for-byte unchanged.
+
+- New `RagEngine._query_via_auto(text, knowledge_id, history, min_score,
+  collection, system_prompt, trace)`:
+  1. `tokens = await self._knowledge_manager.get_corpus_tokens(knowledge_id)`
+     (R1.1's aggregator).
+  2. `threshold = self._config.routing.direct_context_threshold`.
+  3. Boundary rule: `tokens <= threshold` → DIRECT (cheaper-and-better at
+     small sizes); otherwise → RETRIEVAL.
+  4. `logger.info("auto routing: tokens=%d threshold=%d → %s", ...)` so
+     operators see decisions without enabling traces.
+  5. Delegates to `_query_via_direct_context` or `_query_via_retrieval`.
+- `RagEngine.query()` dispatch updated: `AUTO` no longer raises; routes to
+  `_query_via_auto`. RETRIEVAL / DIRECT / HYBRID dispatch unchanged.
+- AUTO does NOT route to HYBRID by design. HYBRID adds an answerability
+  LLM call to every query; AUTO's job is to pick the cheapest correct
+  strategy. Consumers who want SELF-ROUTE escalation opt in with
+  `mode="hybrid"` explicitly.
+- AUTO does NOT add a fifth `RetrievalTrace.routing_decision` value. The
+  trace records the chosen route (`"direct"` or `"retrieval"`), not the
+  chosen mode. Consumers asking "did AUTO pick direct or retrieval?" read
+  `result.trace.routing_decision`.
+- `query_stream()` continues to refuse non-RETRIEVAL modes (AUTO included).
+  Streaming AUTO is deferred.
+- Per-query cost: AUTO performs ONE extra metadata-store read per query
+  (`get_corpus_tokens`). Typically <10 ms thanks to R1.1's per-source
+  metadata cache, but real. The empty-`knowledge_id` corner case
+  (`get_corpus_tokens` returns 0) routes to DIRECT with an empty corpus —
+  the LLM will respond "I don't have information to answer that," which is
+  acceptable behaviour.
+
+| Strategy | Per-query cost | Best for |
+|---|---|---|
+| RETRIEVAL | ~$0.005 | Large corpora (>150K tokens) |
+| DIRECT | ~$0.10 (cached) | Small corpora (<150K tokens) |
+| HYBRID | ~$0.005-0.10 mixed | Mixed query workload |
+| AUTO | RETRIEVAL or DIRECT depending on size | Default for most users |
+
+- 6 new unit tests in `tests/test_routing_auto_mode.py`. The R1.2
+  `test_query_mode_auto_raises_not_implemented_in_r1_3` regression guard
+  is removed (AUTO no longer raises). Net delta: +6 - 1 = +5; total
+  1086 → 1091 passed.
+
 ### 2026-04-28 R1.3 — HYBRID mode (SELF-ROUTE)
 
 Lights up `mode="hybrid"` user-facing — the SELF-ROUTE strategy from
