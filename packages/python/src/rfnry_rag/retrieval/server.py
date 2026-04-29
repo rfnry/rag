@@ -850,14 +850,43 @@ class RagEngine:
         # because builds are explicit consumer actions, not engine-init work.
         # The default-off path leaves ``_raptor_registry`` ``None`` and registers
         # no RAPTOR retrieval method, so existing pipelines stay byte-for-byte
-        # unchanged. Eligibility mirrors ``build_raptor_index``: vector_store +
-        # embeddings + SQLAlchemyMetadataStore are all required.
+        # unchanged. Eligibility splits two ways:
+        #   1. Missing dep (vector_store / embeddings) → soft-skip + WARNING.
+        #      Consumers may declare ``raptor.enabled=True`` and defer wiring;
+        #      ``build_raptor_index`` raises at the API boundary if they try
+        #      to use it without the deps.
+        #   2. Wrong metadata-store type (not ``SQLAlchemyMetadataStore``) →
+        #      raise ``ConfigurationError`` at init. RAPTOR's registry schema
+        #      lives in SQLAlchemy; a non-SQLA metadata store is actively-
+        #      wrong wiring, not a missing-dep "defer wiring" pattern.
         if ingestion.raptor.enabled:
+            missing: list[str] = []
+            if persistence.vector_store is None:
+                missing.append("vector_store is not configured")
+            if ingestion.embeddings is None:
+                missing.append("embeddings is not configured")
+
             if (
-                persistence.vector_store is not None
-                and ingestion.embeddings is not None
-                and isinstance(persistence.metadata_store, SQLAlchemyMetadataStore)
+                persistence.metadata_store is not None
+                and not isinstance(persistence.metadata_store, SQLAlchemyMetadataStore)
             ):
+                # Actively-wrong wiring: surface immediately so consumers can't
+                # silently lose RAPTOR retrieval. ``build_raptor_index`` keeps
+                # its own isinstance check as defence-in-depth for paths that
+                # bypass ``initialize()``.
+                raise ConfigurationError(
+                    "raptor.enabled=True requires metadata_store to be "
+                    "SQLAlchemyMetadataStore "
+                    f"(got {type(persistence.metadata_store).__name__})"
+                )
+            if persistence.metadata_store is None:
+                missing.append("metadata_store is not configured")
+
+            if not missing:
+                # Type narrowed by the missing-deps and isinstance checks above.
+                assert isinstance(persistence.metadata_store, SQLAlchemyMetadataStore)
+                assert persistence.vector_store is not None
+                assert ingestion.embeddings is not None
                 self._raptor_registry = RaptorTreeRegistry(persistence.metadata_store)
                 retrieval_methods.append(
                     RaptorRetrieval(
@@ -869,15 +898,10 @@ class RagEngine:
                 )
                 logger.info("raptor retrieval: enabled")
             else:
-                # Soft-skip: surface the misconfig in logs but do not raise.
-                # ``build_raptor_index`` already raises ``ConfigurationError``
-                # at the API boundary if a consumer tries to use it without
-                # the required dependencies; raising here would break engines
-                # that pre-declare ``raptor.enabled=True`` but defer wiring.
                 logger.warning(
-                    "raptor.enabled=True but missing dependencies "
-                    "(vector_store / embeddings / SQLAlchemyMetadataStore) — "
-                    "RaptorRetrieval not registered"
+                    "raptor.enabled=True but %s; RAPTOR retrieval and "
+                    "build_raptor_index will be unavailable.",
+                    ", ".join(missing),
                 )
 
         # Chunker

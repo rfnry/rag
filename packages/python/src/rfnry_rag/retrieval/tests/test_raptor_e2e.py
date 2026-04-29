@@ -12,6 +12,7 @@ No domain-specific vocabulary.
 
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -19,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 
+from rfnry_rag.retrieval.common.errors import ConfigurationError
 from rfnry_rag.retrieval.common.language_model import (
     LanguageModelClient,
     LanguageModelProvider,
@@ -36,6 +38,7 @@ from rfnry_rag.retrieval.server import (
     RagServerConfig,
     RetrievalConfig,
 )
+from rfnry_rag.retrieval.stores.metadata.base import BaseMetadataStore
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -435,6 +438,105 @@ async def test_e2e_raptor_enabled_method_registered_in_namespace() -> None:
         assert engine._raptor_builder is None  # type: ignore[attr-defined]
     finally:
         await engine.shutdown()
+
+
+# ---------------------------------------------------------------------------
+# Polish tests (R2.3 follow-up): soft-skip WARNING + non-SQLA metadata-store raise.
+# ---------------------------------------------------------------------------
+
+
+async def test_engine_init_warns_when_raptor_enabled_but_deps_missing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """raptor.enabled=True with missing dependencies emits a WARNING at init.
+
+    Regression guard against silent demotion (WARNING → DEBUG) or removal of
+    the soft-skip branch. ``raptor.enabled=True`` paired with a missing
+    ``vector_store`` is the canonical "consumer pre-declared RAPTOR but
+    deferred wiring" case — engine must (a) initialize successfully,
+    (b) NOT register ``RaptorRetrieval`` in the namespace, and (c) emit a
+    WARNING that names the specific missing dep.
+    """
+    from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+
+    # Use a SQLAlchemyMetadataStore so the metadata-store-type check passes;
+    # we want the test to exercise the missing-vector_store branch only.
+    metadata_store = SQLAlchemyMetadataStore(url="sqlite+aiosqlite:///:memory:")
+    document_store = MagicMock()
+    document_store.initialize = AsyncMock()
+    document_store.shutdown = AsyncMock()
+
+    cfg = RagServerConfig(
+        # vector_store=None on purpose — that's the missing dep we're surfacing.
+        persistence=PersistenceConfig(
+            metadata_store=metadata_store,
+            document_store=document_store,
+        ),
+        ingestion=IngestionConfig(
+            # embeddings also None (would require a vector_store anyway per
+            # cross-config check); raptor wiring still trips on vector_store.
+            raptor=RaptorConfig(enabled=True, summary_model=_lm_client()),
+        ),
+        retrieval=RetrievalConfig(),
+    )
+    engine = RagEngine(cfg)
+    with caplog.at_level(logging.WARNING, logger="rfnry_rag.server"):
+        await engine.initialize()
+    try:
+        # Engine initialised without raising — soft-skip succeeded.
+        assert engine._raptor_registry is None  # type: ignore[attr-defined]
+        # And RaptorRetrieval is NOT registered in the namespace.
+        assert "raptor" not in engine.retrieval
+
+        # WARNING fired and names the specific missing dep.
+        warnings = [
+            rec for rec in caplog.records if rec.levelno == logging.WARNING
+        ]
+        raptor_warnings = [
+            rec for rec in warnings if "raptor.enabled=True" in rec.getMessage()
+        ]
+        assert raptor_warnings, (
+            "expected a WARNING about raptor.enabled=True but missing deps; "
+            f"got records: {[rec.getMessage() for rec in caplog.records]}"
+        )
+        assert any(
+            "vector_store" in rec.getMessage() for rec in raptor_warnings
+        ), "WARNING must name the specific missing dep (vector_store)"
+    finally:
+        await engine.shutdown()
+
+
+async def test_engine_init_raises_when_raptor_enabled_with_non_sqla_metadata_store() -> None:
+    """raptor.enabled=True with a non-SQLAlchemy metadata_store raises at init.
+
+    R2.3 polish: split the soft-skip into "missing wiring" (WARNING) versus
+    "actively wrong wiring" (raise). A non-SQLA metadata store is the latter
+    — the consumer chose a metadata store that cannot host RAPTOR's registry
+    schema, and silently degrading would mask the misconfig until the first
+    ``build_raptor_index`` call (or worse, never if they only retrieve).
+    """
+    # Stub a BaseMetadataStore-shaped object that is NOT a SQLAlchemyMetadataStore.
+    metadata_store = MagicMock(spec=BaseMetadataStore)
+    metadata_store.initialize = AsyncMock()
+    metadata_store.shutdown = AsyncMock()
+
+    document_store = MagicMock()
+    document_store.initialize = AsyncMock()
+    document_store.shutdown = AsyncMock()
+
+    cfg = RagServerConfig(
+        persistence=PersistenceConfig(
+            metadata_store=metadata_store,
+            document_store=document_store,
+        ),
+        ingestion=IngestionConfig(
+            raptor=RaptorConfig(enabled=True, summary_model=_lm_client()),
+        ),
+        retrieval=RetrievalConfig(),
+    )
+    engine = RagEngine(cfg)
+    with pytest.raises(ConfigurationError, match="SQLAlchemyMetadataStore"):
+        await engine.initialize()
 
 
 # ---------------------------------------------------------------------------
