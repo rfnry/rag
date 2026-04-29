@@ -42,7 +42,7 @@ registration through audit + fence-contract tests. No engine integration yet
 - BAML client regenerated via `uv run poe baml:generate:retrieval` and
   committed alongside the source.
 - `RetrievalConfig.iterative: IterativeRetrievalConfig =
-  field(default_factory=lambda: IterativeRetrievalConfig())` added in
+  field(default_factory=IterativeRetrievalConfig)` added in
   `server.py`. Default `enabled=False` keeps the field inert until R6.2.
 - Public exports: `IterativeRetrievalConfig` and `IterativeHopTrace` added
   to `rfnry_rag.retrieval.__init__` and `__all__`.
@@ -66,12 +66,15 @@ registration through audit + fence-contract tests. No engine integration yet
   - The spec's trace dataclass referenced `ScoredChunk`; the public type
     in `common/models.py` (used by `RetrievalTrace`) is `RetrievedChunk`.
     Matched `RetrievalTrace`'s import.
-  - The dataclass raises `ValueError` (per the spec's example bodies and
-    the test plan's "raises ValueError" assertions), not
-    `ConfigurationError` — `ConfigurationError` does not inherit from
-    `ValueError`, so the spec's tests would fail with the latter.
-- 6 new unit tests in `tests/test_iterative_config.py`. Total test count:
-  1120 → 1126 (+6).
+  - Harmonized with R5.1's `AdaptiveRetrievalConfig` to use
+    `ConfigurationError` (the spec's example bodies and test plan
+    referenced `ValueError`, but `ConfigurationError` does not inherit
+    from `ValueError` — using bare `ValueError` would silently bypass
+    callers' `except ConfigurationError:` handlers and diverge from the
+    sibling adaptive-retrieval config).
+- 8 new unit tests in `tests/test_iterative_config.py` (6 main + 2 polish
+  max_hops boundary-accept regression tests, mirroring the
+  grounding-threshold pattern). Total test count: 1120 → 1128 (+8).
 
 ### 2026-04-28 R5.3 — Confidence expansion + LC escalation
 

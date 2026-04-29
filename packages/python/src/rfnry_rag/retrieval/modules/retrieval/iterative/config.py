@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from rfnry_rag.retrieval.common.errors import ConfigurationError
 from rfnry_rag.retrieval.common.language_model import LanguageModelClient
 
 _VALID_GATE_MODES = frozenset({"type", "llm"})
@@ -45,13 +46,15 @@ class IterativeRetrievalConfig:
 
     def __post_init__(self) -> None:
         if not (1 <= self.max_hops <= 10):
-            raise ValueError(f"IterativeRetrievalConfig.max_hops must be in [1, 10], got {self.max_hops}")
+            raise ConfigurationError(
+                f"IterativeRetrievalConfig.max_hops must be in [1, 10], got {self.max_hops}"
+            )
         if self.gate_mode not in _VALID_GATE_MODES:
-            raise ValueError(
+            raise ConfigurationError(
                 f"IterativeRetrievalConfig.gate_mode must be one of {sorted(_VALID_GATE_MODES)}, got {self.gate_mode!r}"
             )
         if self.grounding_threshold is not None and not (0.0 <= self.grounding_threshold <= 1.0):
-            raise ValueError(
+            raise ConfigurationError(
                 f"IterativeRetrievalConfig.grounding_threshold must be in [0.0, 1.0] when set, "
                 f"got {self.grounding_threshold}"
             )
@@ -59,4 +62,4 @@ class IterativeRetrievalConfig:
         # surfaces the misconfig before the first hop runs (vs. blowing up
         # mid-loop on the first BAML call with a stale stack).
         if self.enabled and self.gate_mode == "llm" and self.decomposition_model is None:
-            raise ValueError("IterativeRetrievalConfig.gate_mode='llm' requires decomposition_model")
+            raise ConfigurationError("IterativeRetrievalConfig.gate_mode='llm' requires decomposition_model")

@@ -335,9 +335,7 @@ class RetrievalConfig:
     chunk_refiner: BaseChunkRefinement | None = None
     history_window: int = 3
     adaptive: AdaptiveRetrievalConfig = field(default_factory=AdaptiveRetrievalConfig)
-    # R6.1: multi-hop iterative retrieval configuration. Default-off; the
-    # field is inert until R6.2 wires the engine arm.
-    iterative: IterativeRetrievalConfig = field(default_factory=lambda: IterativeRetrievalConfig())
+    iterative: IterativeRetrievalConfig = field(default_factory=IterativeRetrievalConfig)
 
     def __post_init__(self) -> None:
         if self.top_k < 1:
