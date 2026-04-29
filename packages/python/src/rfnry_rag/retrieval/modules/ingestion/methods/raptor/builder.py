@@ -153,6 +153,11 @@ class RaptorTreeBuilder:
         Raises ``ConfigurationError`` if the config / knowledge_id combination
         is ineligible (matches R5/R6's "fail at runtime, don't silently
         no-op" pattern).
+
+        Concurrent-build note: consumers must serialize concurrent builds for
+        the same ``knowledge_id``. Two overlapping builds would race on the
+        registry's ``set_active`` swap and the GC's "delete every other tree"
+        scan, leaving an undefined active tree.
         """
         await self._validate_eligible(knowledge_id)
 
@@ -178,10 +183,24 @@ class RaptorTreeBuilder:
             t_swap = time.perf_counter()
             await self._registry.set_active(knowledge_id, new_tree_id, [0], None)
             timings["swap"] = time.perf_counter() - t_swap
+            # Mirror the main-path GC try/except: a GC failure after swap is
+            # observable but non-fatal — the new (empty) tree is already
+            # active, and any orphaned old summary vectors are filtered out
+            # at query time by ``raptor_tree_id``.
             t_gc = time.perf_counter()
-            deleted = await self._gc_old_trees(knowledge_id, new_tree_id)
+            try:
+                deleted = await self._gc_old_trees(knowledge_id, new_tree_id)
+                timings["gc_deleted_count"] = float(deleted)
+            except Exception as exc:
+                logger.warning(
+                    "raptor build (empty): GC failed after swap "
+                    "(knowledge_id=%s): %s — new empty tree is active; "
+                    "old vectors are orphans (retrieval filters by tree_id)",
+                    knowledge_id,
+                    exc,
+                )
+                timings["gc_deleted_count"] = 0.0
             timings["gc"] = time.perf_counter() - t_gc
-            timings["gc_deleted_count"] = float(deleted)
             duration = time.perf_counter() - wall_start
             logger.info(
                 "raptor build done (empty): knowledge_id=%s tree_id=%s duration=%.2fs",
@@ -202,9 +221,6 @@ class RaptorTreeBuilder:
 
         level_counts: list[int] = [len(leaves)]
         current: list[_ClusterMember] = leaves
-        # Track every persisted summary so we can map back-pointers and
-        # finally write all parent_ids in one update pass per level.
-        persisted_summaries_by_id: dict[str, _SummaryNode] = {}
 
         # ---- Stage 2: cluster + summarise + embed + persist per level ----
         for level_index in range(self._cfg.max_levels):
@@ -253,9 +269,6 @@ class RaptorTreeBuilder:
             t_back = time.perf_counter()
             await self._set_parent_back_references(summaries)
             timings[f"level_{level}_parent_link"] = time.perf_counter() - t_back
-
-            for s in summaries:
-                persisted_summaries_by_id[s.point_id] = s
 
             level_counts.append(len(summaries))
 
@@ -397,17 +410,14 @@ class RaptorTreeBuilder:
                     or payload.get("text")
                     or ""
                 )
-                # Vector-store scroll doesn't return embeddings by
-                # default. We need them for clustering, so we'll fetch a
-                # fresh embedding for any point missing one. In practice
-                # the leaf's stored vector is not surfaced by the scroll
-                # API — the clean choice is to embed the text we already
-                # have, mirroring how ``ClusteringService`` handles it.
-                vec = payload.get("_vector") or []
+                # Vector-store scroll doesn't return embeddings; the leaf's
+                # stored vector is not surfaced by the scroll API. We
+                # re-embed the text we already have below in one batched
+                # pass, mirroring how ``ClusteringService`` handles it.
                 out.append(
                     _ClusterMember(
                         point_id=str(r.point_id),
-                        vector=vec,
+                        vector=[],
                         text=text,
                         leaf_count=1,
                     )
@@ -616,47 +626,28 @@ class RaptorTreeBuilder:
         - level>=2: children are the previous level's summaries. Their
           parent_id flips from ``None`` to the new summary's id.
 
-        The vector store's ``upsert`` is the only available payload-update
-        path. For sparse store backends without payload-only updates, we
-        fall back to a re-upsert with the original vector (out of scope
-        for R2.2 — Qdrant handles this natively).
+        Uses the ``BaseVectorStore.set_payload`` partial-update primitive
+        so we don't have to re-embed the children just to write one new
+        payload key. Batched by parent: ONE call per summary covers all
+        of its children with the same ``raptor_parent_id`` — K calls per
+        level instead of K*N (1000 RTTs at 50 clusters * 20 children
+        becomes 50 RTTs).
         """
         if not summaries:
             return
-        # Build per-child point updates. Re-fetching the existing payload
-        # would race against concurrent writes; instead we issue a
-        # ``set_payload``-equivalent via the qdrant client when available.
-        # For the BaseVectorStore protocol, we use ``upsert`` of the
-        # minimal-payload update — Qdrant merges payload on upsert by id
-        # only when explicitly requested. Since the protocol exposes
-        # ``upsert`` only, we issue a parent-id-only re-upsert with a
-        # zero-vector placeholder ONLY if the store's ``set_payload`` is
-        # not available. To keep the protocol clean and avoid fabricating
-        # a partial payload that drops other fields, we route through a
-        # store-specific update when available; otherwise we accept the
-        # current limitation that back-references write through upsert
-        # of a re-embedded payload — this happens at level >= 2 where the
-        # children are the previous level's summaries (we still hold their
-        # text and vector in memory at the time of upsert).
-        update_method = getattr(self._vector_store, "set_payload", None)
-        if update_method is None:
-            # Best-effort fallback: skip back-references when the store
-            # protocol doesn't expose payload-only updates. Retrieval can
-            # still walk top-down from the root summary's
-            # ``raptor_cluster_size`` and ``raptor_level`` without
-            # parent pointers; back-references are an accelerator, not a
-            # correctness requirement.
-            logger.debug(
-                "vector store has no set_payload; skipping raptor_parent_id back-references"
+
+        async def _link_one(s: _SummaryNode) -> None:
+            if not s.children_point_ids:
+                return
+            await self._vector_store.set_payload(
+                point_ids=s.children_point_ids,
+                payload={"raptor_parent_id": s.point_id},
             )
-            return
-        for s in summaries:
-            for child_id in s.children_point_ids:
-                # ``set_payload`` is the optional partial-update primitive.
-                await update_method(
-                    point_ids=[child_id],
-                    payload={"raptor_parent_id": s.point_id},
-                )
+
+        # Mirror the per-cluster summarisation concurrency: per-summary
+        # back-ref writes are independent and can run in parallel up to
+        # the same bound.
+        await run_concurrent(summaries, _link_one, _SUMMARIZE_CONCURRENCY)
 
     # ------------------------------------------------------------------
     # GC

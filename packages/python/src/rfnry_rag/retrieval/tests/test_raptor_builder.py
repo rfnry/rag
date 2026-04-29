@@ -646,8 +646,8 @@ async def test_build_summarize_cluster_called_concurrently() -> None:
         report = await builder.build("kb-1")
 
     assert summarize.await_count == 5
-    # run_concurrent invoked once per level (here: one level).
-    assert concurrent_spy.call_count == 1
+    # run_concurrent invoked twice per level (summarise + back-ref link).
+    assert concurrent_spy.call_count == 2
     # 5 summaries persisted.
     assert report.level_counts == [20, 5]
 

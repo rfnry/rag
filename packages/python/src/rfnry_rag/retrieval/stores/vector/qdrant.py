@@ -349,6 +349,34 @@ class QdrantVectorStore:
         )
         return result.count
 
+    async def set_payload(
+        self,
+        point_ids: list[str],
+        payload: dict[str, Any],
+        collection: str | None = None,
+    ) -> None:
+        """Partial payload update for the given points.
+
+        Wraps qdrant-client's native ``set_payload`` API — merges ``payload``
+        keys into each point's existing payload without touching the vector.
+        Used by RAPTOR for back-reference writes (``raptor_parent_id``) where
+        re-upserting the full vector would needlessly re-embed.
+        """
+        if not point_ids:
+            return
+        resolved = await self._ensure_and_resolve(collection)
+        if not resolved:
+            raise ConfigurationError(
+                f"Collection does not exist: {collection or self._collections[0]}"
+            )
+        name, _ = resolved
+        await self._client.set_payload(
+            collection_name=name,
+            payload=payload,
+            points=list(point_ids),
+            wait=True,
+        )
+
     async def shutdown(self) -> None:
         if self._client_instance is not None:
             await self._client_instance.close()
@@ -419,6 +447,9 @@ class _ScopedVectorStore:
 
     async def count(self, filters: dict[str, Any] | None = None) -> int:
         return await self._parent.count(filters, collection=self._collection)
+
+    async def set_payload(self, point_ids: list[str], payload: dict[str, Any]) -> None:
+        await self._parent.set_payload(point_ids, payload, collection=self._collection)
 
     async def shutdown(self) -> None:
         pass

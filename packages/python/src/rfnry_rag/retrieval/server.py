@@ -72,6 +72,7 @@ from rfnry_rag.retrieval.modules.retrieval.search.service import RetrievalServic
 from rfnry_rag.retrieval.stores.document.base import BaseDocumentStore
 from rfnry_rag.retrieval.stores.graph.base import BaseGraphStore
 from rfnry_rag.retrieval.stores.metadata.base import BaseMetadataStore
+from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 from rfnry_rag.retrieval.stores.vector.base import BaseVectorStore
 
 logger = get_logger("server")
@@ -2254,8 +2255,6 @@ class RagEngine:
         # requested. Keeps the default-off path free of RAPTOR-specific
         # construction overhead and side effects.
         if self._raptor_registry is None:
-            from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
-
             if not isinstance(persistence.metadata_store, SQLAlchemyMetadataStore):
                 raise ConfigurationError(
                     "build_raptor_index() requires SQLAlchemyMetadataStore "

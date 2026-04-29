@@ -273,6 +273,66 @@ async def test_qdrant_store_logs_effective_knobs(caplog) -> None:
     assert "secret-key" not in joined  # api_key must not leak
 
 
+async def test_qdrant_set_payload_forwards_to_client() -> None:
+    """``QdrantVectorStore.set_payload`` calls qdrant-client's native
+    ``set_payload`` with the provided point ids and payload merge.
+
+    R2.2 polish: the RAPTOR back-reference path relies on partial-payload
+    update so it doesn't have to re-embed children just to write
+    ``raptor_parent_id``. Asserting the call shape here is the contract
+    that lets the builder call ``set_payload`` directly without a runtime
+    ``getattr`` guard.
+    """
+    from unittest.mock import AsyncMock
+
+    from rfnry_rag.retrieval.stores.vector.qdrant import (
+        QdrantVectorStore,
+        _CollectionState,
+    )
+
+    store = QdrantVectorStore(
+        url="http://fake:6333",
+        api_key="k",
+        collections=["topic_a"],
+    )
+    assert store._client_instance is not None
+    # Skip the get_collection round-trip by pre-populating state.
+    store._state["topic_a"] = _CollectionState(initialized=True, named_vectors=True)
+    store._client_instance.set_payload = AsyncMock(return_value=None)  # type: ignore[method-assign]
+
+    await store.set_payload(
+        point_ids=["pid-1", "pid-2"],
+        payload={"raptor_parent_id": "summary-x"},
+    )
+
+    store._client_instance.set_payload.assert_awaited_once()
+    call = store._client_instance.set_payload.await_args
+    assert call is not None
+    assert call.kwargs["collection_name"] == "topic_a"
+    assert call.kwargs["payload"] == {"raptor_parent_id": "summary-x"}
+    assert call.kwargs["points"] == ["pid-1", "pid-2"]
+    assert call.kwargs["wait"] is True
+
+
+async def test_qdrant_set_payload_no_op_on_empty_point_ids() -> None:
+    """Empty ``point_ids`` short-circuits without dispatching to the client."""
+    from unittest.mock import AsyncMock
+
+    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+
+    store = QdrantVectorStore(
+        url="http://fake:6333",
+        api_key="k",
+        collections=["topic_a"],
+    )
+    assert store._client_instance is not None
+    store._client_instance.set_payload = AsyncMock(return_value=None)  # type: ignore[method-assign]
+
+    await store.set_payload(point_ids=[], payload={"x": 1})
+
+    store._client_instance.set_payload.assert_not_called()
+
+
 async def test_neo4j_store_logs_effective_knobs(caplog) -> None:
     import logging
     from unittest.mock import AsyncMock, MagicMock
