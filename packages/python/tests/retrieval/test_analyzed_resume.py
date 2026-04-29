@@ -173,11 +173,11 @@ async def resume_rag_engine_pdf(tmp_path):
             side_effect=lambda fn, *args: fn(*args),
         ),
         patch(
-            "rfnry_rag.retrieval.tests.test_analyzed_resume.compute_file_hash",
+            f"{__name__}.compute_file_hash",
             return_value=_FAKE_FILE_HASH,
         ),
         patch(
-            "rfnry_rag.retrieval.tests.test_analyzed_resume.asyncio.to_thread",
+            f"{__name__}.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
@@ -232,11 +232,11 @@ async def resume_rag_engine_pdf_with_vector_capture(tmp_path):
             side_effect=lambda fn, *args: fn(*args),
         ),
         patch(
-            "rfnry_rag.retrieval.tests.test_analyzed_resume.compute_file_hash",
+            f"{__name__}.compute_file_hash",
             return_value=_FAKE_FILE_HASH,
         ),
         patch(
-            "rfnry_rag.retrieval.tests.test_analyzed_resume.asyncio.to_thread",
+            f"{__name__}.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),

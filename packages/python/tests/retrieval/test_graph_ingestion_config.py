@@ -67,5 +67,13 @@ def test_graph_none_by_default() -> None:
 
 def test_registered_in_config_bounds_contract() -> None:
     """If the config has any int/float field we add later, the contract must catch it."""
-    from rfnry_rag.retrieval.tests.test_config_bounds_contract import _CONFIGS_TO_AUDIT
-    assert GraphIngestionConfig in _CONFIGS_TO_AUDIT
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location(
+        "_retrieval_config_bounds_contract",
+        Path(__file__).parent / "test_config_bounds_contract.py",
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert GraphIngestionConfig in mod._CONFIGS_TO_AUDIT

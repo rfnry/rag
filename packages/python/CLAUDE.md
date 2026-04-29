@@ -25,7 +25,7 @@ poe baml:generate:retrieval   # regenerate retrieval BAML clients
 poe baml:generate:reasoning   # regenerate reasoning BAML clients
 ```
 
-Run a single test: `pytest src/rfnry_rag/retrieval/tests/test_search.py::test_name -v`
+Run a single test: `pytest tests/retrieval/test_search.py::test_name -v`
 
 ## Architecture
 
@@ -191,7 +191,7 @@ The following contract tests act as regression guards — they enforce whole-cla
 
 - pytest with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed.
 - Tests use `AsyncMock` and `SimpleNamespace` for lightweight mocking.
-- Tests in `tests/` subdirectories within each SDK + inline `test_*.py` in some modules.
+- Tests live in `tests/` at the package root, mirroring the dual-SDK split: `tests/common/`, `tests/reasoning/`, `tests/retrieval/`.
 
 ## Config defaults and enforced bounds
 

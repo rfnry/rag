@@ -6,8 +6,8 @@ from rfnry_rag.retrieval.stores.document.postgres import PostgresDocumentStore
 from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 TARGETS = [
-    Path(__file__).parents[1] / "stores" / "metadata" / "sqlalchemy.py",
-    Path(__file__).parents[1] / "stores" / "document" / "postgres.py",
+    Path("src/rfnry_rag/retrieval/stores/metadata/sqlalchemy.py"),
+    Path("src/rfnry_rag/retrieval/stores/document/postgres.py"),
 ]
 
 

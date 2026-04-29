@@ -1,7 +1,7 @@
 """BAML drawing functions: prompt-fencing contract + shape."""
 from pathlib import Path
 
-_BAML_SRC = Path(__file__).parent.parent / "baml" / "baml_src" / "ingestion" / "drawing.baml"
+_BAML_SRC = Path("src/rfnry_rag/retrieval/baml/baml_src/ingestion/drawing.baml")
 
 
 def test_drawing_baml_file_exists() -> None:

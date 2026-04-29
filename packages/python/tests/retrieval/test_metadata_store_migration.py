@@ -88,7 +88,7 @@ def test_migrate_source_does_not_contain_unquoted_fstring_default() -> None:
     not contain that raw pattern anymore."""
     from pathlib import Path
 
-    src = Path(__file__).parents[1].joinpath("stores/metadata/sqlalchemy.py").read_text()
+    src = Path("src/rfnry_rag/retrieval/stores/metadata/sqlalchemy.py").read_text()
     # The old, unsafe pattern used bare interpolation inside literal quotes
     assert "f\" DEFAULT '{val}'\"" not in src
     assert "f\" DEFAULT '{val}'\"" not in src

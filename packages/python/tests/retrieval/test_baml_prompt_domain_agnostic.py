@@ -1,10 +1,8 @@
 """Contract: BAML prompt bodies (retrieval + reasoning) carry no domain hints."""
 from pathlib import Path
 
-_RETRIEVAL_BAML_ROOT = Path(__file__).parent.parent / "baml" / "baml_src"
-_REASONING_BAML_ROOT = (
-    Path(__file__).parent.parent.parent / "reasoning" / "baml" / "baml_src"
-)
+_RETRIEVAL_BAML_ROOT = Path("src/rfnry_rag/retrieval/baml/baml_src")
+_REASONING_BAML_ROOT = Path("src/rfnry_rag/reasoning/baml/baml_src")
 _BAML_ROOTS: list[Path] = [_RETRIEVAL_BAML_ROOT, _REASONING_BAML_ROOT]
 
 # Files excluded from the domain-agnostic scan.
