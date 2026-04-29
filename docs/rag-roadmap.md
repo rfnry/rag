@@ -8,7 +8,7 @@ For the research analysis behind these decisions, see [rfnry-rag Long-Context St
 
 ## Status at a glance
 
-Last updated: 2026-04-28.
+Last updated: 2026-04-29.
 
 ### Phase 1 — Foundation (independent, small scope)
 
@@ -32,14 +32,14 @@ Phase 1 closed.
 
 | Item | Status | Notes |
 |---|---|---|
-| **R2** — RAPTOR-Style Summarization Retrieval | ⏳ Next | New ingestion + retrieval method pair. Requires the embedding/vector infrastructure to be well-tested. R5 + R8 are now in place. |
-| **R6** — Multi-Hop Iterative Retrieval | ⏸ Future | Benefits from R5's classifier and R1's long-context fallback. |
+| **R6** — Multi-Hop Iterative Retrieval | ✅ Done | 6 commits ending `5e8f356` (2026-04-29). R6.1 config + BAML scaffold (`IterativeRetrievalConfig`, `DecomposeQuery` BAML); R6.2 `IterativeRetrievalService` + hop loop + engine arm + `routing_decision="iterative"`; R6.3 post-loop DIRECT escalation, new `routing_decision="iterative_then_direct"`, new termination reasons `"low_confidence_escalated"` / `"low_confidence_no_escalation"`, helper lift to `common/grounding.py`. Test count 1120 → 1147 (+27). |
+| **R2** — RAPTOR-Style Summarization Retrieval | ⏳ Next | New ingestion + retrieval method pair. Requires the embedding/vector infrastructure to be well-tested. R5 + R6 + R8 are now in place. |
 
 ### Recommended next pick
 
-**R6** — Multi-Hop Iterative Retrieval. With R5's classifier shipped, R6's "is this an entity-relationship query?" check reuses the same `classify_query` infrastructure. R1's DIRECT escalation is also available as the multi-hop fallback when graph traversal exhausts. R2 (RAPTOR) is more disruptive (new ingestion + retrieval method pair) and can wait.
+**R2** — RAPTOR-Style Summarization Retrieval. With R6 closed (R5's classifier and R1's long-context fallback shipped), R2 is the last unstarted Phase-3 item. New ingestion + retrieval method pair: recursive cluster→summarize→embed→store loop on top of the existing `ClusteringService` (already in the reasoning SDK), a new `SummarizeCluster` BAML function, and a new `RaptorRetrieval` method that filters by `raptor_level` metadata. Per Convention 6, summary vectors get a new `vector_role="raptor_summary"`; leaf chunks keep their existing role.
 
-Phase 2 closed.
+Phase 2 closed. Phase 3 in progress (R6 done, R2 remaining).
 
 ### Out of scope (explicitly NOT planned)
 
