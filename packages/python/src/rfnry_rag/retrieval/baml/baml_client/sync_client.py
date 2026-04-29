@@ -444,6 +444,20 @@ class BamlSyncClient:
                 "query": query,"passages": passages,
             })
             return typing.cast(typing.List["types.RankedChunk"], __result__.cast_to(types, types, stream_types, False, __runtime__))
+    def SummarizeCluster(self, cluster_texts: typing.List[str],level: int,max_summary_tokens: int,
+        baml_options: BamlCallOptions = {},
+    ) -> types.SummarizeClusterResult:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            __stream__ = self.stream.SummarizeCluster(cluster_texts=cluster_texts,level=level,max_summary_tokens=max_summary_tokens,
+                baml_options=baml_options)
+            return __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = self.__options.merge_options(baml_options).call_function_sync(function_name="SummarizeCluster", args={
+                "cluster_texts": cluster_texts,"level": level,"max_summary_tokens": max_summary_tokens,
+            })
+            return typing.cast(types.SummarizeClusterResult, __result__.cast_to(types, types, stream_types, False, __runtime__))
     def SynthesizeDocument(self, page_analyses: str,
         baml_options: BamlCallOptions = {},
     ) -> types.DocumentSynthesis:
@@ -809,6 +823,18 @@ class BamlStreamClient:
           lambda x: typing.cast(typing.List["types.RankedChunk"], x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
+    def SummarizeCluster(self, cluster_texts: typing.List[str],level: int,max_summary_tokens: int,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlSyncStream[stream_types.SummarizeClusterResult, types.SummarizeClusterResult]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_sync_stream(function_name="SummarizeCluster", args={
+            "cluster_texts": cluster_texts,"level": level,"max_summary_tokens": max_summary_tokens,
+        })
+        return baml_py.BamlSyncStream[stream_types.SummarizeClusterResult, types.SummarizeClusterResult](
+          __result__,
+          lambda x: typing.cast(stream_types.SummarizeClusterResult, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(types.SummarizeClusterResult, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
     def SynthesizeDocument(self, page_analyses: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlSyncStream[stream_types.DocumentSynthesis, types.DocumentSynthesis]:
@@ -1040,6 +1066,13 @@ class BamlHttpRequestClient:
             "query": query,"passages": passages,
         }, mode="request")
         return __result__
+    def SummarizeCluster(self, cluster_texts: typing.List[str],level: int,max_summary_tokens: int,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="SummarizeCluster", args={
+            "cluster_texts": cluster_texts,"level": level,"max_summary_tokens": max_summary_tokens,
+        }, mode="request")
+        return __result__
     def SynthesizeDocument(self, page_analyses: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
@@ -1249,6 +1282,13 @@ class BamlHttpStreamRequestClient:
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="RerankChunks", args={
             "query": query,"passages": passages,
+        }, mode="stream")
+        return __result__
+    def SummarizeCluster(self, cluster_texts: typing.List[str],level: int,max_summary_tokens: int,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="SummarizeCluster", args={
+            "cluster_texts": cluster_texts,"level": level,"max_summary_tokens": max_summary_tokens,
         }, mode="stream")
         return __result__
     def SynthesizeDocument(self, page_analyses: str,

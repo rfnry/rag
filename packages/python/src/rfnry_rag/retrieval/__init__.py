@@ -56,6 +56,9 @@ from rfnry_rag.retrieval.modules.ingestion.embeddings.sparse.fastembed import (
 )
 from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion as DocumentIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.graph import GraphIngestion as GraphIngestion
+from rfnry_rag.retrieval.modules.ingestion.methods.raptor import RaptorBuildReport as RaptorBuildReport
+from rfnry_rag.retrieval.modules.ingestion.methods.raptor import RaptorConfig as RaptorConfig
+from rfnry_rag.retrieval.modules.ingestion.methods.raptor import RaptorTreeRegistry as RaptorTreeRegistry
 from rfnry_rag.retrieval.modules.ingestion.methods.tree import TreeIngestion as TreeIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.vector import VectorIngestion as VectorIngestion
 from rfnry_rag.retrieval.modules.ingestion.vision.facade import Vision as Vision
@@ -174,6 +177,9 @@ __all__ = [
     "RagEngine",
     "RagError",
     "RagServerConfig",
+    "RaptorBuildReport",
+    "RaptorConfig",
+    "RaptorTreeRegistry",
     "Reranking",
     "RetrievalConfig",
     "RetrievalError",

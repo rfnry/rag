@@ -42,3 +42,11 @@ class DecomposeResult {
   findings_from_last_hop string
   reasoning string
 }
+
+// R2.1: RAPTOR cluster summarisation output. The summary is the public payload
+// (embedded + persisted as a summary node); `reasoning` is trace-only and
+// records what theme the cluster cohered around.
+class SummarizeClusterResult {
+  summary string @description("Domain-neutral summary of the thematic content shared across the cluster member texts. 1-3 paragraphs, at most max_summary_tokens. Does not invent content beyond what the members say.")
+  reasoning string @description("Brief WHY: what theme the cluster is organized around. Trace-only.")
+}

@@ -14,6 +14,7 @@ from rfnry_rag.retrieval.modules.evaluation.benchmark import BenchmarkConfig
 from rfnry_rag.retrieval.modules.ingestion.chunk.batch import BatchConfig
 from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
+from rfnry_rag.retrieval.modules.ingestion.methods.raptor.config import RaptorConfig
 from rfnry_rag.retrieval.modules.retrieval.iterative.config import IterativeRetrievalConfig
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.multi_query import MultiQueryRewriting
 from rfnry_rag.retrieval.server import (
@@ -43,6 +44,7 @@ _CONFIGS_TO_AUDIT: list[type] = [
     RoutingConfig,
     AdaptiveRetrievalConfig,
     IterativeRetrievalConfig,
+    RaptorConfig,
 ]
 
 

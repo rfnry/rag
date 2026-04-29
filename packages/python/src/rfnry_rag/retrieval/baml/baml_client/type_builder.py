@@ -20,7 +20,7 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(type_builder.TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["AnswerQualityJudgment","AnswerabilityVerdict","CompressedContext","DecomposeResult","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","DrawingSetSynthesis","ExtractedSection","ExtractedStructure","HypotheticalDocument","Merge","NarrativeXref","OffPageConnector","PageAnalysis","Port","QueryAnalysis","QueryClassification","QueryVariants","RankedChunk","ReasoningStep","RelevanceJudgment","RetrievalNecessityJudgment","StepBackQuery","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries","TocDetectionResult","TocEntry","TocStructure","ToolDrillDown","ToolFetchPages","ToolResolvedPages",]
+          ["AnswerQualityJudgment","AnswerabilityVerdict","CompressedContext","DecomposeResult","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","DrawingSetSynthesis","ExtractedSection","ExtractedStructure","HypotheticalDocument","Merge","NarrativeXref","OffPageConnector","PageAnalysis","Port","QueryAnalysis","QueryClassification","QueryVariants","RankedChunk","ReasoningStep","RelevanceJudgment","RetrievalNecessityJudgment","StepBackQuery","SummarizeClusterResult","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries","TocDetectionResult","TocEntry","TocStructure","ToolDrillDown","ToolFetchPages","ToolResolvedPages",]
         ), enums=set(
           ["QueryComplexity","QueryType",]
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
@@ -39,7 +39,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
     # #########################################################################
-    # Generated classes 36
+    # Generated classes 37
     # #########################################################################
 
     @property
@@ -149,6 +149,10 @@ class TypeBuilder(type_builder.TypeBuilder):
     @property
     def StepBackQuery(self) -> "StepBackQueryViewer":
         return StepBackQueryViewer(self)
+
+    @property
+    def SummarizeClusterResult(self) -> "SummarizeClusterResultViewer":
+        return SummarizeClusterResultViewer(self)
 
     @property
     def SynthesisCrossReference(self) -> "SynthesisCrossReferenceViewer":
@@ -290,7 +294,7 @@ class QueryTypeValues:
 
 
 # #########################################################################
-# Generated classes 36
+# Generated classes 37
 # #########################################################################
 
 class AnswerQualityJudgmentAst:
@@ -1590,6 +1594,49 @@ class StepBackQueryProperties:
     @property
     def broader_query(self) -> type_builder.ClassPropertyViewer:
         return type_builder.ClassPropertyViewer(self.__bldr.property("broader_query"))
+    
+    
+
+
+class SummarizeClusterResultAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("SummarizeClusterResult")
+        self._properties: typing.Set[str] = set([  "summary",  "reasoning",  ])
+        self._props = SummarizeClusterResultProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "SummarizeClusterResultProperties":
+        return self._props
+
+
+class SummarizeClusterResultViewer(SummarizeClusterResultAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class SummarizeClusterResultProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def summary(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("summary"))
+    
+    @property
+    def reasoning(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("reasoning"))
     
     
 

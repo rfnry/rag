@@ -97,6 +97,9 @@ type_map = {
     "types.StepBackQuery": types.StepBackQuery,
     "stream_types.StepBackQuery": stream_types.StepBackQuery,
 
+    "types.SummarizeClusterResult": types.SummarizeClusterResult,
+    "stream_types.SummarizeClusterResult": stream_types.SummarizeClusterResult,
+
     "types.SynthesisCrossReference": types.SynthesisCrossReference,
     "stream_types.SynthesisCrossReference": stream_types.SynthesisCrossReference,
 

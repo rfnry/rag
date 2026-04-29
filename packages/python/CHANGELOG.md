@@ -6,6 +6,109 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-04-29 R2.1 — RAPTOR config + BAML scaffold + schema + registry
+
+Lands the compile-time foundation for RAPTOR-style hierarchical
+summarisation retrieval (the largest single retrieval-quality lever in
+the roadmap per Li et al. 2025). R2.1 ships the `RaptorConfig` dataclass,
+the `SummarizeCluster` BAML function, the `rag_raptor_trees` SQLAlchemy
+table + idempotent forward migration, the `RaptorTreeRegistry` async
+service (full CRUD), and the `methods/raptor/` ingestion subpackage
+skeleton (with a `RaptorTreeBuilder` stub raising `NotImplementedError`).
+The runtime tree builder lands in R2.2; `RaptorRetrieval` + engine wiring
+land in R2.3; final polish + roadmap close in R2.4. R2.1 is plumbing only
+— `RaptorConfig.enabled=False` is the default and existing consumers see
+zero behavioural diff.
+
+- New ingestion subpackage at
+  `modules/ingestion/methods/raptor/` — sibling to `vector` / `document`
+  / `graph` / `tree`, NOT a fold-in. The convention is "RAPTOR is a
+  distinct retrieval strategy, not a layer on top of chunk indexing"
+  (mirrors R6's iterative subpackage).
+  - `config.py` — `RaptorConfig` dataclass with bounded numeric fields,
+    `cluster_algorithm` allowlist, and the cross-field rule
+    `enabled=True ⇒ summary_model` set.
+  - `report.py` — `RaptorBuildReport` dataclass (definition only;
+    populated by R2.2's builder).
+  - `builder.py` — `RaptorTreeBuilder` stub raising
+    `NotImplementedError("RaptorTreeBuilder lands in R2.2")`. Concrete
+    impl in R2.2 (cluster→summarize→embed→persist→recurse + atomic
+    blue/green swap + GC).
+  - `registry.py` — `RaptorTreeRegistry` full async implementation over
+    `SQLAlchemyMetadataStore`. Methods: `get_active`,
+    `set_active` (dialect-portable upsert via SQLAlchemy `on_conflict_do_update`),
+    `delete_record` (idempotent), `get_stale_trees`. Implemented in
+    R2.1 because retrieval (R2.3) needs `get_active` even before any
+    tree is built — `None` is the supported "no tree" signal,
+    falls through to chunk-level retrieval.
+- New `IngestionConfig.raptor: RaptorConfig` field (defaults to
+  `RaptorConfig()`). Validates via `RaptorConfig.__post_init__`.
+- New BAML function `SummarizeCluster(cluster_texts: string[], level: int,
+  max_summary_tokens: int) -> SummarizeClusterResult { summary, reasoning }`
+  at `baml_src/retrieval/`. The `cluster_texts: string[]` parameter is
+  iterated via Jinja `{% for member_text in cluster_texts %}` and each
+  member is fenced with `MEMBER_N START` / `MEMBER_N END` markers (the
+  `N` resolves to `loop.index`). Each iteration produces one
+  START/END pair so the fence contract holds at the per-iteration
+  grain rather than once around the array. Reuses the existing
+  `Default` BAML client (matches `ClassifyQueryComplexity` /
+  `DecomposeQuery`).
+- BAML client regenerated via `poe baml:generate:retrieval`.
+- New `rag_raptor_trees` table at `stores/metadata/sqlalchemy.py`:
+  - Columns: `knowledge_id` (PK), `active_tree_id`, `built_at`,
+    `level_counts_json` (JSON-serialised `list[int]`), `total_cost_usd`
+    (nullable).
+  - No FK to `rag_sources` because `knowledge_id` is not modelled as a
+    first-class entity in the schema (matches the
+    `rag_sources.knowledge_id` precedent).
+  - Schema-version bump `_SCHEMA_VERSION = 2 → 3`. Forward migration
+    added to `_migrate_missing_columns`: detects missing
+    `rag_raptor_trees` and creates it via SQLAlchemy
+    `metadata.create_all` (idempotent — no-op when the table exists).
+    Mirrors Phase B1's pattern for `rag_page_analyses`.
+- Contract-test extensions (no new contract files):
+  - `test_config_bounds_contract.py`: `_CONFIGS_TO_AUDIT += [RaptorConfig]`.
+  - `test_baml_prompt_fence_contract.py`:
+    `USER_CONTROLLED_PARAMS["SummarizeCluster"] = ["cluster_texts"]`.
+    The `_has_fence_for_param` helper extended to recognise the Jinja
+    multi-tag pattern: when the body contains
+    `{% for X in <param> %}`, the loop variable `X` must be fenced
+    inside the loop body by START/END markers whose tag carries a
+    `{{ loop.index }}` placeholder (e.g. `MEMBER_N START`). The
+    extension keeps the existing single-tag-per-param behaviour for
+    `string` params (1 BAML pattern recognised → 2). The
+    `test_baml_prompt_domain_agnostic.py` contract was already tight
+    enough to scan the new `SummarizeCluster` body — the prompt is
+    domain-neutral and passes byte-for-byte.
+- Public exports added to `rfnry_rag.retrieval`: `RaptorConfig`,
+  `RaptorBuildReport`, `RaptorTreeRegistry`. `RaptorTreeBuilder` stays
+  internal until R2.2 fills the stub.
+- 7 new unit tests in `tests/test_raptor_config.py` (defaults, bounds
+  pin both lower/upper boundaries, allowlist, cross-field rule). 3 new
+  unit tests in `tests/test_raptor_registry.py` against an in-memory
+  SQLite metadata store (`get_active` returns None when unset; set→get
+  round-trip; set→set→get exercises the upsert/replace path).
+
+Spec discrepancies resolved (noted here so reviewers don't chase them):
+
+- The R2.1 spec referenced a `JSON NOT NULL` column type for
+  `level_counts`; the metadata store doesn't import `JSON` anywhere
+  else, and the existing convention (see `metadata_json` /
+  `tags_json` / `data_json` on `rag_sources` and `rag_page_analyses`)
+  is `Text` storing `json.dumps(...)`. Followed the existing convention
+  to keep dialect portability simple — the column is named
+  `level_counts_json` to match the prior `*_json` suffix pattern.
+- The R2.1 spec example registry stub referenced the
+  `BaseMetadataStore` protocol; the registry intentionally does NOT
+  add a parallel method on `BaseMetadataStore` because (a) it would
+  broaden the protocol for a single consumer, and (b) the registry is
+  conceptually part of the metadata-store SDK boundary. The registry
+  reaches through to `_session_factory` / `_engine` directly.
+- The R2.1 spec example used `ConfigurationError` (matching R6.1's
+  harmonisation note). Followed verbatim.
+
+Total test count: 1147 → 1157.
+
 ### 2026-04-29 R6.3 — Post-loop DIRECT escalation + final polish
 
 Closes the R6 phase by wrapping a post-loop DIRECT escalation around

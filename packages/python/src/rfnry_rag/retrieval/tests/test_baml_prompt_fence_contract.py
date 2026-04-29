@@ -44,6 +44,7 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     "ClassifyQueryComplexity": ["query"],
     "DecomposeQuery": ["original_query", "accumulated_findings"],
     "RerankChunks": ["query", "passages"],
+    "SummarizeCluster": ["cluster_texts"],
     "JudgeRetrievalNecessity": ["query"],  # knowledge_description is operator config
     "CompressRetrievedContext": ["query", "passages"],
     # ---- retrieval / evaluation ----
@@ -127,10 +128,58 @@ def _has_fence_for_param(body: str, param: str) -> bool:
     Old-style delimiters like ``======== USER QUERY ========`` (no START/END sentinel)
     do NOT satisfy this contract.
 
+    Two interpolation patterns are recognised (R2.1 extends to handle the second):
+
+      1. Direct interpolation — ``{{ param }}`` appears in the body, fenced by a
+         single START … END pair. Used for ``string`` params.
+
+      2. Jinja loop — ``{% for X in param %}`` iterates a ``string[]`` param,
+         and the loop body fences the loop variable ``X`` with multi-tag
+         markers like ``MEMBER_N START`` / ``MEMBER_N END`` (the ``N`` resolves
+         to the iteration index). Each iteration produces one START/END pair,
+         so the contract holds at the per-iteration grain rather than once
+         around the array.
+
     Returns True if:
       - the param is not interpolated in the body at all (nothing to protect), OR
-      - the interpolation site is enclosed by a matching START … END fence pair.
+      - the direct interpolation site is enclosed by a matching START … END pair, OR
+      - the param is iterated via ``{% for X in param %}`` and the loop variable
+        ``X`` is fenced inside the loop body by START/END markers whose tag
+        contains a ``\\d+`` placeholder (e.g. ``MEMBER_N``).
     """
+    # Pattern 2: Jinja-loop iteration (R2.1 extension). Detect this first
+    # because a string[] param won't have a direct ``{{ param }}`` site.
+    loop_match = re.search(
+        rf"\{{%\s*for\s+(\w+)\s+in\s+{re.escape(param)}\s*%\}}",
+        body,
+    )
+    if loop_match is not None:
+        loop_var = loop_match.group(1)
+        loop_start = loop_match.end()
+        # Find the matching ``{% endfor %}``; we don't validate nested loops
+        # here (no current consumer needs them).
+        endfor_match = re.search(r"\{%\s*endfor\s*%\}", body[loop_start:])
+        if endfor_match is None:
+            return False
+        loop_body = body[loop_start : loop_start + endfor_match.start()]
+        # Loop variable must be interpolated inside START/END markers whose tag
+        # carries a numeric placeholder (e.g. ``MEMBER_{{ loop.index }} START``).
+        var_site = re.search(rf"\{{\{{\s*{re.escape(loop_var)}\s*\}}\}}", loop_body)
+        if var_site is None:
+            return False
+        # Look for START with Jinja-templated numeric tag before the var, and
+        # matching END after.
+        start_marker = re.search(
+            r"========\s+\S*\{\{\s*loop\.index\s*\}\}\S*\s+START\s+========",
+            loop_body[: var_site.start()],
+        )
+        end_marker = re.search(
+            r"========\s+\S*\{\{\s*loop\.index\s*\}\}\S*\s+END\s+========",
+            loop_body[var_site.end() :],
+        )
+        return start_marker is not None and end_marker is not None
+
+    # Pattern 1: direct interpolation.
     param_site = re.search(rf"\{{\{{\s*{re.escape(param)}\s*\}}\}}", body)
     if not param_site:
         return True  # param not interpolated in this function body

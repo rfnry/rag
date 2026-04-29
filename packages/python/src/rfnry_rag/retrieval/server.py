@@ -41,6 +41,7 @@ from rfnry_rag.retrieval.modules.ingestion.embeddings.sparse.base import BaseSpa
 from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.graph import GraphIngestion
+from rfnry_rag.retrieval.modules.ingestion.methods.raptor.config import RaptorConfig
 from rfnry_rag.retrieval.modules.ingestion.methods.tree import TreeIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.vector import VectorIngestion
 from rfnry_rag.retrieval.modules.ingestion.vision.base import BaseVision
@@ -214,6 +215,11 @@ class IngestionConfig:
     # ``DocumentExpansionConfig`` defaults to disabled; consumers must set
     # ``enabled=True`` AND provide ``lm_client`` to activate.
     document_expansion: DocumentExpansionConfig = field(default_factory=lambda: DocumentExpansionConfig())
+    # Opt-in RAPTOR-style hierarchical summarisation (R2). Default-off; runtime
+    # builder lands in R2.2, retrieval method in R2.3. ``RaptorConfig.__post_init__``
+    # handles its own validation including the ``enabled`` ⇒ ``summary_model``
+    # cross-field rule.
+    raptor: RaptorConfig = field(default_factory=RaptorConfig)
 
     def __post_init__(self) -> None:
         if self.chunk_size_unit not in ("chars", "tokens"):

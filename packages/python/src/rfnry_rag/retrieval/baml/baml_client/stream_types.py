@@ -23,7 +23,7 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
     value: StreamStateValueT
     state: typing_extensions.Literal["Pending", "Incomplete", "Complete"]
 # #########################################################################
-# Generated classes (36)
+# Generated classes (37)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -168,6 +168,10 @@ class RetrievalNecessityJudgment(BaseModel):
 
 class StepBackQuery(BaseModel):
     broader_query: typing.Optional[str] = Field(default=None, description='A broader version of the original question')
+
+class SummarizeClusterResult(BaseModel):
+    summary: typing.Optional[str] = Field(default=None, description='Domain-neutral summary of the thematic content shared across the cluster member texts. 1-3 paragraphs, at most max_summary_tokens. Does not invent content beyond what the members say.')
+    reasoning: typing.Optional[str] = Field(default=None, description='Brief WHY: what theme the cluster is organized around. Trace-only.')
 
 class SynthesisCrossReference(BaseModel):
     source_page: typing.Optional[int] = None

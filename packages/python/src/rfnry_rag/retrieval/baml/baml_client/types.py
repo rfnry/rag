@@ -52,7 +52,7 @@ class QueryType(str, Enum):
     PROCEDURAL = "PROCEDURAL"
 
 # #########################################################################
-# Generated classes (36)
+# Generated classes (37)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -197,6 +197,10 @@ class RetrievalNecessityJudgment(BaseModel):
 
 class StepBackQuery(BaseModel):
     broader_query: str = Field(description='A broader version of the original question')
+
+class SummarizeClusterResult(BaseModel):
+    summary: str = Field(description='Domain-neutral summary of the thematic content shared across the cluster member texts. 1-3 paragraphs, at most max_summary_tokens. Does not invent content beyond what the members say.')
+    reasoning: str = Field(description='Brief WHY: what theme the cluster is organized around. Trace-only.')
 
 class SynthesisCrossReference(BaseModel):
     source_page: int
