@@ -5,26 +5,33 @@ from unittest.mock import AsyncMock
 import pytest
 
 from rfnry_rag.retrieval.common.models import RetrievedChunk
-from rfnry_rag.retrieval.server import RagEngine
 
 
 def _chunk(cid: str, score: float = 1.0) -> RetrievedChunk:
     return RetrievedChunk(chunk_id=cid, source_id="s1", content=cid, score=score)
 
 
-def _make_engine(*, metadata_store: Any, tree_search_service: Any) -> RagEngine:
-    engine = RagEngine.__new__(RagEngine)
-    engine._config = cast(Any, SimpleNamespace(persistence=SimpleNamespace(metadata_store=metadata_store)))
-    engine._tree_search_service = tree_search_service
-    return engine
+def _engine(make_engine: Any, *, metadata_store: Any, tree_search_service: Any) -> Any:
+    """Build a barebones tree-search engine via the shared ``make_engine`` factory.
+
+    Tree-search tests need only ``persistence.metadata_store`` and the
+    ``_tree_search_service`` attribute — pass an explicit ``SimpleNamespace``
+    config to bypass the factory's MagicMock(spec=RagServerConfig) shape.
+    """
+    return make_engine(
+        config=SimpleNamespace(persistence=SimpleNamespace(metadata_store=metadata_store)),
+        tree_search_service=tree_search_service,
+    )
 
 
 @pytest.mark.asyncio
-async def test_tree_chunks_threaded_into_single_unstructured_call() -> None:
+async def test_tree_chunks_threaded_into_single_unstructured_call(
+    make_engine: Any,
+) -> None:
     """When tree search returns chunks, they must be fused via RetrievalService
     (threaded through the `tree_chunks` kwarg), not by re-invoking retrieve()
     and discarding the first result set."""
-    engine = _make_engine(metadata_store=object(), tree_search_service=object())
+    engine = _engine(make_engine, metadata_store=object(), tree_search_service=object())
 
     unstructured = SimpleNamespace(
         retrieve=AsyncMock(return_value=([_chunk("u1"), _chunk("u2"), _chunk("t1")], None))
@@ -44,9 +51,9 @@ async def test_tree_chunks_threaded_into_single_unstructured_call() -> None:
 
 
 @pytest.mark.asyncio
-async def test_no_tree_chunks_passes_no_tree_kwarg() -> None:
+async def test_no_tree_chunks_passes_no_tree_kwarg(make_engine: Any) -> None:
     """When tree search returns nothing, the tree_chunks kwarg is omitted."""
-    engine = _make_engine(metadata_store=object(), tree_search_service=object())
+    engine = _engine(make_engine, metadata_store=object(), tree_search_service=object())
 
     unstructured = SimpleNamespace(retrieve=AsyncMock(return_value=([_chunk("u1")], None)))
     engine._get_retrieval = cast(Any, lambda _c: (unstructured, None))  # type: ignore[method-assign]
@@ -61,8 +68,8 @@ async def test_no_tree_chunks_passes_no_tree_kwarg() -> None:
 
 
 @pytest.mark.asyncio
-async def test_tree_search_without_service_skips_tree_path() -> None:
-    engine = _make_engine(metadata_store=None, tree_search_service=None)
+async def test_tree_search_without_service_skips_tree_path(make_engine: Any) -> None:
+    engine = _engine(make_engine, metadata_store=None, tree_search_service=None)
 
     unstructured = SimpleNamespace(retrieve=AsyncMock(return_value=([_chunk("u1")], None)))
     engine._get_retrieval = cast(Any, lambda _c: (unstructured, None))  # type: ignore[method-assign]

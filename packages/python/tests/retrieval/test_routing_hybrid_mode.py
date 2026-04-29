@@ -10,7 +10,7 @@ a transient error (rate limit, timeout, malformed JSON).
 
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -21,8 +21,6 @@ from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk
 from rfnry_rag.retrieval.modules.generation.models import QueryResult
 from rfnry_rag.retrieval.server import (
     QueryMode,
-    RagEngine,
-    RagServerConfig,
     RoutingConfig,
 )
 
@@ -52,50 +50,38 @@ def _chunk(content: str = "chunk_a content", score: float = 0.9) -> RetrievedChu
     )
 
 
-def _make_engine(
+def _engine(
+    make_engine: Any,
     *,
     mode: QueryMode,
     chunks: list[RetrievedChunk] | None = None,
     rag_answer: str = "rag answer",
     lc_answer: str = "lc answer",
 ) -> Any:
-    """Build a minimally-wired RagEngine bypassing initialize().
+    """Build a HYBRID-mode engine via the shared ``make_engine`` factory.
 
-    Returns `Any` so tests can poke `AsyncMock` assertion helpers on
-    private service attributes typed as concrete services.
+    Wires per-test custom ``generate`` / ``generate_from_corpus`` answers,
+    a chunk-returning ``_retrieve_chunks``, and the ``_answerability_registry``
+    sentinel that the HYBRID arm reads.
     """
-    config = MagicMock(spec=RagServerConfig)
-    config.retrieval = SimpleNamespace(history_window=3)
-    config.generation = SimpleNamespace(chunk_ordering=ChunkOrdering.SCORE_DESCENDING)
     routing_kwargs: dict[str, Any] = {"mode": mode}
     if mode == QueryMode.HYBRID:
         routing_kwargs["hybrid_answerability_model"] = _stub_lm_client()
-    config.routing = RoutingConfig(**routing_kwargs)
 
-    engine = RagEngine.__new__(RagEngine)
-    engine._config = config
-    engine._initialized = True
-    engine._answerability_registry = object()  # opaque sentinel — BAML call is mocked
+    gs: Any = AsyncMock()
+    cast(Any, gs).generate = AsyncMock(return_value=_query_result(rag_answer))
+    cast(Any, gs).generate_from_corpus = AsyncMock(return_value=_query_result(lc_answer))
 
+    engine = make_engine(
+        retrieval=SimpleNamespace(history_window=3),
+        generation=SimpleNamespace(chunk_ordering=ChunkOrdering.SCORE_DESCENDING),
+        routing=RoutingConfig(**routing_kwargs),
+        generation_service=gs,
+        answerability_registry=object(),  # opaque sentinel — BAML call is mocked
+    )
     chunks = chunks if chunks is not None else [_chunk()]
     engine._retrieve_chunks = AsyncMock(return_value=(chunks, None))  # type: ignore[method-assign]
     engine._load_full_corpus = AsyncMock(return_value="full corpus body")  # type: ignore[method-assign]
-
-    engine._retrieval_service = AsyncMock()
-    engine._structured_retrieval = None
-    engine._generation_service = AsyncMock()
-    cast(Any, engine._generation_service).generate = AsyncMock(return_value=_query_result(rag_answer))
-    cast(Any, engine._generation_service).generate_from_corpus = AsyncMock(
-        return_value=_query_result(lc_answer)
-    )
-    engine._step_service = None
-    engine._knowledge_manager = None
-    engine._ingestion_service = None
-    engine._structured_ingestion = None
-    engine._retrieval_namespace = None
-    engine._ingestion_namespace = None
-    engine._tree_indexing_service = None
-    engine._tree_search_service = None
     return engine
 
 
@@ -111,9 +97,11 @@ def test_routing_config_hybrid_requires_answerability_model() -> None:
     RoutingConfig(mode=QueryMode.HYBRID, hybrid_answerability_model=_stub_lm_client())
 
 
-async def test_query_mode_hybrid_runs_rag_then_answerability_check() -> None:
+async def test_query_mode_hybrid_runs_rag_then_answerability_check(
+    make_engine: Any,
+) -> None:
     """HYBRID retrieves chunks AND calls `b.CheckAnswerability`."""
-    engine = _make_engine(mode=QueryMode.HYBRID)
+    engine = _engine(make_engine, mode=QueryMode.HYBRID)
     with patch(
         "rfnry_rag.retrieval.server.b.CheckAnswerability",
         new=AsyncMock(return_value=_verdict(True)),
@@ -124,9 +112,11 @@ async def test_query_mode_hybrid_runs_rag_then_answerability_check() -> None:
     mock_check.assert_awaited_once()
 
 
-async def test_query_mode_hybrid_returns_rag_answer_when_answerable() -> None:
+async def test_query_mode_hybrid_returns_rag_answer_when_answerable(
+    make_engine: Any,
+) -> None:
     """answerable=True: RAG generation runs; full corpus NOT loaded."""
-    engine = _make_engine(mode=QueryMode.HYBRID, rag_answer="rag-path-answer")
+    engine = _engine(make_engine, mode=QueryMode.HYBRID, rag_answer="rag-path-answer")
     with patch(
         "rfnry_rag.retrieval.server.b.CheckAnswerability",
         new=AsyncMock(return_value=_verdict(True)),
@@ -139,9 +129,11 @@ async def test_query_mode_hybrid_returns_rag_answer_when_answerable() -> None:
     assert result.answer == "rag-path-answer"
 
 
-async def test_query_mode_hybrid_escalates_to_lc_when_not_answerable() -> None:
+async def test_query_mode_hybrid_escalates_to_lc_when_not_answerable(
+    make_engine: Any,
+) -> None:
     """answerable=False: full corpus loaded, generate_from_corpus called, sources empty."""
-    engine = _make_engine(mode=QueryMode.HYBRID, lc_answer="lc-path-answer")
+    engine = _engine(make_engine, mode=QueryMode.HYBRID, lc_answer="lc-path-answer")
     with patch(
         "rfnry_rag.retrieval.server.b.CheckAnswerability",
         new=AsyncMock(return_value=_verdict(False, "missing")),
@@ -155,9 +147,11 @@ async def test_query_mode_hybrid_escalates_to_lc_when_not_answerable() -> None:
     assert result.sources == []
 
 
-async def test_query_mode_hybrid_routing_decision_hybrid_rag_on_success() -> None:
+async def test_query_mode_hybrid_routing_decision_hybrid_rag_on_success(
+    make_engine: Any,
+) -> None:
     """answerable=True: trace.routing_decision == "hybrid_rag"."""
-    engine = _make_engine(mode=QueryMode.HYBRID)
+    engine = _engine(make_engine, mode=QueryMode.HYBRID)
     engine._retrieve_chunks = AsyncMock(  # type: ignore[method-assign]
         return_value=([_chunk()], RetrievalTrace(query="q1", knowledge_id="kb-1"))
     )
@@ -171,9 +165,11 @@ async def test_query_mode_hybrid_routing_decision_hybrid_rag_on_success() -> Non
     assert result.trace.routing_decision == "hybrid_rag"
 
 
-async def test_query_mode_hybrid_routing_decision_hybrid_lc_on_escalation() -> None:
+async def test_query_mode_hybrid_routing_decision_hybrid_lc_on_escalation(
+    make_engine: Any,
+) -> None:
     """answerable=False: trace.routing_decision == "hybrid_lc"."""
-    engine = _make_engine(mode=QueryMode.HYBRID)
+    engine = _engine(make_engine, mode=QueryMode.HYBRID)
     engine._retrieve_chunks = AsyncMock(  # type: ignore[method-assign]
         return_value=([_chunk()], RetrievalTrace(query="q1", knowledge_id="kb-1"))
     )
@@ -188,10 +184,11 @@ async def test_query_mode_hybrid_routing_decision_hybrid_lc_on_escalation() -> N
 
 
 async def test_query_mode_hybrid_degrades_to_rag_on_check_exception(
+    make_engine: Any,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """CheckAnswerability raising: degrade to RAG (no LC escalation), log warning."""
-    engine = _make_engine(mode=QueryMode.HYBRID)
+    engine = _engine(make_engine, mode=QueryMode.HYBRID)
     engine._retrieve_chunks = AsyncMock(  # type: ignore[method-assign]
         return_value=([_chunk()], RetrievalTrace(query="q1", knowledge_id="kb-1"))
     )
@@ -211,9 +208,11 @@ async def test_query_mode_hybrid_degrades_to_rag_on_check_exception(
     assert any("answerability check failed" in rec.message for rec in caplog.records)
 
 
-async def test_query_mode_hybrid_trace_includes_answerability_timing() -> None:
+async def test_query_mode_hybrid_trace_includes_answerability_timing(
+    make_engine: Any,
+) -> None:
     """trace.timings contains `answerability_check` with a positive float."""
-    engine = _make_engine(mode=QueryMode.HYBRID)
+    engine = _engine(make_engine, mode=QueryMode.HYBRID)
     engine._retrieve_chunks = AsyncMock(  # type: ignore[method-assign]
         return_value=([_chunk()], RetrievalTrace(query="q1", knowledge_id="kb-1"))
     )
@@ -229,7 +228,9 @@ async def test_query_mode_hybrid_trace_includes_answerability_timing() -> None:
 
 
 @pytest.mark.parametrize("mode", [QueryMode.DIRECT, QueryMode.HYBRID, QueryMode.AUTO])
-async def test_query_stream_refuses_non_retrieval_modes(mode: QueryMode) -> None:
+async def test_query_stream_refuses_non_retrieval_modes(
+    make_engine: Any, mode: QueryMode
+) -> None:
     """`query_stream()` raises `ConfigurationError` for any non-RETRIEVAL mode.
 
     A consumer who configures `mode=DIRECT` / `mode=HYBRID` / `mode=AUTO`
@@ -237,7 +238,7 @@ async def test_query_stream_refuses_non_retrieval_modes(mode: QueryMode) -> None
     behavior. Streaming for non-retrieval modes is deferred — refuse
     explicitly.
     """
-    engine = _make_engine(mode=mode)
+    engine = _engine(make_engine, mode=mode)
     with pytest.raises(ConfigurationError, match="does not support mode"):
         async for _event in engine.query_stream("q1", knowledge_id="kb-1"):
             pass

@@ -91,7 +91,8 @@ def _lm_client() -> LanguageModelClient:
     )
 
 
-def _make_engine(
+def _engine(
+    make_engine: Any,
     *,
     iterative_enabled: bool = True,
     gate_mode: str = "type",
@@ -103,7 +104,7 @@ def _make_engine(
     routing_configured: bool = True,
     generation_grounding_threshold: float = 0.5,
 ) -> Any:
-    """Build a minimally-wired RagEngine bypassing initialize().
+    """Build the iterative-arm engine via the shared ``make_engine`` factory.
 
     Real `RetrievalConfig` (so `iterative` and `adaptive` exist), `MagicMock`
     for the dependency services, `AsyncMock` return values where awaitable.
@@ -120,18 +121,13 @@ def _make_engine(
         escalate_to_direct=escalate_to_direct,
         grounding_threshold=iterative_grounding_threshold,
     )
-    config = MagicMock(spec=RagServerConfig)
-    config.retrieval = RetrievalConfig(
+    retrieval_cfg = RetrievalConfig(
         top_k=5,
         adaptive=AdaptiveRetrievalConfig(enabled=False),
         iterative=iterative_cfg,
         enrich_lm_client=_lm_client(),
     )
-    config.generation = SimpleNamespace(
-        chunk_ordering=ChunkOrdering.SCORE_DESCENDING,
-        grounding_threshold=generation_grounding_threshold,
-    )
-    config.routing = (
+    routing_cfg: Any = (
         RoutingConfig(
             mode=QueryMode.RETRIEVAL,
             direct_context_threshold=direct_context_threshold,
@@ -140,34 +136,37 @@ def _make_engine(
         else None
     )
 
-    engine = RagEngine.__new__(RagEngine)
-    engine._config = config
-    engine._initialized = True
-    engine._retrieval_service = AsyncMock()
-    engine._structured_retrieval = None
-    engine._generation_service = AsyncMock()
-    cast(Any, engine._generation_service).generate = AsyncMock(return_value=_query_result())
-    cast(Any, engine._generation_service).generate_from_corpus = AsyncMock(
+    rs: Any = AsyncMock()
+    gs: Any = AsyncMock()
+    cast(Any, gs).generate = AsyncMock(return_value=_query_result())
+    cast(Any, gs).generate_from_corpus = AsyncMock(
         return_value=_query_result(answer="lc answer")
     )
-    engine._step_service = None
-    engine._knowledge_manager = MagicMock()
-    cast(Any, engine._knowledge_manager).get_corpus_tokens = AsyncMock(return_value=corpus_tokens)
-    engine._load_full_corpus = AsyncMock(return_value="corpus body")  # type: ignore[method-assign]
-    engine._ingestion_service = None
-    engine._structured_ingestion = None
-    engine._retrieval_namespace = None
-    engine._ingestion_namespace = None
-    engine._tree_indexing_service = None
-    engine._tree_search_service = None
-    engine._iterative_service = (
+    km = MagicMock()
+    cast(Any, km).get_corpus_tokens = AsyncMock(return_value=corpus_tokens)
+
+    iterative_service = (
         IterativeRetrievalService(
-            retrieval_service=engine._retrieval_service,
+            retrieval_service=rs,
             fallback_decomposition_lm=_lm_client(),
         )
         if iterative_enabled
         else None
     )
+
+    engine = make_engine(
+        retrieval=retrieval_cfg,
+        generation=SimpleNamespace(
+            chunk_ordering=ChunkOrdering.SCORE_DESCENDING,
+            grounding_threshold=generation_grounding_threshold,
+        ),
+        routing=routing_cfg,
+        retrieval_service=rs,
+        generation_service=gs,
+        knowledge_manager=km,
+        iterative_service=iterative_service,
+    )
+    engine._load_full_corpus = AsyncMock(return_value="corpus body")  # type: ignore[method-assign]
     return engine
 
 
@@ -183,9 +182,9 @@ _CLASSIFY_PATH = "rfnry_rag.retrieval.server.classify_query"
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_disabled_falls_through_to_retrieval() -> None:
+async def test_iterative_disabled_falls_through_to_retrieval(make_engine: Any) -> None:
     """With `iterative.enabled=False`, `_query_via_iterative` is never called."""
-    engine = _make_engine(iterative_enabled=False)
+    engine = _engine(make_engine, iterative_enabled=False)
     chunks = [_chunk()]
     trace = RetrievalTrace(query="q1", knowledge_id="kb-1")
     engine._retrieve_chunks = AsyncMock(return_value=(chunks, trace))  # type: ignore[method-assign]
@@ -203,9 +202,11 @@ async def test_iterative_disabled_falls_through_to_retrieval() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_type_gate_fails_falls_through_to_retrieval() -> None:
+async def test_iterative_type_gate_fails_falls_through_to_retrieval(
+    make_engine: Any,
+) -> None:
     """Type-mode + SIMPLE/FACTUAL classification -> plain retrieval path."""
-    engine = _make_engine(gate_mode="type")
+    engine = _engine(make_engine, gate_mode="type")
     chunks = [_chunk()]
     trace = RetrievalTrace(query="q1", knowledge_id="kb-1")
     engine._retrieve_chunks = AsyncMock(return_value=(chunks, trace))  # type: ignore[method-assign]
@@ -231,9 +232,11 @@ async def test_iterative_type_gate_fails_falls_through_to_retrieval() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_type_gate_passes_on_entity_relationship() -> None:
+async def test_iterative_type_gate_passes_on_entity_relationship(
+    make_engine: Any,
+) -> None:
     """ENTITY_RELATIONSHIP classification triggers `_query_via_iterative`."""
-    engine = _make_engine(gate_mode="type")
+    engine = _engine(make_engine, gate_mode="type")
     engine._query_via_iterative = AsyncMock(return_value=_query_result())  # type: ignore[method-assign]
 
     with patch(
@@ -255,9 +258,9 @@ async def test_iterative_type_gate_passes_on_entity_relationship() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_type_gate_passes_on_complex() -> None:
+async def test_iterative_type_gate_passes_on_complex(make_engine: Any) -> None:
     """COMPLEX/FACTUAL classification triggers `_query_via_iterative`."""
-    engine = _make_engine(gate_mode="type")
+    engine = _engine(make_engine, gate_mode="type")
     engine._query_via_iterative = AsyncMock(return_value=_query_result())  # type: ignore[method-assign]
 
     with patch(
@@ -278,9 +281,11 @@ async def test_iterative_type_gate_passes_on_complex() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_llm_gate_first_decompose_says_done_short_circuits() -> None:
+async def test_iterative_llm_gate_first_decompose_says_done_short_circuits(
+    make_engine: Any,
+) -> None:
     """LLM-mode: `done=true` on hop 0 -> 1 decompose, 0 retrieves."""
-    engine = _make_engine(gate_mode="llm")
+    engine = _engine(make_engine, gate_mode="llm")
     cast(Any, engine._retrieval_service).retrieve = AsyncMock(
         return_value=([_chunk()], RetrievalTrace(query="x"))
     )
@@ -309,9 +314,9 @@ async def test_iterative_llm_gate_first_decompose_says_done_short_circuits() -> 
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_llm_gate_first_decompose_proceeds() -> None:
+async def test_iterative_llm_gate_first_decompose_proceeds(make_engine: Any) -> None:
     """LLM-mode: hop 0 yields a sub_question, hop 1 says done."""
-    engine = _make_engine(gate_mode="llm")
+    engine = _engine(make_engine, gate_mode="llm")
     cast(Any, engine._retrieval_service).retrieve = AsyncMock(
         return_value=([_chunk("chunk_a", 0.9)], RetrievalTrace(query="x"))
     )
@@ -346,9 +351,9 @@ async def test_iterative_llm_gate_first_decompose_proceeds() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_max_hops_termination() -> None:
+async def test_iterative_max_hops_termination(make_engine: Any) -> None:
     """All decompose calls return done=false -> exit at max_hops."""
-    engine = _make_engine(gate_mode="llm", max_hops=3)
+    engine = _engine(make_engine, gate_mode="llm", max_hops=3)
     cast(Any, engine._retrieval_service).retrieve = AsyncMock(
         return_value=([_chunk("chunk_a", 0.9)], RetrievalTrace(query="x"))
     )
@@ -404,9 +409,11 @@ def test_iterative_dedup_preserves_higher_score_on_collision() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_findings_passed_to_next_decompose_call() -> None:
+async def test_iterative_findings_passed_to_next_decompose_call(
+    make_engine: Any,
+) -> None:
     """Hop 1's `accumulated_findings` arg == hop 0's returned `findings_from_last_hop`."""
-    engine = _make_engine(gate_mode="llm")
+    engine = _engine(make_engine, gate_mode="llm")
     cast(Any, engine._retrieval_service).retrieve = AsyncMock(
         return_value=([_chunk()], RetrievalTrace(query="x"))
     )
@@ -440,9 +447,9 @@ async def test_iterative_findings_passed_to_next_decompose_call() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_trace_populates_hop_list() -> None:
+async def test_iterative_trace_populates_hop_list(make_engine: Any) -> None:
     """`trace=True` -> `iterative_hops` populated with ordered hop traces."""
-    engine = _make_engine(gate_mode="llm", max_hops=4)
+    engine = _engine(make_engine, gate_mode="llm", max_hops=4)
     # Per-hop trace carries the adaptive verdict — assert it lands in the
     # IterativeHopTrace.adaptive field (boundary-preservation guard).
     inner_trace = RetrievalTrace(
@@ -495,9 +502,9 @@ async def test_iterative_trace_populates_hop_list() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_routing_decision_is_iterative() -> None:
+async def test_iterative_routing_decision_is_iterative(make_engine: Any) -> None:
     """A run that takes the iterative arm carries `routing_decision="iterative"`."""
-    engine = _make_engine(gate_mode="llm")
+    engine = _engine(make_engine, gate_mode="llm")
     cast(Any, engine._retrieval_service).retrieve = AsyncMock(
         return_value=([_chunk()], RetrievalTrace(query="x"))
     )
@@ -520,9 +527,11 @@ async def test_iterative_routing_decision_is_iterative() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_decomposer_contract_violation_terminates_with_error() -> None:
+async def test_iterative_decomposer_contract_violation_terminates_with_error(
+    make_engine: Any,
+) -> None:
     """`done=false, next_sub_question=None` -> termination_reason="error", no retrieve."""
-    engine = _make_engine(gate_mode="llm")
+    engine = _engine(make_engine, gate_mode="llm")
     cast(Any, engine._retrieval_service).retrieve = AsyncMock()
 
     with (
@@ -604,9 +613,10 @@ def _escalation_decompose_sequence() -> AsyncMock:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_no_escalation_when_disabled() -> None:
+async def test_iterative_no_escalation_when_disabled(make_engine: Any) -> None:
     """`escalate_to_direct=False` blocks escalation even with weak chunks."""
-    engine = _make_engine(
+    engine = _engine(
+        make_engine,
         gate_mode="llm",
         escalate_to_direct=False,
         corpus_tokens=50_000,  # would fit if escalation were enabled
@@ -638,7 +648,9 @@ async def test_iterative_no_escalation_when_disabled() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_no_escalation_when_routing_unconfigured(caplog: Any) -> None:
+async def test_iterative_no_escalation_when_routing_unconfigured(
+    make_engine: Any, caplog: Any
+) -> None:
     """`escalate_to_direct=True` + `RoutingConfig=None` -> no escalation
     at runtime; engine init logs a warning.
 
@@ -653,7 +665,8 @@ async def test_iterative_no_escalation_when_routing_unconfigured(caplog: Any) ->
     # (rather than `routing=None` outright — `query()` reads `routing.mode`,
     # so the routing dataclass has to exist; the threshold is what gates
     # escalation eligibility).
-    engine = _make_engine(
+    engine = _engine(
+        make_engine,
         gate_mode="llm",
         escalate_to_direct=True,
         corpus_tokens=50_000,
@@ -724,9 +737,10 @@ async def test_iterative_no_escalation_when_routing_unconfigured(caplog: Any) ->
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_no_escalation_when_corpus_too_large() -> None:
+async def test_iterative_no_escalation_when_corpus_too_large(make_engine: Any) -> None:
     """`tokens > direct_context_threshold` -> escalation skipped."""
-    engine = _make_engine(
+    engine = _engine(
+        make_engine,
         gate_mode="llm",
         escalate_to_direct=True,
         corpus_tokens=200_000,
@@ -756,9 +770,10 @@ async def test_iterative_no_escalation_when_corpus_too_large() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_escalation_fires_when_corpus_fits() -> None:
+async def test_iterative_escalation_fires_when_corpus_fits(make_engine: Any) -> None:
     """Weak chunks + `tokens <= threshold` -> DIRECT path runs once."""
-    engine = _make_engine(
+    engine = _engine(
+        make_engine,
         gate_mode="llm",
         escalate_to_direct=True,
         corpus_tokens=50_000,
@@ -791,7 +806,9 @@ async def test_iterative_escalation_fires_when_corpus_fits() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_escalation_preserves_hop_trace_on_outer_result() -> None:
+async def test_iterative_escalation_preserves_hop_trace_on_outer_result(
+    make_engine: Any,
+) -> None:
     """Iterative hops survive the escalation boundary intact.
 
     Without the merge, `_query_via_direct_context` would return a fresh
@@ -799,7 +816,8 @@ async def test_iterative_escalation_preserves_hop_trace_on_outer_result() -> Non
     context would be silently dropped at the boundary. This test pins
     the merge contract so that bug pattern cannot recur.
     """
-    engine = _make_engine(
+    engine = _engine(
+        make_engine,
         gate_mode="llm",
         escalate_to_direct=True,
         corpus_tokens=50_000,
@@ -838,14 +856,17 @@ async def test_iterative_escalation_preserves_hop_trace_on_outer_result() -> Non
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_grounding_threshold_override_takes_precedence() -> None:
+async def test_iterative_grounding_threshold_override_takes_precedence(
+    make_engine: Any,
+) -> None:
     """`iterative.grounding_threshold=0.6` overrides `generation.grounding_threshold=0.4`.
 
     chunks at 0.5 -> weak by iterative threshold (0.5 < 0.6) -> escalate.
     chunks at 0.65 -> strong by iterative threshold (0.65 >= 0.6) -> no escalate.
     """
     # Case A: weak by iterative threshold -> escalation fires.
-    engine_a = _make_engine(
+    engine_a = _engine(
+        make_engine,
         gate_mode="llm",
         escalate_to_direct=True,
         corpus_tokens=50_000,
@@ -866,7 +887,8 @@ async def test_iterative_grounding_threshold_override_takes_precedence() -> None
 
     # Case B: strong by iterative threshold (boundary `<`, not `<=`) ->
     # no escalation, normal "done" termination preserved.
-    engine_b = _make_engine(
+    engine_b = _engine(
+        make_engine,
         gate_mode="llm",
         escalate_to_direct=True,
         corpus_tokens=50_000,

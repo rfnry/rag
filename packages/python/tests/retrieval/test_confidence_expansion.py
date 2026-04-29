@@ -33,8 +33,6 @@ from rfnry_rag.retrieval.modules.generation.models import QueryResult
 from rfnry_rag.retrieval.server import (
     AdaptiveRetrievalConfig,
     QueryMode,
-    RagEngine,
-    RagServerConfig,
     RoutingConfig,
 )
 
@@ -52,7 +50,8 @@ def _query_result(answer: str = "an answer") -> QueryResult:
     return QueryResult(answer=answer, sources=[], grounded=True, confidence=0.85)
 
 
-def _make_engine(
+def _engine(
+    make_engine: Any,
     *,
     confidence_expansion: bool = True,
     max_expansion_retries: int = 2,
@@ -63,55 +62,46 @@ def _make_engine(
     direct_context_threshold: int = 150_000,
     corpus_tokens: int = 200_000,
 ) -> Any:
-    """Build a minimally-wired RagEngine bypassing initialize().
+    """Build a confidence-expansion engine via the shared ``make_engine`` factory.
 
-    Returns `Any` so tests can poke `AsyncMock` assertion helpers on
-    private service attributes typed as concrete services.
+    Wires the adaptive / generation / routing config slices, plus a
+    ``knowledge_manager`` whose ``get_corpus_tokens`` returns ``corpus_tokens``,
+    and a ``generation_service`` whose ``generate_from_corpus`` returns the
+    distinctive ``"lc answer"`` so escalation tests can pin the answer source.
     """
-    config = MagicMock(spec=RagServerConfig)
-    config.retrieval = SimpleNamespace(
-        history_window=3,
-        top_k=base_top_k,
-        adaptive=AdaptiveRetrievalConfig(
-            enabled=True,
-            top_k_min=top_k_min,
-            top_k_max=top_k_max,
-            confidence_expansion=confidence_expansion,
-            max_expansion_retries=max_expansion_retries,
-        ),
-    )
-    config.generation = SimpleNamespace(
-        chunk_ordering=ChunkOrdering.SCORE_DESCENDING,
-        grounding_threshold=grounding_threshold,
-    )
-    config.routing = RoutingConfig(
-        mode=QueryMode.RETRIEVAL,
-        direct_context_threshold=direct_context_threshold,
-    )
-
-    engine = RagEngine.__new__(RagEngine)
-    engine._config = config
-    engine._initialized = True
-    engine._retrieval_service = AsyncMock()
-    engine._structured_retrieval = None
-    engine._generation_service = AsyncMock()
-    cast(Any, engine._generation_service).generate = AsyncMock(return_value=_query_result())
-    cast(Any, engine._generation_service).generate_from_corpus = AsyncMock(
+    km = MagicMock()
+    cast(Any, km).get_corpus_tokens = AsyncMock(return_value=corpus_tokens)
+    gs: Any = AsyncMock()
+    cast(Any, gs).generate = AsyncMock(return_value=_query_result())
+    cast(Any, gs).generate_from_corpus = AsyncMock(
         return_value=_query_result(answer="lc answer")
     )
-    engine._step_service = None
-    engine._knowledge_manager = MagicMock()
-    cast(Any, engine._knowledge_manager).get_corpus_tokens = AsyncMock(return_value=corpus_tokens)
-    engine._ingestion_service = None
-    engine._structured_ingestion = None
-    engine._retrieval_namespace = None
-    engine._ingestion_namespace = None
-    engine._tree_indexing_service = None
-    engine._tree_search_service = None
-    return engine
+    return make_engine(
+        retrieval=SimpleNamespace(
+            history_window=3,
+            top_k=base_top_k,
+            adaptive=AdaptiveRetrievalConfig(
+                enabled=True,
+                top_k_min=top_k_min,
+                top_k_max=top_k_max,
+                confidence_expansion=confidence_expansion,
+                max_expansion_retries=max_expansion_retries,
+            ),
+        ),
+        generation=SimpleNamespace(
+            chunk_ordering=ChunkOrdering.SCORE_DESCENDING,
+            grounding_threshold=grounding_threshold,
+        ),
+        routing=RoutingConfig(
+            mode=QueryMode.RETRIEVAL,
+            direct_context_threshold=direct_context_threshold,
+        ),
+        knowledge_manager=km,
+        generation_service=gs,
+    )
 
 
-async def test_expansion_disabled_runs_single_attempt() -> None:
+async def test_expansion_disabled_runs_single_attempt(make_engine: Any) -> None:
     """`confidence_expansion=False` skips the retry loop entirely.
 
     Even when chunks are weak, the loop runs exactly once and the
@@ -119,7 +109,7 @@ async def test_expansion_disabled_runs_single_attempt() -> None:
     `final_top_k`) stay absent from `trace.adaptive` — keeping
     "didn't run" distinct from "ran with 0 retries".
     """
-    engine = _make_engine(confidence_expansion=False)
+    engine = _engine(make_engine, confidence_expansion=False)
     weak = [_chunk(score=0.1)]
     trace = RetrievalTrace(query="q1", knowledge_id="kb-1", adaptive={"foo": "bar"})
     engine._retrieve_chunks = AsyncMock(return_value=(weak, trace))  # type: ignore[method-assign]
@@ -135,14 +125,18 @@ async def test_expansion_disabled_runs_single_attempt() -> None:
     assert "final_top_k" not in result.trace.adaptive
 
 
-async def test_expansion_succeeds_on_first_attempt_when_above_threshold() -> None:
+async def test_expansion_succeeds_on_first_attempt_when_above_threshold(
+    make_engine: Any,
+) -> None:
     """First call returns strong chunks → no retry; outcome=succeeded, attempts=0.
 
     Locks the contract that even with 0 retries, `final_top_k` is reported
     (as `base_top_k`) — "didn't need to retry" is distinct from "didn't run
     expansion at all", and consumers can rely on the key being present.
     """
-    engine = _make_engine(confidence_expansion=True, base_top_k=5, grounding_threshold=0.5)
+    engine = _engine(
+        make_engine, confidence_expansion=True, base_top_k=5, grounding_threshold=0.5
+    )
     strong = [_chunk(score=0.8)]
     trace = RetrievalTrace(query="q1", knowledge_id="kb-1", adaptive={})
     engine._retrieve_chunks = AsyncMock(return_value=(strong, trace))  # type: ignore[method-assign]
@@ -157,13 +151,14 @@ async def test_expansion_succeeds_on_first_attempt_when_above_threshold() -> Non
     assert result.trace.adaptive["final_top_k"] == 5
 
 
-async def test_expansion_doubles_top_k_on_first_retry() -> None:
+async def test_expansion_doubles_top_k_on_first_retry(make_engine: Any) -> None:
     """First call weak; retry with `top_k * 2` (capped at `top_k_max`).
 
     base_top_k=5 → first retry should pass top_k=10. Second call returns
     strong chunks so the loop exits cleanly.
     """
-    engine = _make_engine(
+    engine = _engine(
+        make_engine,
         confidence_expansion=True,
         base_top_k=5,
         top_k_max=15,
@@ -189,13 +184,16 @@ async def test_expansion_doubles_top_k_on_first_retry() -> None:
     assert result.trace.adaptive["expansion_outcome"] == "succeeded"
 
 
-async def test_expansion_exhausts_retries_then_proceeds_with_weak_chunks_when_corpus_too_large() -> None:
+async def test_expansion_exhausts_retries_then_proceeds_with_weak_chunks_when_corpus_too_large(
+    make_engine: Any,
+) -> None:
     """All retries weak + corpus > threshold → proceed with last weak chunks.
 
     `routing_decision` stays `"retrieval"` (not escalated). The returned
     chunks are the last (weak) attempt's chunks.
     """
-    engine = _make_engine(
+    engine = _engine(
+        make_engine,
         confidence_expansion=True,
         max_expansion_retries=2,
         grounding_threshold=0.5,
@@ -225,14 +223,17 @@ async def test_expansion_exhausts_retries_then_proceeds_with_weak_chunks_when_co
     assert result.trace.routing_decision == "retrieval"
 
 
-async def test_expansion_escalates_to_direct_when_corpus_below_threshold() -> None:
+async def test_expansion_escalates_to_direct_when_corpus_below_threshold(
+    make_engine: Any,
+) -> None:
     """All retries weak + corpus ≤ threshold → escalate to DIRECT.
 
     `_query_via_direct_context` is invoked; the returned answer comes
     from the DIRECT path (`generate_from_corpus`), not from the weak
     chunks (`generate`).
     """
-    engine = _make_engine(
+    engine = _engine(
+        make_engine,
         confidence_expansion=True,
         max_expansion_retries=2,
         grounding_threshold=0.5,
@@ -254,9 +255,12 @@ async def test_expansion_escalates_to_direct_when_corpus_below_threshold() -> No
     assert result.answer == "lc answer"
 
 
-async def test_expansion_records_attempts_and_outcome_in_trace() -> None:
+async def test_expansion_records_attempts_and_outcome_in_trace(
+    make_engine: Any,
+) -> None:
     """One retry then success: attempts=1, outcome=succeeded, final_top_k=10."""
-    engine = _make_engine(
+    engine = _engine(
+        make_engine,
         confidence_expansion=True,
         base_top_k=5,
         top_k_max=15,
@@ -279,14 +283,17 @@ async def test_expansion_records_attempts_and_outcome_in_trace() -> None:
     assert result.trace.adaptive["final_top_k"] == 10
 
 
-async def test_expansion_escalation_routing_decision_is_retrieval_then_direct() -> None:
+async def test_expansion_escalation_routing_decision_is_retrieval_then_direct(
+    make_engine: Any,
+) -> None:
     """LC escalation sets the new `retrieval_then_direct` routing_decision value.
 
     Distinguishes "AUTO chose DIRECT directly" (= "direct") from
     "RETRIEVAL ran, expansion failed, escalated" (= "retrieval_then_direct").
     Different cost shape, different debugging signal.
     """
-    engine = _make_engine(
+    engine = _engine(
+        make_engine,
         confidence_expansion=True,
         max_expansion_retries=2,
         grounding_threshold=0.5,
@@ -306,7 +313,9 @@ async def test_expansion_escalation_routing_decision_is_retrieval_then_direct() 
     assert result.trace.routing_decision == "retrieval_then_direct"
 
 
-async def test_expansion_uses_grounding_threshold_from_generation_config() -> None:
+async def test_expansion_uses_grounding_threshold_from_generation_config(
+    make_engine: Any,
+) -> None:
     """Threshold source is `GenerationConfig.grounding_threshold` (single source of truth).
 
     threshold=0.6: chunks at 0.5 trigger expansion (weak); chunks at 0.7
@@ -314,7 +323,8 @@ async def test_expansion_uses_grounding_threshold_from_generation_config() -> No
     exactly the threshold is NOT considered weak.
     """
     # Below threshold → expand.
-    weak_engine = _make_engine(
+    weak_engine = _engine(
+        make_engine,
         confidence_expansion=True,
         grounding_threshold=0.6,
     )
@@ -329,7 +339,8 @@ async def test_expansion_uses_grounding_threshold_from_generation_config() -> No
     assert weak_engine._retrieve_chunks.await_count == 2
 
     # Above threshold → no expansion.
-    strong_engine = _make_engine(
+    strong_engine = _engine(
+        make_engine,
         confidence_expansion=True,
         grounding_threshold=0.6,
     )
@@ -341,7 +352,9 @@ async def test_expansion_uses_grounding_threshold_from_generation_config() -> No
     assert strong_engine._retrieve_chunks.await_count == 1
 
 
-async def test_expansion_escalation_preserves_adaptive_classification_keys() -> None:
+async def test_expansion_escalation_preserves_adaptive_classification_keys(
+    make_engine: Any,
+) -> None:
     """LC escalation MERGES the pre-escalation classifier verdict onto the DIRECT trace.
 
     A consumer debugging "why did this escalate?" needs both signals:
@@ -356,7 +369,8 @@ async def test_expansion_escalation_preserves_adaptive_classification_keys() -> 
     the escalation boundary because `_query_via_direct_context` returns a
     fresh trace whose `adaptive` is `None`.
     """
-    engine = _make_engine(
+    engine = _engine(
+        make_engine,
         confidence_expansion=True,
         max_expansion_retries=2,
         grounding_threshold=0.5,
@@ -405,7 +419,9 @@ async def test_expansion_escalation_preserves_adaptive_classification_keys() -> 
     assert result.trace.routing_decision == "retrieval_then_direct"
 
 
-async def test_expansion_escalation_preserves_pre_escalation_timings() -> None:
+async def test_expansion_escalation_preserves_pre_escalation_timings(
+    make_engine: Any,
+) -> None:
     """LC escalation MERGES pre-escalation RAG timings onto the DIRECT trace.
 
     `routing_decision="retrieval_then_direct"` exists specifically to flag
@@ -419,7 +435,8 @@ async def test_expansion_escalation_preserves_pre_escalation_timings() -> None:
     key collision; none expected since RAG and DIRECT stage names are
     distinct). Both sets must be present in the final trace.
     """
-    engine = _make_engine(
+    engine = _engine(
+        make_engine,
         confidence_expansion=True,
         max_expansion_retries=2,
         grounding_threshold=0.5,

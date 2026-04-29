@@ -33,19 +33,21 @@ def _lm_client() -> LanguageModelClient:
     )
 
 
-def _make_engine(
+def _engine(
+    make_engine: Any,
     *,
     raptor: RaptorConfig | None = None,
     vector_store: Any = "stub",
     embeddings: Any = "stub",
     metadata_store: Any = "stub_sqlalchemy",
 ) -> Any:
-    """Build a minimally-wired RagEngine bypassing initialize().
+    """Build the raptor-engine-API engine via the shared ``make_engine`` factory.
 
     The default sentinel values keep all four engine-API guards happy when
     not under test; individual tests override the field they're exercising.
-    Returns ``Any`` so tests can poke private attributes without typecheck
-    fighting the engine class shape (mirrors ``test_routing_direct_mode.py``).
+    Passes an explicit ``SimpleNamespace`` config (the raptor build path
+    reads ``persistence`` / ``ingestion`` directly, not the full
+    ``RagServerConfig`` surface).
     """
     cfg = raptor if raptor is not None else RaptorConfig()
     ingestion = SimpleNamespace(
@@ -62,15 +64,10 @@ def _make_engine(
             else (metadata_store if metadata_store != "stub_sqlalchemy" else _make_sqlalchemy_store())
         ),
     )
-    config = SimpleNamespace(persistence=persistence, ingestion=ingestion)
-
-    engine = RagEngine.__new__(RagEngine)
-    engine._config = config  # type: ignore[assignment]
-    engine._initialized = True
-    engine._knowledge_manager = MagicMock()
-    engine._raptor_builder = None
-    engine._raptor_registry = None
-    return engine
+    return make_engine(
+        config=SimpleNamespace(persistence=persistence, ingestion=ingestion),
+        knowledge_manager=MagicMock(),
+    )
 
 
 def _make_sqlalchemy_store() -> Any:
@@ -85,9 +82,9 @@ def _make_sqlalchemy_store() -> Any:
 # ---------------------------------------------------------------------------
 
 
-async def test_build_raptor_index_raises_when_disabled() -> None:
+async def test_build_raptor_index_raises_when_disabled(make_engine: Any) -> None:
     """RaptorConfig.enabled=False at API boundary -> ConfigurationError."""
-    engine = _make_engine(raptor=RaptorConfig(enabled=False))
+    engine = _engine(make_engine, raptor=RaptorConfig(enabled=False))
     with pytest.raises(ConfigurationError, match="enabled"):
         await engine.build_raptor_index("kb-1")
 
@@ -97,11 +94,13 @@ async def test_build_raptor_index_raises_when_disabled() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_build_raptor_index_raises_when_summary_model_missing_at_runtime() -> None:
+async def test_build_raptor_index_raises_when_summary_model_missing_at_runtime(
+    make_engine: Any,
+) -> None:
     """Defensive: a consumer mutated summary_model to None after construction."""
     cfg = RaptorConfig(enabled=True, summary_model=_lm_client())
     cfg.summary_model = None  # post-init mutation bypasses dataclass validation
-    engine = _make_engine(raptor=cfg)
+    engine = _engine(make_engine, raptor=cfg)
     with pytest.raises(ConfigurationError, match="summary_model"):
         await engine.build_raptor_index("kb-1")
 
@@ -111,9 +110,11 @@ async def test_build_raptor_index_raises_when_summary_model_missing_at_runtime()
 # ---------------------------------------------------------------------------
 
 
-async def test_build_raptor_index_raises_when_vector_store_unavailable() -> None:
+async def test_build_raptor_index_raises_when_vector_store_unavailable(
+    make_engine: Any,
+) -> None:
     cfg = RaptorConfig(enabled=True, summary_model=_lm_client())
-    engine = _make_engine(raptor=cfg, vector_store=None)
+    engine = _engine(make_engine, raptor=cfg, vector_store=None)
     with pytest.raises(ConfigurationError, match="vector_store"):
         await engine.build_raptor_index("kb-1")
 
@@ -123,14 +124,16 @@ async def test_build_raptor_index_raises_when_vector_store_unavailable() -> None
 # ---------------------------------------------------------------------------
 
 
-async def test_build_raptor_index_raises_when_metadata_store_not_sqlalchemy() -> None:
+async def test_build_raptor_index_raises_when_metadata_store_not_sqlalchemy(
+    make_engine: Any,
+) -> None:
     """RaptorTreeRegistry needs the SQLAlchemy schema; reject other impls."""
 
     class _OtherMetadataStore:
         pass
 
     cfg = RaptorConfig(enabled=True, summary_model=_lm_client())
-    engine = _make_engine(raptor=cfg, metadata_store=_OtherMetadataStore())
+    engine = _engine(make_engine, raptor=cfg, metadata_store=_OtherMetadataStore())
     with pytest.raises(ConfigurationError, match="SQLAlchemyMetadataStore"):
         await engine.build_raptor_index("kb-1")
 
