@@ -144,12 +144,21 @@ class RetrievalTrace:
     R6.3 will add `"iterative_then_direct"` for the post-loop DIRECT
     escalation case.
 
-    `iterative_hops` (R6.2) is `None` when iterative retrieval did not
-    run (the default — `IterativeRetrievalConfig.enabled=False` or the
-    gate did not pass). When populated, each entry is one hop's trace
-    including its decompose verdict, sub-question, per-method results,
-    and timings. `iterative_termination_reason` carries the loop's exit
-    condition (`"done" | "max_hops" | "error"`; R6.3 will add
+    `iterative_hops` (R6.2) has three distinct states:
+
+    - `None`: iterative was not enabled / not consulted (the default —
+      `IterativeRetrievalConfig.enabled=False`, or the engine arm
+      decided iterative was not the right path).
+    - `[]`: iterative was consulted but the type-mode gate failed at
+      entry (no decompose calls were made). Distinct from `None` so a
+      consumer can attribute "iterative was on but rejected this query"
+      vs "iterative was off entirely".
+    - non-empty list: iterative ran N hops; each entry is one hop's
+      trace including its decompose verdict, sub-question, per-method
+      results, and timings.
+
+    `iterative_termination_reason` carries the loop's exit condition
+    (`"done" | "max_hops" | "error"`; R6.3 will add
     `"low_confidence_escalated"` and the gate-fail short-circuit case).
     """
 

@@ -35,7 +35,7 @@ from rfnry_rag.retrieval.modules.retrieval.search.service import RetrievalServic
 logger = get_logger("retrieval.iterative.service")
 
 
-def _gate_passes_type(classification: QueryClassification | None) -> bool:
+def gate_passes_type(classification: QueryClassification | None) -> bool:
     """Type-mode gate: pass on COMPLEX or ENTITY_RELATIONSHIP queries.
 
     Conservative by design — single-fact / SIMPLE / FACTUAL queries do
@@ -177,7 +177,7 @@ class IterativeRetrievalService:
         # COMPLEX nor ENTITY_RELATIONSHIP. The engine arm should have made
         # this same decision before delegating, but defending it here keeps
         # the service usable in isolation (e.g. for tests).
-        if iterative.gate_mode == "type" and not _gate_passes_type(classification):
+        if iterative.gate_mode == "type" and not gate_passes_type(classification):
             return [], IterativeOutcome(
                 hops=[],
                 termination_reason="done",
@@ -217,7 +217,7 @@ class IterativeRetrievalService:
                         sub_question=None,
                         findings_from_last_hop=accumulated_findings,
                         decompose_reasoning=f"decompose failed: {exc}",
-                        timings={"decompose_ms": (time.perf_counter() - decompose_t0) * 1000},
+                        timings={"decompose": time.perf_counter() - decompose_t0},
                     )
                 )
                 return accumulated_chunks, IterativeOutcome(
@@ -226,7 +226,7 @@ class IterativeRetrievalService:
                     total_decompose_calls=decompose_calls,
                     total_retrieve_calls=retrieve_calls,
                 )
-            decompose_ms = (time.perf_counter() - decompose_t0) * 1000
+            decompose = time.perf_counter() - decompose_t0
 
             logger.info(
                 "iterative hop %d/%d: done=%s sub_q=%s",
@@ -243,7 +243,7 @@ class IterativeRetrievalService:
                         sub_question=None,
                         findings_from_last_hop=result.findings_from_last_hop,
                         decompose_reasoning=result.reasoning,
-                        timings={"decompose_ms": decompose_ms},
+                        timings={"decompose": decompose},
                     )
                 )
                 return accumulated_chunks, IterativeOutcome(
@@ -267,7 +267,7 @@ class IterativeRetrievalService:
                             f"contract violation: done=false with empty sub_question. "
                             f"{result.reasoning}"
                         ),
-                        timings={"decompose_ms": decompose_ms},
+                        timings={"decompose": decompose},
                     )
                 )
                 return accumulated_chunks, IterativeOutcome(
@@ -292,7 +292,7 @@ class IterativeRetrievalService:
             )
             if min_score is not None:
                 hop_chunks = [c for c in hop_chunks if c.score >= min_score]
-            retrieve_ms = (time.perf_counter() - retrieve_t0) * 1000
+            retrieve = time.perf_counter() - retrieve_t0
 
             accumulated_chunks = _merge_chunks_dedup(accumulated_chunks, hop_chunks)
             # The decomposer self-summarises; we replace, not append. This
@@ -300,10 +300,13 @@ class IterativeRetrievalService:
             # the prompt contract in R6.1's BAML function.
             accumulated_findings = result.findings_from_last_hop
 
-            # `expansion_applied` derives from R5.3's `adaptive.expansion_attempts`
-            # key. Adaptive disabled or expansion not run -> the key is absent
-            # -> bool() returns False. This is the canonical signal; prefer it
-            # over re-deriving from chunk counts.
+            # R6.2: `expansion_applied` is structurally always False here.
+            # Per-hop retrieval calls `RetrievalService.retrieve` directly,
+            # bypassing `RagEngine._query_via_retrieval` where R5.3's
+            # expansion loop sets the `expansion_attempts` key. Field
+            # reserved for future per-hop expansion: when that work lands
+            # it will populate the key and this read becomes truthful
+            # without further changes here.
             expansion_applied = False
             adaptive_snapshot: dict[str, object] | None = None
             if hop_trace_data is not None and hop_trace_data.adaptive is not None:
@@ -313,8 +316,8 @@ class IterativeRetrievalService:
                 )
 
             hop_timings: dict[str, float] = {
-                "decompose_ms": decompose_ms,
-                "retrieve_ms": retrieve_ms,
+                "decompose": decompose,
+                "retrieve": retrieve,
             }
             if hop_trace_data is not None:
                 hop_timings.update(hop_trace_data.timings)

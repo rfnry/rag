@@ -51,7 +51,7 @@ from rfnry_rag.retrieval.modules.retrieval.enrich.service import StructuredRetri
 from rfnry_rag.retrieval.modules.retrieval.iterative.config import IterativeRetrievalConfig
 from rfnry_rag.retrieval.modules.retrieval.iterative.service import (
     IterativeRetrievalService,
-    _gate_passes_type,
+    gate_passes_type,
 )
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval
@@ -1452,7 +1452,7 @@ class RagEngine:
                     else None
                 )
                 classification = await classify_query(text, classifier_lm)
-                if _gate_passes_type(classification):
+                if gate_passes_type(classification):
                     return await self._query_via_iterative(
                         text,
                         knowledge_id,
@@ -1652,7 +1652,7 @@ class RagEngine:
         # Per-collection retrieval pipelines (R5+) require a per-collection
         # iterative service too — otherwise a query against collection B
         # would call the default RetrievalService for hops. Build a
-        # collection-scoped service on demand; production Latency hit is
+        # collection-scoped service on demand; production latency hit is
         # negligible (object allocation only — no I/O).
         iterative_service = self._iterative_service
         if collection is not None:
