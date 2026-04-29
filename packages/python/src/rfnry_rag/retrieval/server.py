@@ -49,10 +49,18 @@ from rfnry_rag.retrieval.modules.namespace import MethodNamespace
 from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod
 from rfnry_rag.retrieval.modules.retrieval.enrich.service import StructuredRetrievalService
 from rfnry_rag.retrieval.modules.retrieval.iterative.config import IterativeRetrievalConfig
+from rfnry_rag.retrieval.modules.retrieval.iterative.service import (
+    IterativeRetrievalService,
+    _gate_passes_type,
+)
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.retrieval.modules.retrieval.refinement.base import BaseChunkRefinement
+from rfnry_rag.retrieval.modules.retrieval.search.classification import (
+    QueryClassification,
+    classify_query,
+)
 from rfnry_rag.retrieval.modules.retrieval.search.reranking.base import BaseReranking
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.base import BaseQueryRewriting
 from rfnry_rag.retrieval.modules.retrieval.search.service import RetrievalService
@@ -572,6 +580,10 @@ class RagEngine:
         self._drawing_ingestion: DrawingIngestionService | None = None
         self._retrieval_service: RetrievalService | None = None
         self._structured_retrieval: StructuredRetrievalService | None = None
+        # R6.2: only built when `RetrievalConfig.iterative.enabled=True`. Stays
+        # None otherwise so the existing dispatch path is byte-for-byte
+        # unchanged for consumers who don't opt in.
+        self._iterative_service: IterativeRetrievalService | None = None
         self._generation_service: GenerationService | None = None
         self._knowledge_manager: KnowledgeManager | None = None
         self._step_service: StepGenerationService | None = None
@@ -683,6 +695,25 @@ class RagEngine:
                 "AdaptiveRetrievalConfig.use_llm_classification=True requires "
                 "RetrievalConfig.enrich_lm_client — provide a LanguageModelClient "
                 "(no opinionated default model; consumer chooses)."
+            )
+
+        # R6.2: iterative retrieval needs SOME LLM client to call DecomposeQuery.
+        # The dataclass-level invariant catches `gate_mode="llm"` without a
+        # `decomposition_model`; this cross-config rule covers the remaining
+        # gap (`gate_mode="type"` AND `decomposition_model is None` AND
+        # `enrich_lm_client is None`) — without it, the loop would silently
+        # no-op at query-time on the first decompose call. Failing here
+        # surfaces the misconfig at engine init, not on first query.
+        if (
+            cfg.retrieval.iterative.enabled
+            and cfg.retrieval.iterative.decomposition_model is None
+            and cfg.retrieval.enrich_lm_client is None
+        ):
+            raise ConfigurationError(
+                "IterativeRetrievalConfig.enabled=True requires either "
+                "iterative.decomposition_model or RetrievalConfig.enrich_lm_client "
+                "to be set — the decomposer needs an LLM client. Set one to "
+                "the same LanguageModelClient you'd use for query rewriting."
             )
 
     async def initialize(self) -> None:
@@ -899,6 +930,16 @@ class RagEngine:
             classifier_lm_client=retrieval.enrich_lm_client,
         )
 
+        # R6.2: only construct when iterative is opted-in. Lazy construction
+        # keeps `iterative.enabled=False` byte-for-byte unchanged (no service
+        # built, no decomposer registry warmed, no extra fields populated).
+        if retrieval.iterative.enabled:
+            self._iterative_service = IterativeRetrievalService(
+                retrieval_service=self._retrieval_service,
+                fallback_decomposition_lm=retrieval.enrich_lm_client,
+            )
+            logger.info("iterative retrieval: enabled (gate_mode=%s)", retrieval.iterative.gate_mode)
+
         # Structured retrieval (unchanged)
         if persistence.vector_store and ingestion.embeddings:
             self._structured_retrieval = StructuredRetrievalService(
@@ -1017,6 +1058,7 @@ class RagEngine:
         self._drawing_ingestion = None
         self._retrieval_service = None
         self._structured_retrieval = None
+        self._iterative_service = None
         self._generation_service = None
         self._knowledge_manager = None
         self._step_service = None
@@ -1370,8 +1412,72 @@ class RagEngine:
         `_retrieve_chunks` directly (not `_query_via_retrieval`), so
         HYBRID is naturally excluded from expansion (HYBRID has its own
         answerability check; expansion would double up).
+
+        R6.2 also dispatches at the top of this method to
+        `_query_via_iterative` when iterative is enabled and the gate
+        passes. AUTO mode reaches this method when it routes to RETRIEVAL,
+        so iterative is consulted on both RETRIEVAL and AUTO->RETRIEVAL
+        paths transparently. HYBRID and DIRECT are NOT affected — HYBRID
+        has its own answerability check (double-decomposing burns LLM
+        calls without benefit), and DIRECT loads the whole corpus already.
         """
         assert self._generation_service is not None
+
+        # R6.2 dispatch: classify once, decide whether to iterate. We classify
+        # here (not inside `_query_via_iterative`) so the verdict can be passed
+        # to BOTH the iterative service (for the type-mode gate) AND the inner
+        # `RetrievalService.retrieve` (when adaptive is enabled, R5.2's
+        # `_compute_adaptive_params` reuses this verdict — pre-classification
+        # avoids the double LLM call). Today we don't yet thread the
+        # classification down into `RetrievalService.retrieve`; that's a
+        # follow-up. The gate is fast enough that running the heuristic twice
+        # (once here, once inside `RetrievalService` if adaptive is on) is not
+        # a hotspot in practice.
+        # Defensive `getattr`: tests construct minimally-wired engines via
+        # `SimpleNamespace`, which may omit `iterative`. Production
+        # `RagServerConfig` always provides it; treating missing as
+        # "disabled" preserves the existing test ergonomics (mirrors R5.3's
+        # `adaptive` lookup pattern earlier in this method).
+        iterative_cfg = getattr(self._config.retrieval, "iterative", None)
+        if iterative_cfg is not None and iterative_cfg.enabled and self._iterative_service is not None:
+            if iterative_cfg.gate_mode == "type":
+                # Type-mode gate uses R5's classifier verdict; default to the
+                # free heuristic. LLM-backed classification is opted in via
+                # `AdaptiveRetrievalConfig.use_llm_classification` — when set,
+                # the same classifier client is shared with the gate to avoid
+                # diverging verdicts.
+                classifier_lm = (
+                    self._config.retrieval.enrich_lm_client
+                    if self._config.retrieval.adaptive.use_llm_classification
+                    else None
+                )
+                classification = await classify_query(text, classifier_lm)
+                if _gate_passes_type(classification):
+                    return await self._query_via_iterative(
+                        text,
+                        knowledge_id,
+                        history,
+                        min_score,
+                        collection,
+                        system_prompt,
+                        trace,
+                        classification=classification,
+                    )
+                # Gate rejected: fall through to plain `_query_via_retrieval`.
+            else:
+                # LLM-mode: the decomposer is the gate. Hand off without
+                # pre-classifying — the first `DecomposeQuery` call decides.
+                return await self._query_via_iterative(
+                    text,
+                    knowledge_id,
+                    history,
+                    min_score,
+                    collection,
+                    system_prompt,
+                    trace,
+                    classification=None,
+                )
+
         # Defensive lookups: tests construct minimally-wired engines via
         # `SimpleNamespace`, which may omit `adaptive` / `generation`.
         # Production `RagServerConfig` always provides both; treating
@@ -1513,6 +1619,101 @@ class RagEngine:
                 trace_obj.adaptive["expansion_attempts"] = attempts
                 trace_obj.adaptive["expansion_outcome"] = outcome
                 trace_obj.adaptive["final_top_k"] = final_top_k
+            result.trace = trace_obj
+        return result
+
+    async def _query_via_iterative(
+        self,
+        text: str,
+        knowledge_id: str | None,
+        history: list[tuple[str, str]] | None,
+        min_score: float | None,
+        collection: str | None,
+        system_prompt: str | None,
+        trace: bool,
+        classification: QueryClassification | None,
+    ) -> QueryResult:
+        """Multi-hop iterative retrieve-then-generate (R6.2).
+
+        Mirrors `_query_via_hybrid` structurally: delegate to a sibling
+        service that owns the loop, then route the accumulated chunks
+        through `GenerationService.generate` unchanged. The trace
+        surfaces every hop's per-method results, decompose verdict, and
+        timings via `RetrievalTrace.iterative_hops`.
+
+        R6.3 will add post-loop DIRECT escalation here when the LLM's
+        confidence on the synthesised answer is below threshold AND the
+        corpus fits the direct-context window. R6.2 stops at synthesis.
+        """
+        assert self._generation_service is not None
+        assert self._iterative_service is not None
+        iterative_cfg = self._config.retrieval.iterative
+
+        # Per-collection retrieval pipelines (R5+) require a per-collection
+        # iterative service too — otherwise a query against collection B
+        # would call the default RetrievalService for hops. Build a
+        # collection-scoped service on demand; production Latency hit is
+        # negligible (object allocation only — no I/O).
+        iterative_service = self._iterative_service
+        if collection is not None:
+            scoped_retrieval, _scoped_struct = self._get_retrieval(collection)
+            if scoped_retrieval is not self._retrieval_service:
+                iterative_service = IterativeRetrievalService(
+                    retrieval_service=scoped_retrieval,
+                    fallback_decomposition_lm=self._config.retrieval.enrich_lm_client,
+                )
+
+        iterative_t0 = time.perf_counter() if trace else 0.0
+        accumulated_chunks, outcome = await iterative_service.retrieve(
+            query=text,
+            knowledge_id=knowledge_id,
+            history=history,
+            min_score=min_score,
+            collection=collection,
+            trace=trace,
+            iterative=iterative_cfg,
+            classification=classification,
+        )
+        iterative_elapsed = time.perf_counter() - iterative_t0 if trace else 0.0
+
+        trace_obj: RetrievalTrace | None = None
+        if trace:
+            trace_obj = RetrievalTrace(
+                query=text,
+                knowledge_id=knowledge_id,
+                routing_decision="iterative",
+                iterative_hops=outcome.hops,
+                iterative_termination_reason=outcome.termination_reason,
+                final_results=list(accumulated_chunks),
+            )
+            trace_obj.timings["iterative_total"] = iterative_elapsed
+            # Keep classification visible at the top-level trace (not just per-hop)
+            # so consumers can attribute "why did iterative kick in?" without
+            # walking the hop list. Mirrors R5.2's adaptive surface.
+            if classification is not None:
+                trace_obj.adaptive = {
+                    "complexity": classification.complexity.name,
+                    "query_type": classification.query_type.name,
+                    "classification_source": classification.source,
+                    "iterative_gate": "type_passed",
+                }
+
+        gen_start = time.perf_counter() if trace_obj is not None else 0.0
+        result = await self._generation_service.generate(
+            query=text,
+            chunks=accumulated_chunks,
+            history=history,
+            system_prompt=system_prompt,
+        )
+        if trace_obj is not None:
+            trace_obj.timings["generation"] = time.perf_counter() - gen_start
+            trace_obj.confidence = result.confidence
+            if result.clarification is not None:
+                trace_obj.grounding_decision = "clarification"
+            elif result.grounded:
+                trace_obj.grounding_decision = "grounded"
+            else:
+                trace_obj.grounding_decision = "ungrounded"
             result.trace = trace_obj
         return result
 

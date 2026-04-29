@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from rfnry_rag.retrieval.modules.retrieval.iterative.trace import IterativeHopTrace
 
 _MAX_TREE_DEPTH = 100
 _MAX_TREE_NODES = 10_000
@@ -130,14 +133,24 @@ class RetrievalTrace:
     `confidence_expansion=False` — keeping "didn't run" distinct from
     "ran with 0 retries".
 
-    `routing_decision` enumerates five values:
-    `"retrieval" | "direct" | "hybrid_rag" | "hybrid_lc" | "retrieval_then_direct"`.
+    `routing_decision` enumerates six values:
+    `"retrieval" | "direct" | "hybrid_rag" | "hybrid_lc" | "retrieval_then_direct" | "iterative"`.
     `"retrieval_then_direct"` (R5.3) flags the LC-escalation case where
     RETRIEVAL ran, confidence expansion exhausted with weak chunks, and
     the engine fell back to `_query_via_direct_context`. Distinct from
     plain `"direct"` (AUTO chose DIRECT directly) because the cost shape
     differs (RAG-then-LC vs LC-only) and debugging consumers need to
-    attribute escalations.
+    attribute escalations. `"iterative"` (R6.2) flags a multi-hop run;
+    R6.3 will add `"iterative_then_direct"` for the post-loop DIRECT
+    escalation case.
+
+    `iterative_hops` (R6.2) is `None` when iterative retrieval did not
+    run (the default — `IterativeRetrievalConfig.enabled=False` or the
+    gate did not pass). When populated, each entry is one hop's trace
+    including its decompose verdict, sub-question, per-method results,
+    and timings. `iterative_termination_reason` carries the loop's exit
+    condition (`"done" | "max_hops" | "error"`; R6.3 will add
+    `"low_confidence_escalated"` and the gate-fail short-circuit case).
     """
 
     query: str
@@ -151,6 +164,8 @@ class RetrievalTrace:
     confidence: float | None = None
     routing_decision: str | None = None
     adaptive: dict[str, Any] | None = None
+    iterative_hops: list[IterativeHopTrace] | None = None
+    iterative_termination_reason: str | None = None
     timings: dict[str, float] = field(default_factory=dict)
     knowledge_id: str | None = None
 

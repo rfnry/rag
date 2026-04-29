@@ -64,6 +64,9 @@ from rfnry_rag.retrieval.modules.retrieval.iterative import (
     IterativeHopTrace as IterativeHopTrace,
 )
 from rfnry_rag.retrieval.modules.retrieval.iterative import (
+    IterativeOutcome as IterativeOutcome,
+)
+from rfnry_rag.retrieval.modules.retrieval.iterative import (
     IterativeRetrievalConfig as IterativeRetrievalConfig,
 )
 from rfnry_rag.retrieval.modules.retrieval.judging import BaseRetrievalJudgment as BaseRetrievalJudgment
@@ -150,6 +153,7 @@ __all__ = [
     "IngestionService",
     "InputError",
     "IterativeHopTrace",
+    "IterativeOutcome",
     "IterativeRetrievalConfig",
     "JudgmentResult",
     "LLMJudgment",
