@@ -77,6 +77,7 @@ from rfnry_rag.retrieval.modules.retrieval.judging import RetrievalJudgment as R
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval as DocumentRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.enrich import StructuredRetrieval as StructuredRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval as GraphRetrieval
+from rfnry_rag.retrieval.modules.retrieval.methods.raptor import RaptorRetrieval as RaptorRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.vector import VectorRetrieval as VectorRetrieval
 from rfnry_rag.retrieval.modules.retrieval.refinement.abstractive import AbstractiveRefinement as AbstractiveRefinement
 from rfnry_rag.retrieval.modules.retrieval.refinement.base import BaseChunkRefinement as BaseChunkRefinement
@@ -179,6 +180,7 @@ __all__ = [
     "RagServerConfig",
     "RaptorBuildReport",
     "RaptorConfig",
+    "RaptorRetrieval",
     "RaptorTreeRegistry",
     "Reranking",
     "RetrievalConfig",

@@ -6,6 +6,83 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-04-29 R2.3 — RaptorRetrieval method + engine wiring + end-to-end build→query
+
+Closes the R2 retrieval-side: `RaptorRetrieval` is a sibling
+`BaseRetrievalMethod` (alongside `VectorRetrieval` / `DocumentRetrieval`
+/ `GraphRetrieval`) that fetches the active tree id from
+`RaptorTreeRegistry`, embeds the query, and runs a payload-filtered
+vector search restricted to that tree's summaries. Results land in the
+same RRF fusion pool as the other methods — no special-casing
+downstream. R2.3 also wires the method into `RagEngine`'s retrieval
+namespace when `IngestionConfig.raptor.enabled=True`. Default-off keeps
+existing 1187 R2.2-baseline tests byte-for-byte unchanged.
+
+- `RaptorRetrieval` lives at
+  `modules/retrieval/methods/raptor.py`; constructor takes
+  `vector_store`, `embeddings`, `registry`, `weight=1.0`,
+  `top_k=None`. Implements the four `BaseRetrievalMethod` Protocol
+  members (`name="raptor"`, `weight`, `top_k`, `async search`).
+- Cross-scope queries skip RAPTOR by design (R2.1 Q2 — RAPTOR is
+  per-`knowledge_id`): `knowledge_id is None` short-circuits to `[]`
+  before consulting the registry. RRF fusion proceeds without a
+  RAPTOR contribution; the other methods drive cross-scope
+  retrieval.
+- No active tree (registry returns `None`): also returns `[]`.
+  Logged at DEBUG so operators see the no-op without log spam.
+- Payload filter: `knowledge_id == X`, `vector_role == "raptor_summary"`,
+  `raptor_tree_id == active`. The tree-id scope means orphan
+  summaries left over from a prior build cannot leak into results
+  even if GC has not yet run — defence in depth on top of R2.2's
+  blue/green swap.
+- Per-method error isolation: a registry exception, embedding
+  failure, or vector-store search failure logs at WARNING and
+  returns `[]` rather than raising. Mirrors `VectorRetrieval` /
+  `DocumentRetrieval` / `GraphRetrieval` behaviour so a partial
+  RAPTOR outage degrades to "RRF fusion without RAPTOR" instead
+  of breaking the whole query.
+- `RetrievedChunk` mapping for summaries: `content` is the summary
+  text, `chunk_id` is the summary point id, `score` is the vector
+  store's similarity score; `metadata` carries `raptor_tree_id`,
+  `raptor_level`, `raptor_cluster_size`, `raptor_parent_id`,
+  `raptor_reasoning` for trace consumers; `source_id` uses the
+  sentinel `f"raptor:{tree_id}"` rather than `None` because the
+  dataclass field is non-optional `str` and downstream consumers
+  may key on it for dedup / source-type weighting (a `None` value
+  would silently degrade those paths). `source_metadata`
+  carries `retrieval_type="raptor"` for trace introspection.
+- Engine wiring (`RagEngine._initialize_impl`): when
+  `ingestion.raptor.enabled=True` AND the required dependencies
+  are present (vector store + embeddings + `SQLAlchemyMetadataStore`),
+  the engine eagerly constructs `RaptorTreeRegistry` and registers
+  a `RaptorRetrieval` instance into the
+  `MethodNamespace[BaseRetrievalMethod]`. The builder stays lazy
+  (constructed on first `build_raptor_index` call) — only the
+  registry moves to eager so `RaptorRetrieval` can hold a stable
+  reference. Soft-skip with WARNING when dependencies are missing
+  rather than raising — `build_raptor_index` already raises
+  `ConfigurationError` at the API boundary, and raising at init
+  would break engines that pre-declare `raptor.enabled=True` but
+  defer wiring.
+- `RaptorRetrieval` is re-exported from `rfnry_rag.retrieval.__init__`
+  alongside the other method classes so consumers can build custom
+  pipelines without going through `RagEngine`.
+- Trace surface: `RetrievalTrace.per_method_results["raptor"]`
+  populates with the RAPTOR results when the method ran (R8.1's
+  per-method aggregation seeds every declared method, so the
+  trace records "ran-and-empty" vs "not configured" both
+  legibly).
+- Per-method weight knob: `RaptorRetrieval(weight=...)` flows
+  into RRF fusion via `BaseRetrievalMethod.weight`. The R2.3
+  e2e suite includes a regression guard that varies the weight
+  between two parallel runs and asserts the fused RAPTOR chunk
+  scores reflect the change — addresses the R5.2-style override
+  semantics risk.
+- Test count: +19 (target was +12 = 7 unit + 5 e2e; landed
+  9 unit + 10 e2e covering the eager-vs-lazy registry
+  coordination, namespace iteration, weight-honoured RRF, and
+  module-import sanity). Total: 1206 = 1187 baseline + 19 new.
+
 ### 2026-04-29 R2.2 — RAPTOR tree builder + atomic-swap rebuild
 
 Lights up the runtime core of RAPTOR-style hierarchical summarisation.

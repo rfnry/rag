@@ -60,6 +60,7 @@ from rfnry_rag.retrieval.modules.retrieval.iterative.service import (
 )
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval
+from rfnry_rag.retrieval.modules.retrieval.methods.raptor import RaptorRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.retrieval.modules.retrieval.refinement.base import BaseChunkRefinement
 from rfnry_rag.retrieval.modules.retrieval.search.classification import (
@@ -842,6 +843,42 @@ class RagEngine:
                     )
                 )
             retrieval_methods.append(GraphRetrieval(graph_store=persistence.graph_store, weight=0.7))
+
+        # RAPTOR retrieval path (R2.3) — opt-in via ``IngestionConfig.raptor.enabled``.
+        # Registry is constructed eagerly here (NOT lazily on first build) so the
+        # retrieval method can hold a stable reference; the builder stays lazy
+        # because builds are explicit consumer actions, not engine-init work.
+        # The default-off path leaves ``_raptor_registry`` ``None`` and registers
+        # no RAPTOR retrieval method, so existing pipelines stay byte-for-byte
+        # unchanged. Eligibility mirrors ``build_raptor_index``: vector_store +
+        # embeddings + SQLAlchemyMetadataStore are all required.
+        if ingestion.raptor.enabled:
+            if (
+                persistence.vector_store is not None
+                and ingestion.embeddings is not None
+                and isinstance(persistence.metadata_store, SQLAlchemyMetadataStore)
+            ):
+                self._raptor_registry = RaptorTreeRegistry(persistence.metadata_store)
+                retrieval_methods.append(
+                    RaptorRetrieval(
+                        vector_store=persistence.vector_store,
+                        embeddings=ingestion.embeddings,
+                        registry=self._raptor_registry,
+                        weight=1.0,
+                    )
+                )
+                logger.info("raptor retrieval: enabled")
+            else:
+                # Soft-skip: surface the misconfig in logs but do not raise.
+                # ``build_raptor_index`` already raises ``ConfigurationError``
+                # at the API boundary if a consumer tries to use it without
+                # the required dependencies; raising here would break engines
+                # that pre-declare ``raptor.enabled=True`` but defer wiring.
+                logger.warning(
+                    "raptor.enabled=True but missing dependencies "
+                    "(vector_store / embeddings / SQLAlchemyMetadataStore) — "
+                    "RaptorRetrieval not registered"
+                )
 
         # Chunker
         self._chunker = SemanticChunker(
@@ -2251,15 +2288,19 @@ class RagEngine:
             )
         assert self._knowledge_manager is not None
 
-        # Lazy: only spin up the builder + registry once a build is actually
-        # requested. Keeps the default-off path free of RAPTOR-specific
-        # construction overhead and side effects.
+        # SQLAlchemyMetadataStore is required (R2.1 schema lives there).
+        # Validate every call so a consumer who bypasses ``initialize()``
+        # (e.g. via ``__new__``) still trips the guard.
+        if not isinstance(persistence.metadata_store, SQLAlchemyMetadataStore):
+            raise ConfigurationError(
+                "build_raptor_index() requires SQLAlchemyMetadataStore "
+                f"(got {type(persistence.metadata_store).__name__})"
+            )
+        # Registry may have been eagerly constructed at engine init when
+        # ``raptor.enabled=True`` so ``RaptorRetrieval`` could hold a
+        # reference; if absent (e.g. retrieval-only path skipped), build it
+        # lazily here. Builder stays lazy regardless — builds are explicit.
         if self._raptor_registry is None:
-            if not isinstance(persistence.metadata_store, SQLAlchemyMetadataStore):
-                raise ConfigurationError(
-                    "build_raptor_index() requires SQLAlchemyMetadataStore "
-                    f"(got {type(persistence.metadata_store).__name__})"
-                )
             self._raptor_registry = RaptorTreeRegistry(persistence.metadata_store)
         if self._raptor_builder is None:
             self._raptor_builder = RaptorTreeBuilder(
