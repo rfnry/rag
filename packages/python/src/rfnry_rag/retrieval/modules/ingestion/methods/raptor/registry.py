@@ -131,6 +131,14 @@ class RaptorTreeRegistry:
     async def get_stale_trees(self, active_knowledge_ids: set[str]) -> list[str]:
         """Return knowledge_ids whose row exists but is not in ``active_knowledge_ids``.
 
+        Note:
+            The registry only tracks the active tree_id per knowledge_id (not
+            historical tree_ids), so this method finds orphan registry rows by
+            knowledge_id — not stale tree_ids within a knowledge_id.
+            Vector-store-level stale-tree GC (deleting old summary vectors after
+            a blue/green swap) is separate; see ``RaptorTreeBuilder``'s
+            swap-and-GC step (R2.2).
+
         Used by the GC pass after a knowledge_id is removed from the
         ``KnowledgeManager`` — the registry row may have outlived the
         knowledge it pointed at. Caller iterates and calls ``delete_record``

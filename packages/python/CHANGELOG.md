@@ -58,6 +58,10 @@ zero behavioural diff.
   - Columns: `knowledge_id` (PK), `active_tree_id`, `built_at`,
     `level_counts_json` (JSON-serialised `list[int]`), `total_cost_usd`
     (nullable).
+  - `level_counts_json` column uses `TEXT` (not the SQLAlchemy `JSON`
+    type) to match existing `metadata_json` / `tags_json` / `data_json`
+    columns on `rag_sources` / `rag_page_analyses`. Stays portable across
+    SQLite + PostgreSQL without a backend-specific JSON column type.
   - No FK to `rag_sources` because `knowledge_id` is not modelled as a
     first-class entity in the schema (matches the
     `rag_sources.knowledge_id` precedent).

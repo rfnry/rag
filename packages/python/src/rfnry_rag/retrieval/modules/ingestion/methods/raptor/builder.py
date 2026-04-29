@@ -21,5 +21,5 @@ class RaptorTreeBuilder:
     tree id is handled via the ``RaptorTreeRegistry``.
     """
 
-    async def build(self, knowledge_id: str) -> RaptorBuildReport:  # noqa: ARG002 — stub
+    async def build(self, _knowledge_id: str) -> RaptorBuildReport:
         raise NotImplementedError("RaptorTreeBuilder lands in R2.2")
