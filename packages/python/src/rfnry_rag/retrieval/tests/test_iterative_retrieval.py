@@ -97,18 +97,31 @@ def _make_engine(
     iterative_enabled: bool = True,
     gate_mode: str = "type",
     max_hops: int = 3,
+    escalate_to_direct: bool = False,
+    iterative_grounding_threshold: float | None = None,
+    direct_context_threshold: int = 150_000,
+    corpus_tokens: int = 200_000,
+    routing_configured: bool = True,
+    generation_grounding_threshold: float = 0.5,
 ) -> Any:
     """Build a minimally-wired RagEngine bypassing initialize().
 
     Mirrors R5.3's test pattern: real `RetrievalConfig` (so `iterative` and
     `adaptive` exist), `MagicMock` for the dependency services, `AsyncMock`
     return values where awaitable.
+
+    `escalate_to_direct=False` by default keeps the R6.2-baseline tests
+    behaving as they did pre-R6.3 (no post-loop escalation, no
+    `low_confidence_no_escalation` re-tagging). R6.3-specific tests
+    flip the flag to True.
     """
     iterative_cfg = IterativeRetrievalConfig(
         enabled=iterative_enabled,
         gate_mode=gate_mode,
         max_hops=max_hops,
         decomposition_model=_lm_client() if gate_mode == "llm" else None,
+        escalate_to_direct=escalate_to_direct,
+        grounding_threshold=iterative_grounding_threshold,
     )
     config = MagicMock(spec=RagServerConfig)
     config.retrieval = RetrievalConfig(
@@ -119,11 +132,15 @@ def _make_engine(
     )
     config.generation = SimpleNamespace(
         chunk_ordering=ChunkOrdering.SCORE_DESCENDING,
-        grounding_threshold=0.5,
+        grounding_threshold=generation_grounding_threshold,
     )
-    config.routing = RoutingConfig(
-        mode=QueryMode.RETRIEVAL,
-        direct_context_threshold=150_000,
+    config.routing = (
+        RoutingConfig(
+            mode=QueryMode.RETRIEVAL,
+            direct_context_threshold=direct_context_threshold,
+        )
+        if routing_configured
+        else None
     )
 
     engine = RagEngine.__new__(RagEngine)
@@ -138,7 +155,8 @@ def _make_engine(
     )
     engine._step_service = None
     engine._knowledge_manager = MagicMock()
-    cast(Any, engine._knowledge_manager).get_corpus_tokens = AsyncMock(return_value=200_000)
+    cast(Any, engine._knowledge_manager).get_corpus_tokens = AsyncMock(return_value=corpus_tokens)
+    engine._load_full_corpus = AsyncMock(return_value="corpus body")  # type: ignore[method-assign]
     engine._ingestion_service = None
     engine._structured_ingestion = None
     engine._retrieval_namespace = None
@@ -558,3 +576,316 @@ def test_engine_init_rejects_iterative_without_any_lm_client() -> None:
 
     with pytest.raises(ConfigurationError, match="iterative.decomposition_model"):
         engine._validate_config()
+
+
+# ---------------------------------------------------------------------------
+# R6.3 — Post-loop DIRECT escalation tests (#13–#18 in the plan).
+#
+# All R6.3 tests share a common LLM-mode hop pattern: the decomposer makes
+# at least one retrieve call (so `total_retrieve_calls > 0`), then says
+# `done=true` so the loop exits naturally. This puts the run in the
+# escalation-eligible state (termination_reason="done", retrieve_calls>0)
+# regardless of whether escalation actually fires.
+# ---------------------------------------------------------------------------
+
+
+def _r63_decompose_sequence() -> AsyncMock:
+    """Two-decompose sequence: one sub-question, then done."""
+    return AsyncMock(
+        side_effect=[
+            _decompose_result(
+                done=False, next_sub_question="topic_a sub-question", findings="hop0 findings"
+            ),
+            _decompose_result(done=True, findings="hop1 findings"),
+        ]
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 13: weak chunks + escalate_to_direct=False -> no escalation; reason
+# is `low_confidence_no_escalation`; routing stays "iterative".
+# ---------------------------------------------------------------------------
+
+
+async def test_iterative_no_escalation_when_disabled() -> None:
+    """`escalate_to_direct=False` blocks escalation even with weak chunks."""
+    engine = _make_engine(
+        gate_mode="llm",
+        escalate_to_direct=False,
+        corpus_tokens=50_000,  # would fit if escalation were enabled
+        direct_context_threshold=150_000,
+    )
+    weak = [_chunk(score=0.1)]
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
+        return_value=(weak, RetrievalTrace(query="x"))
+    )
+    engine._query_via_direct_context = AsyncMock()  # type: ignore[method-assign]
+
+    with (
+        patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
+        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+    ):
+        result = await engine.query("q1", knowledge_id="kb-1", trace=True)
+
+    cast(Any, engine._query_via_direct_context).assert_not_called()
+    assert result.trace is not None
+    assert result.trace.routing_decision == "iterative"
+    assert result.trace.iterative_termination_reason == "low_confidence_no_escalation"
+    # Existing answer comes from the chunk-synthesis path, not DIRECT.
+    assert result.answer == "an answer"
+
+
+# ---------------------------------------------------------------------------
+# Test 14: weak chunks + RoutingConfig=None -> no escalation; engine init
+# logs a warning.
+# ---------------------------------------------------------------------------
+
+
+async def test_iterative_no_escalation_when_routing_unconfigured(caplog: Any) -> None:
+    """`escalate_to_direct=True` + `RoutingConfig=None` -> no escalation
+    at runtime; engine init logs a warning.
+
+    Two orthogonal assertions in one test:
+    1. Runtime: an engine with `routing=None` (or `direct_context_threshold=None`)
+       skips escalation and tags `low_confidence_no_escalation`.
+    2. Init: `_validate_config` logs a single warning when the
+       config combo is detected, so operators get visibility without the
+       config-time exception path forcing a code change.
+    """
+    # Runtime path: simulate "routing.direct_context_threshold is None"
+    # (rather than `routing=None` outright — `query()` reads `routing.mode`,
+    # so the routing dataclass has to exist; the threshold is what gates
+    # escalation eligibility per the R6.3 logic).
+    engine = _make_engine(
+        gate_mode="llm",
+        escalate_to_direct=True,
+        corpus_tokens=50_000,
+        direct_context_threshold=150_000,
+    )
+    # Strip the threshold post-construction to simulate "routing exists but
+    # the consumer didn't configure direct_context_threshold". Direct
+    # attribute set bypasses the dataclass `__post_init__` bounds check
+    # but is the cleanest way to model the missing-config state.
+    engine._config.routing.direct_context_threshold = None
+    weak = [_chunk(score=0.1)]
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
+        return_value=(weak, RetrievalTrace(query="x"))
+    )
+    engine._query_via_direct_context = AsyncMock()  # type: ignore[method-assign]
+
+    with (
+        patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
+        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+    ):
+        result = await engine.query("q1", knowledge_id="kb-1", trace=True)
+
+    cast(Any, engine._query_via_direct_context).assert_not_called()
+    assert result.trace is not None
+    assert result.trace.routing_decision == "iterative"
+    assert result.trace.iterative_termination_reason == "low_confidence_no_escalation"
+
+    # Init path: a fresh config with `routing=None` triggers the warning
+    # at `_validate_config()` time exactly once.
+    cfg = MagicMock(spec=RagServerConfig)
+    cfg.persistence = SimpleNamespace(
+        vector_store=None,
+        document_store=MagicMock(),
+        graph_store=None,
+        metadata_store=None,
+    )
+    cfg.ingestion = SimpleNamespace(embeddings=None, sparse_embeddings=None, lm_client=None)
+    cfg.retrieval = RetrievalConfig(
+        top_k=5,
+        adaptive=AdaptiveRetrievalConfig(enabled=False),
+        iterative=IterativeRetrievalConfig(
+            enabled=True, gate_mode="llm", decomposition_model=_lm_client(),
+            escalate_to_direct=True,
+        ),
+        enrich_lm_client=_lm_client(),
+    )
+    cfg.tree_indexing = SimpleNamespace(enabled=False, model=None, max_tokens_per_node=10_000)
+    cfg.tree_search = SimpleNamespace(enabled=False, model=None, max_context_tokens=200_000)
+    cfg.routing = None
+
+    engine2 = RagEngine.__new__(RagEngine)
+    engine2._config = cfg
+
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="rfnry_rag.server"):
+        engine2._validate_config()
+    matched = [
+        r for r in caplog.records
+        if "iterative.escalate_to_direct" in r.getMessage()
+        and "RoutingConfig" in r.getMessage()
+    ]
+    assert len(matched) == 1
+
+
+# ---------------------------------------------------------------------------
+# Test 15: weak chunks + corpus too large -> no escalation.
+# ---------------------------------------------------------------------------
+
+
+async def test_iterative_no_escalation_when_corpus_too_large() -> None:
+    """`tokens > direct_context_threshold` -> escalation skipped."""
+    engine = _make_engine(
+        gate_mode="llm",
+        escalate_to_direct=True,
+        corpus_tokens=200_000,
+        direct_context_threshold=150_000,
+    )
+    weak = [_chunk(score=0.1)]
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
+        return_value=(weak, RetrievalTrace(query="x"))
+    )
+    engine._query_via_direct_context = AsyncMock()  # type: ignore[method-assign]
+
+    with (
+        patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
+        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+    ):
+        result = await engine.query("q1", knowledge_id="kb-1", trace=True)
+
+    cast(Any, engine._query_via_direct_context).assert_not_called()
+    assert result.trace is not None
+    assert result.trace.routing_decision == "iterative"
+    assert result.trace.iterative_termination_reason == "low_confidence_no_escalation"
+
+
+# ---------------------------------------------------------------------------
+# Test 16: weak chunks + corpus fits -> escalation fires; routing decision
+# updates; returned answer is the DIRECT one.
+# ---------------------------------------------------------------------------
+
+
+async def test_iterative_escalation_fires_when_corpus_fits() -> None:
+    """Weak chunks + `tokens <= threshold` -> DIRECT path runs once."""
+    engine = _make_engine(
+        gate_mode="llm",
+        escalate_to_direct=True,
+        corpus_tokens=50_000,
+        direct_context_threshold=150_000,
+    )
+    weak = [_chunk(score=0.1)]
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
+        return_value=(weak, RetrievalTrace(query="x"))
+    )
+
+    with (
+        patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
+        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+    ):
+        result = await engine.query("q1", knowledge_id="kb-1", trace=True)
+
+    # The DIRECT path's `_load_full_corpus` was awaited exactly once and
+    # `generate_from_corpus` produced the final answer (not chunk synthesis).
+    engine._load_full_corpus.assert_awaited_once_with("kb-1")
+    cast(Any, engine._generation_service).generate_from_corpus.assert_awaited_once()
+    cast(Any, engine._generation_service).generate.assert_not_called()
+    assert result.answer == "lc answer"
+    assert result.trace is not None
+    assert result.trace.routing_decision == "iterative_then_direct"
+
+
+# ---------------------------------------------------------------------------
+# Test 17: escalation preserves iterative hop list on the OUTER trace.
+# This is the explicit countermeasure for the R5.3 review-pattern bug.
+# ---------------------------------------------------------------------------
+
+
+async def test_iterative_escalation_preserves_hop_trace_on_outer_result() -> None:
+    """Iterative hops survive the escalation boundary intact.
+
+    Without the merge, `_query_via_direct_context` would return a fresh
+    `RetrievalTrace` whose `iterative_hops` is `None` — the multi-hop
+    context would be silently dropped at the boundary. R5.3 caught this
+    same bug pattern after merge (review caught it; this test prevents
+    R6.3 from recurring it).
+    """
+    engine = _make_engine(
+        gate_mode="llm",
+        escalate_to_direct=True,
+        corpus_tokens=50_000,
+        direct_context_threshold=150_000,
+    )
+    # Per-hop trace carries known hop content so we can verify it
+    # survives the boundary instead of being trivially `[]`.
+    inner_trace = RetrievalTrace(query="x", adaptive={"complexity": "COMPLEX"})
+    weak = [_chunk(score=0.1)]
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
+        return_value=(weak, inner_trace)
+    )
+
+    with (
+        patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
+        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+    ):
+        result = await engine.query("q1", knowledge_id="kb-1", trace=True)
+
+    assert result.trace is not None
+    # Iterative hop list survived the escalation — non-empty list, not None.
+    assert result.trace.iterative_hops is not None
+    assert len(result.trace.iterative_hops) >= 1
+    # First hop carried a real sub-question (not the done-stop hop).
+    assert result.trace.iterative_hops[0].sub_question == "topic_a sub-question"
+    # Termination reason flips from the loop's "done" to the escalation tag.
+    assert result.trace.iterative_termination_reason == "low_confidence_escalated"
+    # And the fresh-DIRECT-trace defaults DIDN'T overwrite the iterative side:
+    # if the merge dropped the hops, this list would be `None` (the default).
+    assert result.trace.routing_decision == "iterative_then_direct"
+
+
+# ---------------------------------------------------------------------------
+# Test 18: `iterative.grounding_threshold` override beats
+# `generation.grounding_threshold` when set; inherits when None.
+# ---------------------------------------------------------------------------
+
+
+async def test_iterative_grounding_threshold_override_takes_precedence() -> None:
+    """`iterative.grounding_threshold=0.6` overrides `generation.grounding_threshold=0.4`.
+
+    chunks at 0.5 -> weak by iterative threshold (0.5 < 0.6) -> escalate.
+    chunks at 0.65 -> strong by iterative threshold (0.65 >= 0.6) -> no escalate.
+    """
+    # Case A: weak by iterative threshold -> escalation fires.
+    engine_a = _make_engine(
+        gate_mode="llm",
+        escalate_to_direct=True,
+        corpus_tokens=50_000,
+        direct_context_threshold=150_000,
+        iterative_grounding_threshold=0.6,
+        generation_grounding_threshold=0.4,
+    )
+    cast(Any, engine_a._retrieval_service).retrieve = AsyncMock(
+        return_value=([_chunk(score=0.5)], RetrievalTrace(query="x"))
+    )
+    with (
+        patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
+        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+    ):
+        result_a = await engine_a.query("q1", knowledge_id="kb-1", trace=True)
+    assert result_a.trace is not None
+    assert result_a.trace.routing_decision == "iterative_then_direct"
+
+    # Case B: strong by iterative threshold (boundary `<`, not `<=`) ->
+    # no escalation, normal "done" termination preserved.
+    engine_b = _make_engine(
+        gate_mode="llm",
+        escalate_to_direct=True,
+        corpus_tokens=50_000,
+        direct_context_threshold=150_000,
+        iterative_grounding_threshold=0.6,
+        generation_grounding_threshold=0.4,
+    )
+    cast(Any, engine_b._retrieval_service).retrieve = AsyncMock(
+        return_value=([_chunk(score=0.65)], RetrievalTrace(query="x"))
+    )
+    with (
+        patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
+        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+    ):
+        result_b = await engine_b.query("q1", knowledge_id="kb-1", trace=True)
+    assert result_b.trace is not None
+    assert result_b.trace.routing_decision == "iterative"
+    assert result_b.trace.iterative_termination_reason == "done"

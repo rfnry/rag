@@ -133,16 +133,21 @@ class RetrievalTrace:
     `confidence_expansion=False` — keeping "didn't run" distinct from
     "ran with 0 retries".
 
-    `routing_decision` enumerates six values:
-    `"retrieval" | "direct" | "hybrid_rag" | "hybrid_lc" | "retrieval_then_direct" | "iterative"`.
+    `routing_decision` enumerates seven values:
+    `"retrieval" | "direct" | "hybrid_rag" | "hybrid_lc"`,
+    `"retrieval_then_direct" | "iterative" | "iterative_then_direct"`.
     `"retrieval_then_direct"` (R5.3) flags the LC-escalation case where
     RETRIEVAL ran, confidence expansion exhausted with weak chunks, and
     the engine fell back to `_query_via_direct_context`. Distinct from
     plain `"direct"` (AUTO chose DIRECT directly) because the cost shape
     differs (RAG-then-LC vs LC-only) and debugging consumers need to
-    attribute escalations. `"iterative"` (R6.2) flags a multi-hop run;
-    R6.3 will add `"iterative_then_direct"` for the post-loop DIRECT
-    escalation case.
+    attribute escalations. `"iterative"` (R6.2) flags a multi-hop run.
+    `"iterative_then_direct"` (R6.3) flags the post-loop DIRECT
+    escalation case — multi-hop ran, accumulated chunks were still weak,
+    corpus fit the direct-context window, engine fell back to
+    `_query_via_direct_context`. Distinct from `"retrieval_then_direct"`
+    (the trigger arm differs) and from `"direct"` (the cost shape
+    differs).
 
     `iterative_hops` (R6.2) has three distinct states:
 
@@ -158,8 +163,15 @@ class RetrievalTrace:
       results, and timings.
 
     `iterative_termination_reason` carries the loop's exit condition
-    (`"done" | "max_hops" | "error"`; R6.3 will add
-    `"low_confidence_escalated"` and the gate-fail short-circuit case).
+    (`"done" | "max_hops" | "error" | "low_confidence_escalated" |
+    "low_confidence_no_escalation"`). R6.3 added the two
+    low-confidence reasons: `"low_confidence_escalated"` flags a
+    completed run whose accumulated chunks were weak and that escalated
+    to DIRECT; `"low_confidence_no_escalation"` flags a completed run
+    whose accumulated chunks were weak but escalation was either
+    disabled (`escalate_to_direct=False`), unreachable (`RoutingConfig`
+    unconfigured), or ineligible (corpus too large to fit the
+    direct-context window).
     """
 
     query: str

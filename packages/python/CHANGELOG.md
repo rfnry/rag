@@ -6,174 +6,177 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### 2026-04-28 R6.2 — Iterative service + hop loop + engine arm
+### 2026-04-29 R6 — Multi-hop iterative retrieval (R6.1 + R6.2 + R6.3)
 
-Lands the runtime core of multi-hop iterative retrieval on top of R6.1's
-scaffold: a working `IterativeRetrievalService` that decomposes a gated
-query into sequential sub-questions, retrieves per hop via R5's adaptive
-pipeline, deduplicates accumulated chunks by `chunk_id` (higher score
-wins on collision), and synthesises an answer through the existing
-`GenerationService.generate` path. Engine integration via a new
-`_query_via_iterative` arm on `RagEngine`. Default-off; the existing 1128
-tests pass byte-for-byte. Test count: 1128 → 1141 (+13: 12 main + 1
-engine-init validation guard).
+Closes the R6 phase with a complete multi-hop iterative-retrieval pipeline:
+adaptive ReAct-style decomposition (LLM picks the next sub-question per hop
+or signals `done`), per-hop retrieval through R5's adaptive pipeline, score-
+preserving chunk dedup across hops, optional post-loop DIRECT escalation
+when accumulated chunks remain weak. Default-off (`IterativeRetrievalConfig.
+enabled=False`); when disabled, the existing pipeline is byte-for-byte
+unchanged. Cumulative R6 test count: 1120 → 1147 (+27 across the three
+sub-tasks; R6.1 +8 config + BAML scaffold, R6.2 +13 service + hop loop +
+engine arm + init guard, R6.3 +6 post-loop escalation).
 
-R6.2 is structurally analogous to R1.3 (HYBRID introduction): a new
-sibling `_query_via_*` method on `RagEngine`, a new service that wraps
-`RetrievalService`, and the routing decision is recorded in the trace.
-Post-loop DIRECT escalation is NOT yet wired — that's R6.3.
+R6.1 (config + BAML scaffold), R6.2 (service + hop loop + engine arm), and
+R6.3 (post-loop DIRECT escalation + final polish) are consolidated into this
+single phase entry, matching the R5 pattern for the closed-phase changelog.
 
-- `IterativeRetrievalService.retrieve(...)` implemented:
-  - Gate logic: `gate_mode="type"` short-circuits at entry when the
-    classifier verdict is neither COMPLEX nor ENTITY_RELATIONSHIP
-    (returns `[]` + `IterativeOutcome(termination_reason="done", hops=[])`);
-    the engine arm then falls through to `_query_via_retrieval`.
-    `gate_mode="llm"` skips the type check — the decomposer is the gate
-    via its first `done=true` return.
-  - Hop loop: sequential by design (no `asyncio.gather` over hops — each
-    hop depends on prior findings). Each iteration calls `b.DecomposeQuery`
-    (fresh BAML registry per call, scoped to `decomposition_model` or
-    falling back to `RetrievalConfig.enrich_lm_client`), then
-    `RetrievalService.retrieve(query=sub_question, knowledge_id=...,
-    trace=True)`. Per-hop chunks merged via `_merge_chunks_dedup`.
-    Findings are *replaced*, not appended — the decomposer self-summarises
-    via R6.1's prompt contract, bounding findings growth regardless of
-    `max_hops`.
-  - Termination: `"done"` (decomposer verdict, also the gate-fail short
-    circuit), `"max_hops"` (loop exhausted without `done=true`), `"error"`
-    (decomposer contract violation: `done=false` with empty
-    `next_sub_question`, OR mid-loop decompose exception). R6.3 will add
-    `"low_confidence_escalated"`.
-- `_merge_chunks_dedup(accumulated, new) -> list[RetrievedChunk]` helper
-  in `iterative/service.py`: insertion order preserved for determinism;
-  collisions update the existing slot in place (do NOT move to end);
-  higher-scored chunk wins on collision; lower-score collision is a no-op.
-- `IterativeOutcome` dataclass in `iterative/trace.py`:
-  `(hops: list[IterativeHopTrace], termination_reason: str,
-  total_decompose_calls: int, total_retrieve_calls: int)`. Exported from
-  `rfnry_rag.retrieval.modules.retrieval.iterative` and the top-level
-  `rfnry_rag.retrieval`.
-- `IterativeHopTrace.adaptive: dict[str, object] | None` field added so
-  R5.2's per-hop classifier verdict + R5.3's expansion keys land *inside*
-  the per-hop trace (boundary preservation; addresses R5.3's
-  trace-data-dropped-at-boundary review pattern). `expansion_applied`
-  derives from `adaptive["expansion_attempts"]` — the canonical signal,
-  not re-derived from chunk counts.
-- `RetrievalTrace` extended with `iterative_hops: list[IterativeHopTrace] | None`
-  (default `None` — distinct from `[]` "ran with zero hops") and
-  `iterative_termination_reason: str | None`. `routing_decision`
-  enumeration extended to include `"iterative"` (R6.3 adds
-  `"iterative_then_direct"`).
-- `RagEngine._query_via_iterative` mirrors `_query_via_hybrid` structurally:
-  delegates to `IterativeRetrievalService.retrieve`, then routes the
-  accumulated chunks through `GenerationService.generate`. Per-collection
-  retrieval pipelines get a per-collection iterative service constructed
-  on demand (object allocation only — no I/O).
-- `RagEngine.query()` branching: iterative is consulted at the top of
-  `_query_via_retrieval`. AUTO mode reaches that method when it routes
-  to RETRIEVAL, so iterative naturally covers both RETRIEVAL and
-  AUTO->RETRIEVAL paths transparently. HYBRID and DIRECT are NOT
-  affected by design (HYBRID has its own answerability check —
-  double-decomposing burns LLM calls without benefit; DIRECT loads the
-  whole corpus and has no per-hop need). Defensive `getattr(...,
-  "iterative", None)` mirrors R5.3's pattern for `adaptive` so test
-  fixtures that use `SimpleNamespace` for `RetrievalConfig` continue
-  to work byte-for-byte.
-- `RagEngine._validate_config` cross-config rule: `iterative.enabled=True`
-  requires either `iterative.decomposition_model` set OR
-  `RetrievalConfig.enrich_lm_client` set — the decomposer needs an LLM
-  client somewhere. Without this guard, the loop would silently no-op
-  on the first `DecomposeQuery` call at query-time. Mirrors R5.1's
-  "fail at config-time, not query-time" pattern.
-- `RagEngine.__init__` declares `_iterative_service: IterativeRetrievalService | None = None`;
-  `_initialize_impl` constructs it lazily only when
-  `iterative.enabled=True` (R5.1 pattern: avoid raising during init when
-  the feature is disabled). `shutdown()` nulls it out alongside the
-  other services.
-- 13 new tests in `test_iterative_retrieval.py`: gate fall-through (1, 2),
-  type-mode gate passes on COMPLEX + ENTITY_RELATIONSHIP (3, 4), LLM-mode
-  short-circuit + multi-hop (5, 6), max_hops termination (7), dedup
-  semantics (8), findings flow across hops (9), trace populates hop list
-  with R5.2 adaptive preservation (10), routing_decision="iterative"
-  (11), decomposer contract violation (12), engine-init validation guard
-  (13). Domain-neutral fixtures throughout.
-- Action item from R6.2 plan resolved: R5.3's LC escalation lives
-  entirely in `RagEngine._query_via_retrieval` (engine layer),
-  *not* in `RetrievalService.retrieve`. Per-hop calls go through the
-  service directly so they naturally skip escalation. The
-  `suppress_direct_escalation` parameter mentioned in the plan was
-  *not* added — it was unnecessary, exactly as the plan's risks
-  section flagged.
+#### Public surface
 
-### 2026-04-28 R6.1 — Config + BAML scaffold for multi-hop iterative retrieval
-
-Lands the compile-time foundation for R6 (multi-hop iterative retrieval) with
-no behaviour change: a new `IterativeRetrievalConfig` dataclass, a new
-`DecomposeQuery` BAML function with regenerated client, the `iterative/`
-subpackage skeleton, and contract-test registrations. Default-off; the
-existing 1120 tests pass byte-for-byte.
-
-R6.1 is structurally analogous to R5.1: register a new config dataclass,
-add one BAML function with a stubbed return, generate the BAML client, wire
-registration through audit + fence-contract tests. No engine integration yet
-— the hop loop lands in R6.2; post-loop DIRECT escalation lands in R6.3.
-
-- New subpackage `modules/retrieval/iterative/` (sibling to `RetrievalService`,
-  not a fold-in per Convention 4):
-  - `config.py` — `IterativeRetrievalConfig` dataclass with bounded numeric
-    fields, allowlist-validated `gate_mode`, and a cross-field rule that
-    `enabled=True AND gate_mode="llm"` requires `decomposition_model`.
-  - `trace.py` — `IterativeHopTrace` dataclass (definition only; populated
-    in R6.2). Final-decomposer-call hops carry empty `per_method_results`/
-    `fused_results` and rely on `decompose_reasoning` to explain the stop.
-  - `service.py` — empty `IterativeRetrievalService` stub raising
-    `NotImplementedError`. Keeps the public name importable so R6.2 can
-    fill it in without churning import sites.
+- `IterativeRetrievalConfig` (in `modules/retrieval/iterative/config.py`,
+  re-exported from `rfnry_rag.retrieval`) on `RetrievalConfig.iterative`:
+  `enabled` (default False), `max_hops` ([1, 10] default 3), `gate_mode`
+  (allowlist `{"type", "llm"}` default `"type"`), `decomposition_model:
+  LanguageModelClient | None`, `escalate_to_direct` (default True),
+  `grounding_threshold: float | None` (default None — inherits
+  `GenerationConfig.grounding_threshold`). Cross-field invariant
+  (`__post_init__`): `enabled=True AND gate_mode="llm"` requires
+  `decomposition_model`. Cross-config invariant (`RagEngine._validate_config`):
+  `enabled=True` requires `decomposition_model` OR `enrich_lm_client`.
+  Engine-init warning (R6.3): `escalate_to_direct=True` with
+  `RoutingConfig.direct_context_threshold` unset emits a one-shot
+  warning — escalation will be a no-op, but consumers may run iterative
+  without DIRECT fallback intentionally so this is not a hard error.
+- `IterativeRetrievalService` (sibling subpackage, *not* a fold-in into
+  `RetrievalService` per Convention 4). Owns the hop loop; constructed
+  lazily only when `iterative.enabled=True`.
+- `IterativeHopTrace` (per-hop trace) and `IterativeOutcome`
+  `(hops, termination_reason, total_decompose_calls, total_retrieve_calls)`
+  in `iterative/trace.py`, both re-exported from `rfnry_rag.retrieval`.
+- `RetrievalTrace.iterative_hops: list[IterativeHopTrace] | None` (default
+  `None` — distinct from `[]` "ran with zero hops"), `iterative_termination_reason:
+  str | None`, and `routing_decision` enumeration extended to include
+  `"iterative"` and `"iterative_then_direct"`.
 - New BAML function `DecomposeQuery(original_query, accumulated_findings,
-  hop_index, max_hops) -> DecomposeResult` in
-  `baml_src/retrieval/functions.baml`. Both string params fenced with
-  `ORIGINAL_QUERY` and `ACCUMULATED_FINDINGS` `START`/`END` markers per
-  Convention 3. Domain-neutral prompt body per Convention 1. Reuses the
-  existing `Default` BAML client (matches `ClassifyQueryComplexity`'s
-  pattern; `RetrievalAnalysisClient` does not exist in this repo). New
-  `DecomposeResult { done, next_sub_question?, findings_from_last_hop,
-  reasoning }` class in `baml_src/retrieval/types.baml`.
-- BAML client regenerated via `uv run poe baml:generate:retrieval` and
-  committed alongside the source.
-- `RetrievalConfig.iterative: IterativeRetrievalConfig =
-  field(default_factory=IterativeRetrievalConfig)` added in
-  `server.py`. Default `enabled=False` keeps the field inert until R6.2.
-- Public exports: `IterativeRetrievalConfig` and `IterativeHopTrace` added
-  to `rfnry_rag.retrieval.__init__` and `__all__`.
-- Contract registrations:
-  - `tests/test_config_bounds_contract.py`: `IterativeRetrievalConfig`
-    added to `_CONFIGS_TO_AUDIT`.
-  - `tests/test_baml_prompt_fence_contract.py`: `DecomposeQuery` added to
-    `USER_CONTROLLED_PARAMS` with `["original_query",
-    "accumulated_findings"]`.
-  - `tests/test_baml_prompt_domain_agnostic.py`: passes automatically
-    (whole-file scan) — no registration needed.
-- Spec discrepancies resolved during implementation (noted here so reviewers
-  do not chase them):
-  - The spec's example used `LanguageModelConfig` for the
-    `decomposition_model` field; the actual codebase symbol is
-    `LanguageModelClient`. Matched the existing pattern (e.g.
-    `RoutingConfig.hybrid_answerability_model`).
-  - The spec referenced a `RetrievalAnalysisClient` BAML client; the only
-    BAML client defined in `clients.baml` is `Default`. Matched the
-    pattern set by `ClassifyQueryComplexity` and used `client Default`.
-  - The spec's trace dataclass referenced `ScoredChunk`; the public type
-    in `common/models.py` (used by `RetrievalTrace`) is `RetrievedChunk`.
-    Matched `RetrievalTrace`'s import.
-  - Harmonized with R5.1's `AdaptiveRetrievalConfig` to use
-    `ConfigurationError` (the spec's example bodies and test plan
-    referenced `ValueError`, but `ConfigurationError` does not inherit
-    from `ValueError` — using bare `ValueError` would silently bypass
-    callers' `except ConfigurationError:` handlers and diverge from the
-    sibling adaptive-retrieval config).
-- 8 new unit tests in `tests/test_iterative_config.py` (6 main + 2 polish
-  max_hops boundary-accept regression tests, mirroring the
-  grounding-threshold pattern). Total test count: 1120 → 1128 (+8).
+  hop_index, max_hops) -> DecomposeResult { done, next_sub_question?,
+  findings_from_last_hop, reasoning }` in `baml_src/retrieval/`. Both
+  string params fenced with `START`/`END` markers and registered in
+  `USER_CONTROLLED_PARAMS` per Convention 3; prompt body domain-neutral
+  per Convention 1. Reuses the existing `Default` BAML client.
+
+#### Engine arm — `RagEngine._query_via_iterative`
+
+Mirrors `_query_via_hybrid` structurally: delegates to
+`IterativeRetrievalService.retrieve`, then routes the accumulated chunks
+through `GenerationService.generate`. Per-collection retrieval pipelines
+get a per-collection iterative service constructed on demand (object
+allocation only — no I/O).
+
+Engine dispatch: iterative is consulted at the top of `_query_via_retrieval`.
+AUTO mode reaches that method when it routes to RETRIEVAL, so iterative
+naturally covers both RETRIEVAL and AUTO->RETRIEVAL paths transparently.
+HYBRID and DIRECT are NOT affected by design — HYBRID has its own
+answerability check (double-decomposing burns LLM calls without benefit);
+DIRECT loads the whole corpus and has no per-hop need.
+
+#### Hop loop semantics
+
+- Gate (`gate_mode="type"`, default): R5.1's `classify_query` decides at
+  entry — only COMPLEX or ENTITY_RELATIONSHIP queries enter the loop;
+  others fall through to plain retrieval. `gate_mode="llm"`: the
+  decomposer is the gate — its first `done=true` return short-circuits.
+- Per hop: `b.DecomposeQuery` with a fresh BAML registry scoped to the
+  configured client (or `enrich_lm_client` fallback), then
+  `RetrievalService.retrieve(query=sub_question, ...)`. Sequential by
+  design (no `asyncio.gather` over hops — each hop depends on prior
+  findings); within a hop, parallelism is unchanged.
+- Chunk dedup across hops via `_merge_chunks_dedup`: insertion order
+  preserved, higher score wins on collision, lower-score collision is a
+  no-op (does not move to end). Findings are *replaced*, not appended,
+  so growth is bounded by the decomposer's self-summarisation regardless
+  of `max_hops`.
+- Termination reasons (R6.3 expanded):
+  - `"done"` — decomposer returned `done=true` (also the gate-fail
+    short-circuit case).
+  - `"max_hops"` — exhausted without `done=true`.
+  - `"error"` — decomposer contract violation (`done=false` with empty
+    `next_sub_question`) or mid-loop decompose exception. R6.3
+    intentionally does NOT relabel `error` outcomes — the failure
+    signal matters more than the chunk-strength signal.
+  - `"low_confidence_escalated"` (R6.3) — loop finished with weak
+    accumulated chunks, corpus fit the direct-context window, escalation
+    to `_query_via_direct_context` fired.
+  - `"low_confidence_no_escalation"` (R6.3) — loop finished with weak
+    chunks, but escalation was either disabled, unreachable, or
+    ineligible (corpus too large). Only assigned when
+    `total_retrieve_calls > 0` — a `done` short-circuit with no
+    retrieval is a legitimate decomposer verdict, not a weak result.
+
+#### R6.3 post-loop DIRECT escalation
+
+When a multi-hop run finishes naturally (`done` or `max_hops`) with
+accumulated chunks still weak (max score < threshold) AND the corpus fits
+`RoutingConfig.direct_context_threshold`, the engine routes to
+`_query_via_direct_context` and stamps the iterative trace fields onto the
+DIRECT result. Threshold sourcing: `iterative.grounding_threshold`
+overrides `generation.grounding_threshold` when set; `None` (default)
+inherits — there is intentionally no hardcoded magic-number fallback
+(override semantics mirrored from R5.2 review pattern).
+
+Trace preservation across the escalation boundary (R5.3 review-caught
+pattern): the returned `RetrievalTrace` carries `routing_decision=
+"iterative_then_direct"`, the iterative hop list (NOT the empty DIRECT
+hops), `iterative_termination_reason="low_confidence_escalated"`, the
+pre-escalation classifier verdict layered onto `adaptive` (DIRECT didn't
+run adaptive), and `iterative_total` timing. Without this merge the
+multi-hop context would be silently dropped at the boundary because
+`_query_via_direct_context` builds a fresh trace.
+
+#### Helper lift (R6.3)
+
+R5.3's `_should_expand` / `_max_chunk_score` engine-private helpers are
+lifted to `retrieval/common/grounding.py` as `is_weak_chunk_signal` /
+`max_chunk_score` so R6.3's iterative arm reuses the exact same boundary
+semantics R5.3's retrieval arm uses. Boundary is `<` not `<=`: a chunk
+score equal to the threshold is grounded, not weak. `RagEngine.
+_should_expand` and `_max_chunk_score` remain on the class as thin
+wrappers over the lifted helpers — no churn at R5.3's call site.
+
+#### Tests
+
+- 8 R6.1 tests in `tests/test_iterative_config.py` (6 main + 2 polish
+  max_hops boundary-accept regression tests).
+- 13 R6.2 tests in `tests/test_iterative_retrieval.py`: gate fall-through,
+  type-mode gate passes on COMPLEX + ENTITY_RELATIONSHIP, LLM-mode
+  short-circuit + multi-hop, `max_hops` termination, dedup semantics,
+  findings flow across hops, trace populates hop list with R5.2 adaptive
+  preservation, `routing_decision="iterative"`, decomposer contract
+  violation, engine-init validation guard.
+- 6 R6.3 tests appended to `tests/test_iterative_retrieval.py`: no
+  escalation when disabled, no escalation when routing unconfigured
+  (with init-warning assertion), no escalation when corpus too large,
+  escalation fires when corpus fits, escalation preserves the iterative
+  hop list on the outer trace (R5.3 review-pattern countermeasure), and
+  `iterative.grounding_threshold` override beats `generation.grounding_threshold`.
+
+#### Spec discrepancies resolved (noted here so reviewers don't chase them)
+
+- The R6.1 spec's example used `LanguageModelConfig` for the
+  `decomposition_model` field; the actual codebase symbol is
+  `LanguageModelClient` (matches `RoutingConfig.hybrid_answerability_model`).
+- The R6.1 spec referenced a `RetrievalAnalysisClient` BAML client; the
+  only BAML client in `clients.baml` is `Default` (matches
+  `ClassifyQueryComplexity`'s pattern).
+- The R6.1 spec's trace dataclass referenced `ScoredChunk`; the public
+  type in `common/models.py` is `RetrievedChunk`.
+- Harmonized with R5.1's `AdaptiveRetrievalConfig` to raise
+  `ConfigurationError` (the R6.1 spec's example bodies referenced
+  `ValueError`, but `ConfigurationError` does not inherit from
+  `ValueError` — using bare `ValueError` would silently bypass callers'
+  `except ConfigurationError:` handlers and diverge from the sibling
+  adaptive-retrieval config).
+- The R6.2 plan mentioned a `suppress_direct_escalation` parameter on
+  `RetrievalService.retrieve` to keep per-hop calls from triggering
+  R5.3's escalation. R5.3's escalation actually lives in
+  `RagEngine._query_via_retrieval` (engine layer), NOT in
+  `RetrievalService.retrieve`, so per-hop calls naturally skip
+  escalation — the parameter was unnecessary and not added.
+- R6.3 only relabels termination reasons to `low_confidence_no_escalation`
+  when `total_retrieve_calls > 0`. A `done` short-circuit with no
+  retrieval (decomposer's "answer is in findings, no retrieval needed"
+  verdict) is a legitimate completion, not a weak result — relabeling
+  would mislabel the decomposer's verdict.
 
 ### 2026-04-28 R5.3 — Confidence expansion + LC escalation
 

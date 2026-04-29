@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from rfnry_rag.retrieval.baml.baml_client.async_client import b
 from rfnry_rag.retrieval.common.errors import ConfigurationError, InputError
 from rfnry_rag.retrieval.common.formatting import ChunkOrdering, chunks_to_context
+from rfnry_rag.retrieval.common.grounding import is_weak_chunk_signal, max_chunk_score
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 
 if TYPE_CHECKING:
@@ -716,6 +717,28 @@ class RagEngine:
                 "the same LanguageModelClient you'd use for query rewriting."
             )
 
+        # R6.3: warn (don't raise) when post-loop DIRECT escalation is
+        # opted in but `RoutingConfig.direct_context_threshold` is
+        # unconfigured — the escalation will be a no-op. Don't raise:
+        # consumers might intentionally run iterative without DIRECT
+        # fallback (e.g. corpus is always too large to fit the
+        # direct-context window anyway), and demoting this to a runtime
+        # exception would force them to suppress the config check. The
+        # warning fires once at engine init, not per-query.
+        if (
+            cfg.retrieval.iterative.enabled
+            and cfg.retrieval.iterative.escalate_to_direct
+            and (
+                cfg.routing is None
+                or getattr(cfg.routing, "direct_context_threshold", None) is None
+            )
+        ):
+            logger.warning(
+                "iterative.escalate_to_direct=True but RoutingConfig.direct_context_threshold "
+                "is not configured; escalation will be a no-op. Set RoutingConfig "
+                "to enable post-loop DIRECT escalation."
+            )
+
     async def initialize(self) -> None:
         """Wire all modules and check embedding model consistency.
 
@@ -1370,10 +1393,15 @@ class RagEngine:
 
     @staticmethod
     def _max_chunk_score(chunks: list[RetrievedChunk]) -> float | None:
-        """Max `score` across chunks; `None` for empty input."""
-        if not chunks:
-            return None
-        return max(c.score for c in chunks)
+        """Max `score` across chunks; `None` for empty input.
+
+        Thin wrapper over `common.grounding.max_chunk_score`. R6.3 lifted
+        the implementation to a shared module so R6.3's iterative-arm
+        escalation reuses the exact same boundary semantics that R5.3's
+        retrieval-arm escalation uses — divergence here would be a
+        real-world correctness bug.
+        """
+        return max_chunk_score(chunks)
 
     @classmethod
     def _should_expand(
@@ -1381,15 +1409,16 @@ class RagEngine:
     ) -> bool:
         """True when retrieval signal is weak — empty OR strict-below threshold.
 
-        Boundary is `<` not `<=`: a query at exactly the threshold is NOT
-        considered weak. Matches `GenerationConfig.grounding_threshold`'s
-        existing semantics — `grounding_threshold` gates "is this answer
-        grounded?", and a chunk score equal to the threshold is grounded.
+        Thin wrapper over `common.grounding.is_weak_chunk_signal`. R6.3
+        lifted the implementation to a shared module so R6.3's iterative
+        arm reuses the same check at a different trigger site (post-loop
+        instead of post-retrieve). Boundary is `<` not `<=`: a query at
+        exactly the threshold is NOT considered weak. Matches
+        `GenerationConfig.grounding_threshold`'s existing semantics —
+        `grounding_threshold` gates "is this answer grounded?", and a
+        chunk score equal to the threshold is grounded.
         """
-        max_score = cls._max_chunk_score(chunks)
-        if max_score is None:
-            return True
-        return max_score < threshold
+        return is_weak_chunk_signal(chunks, threshold)
 
     async def _query_via_retrieval(
         self,
@@ -1633,7 +1662,7 @@ class RagEngine:
         trace: bool,
         classification: QueryClassification | None,
     ) -> QueryResult:
-        """Multi-hop iterative retrieve-then-generate (R6.2).
+        """Multi-hop iterative retrieve-then-generate (R6.2 + R6.3).
 
         Mirrors `_query_via_hybrid` structurally: delegate to a sibling
         service that owns the loop, then route the accumulated chunks
@@ -1641,9 +1670,14 @@ class RagEngine:
         surfaces every hop's per-method results, decompose verdict, and
         timings via `RetrievalTrace.iterative_hops`.
 
-        R6.3 will add post-loop DIRECT escalation here when the LLM's
-        confidence on the synthesised answer is below threshold AND the
-        corpus fits the direct-context window. R6.2 stops at synthesis.
+        R6.3 wires a post-loop DIRECT escalation tail (mirroring R5.3's
+        retrieval-arm escalation): when the multi-hop run finishes with
+        accumulated chunks still weak (max score below threshold) AND
+        the corpus fits the direct-context window, the engine routes to
+        `_query_via_direct_context` and stamps `routing_decision=
+        "iterative_then_direct"` plus the iterative hop list onto the
+        DIRECT result. Opt-in via
+        `IterativeRetrievalConfig.escalate_to_direct=True`.
         """
         assert self._generation_service is not None
         assert self._iterative_service is not None
@@ -1675,6 +1709,142 @@ class RagEngine:
             classification=classification,
         )
         iterative_elapsed = time.perf_counter() - iterative_t0 if trace else 0.0
+
+        # R6.3 post-loop DIRECT escalation. Mirrors R5.3's retrieval-arm tail
+        # but invoked from the iterative arm: when accumulated chunks are
+        # weak (max score < threshold) AND the corpus fits the direct-context
+        # window, escalate to `_query_via_direct_context` and stamp the
+        # iterative trace fields onto the DIRECT result.
+        #
+        # Threshold sourcing: `iterative.grounding_threshold` overrides
+        # `generation.grounding_threshold` when set; `None` (default)
+        # inherits — there is intentionally no hardcoded magic-number
+        # fallback (override semantics mirrored from R5.2 review pattern).
+        #
+        # `error` outcomes from the loop (decomposer contract violation /
+        # mid-loop exception) bypass escalation entirely: the failure
+        # signal matters more than the chunk-strength signal, and
+        # relabeling `error` → `low_confidence_no_escalation` would erase
+        # an already-actionable diagnostic.
+        gen_threshold = self._config.generation.grounding_threshold
+        iter_threshold = (
+            iterative_cfg.grounding_threshold
+            if iterative_cfg.grounding_threshold is not None
+            else gen_threshold
+        )
+        # `error` outcomes preserve the loop's failure signal (relabeling
+        # would erase an already-actionable diagnostic). `done` with zero
+        # retrieve calls is the decomposer's "answer is in findings, no
+        # retrieval needed" short circuit; treating that as "weak chunks"
+        # would mislabel a legitimate decomposer verdict — empty chunks
+        # there means "no retrieval ran", not "retrieval ran and was
+        # weak". Only relabel when the loop actually retrieved at least
+        # one hop's worth of chunks.
+        eligible_for_escalation = (
+            outcome.termination_reason in {"done", "max_hops"}
+            and outcome.total_retrieve_calls > 0
+        )
+        if (
+            eligible_for_escalation
+            and iterative_cfg.escalate_to_direct
+            and is_weak_chunk_signal(accumulated_chunks, iter_threshold)
+        ):
+            routing_threshold = (
+                self._config.routing.direct_context_threshold
+                if self._config.routing is not None
+                else None
+            )
+            tokens: int | None = None
+            if routing_threshold is not None:
+                try:
+                    assert self._knowledge_manager is not None
+                    tokens = await self._knowledge_manager.get_corpus_tokens(knowledge_id)
+                except Exception as exc:
+                    # Degrade gracefully: a transient `get_corpus_tokens`
+                    # failure (DB hiccup) shouldn't block the answer — fall
+                    # through to chunk synthesis with the best-effort weak
+                    # chunks we already have. Mirrors R1.3's "degrade to
+                    # RAG on answerability check failure" pattern.
+                    logger.warning(
+                        "iterative escalation skipped: get_corpus_tokens failed (%s)",
+                        exc,
+                    )
+                    tokens = None
+            if (
+                routing_threshold is not None
+                and tokens is not None
+                and tokens <= routing_threshold
+            ):
+                logger.info(
+                    "iterative escalation: hops=%d max_score=%s threshold=%s tokens=%d ≤ %d",
+                    len(outcome.hops),
+                    max_chunk_score(accumulated_chunks),
+                    iter_threshold,
+                    tokens,
+                    routing_threshold,
+                )
+                direct_result = await self._query_via_direct_context(
+                    text, knowledge_id, history, system_prompt, trace
+                )
+                if trace and direct_result.trace is not None:
+                    # R5.3 boundary-preservation pattern: stamp the
+                    # iterative trace data onto the DIRECT result so a
+                    # consumer debugging "why did this escalate?" can see
+                    # both halves of the run. Without this merge the
+                    # iterative hops + termination reason would be
+                    # silently dropped at the escalation boundary because
+                    # `_query_via_direct_context` builds a fresh trace.
+                    direct_result.trace.routing_decision = "iterative_then_direct"
+                    direct_result.trace.iterative_hops = list(outcome.hops)
+                    direct_result.trace.iterative_termination_reason = (
+                        "low_confidence_escalated"
+                    )
+                    if classification is not None:
+                        # R5.3-pattern adaptive merge: layer the
+                        # pre-escalation classifier verdict onto the
+                        # DIRECT trace so consumers can attribute the
+                        # gate verdict that drove the failed iterative
+                        # run. DIRECT-side keys (none expected — DIRECT
+                        # didn't run adaptive) take precedence on
+                        # collision.
+                        merged: dict[str, Any] = {}
+                        if direct_result.trace.adaptive is not None:
+                            merged.update(direct_result.trace.adaptive)
+                        merged.setdefault("complexity", classification.complexity.name)
+                        merged.setdefault("query_type", classification.query_type.name)
+                        merged.setdefault(
+                            "classification_source", classification.source
+                        )
+                        merged.setdefault("iterative_gate", "type_passed")
+                        direct_result.trace.adaptive = merged
+                    direct_result.trace.timings["iterative_total"] = iterative_elapsed
+                return direct_result
+            # Eligible by config but skipped (corpus too large OR routing
+            # not configured OR token-count read failed). Tag the outcome
+            # so consumers can distinguish "weak result, escalation
+            # disabled" from "weak result, escalation enabled but
+            # ineligible".
+            logger.info(
+                "iterative escalation skipped: routing_threshold=%s tokens=%s",
+                routing_threshold,
+                tokens,
+            )
+            outcome = replace(outcome, termination_reason="low_confidence_no_escalation")
+        elif iterative_cfg.escalate_to_direct:
+            # Escalation enabled but chunks not weak — no-op, keep the
+            # original termination reason ("done" / "max_hops" / "error").
+            pass
+        # If `escalate_to_direct=False`, we tag weak outcomes with
+        # `low_confidence_no_escalation` too — the caller asked us not
+        # to escalate, so the loop's own termination reason ("max_hops"
+        # etc.) doesn't capture the weak-result observation. `error`
+        # outcomes are preserved (see eligibility check above).
+        if (
+            eligible_for_escalation
+            and not iterative_cfg.escalate_to_direct
+            and is_weak_chunk_signal(accumulated_chunks, iter_threshold)
+        ):
+            outcome = replace(outcome, termination_reason="low_confidence_no_escalation")
 
         trace_obj: RetrievalTrace | None = None
         if trace:
