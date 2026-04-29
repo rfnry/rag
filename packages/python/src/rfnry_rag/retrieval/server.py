@@ -144,7 +144,7 @@ class PersistenceConfig:
 
 @dataclass
 class DocumentExpansionConfig:
-    """Opt-in document expansion at index time (R3).
+    """Opt-in document expansion at index time.
 
     When enabled, each chunk gets ``num_queries`` LLM-generated synthetic
     questions appended to its embedding/BM25 text — a docT5query-style
@@ -209,21 +209,20 @@ class IngestionConfig:
     # Max concurrent vision LLM calls during PDF analysis. Default 5 stays under
     # Tier-1 rate limits; Tier-2+ accounts can raise this to 8-16 for wall-clock wins.
     analyze_concurrency: int = 5
-    # Optional nested config for the DrawingIngestion pipeline (Phase C).
+    # Optional nested config for the DrawingIngestion pipeline.
     # None by default so existing consumers are unaffected.
     drawings: DrawingIngestionConfig | None = None
-    # Optional nested config for the analyze-path graph mapper (Phase D).
+    # Optional nested config for the analyze-path graph mapper.
     # None by default so existing consumers are unaffected; when provided,
     # ``GraphIngestionConfig.__post_init__`` handles its own validation.
     graph: GraphIngestionConfig | None = None
-    # Opt-in LLM-driven synthetic-query expansion at index time (R3).
+    # Opt-in LLM-driven synthetic-query expansion at index time.
     # ``DocumentExpansionConfig`` defaults to disabled; consumers must set
     # ``enabled=True`` AND provide ``lm_client`` to activate.
     document_expansion: DocumentExpansionConfig = field(default_factory=lambda: DocumentExpansionConfig())
-    # Opt-in RAPTOR-style hierarchical summarisation (R2). Default-off; runtime
-    # builder lands in R2.2, retrieval method in R2.3. ``RaptorConfig.__post_init__``
-    # handles its own validation including the ``enabled`` ⇒ ``summary_model``
-    # cross-field rule.
+    # Opt-in RAPTOR-style hierarchical summarisation. Default-off.
+    # ``RaptorConfig.__post_init__`` handles its own validation including the
+    # ``enabled`` ⇒ ``summary_model`` cross-field rule.
     raptor: RaptorConfig = field(default_factory=RaptorConfig)
 
     def __post_init__(self) -> None:
@@ -282,13 +281,12 @@ class IngestionConfig:
 
 @dataclass
 class AdaptiveRetrievalConfig:
-    """Adaptive retrieval (R5) — query-aware top_k, weights, and expansion.
+    """Adaptive retrieval — query-aware top_k, weights, and expansion.
 
-    R5.1 ships this as plumbing only: `enabled=False` is the default and
-    `RetrievalService.retrieve` does not yet read these fields. R5.2
-    consumes `top_k_min`/`top_k_max` and `task_weight_profiles` for
-    per-query adaptation; R5.3 consumes `confidence_expansion` and
-    `max_expansion_retries` for confidence-driven re-retrieval.
+    `enabled=False` is the default. When enabled, `top_k_min`/`top_k_max`
+    and `task_weight_profiles` drive per-query adaptation, and
+    `confidence_expansion` + `max_expansion_retries` drive confidence-based
+    re-retrieval.
 
     The cross-config rule "`enabled=True AND use_llm_classification=True`
     requires `RetrievalConfig.enrich_lm_client`" lives in
@@ -468,9 +466,9 @@ class TreeSearchConfig:
 class QueryMode(Enum):
     """User-facing routing strategy chosen per `RagEngine` instance.
 
-    All four modes — `RETRIEVAL` (default, backward-compat), `DIRECT`,
-    `HYBRID`, and `AUTO` — are live as of R1.4. The string values match
-    the `RetrievalTrace.routing_decision` enumeration.
+    All four modes — `RETRIEVAL` (default), `DIRECT`, `HYBRID`, and
+    `AUTO` — are live. The string values match the
+    `RetrievalTrace.routing_decision` enumeration.
     """
 
     RETRIEVAL = "retrieval"
@@ -483,12 +481,11 @@ class QueryMode(Enum):
 class RoutingConfig:
     """Top-level routing strategy.
 
-    R1.2 introduces this as the dispatch knob between RETRIEVAL (existing
-    pipeline) and DIRECT (full corpus into the prompt; no retrieval). R1.3
-    lights up HYBRID — RAG-then-answerability-check (SELF-ROUTE) — and
-    enforces `hybrid_answerability_model` as required for that mode. R1.4
-    lights up AUTO — per-query routing between RETRIEVAL and DIRECT based
-    on `direct_context_threshold` versus the corpus token count.
+    Dispatches between RETRIEVAL (the standard pipeline), DIRECT (full
+    corpus into the prompt; no retrieval), HYBRID (RAG-then-answerability-
+    check / SELF-ROUTE — requires `hybrid_answerability_model`), and AUTO
+    (per-query routing between RETRIEVAL and DIRECT based on
+    `direct_context_threshold` versus the corpus token count).
     """
 
     mode: QueryMode = QueryMode.RETRIEVAL
@@ -592,7 +589,7 @@ class RagEngine:
         self._drawing_ingestion: DrawingIngestionService | None = None
         self._retrieval_service: RetrievalService | None = None
         self._structured_retrieval: StructuredRetrievalService | None = None
-        # R6.2: only built when `RetrievalConfig.iterative.enabled=True`. Stays
+        # Only built when `RetrievalConfig.iterative.enabled=True`. Stays
         # None otherwise so the existing dispatch path is byte-for-byte
         # unchanged for consumers who don't opt in.
         self._iterative_service: IterativeRetrievalService | None = None
@@ -612,8 +609,8 @@ class RagEngine:
         self._embedding_model_name: str = ""
         self._expansion_registry: Any = None  # Built in _initialize_impl when document_expansion is enabled
         self._answerability_registry: Any = None  # Built in _initialize_impl when mode=HYBRID
-        # R2.2: lazily constructed on the first ``build_raptor_index`` call
-        # when ``RaptorConfig.enabled=True``. Stays ``None`` otherwise so the
+        # Lazily constructed on the first ``build_raptor_index`` call when
+        # ``RaptorConfig.enabled=True``. Stays ``None`` otherwise so the
         # default-off path doesn't pay any RAPTOR-related construction cost.
         self._raptor_builder: RaptorTreeBuilder | None = None
         self._raptor_registry: RaptorTreeRegistry | None = None
@@ -714,7 +711,7 @@ class RagEngine:
                 "(no opinionated default model; consumer chooses)."
             )
 
-        # R6.2: iterative retrieval needs SOME LLM client to call DecomposeQuery.
+        # Iterative retrieval needs SOME LLM client to call DecomposeQuery.
         # The dataclass-level invariant catches `gate_mode="llm"` without a
         # `decomposition_model`; this cross-config rule covers the remaining
         # gap (`gate_mode="type"` AND `decomposition_model is None` AND
@@ -733,9 +730,9 @@ class RagEngine:
                 "the same LanguageModelClient you'd use for query rewriting."
             )
 
-        # R6.3: warn (don't raise) when post-loop DIRECT escalation is
-        # opted in but `RoutingConfig.direct_context_threshold` is
-        # unconfigured — the escalation will be a no-op. Don't raise:
+        # Warn (don't raise) when post-loop DIRECT escalation is opted in
+        # but `RoutingConfig.direct_context_threshold` is unconfigured —
+        # the escalation will be a no-op. Don't raise:
         # consumers might intentionally run iterative without DIRECT
         # fallback (e.g. corpus is always too large to fit the
         # direct-context window anyway), and demoting this to a runtime
@@ -844,7 +841,7 @@ class RagEngine:
                 )
             retrieval_methods.append(GraphRetrieval(graph_store=persistence.graph_store, weight=0.7))
 
-        # RAPTOR retrieval path (R2.3) — opt-in via ``IngestionConfig.raptor.enabled``.
+        # RAPTOR retrieval path — opt-in via ``IngestionConfig.raptor.enabled``.
         # Registry is constructed eagerly here (NOT lazily on first build) so the
         # retrieval method can hold a stable reference; the builder stays lazy
         # because builds are explicit consumer actions, not engine-init work.
@@ -1029,7 +1026,7 @@ class RagEngine:
             classifier_lm_client=retrieval.enrich_lm_client,
         )
 
-        # R6.2: only construct when iterative is opted-in. Lazy construction
+        # Only construct when iterative is opted-in. Lazy construction
         # keeps `iterative.enabled=False` byte-for-byte unchanged (no service
         # built, no decomposer registry warmed, no extra fields populated).
         if retrieval.iterative.enabled:
@@ -1473,11 +1470,11 @@ class RagEngine:
     def _max_chunk_score(chunks: list[RetrievedChunk]) -> float | None:
         """Max `score` across chunks; `None` for empty input.
 
-        Thin wrapper over `common.grounding.max_chunk_score`. R6.3 lifted
-        the implementation to a shared module so R6.3's iterative-arm
-        escalation reuses the exact same boundary semantics that R5.3's
-        retrieval-arm escalation uses — divergence here would be a
-        real-world correctness bug.
+        Thin wrapper over `common.grounding.max_chunk_score`. The
+        implementation lives in a shared module so the iterative-arm
+        escalation reuses the exact same boundary semantics as the
+        retrieval-arm escalation — divergence here would be a real-world
+        correctness bug.
         """
         return max_chunk_score(chunks)
 
@@ -1487,9 +1484,9 @@ class RagEngine:
     ) -> bool:
         """True when retrieval signal is weak — empty OR strict-below threshold.
 
-        Thin wrapper over `common.grounding.is_weak_chunk_signal`. R6.3
-        lifted the implementation to a shared module so R6.3's iterative
-        arm reuses the same check at a different trigger site (post-loop
+        Thin wrapper over `common.grounding.is_weak_chunk_signal`. The
+        implementation lives in a shared module so the iterative arm
+        reuses the same check at a different trigger site (post-loop
         instead of post-retrieve). Boundary is `<` not `<=`: a query at
         exactly the threshold is NOT considered weak. Matches
         `GenerationConfig.grounding_threshold`'s existing semantics —
@@ -1510,30 +1507,30 @@ class RagEngine:
     ) -> QueryResult:
         """Existing retrieve-then-generate pipeline (RETRIEVAL mode).
 
-        R5.3's confidence-expansion retry loop is wrapped here (NOT in
+        The confidence-expansion retry loop is wrapped here (NOT in
         `RetrievalService`): the engine has access to
-        `KnowledgeManager.get_corpus_tokens` for the LC-escalation
-        decision and `_query_via_direct_context` for the actual
+        `KnowledgeManager.get_corpus_tokens` for the long-context
+        escalation decision and `_query_via_direct_context` for the actual
         escalation — service-level concerns shouldn't know about
         cross-strategy escalation. HYBRID's RAG branch calls
         `_retrieve_chunks` directly (not `_query_via_retrieval`), so
         HYBRID is naturally excluded from expansion (HYBRID has its own
         answerability check; expansion would double up).
 
-        R6.2 also dispatches at the top of this method to
-        `_query_via_iterative` when iterative is enabled and the gate
-        passes. AUTO mode reaches this method when it routes to RETRIEVAL,
-        so iterative is consulted on both RETRIEVAL and AUTO->RETRIEVAL
-        paths transparently. HYBRID and DIRECT are NOT affected — HYBRID
-        has its own answerability check (double-decomposing burns LLM
-        calls without benefit), and DIRECT loads the whole corpus already.
+        This method also dispatches at the top to `_query_via_iterative`
+        when iterative is enabled and the gate passes. AUTO mode reaches
+        this method when it routes to RETRIEVAL, so iterative is consulted
+        on both RETRIEVAL and AUTO->RETRIEVAL paths transparently. HYBRID
+        and DIRECT are NOT affected — HYBRID has its own answerability
+        check (double-decomposing burns LLM calls without benefit), and
+        DIRECT loads the whole corpus already.
         """
         assert self._generation_service is not None
 
-        # R6.2 dispatch: classify once, decide whether to iterate. We classify
-        # here (not inside `_query_via_iterative`) so the verdict can be passed
-        # to BOTH the iterative service (for the type-mode gate) AND the inner
-        # `RetrievalService.retrieve` (when adaptive is enabled, R5.2's
+        # Iterative dispatch: classify once, decide whether to iterate. We
+        # classify here (not inside `_query_via_iterative`) so the verdict can
+        # be passed to BOTH the iterative service (for the type-mode gate) AND
+        # the inner `RetrievalService.retrieve` (when adaptive is enabled,
         # `_compute_adaptive_params` reuses this verdict — pre-classification
         # avoids the double LLM call). Today we don't yet thread the
         # classification down into `RetrievalService.retrieve`; that's a
@@ -1543,12 +1540,12 @@ class RagEngine:
         # Defensive `getattr`: tests construct minimally-wired engines via
         # `SimpleNamespace`, which may omit `iterative`. Production
         # `RagServerConfig` always provides it; treating missing as
-        # "disabled" preserves the existing test ergonomics (mirrors R5.3's
+        # "disabled" preserves the existing test ergonomics (mirrors the
         # `adaptive` lookup pattern earlier in this method).
         iterative_cfg = getattr(self._config.retrieval, "iterative", None)
         if iterative_cfg is not None and iterative_cfg.enabled and self._iterative_service is not None:
             if iterative_cfg.gate_mode == "type":
-                # Type-mode gate uses R5's classifier verdict; default to the
+                # Type-mode gate uses the classifier verdict; default to the
                 # free heuristic. LLM-backed classification is opted in via
                 # `AdaptiveRetrievalConfig.use_llm_classification` — when set,
                 # the same classifier client is shared with the gate to avoid
@@ -1617,11 +1614,11 @@ class RagEngine:
                 attempts += 1
                 if attempts == 1:
                     expanded_top_k = min(expanded_top_k * 2, adaptive.top_k_max)
-                # Step 2 (attempts == 2): rewriter swap. R5.3 ships this as a
-                # no-op placeholder — only one rewriter is configured today.
+                # Step 2 (attempts == 2): rewriter swap. Currently a no-op
+                # placeholder — only one rewriter is configured today.
                 # TODO: future enhancement could add
                 # `AdaptiveRetrievalConfig.expansion_rewriters: list[BaseQueryRewriting]`
-                # and rotate through them here. Out of scope for R5.3.
+                # and rotate through them here.
                 logger.info(
                     "confidence expansion retry %d/%d (top_k=%d, grounding_threshold=%.2f)",
                     attempts,
@@ -1661,15 +1658,15 @@ class RagEngine:
                         # ("AUTO chose DIRECT directly"). Different cost shape
                         # (RAG-then-LC vs LC-only), different debugging signal.
                         direct_result.trace.routing_decision = "retrieval_then_direct"
-                        # Merge order (R5.3 polish): start with whatever the
-                        # DIRECT trace carries (likely None — DIRECT didn't run
-                        # adaptive), layer R5.2's pre-escalation classifier
-                        # verdict (`complexity`, `query_type`, `effective_top_k`,
+                        # Merge order: start with whatever the DIRECT trace
+                        # carries (likely None — DIRECT didn't run adaptive),
+                        # layer the pre-escalation classifier verdict
+                        # (`complexity`, `query_type`, `effective_top_k`,
                         # `applied_multipliers`, `classification_source`) on top
                         # so a consumer debugging "why did this escalate?" can
                         # see the verdict that drove the failed retrieval, then
-                        # layer R5.3's expansion keys on top of THAT. Without
-                        # this merge the classifier verdict would be silently
+                        # layer the expansion keys on top of THAT. Without this
+                        # merge the classifier verdict would be silently
                         # dropped at the escalation boundary.
                         merged: dict[str, Any] = {}
                         if direct_result.trace.adaptive is not None:
@@ -1740,7 +1737,7 @@ class RagEngine:
         trace: bool,
         classification: QueryClassification | None,
     ) -> QueryResult:
-        """Multi-hop iterative retrieve-then-generate (R6.2 + R6.3).
+        """Multi-hop iterative retrieve-then-generate.
 
         Mirrors `_query_via_hybrid` structurally: delegate to a sibling
         service that owns the loop, then route the accumulated chunks
@@ -1748,10 +1745,10 @@ class RagEngine:
         surfaces every hop's per-method results, decompose verdict, and
         timings via `RetrievalTrace.iterative_hops`.
 
-        R6.3 wires a post-loop DIRECT escalation tail (mirroring R5.3's
-        retrieval-arm escalation): when the multi-hop run finishes with
-        accumulated chunks still weak (max score below threshold) AND
-        the corpus fits the direct-context window, the engine routes to
+        Post-loop DIRECT escalation tail (mirroring the retrieval-arm
+        escalation): when the multi-hop run finishes with accumulated
+        chunks still weak (max score below threshold) AND the corpus
+        fits the direct-context window, the engine routes to
         `_query_via_direct_context` and stamps `routing_decision=
         "iterative_then_direct"` plus the iterative hop list onto the
         DIRECT result. Opt-in via
@@ -1761,7 +1758,7 @@ class RagEngine:
         assert self._iterative_service is not None
         iterative_cfg = self._config.retrieval.iterative
 
-        # Per-collection retrieval pipelines (R5+) require a per-collection
+        # Per-collection retrieval pipelines require a per-collection
         # iterative service too — otherwise a query against collection B
         # would call the default RetrievalService for hops. Build a
         # collection-scoped service on demand; production latency hit is
@@ -1788,8 +1785,8 @@ class RagEngine:
         )
         iterative_elapsed = time.perf_counter() - iterative_t0 if trace else 0.0
 
-        # R6.3 post-loop DIRECT escalation. Mirrors R5.3's retrieval-arm tail
-        # but invoked from the iterative arm: when accumulated chunks are
+        # Post-loop DIRECT escalation. Mirrors the retrieval-arm tail but
+        # invoked from the iterative arm: when accumulated chunks are
         # weak (max score < threshold) AND the corpus fits the direct-context
         # window, escalate to `_query_via_direct_context` and stamp the
         # iterative trace fields onto the DIRECT result.
@@ -1797,7 +1794,7 @@ class RagEngine:
         # Threshold sourcing: `iterative.grounding_threshold` overrides
         # `generation.grounding_threshold` when set; `None` (default)
         # inherits — there is intentionally no hardcoded magic-number
-        # fallback (override semantics mirrored from R5.2 review pattern).
+        # fallback.
         #
         # `error` outcomes from the loop (decomposer contract violation /
         # mid-loop exception) bypass escalation entirely: the failure
@@ -1841,7 +1838,7 @@ class RagEngine:
                     # Degrade gracefully: a transient `get_corpus_tokens`
                     # failure (DB hiccup) shouldn't block the answer — fall
                     # through to chunk synthesis with the best-effort weak
-                    # chunks we already have. Mirrors R1.3's "degrade to
+                    # chunks we already have. Mirrors HYBRID's "degrade to
                     # RAG on answerability check failure" pattern.
                     logger.warning(
                         "iterative escalation skipped: get_corpus_tokens failed (%s)",
@@ -1865,9 +1862,9 @@ class RagEngine:
                     text, knowledge_id, history, system_prompt, trace
                 )
                 if trace and direct_result.trace is not None:
-                    # R5.3 boundary-preservation pattern: stamp the
-                    # iterative trace data onto the DIRECT result so a
-                    # consumer debugging "why did this escalate?" can see
+                    # Boundary-preservation pattern: stamp the iterative
+                    # trace data onto the DIRECT result so a consumer
+                    # debugging "why did this escalate?" can see
                     # both halves of the run. Without this merge the
                     # iterative hops + termination reason would be
                     # silently dropped at the escalation boundary because
@@ -1878,8 +1875,8 @@ class RagEngine:
                         "low_confidence_escalated"
                     )
                     if classification is not None:
-                        # R5.3-pattern adaptive merge: layer the
-                        # pre-escalation classifier verdict onto the
+                        # Adaptive merge: layer the pre-escalation
+                        # classifier verdict onto the
                         # DIRECT trace so consumers can attribute the
                         # gate verdict that drove the failed iterative
                         # run. DIRECT-side keys (none expected — DIRECT
@@ -1937,7 +1934,7 @@ class RagEngine:
             trace_obj.timings["iterative_total"] = iterative_elapsed
             # Keep classification visible at the top-level trace (not just per-hop)
             # so consumers can attribute "why did iterative kick in?" without
-            # walking the hop list. Mirrors R5.2's adaptive surface.
+            # walking the hop list. Mirrors the adaptive surface.
             if classification is not None:
                 trace_obj.adaptive = {
                     "complexity": classification.complexity.name,
@@ -2019,7 +2016,7 @@ class RagEngine:
     ) -> QueryResult:
         """HYBRID (SELF-ROUTE): RAG first, then ask the LLM if chunks suffice.
 
-        Phase 1 retrieves chunks via the existing pipeline. Phase 2 calls
+        Step 1 retrieves chunks via the existing pipeline. Step 2 calls
         `b.CheckAnswerability` with the chunks-as-context. On `answerable=True`
         we generate from chunks (`routing_decision="hybrid_rag"`); on
         `answerable=False` we load the full corpus and generate from it
@@ -2235,7 +2232,7 @@ class RagEngine:
         knowledge_id: str | None = None,
         llm_judge: LLMJudgment | None = None,
     ) -> BenchmarkReport:
-        """Run cases, collect traces (R8.1) + classifications (R8.2), aggregate.
+        """Run cases, collect traces and failure classifications, aggregate.
 
         Each case is executed via `query(..., trace=True)` so the report
         carries the full per-case trace alongside the aggregate metrics.
@@ -2312,7 +2309,7 @@ class RagEngine:
             )
         assert self._knowledge_manager is not None
 
-        # SQLAlchemyMetadataStore is required (R2.1 schema lives there).
+        # SQLAlchemyMetadataStore is required (RAPTOR schema lives there).
         # Validate every call so a consumer who bypasses ``initialize()``
         # (e.g. via ``__new__``) still trips the guard.
         if not isinstance(persistence.metadata_store, SQLAlchemyMetadataStore):
@@ -2339,7 +2336,7 @@ class RagEngine:
     async def _load_full_corpus(self, knowledge_id: str | None) -> str:
         """Concatenate every source's text under ``knowledge_id`` into one string.
 
-        Plumbing for R1's DIRECT / HYBRID modes — they need the whole corpus
+        Plumbing for DIRECT / HYBRID modes — they need the whole corpus
         in-prompt, not retrieval-ranked chunks. Caller is responsible for the
         downstream model-context-limit check; this method does not truncate.
 
@@ -2348,11 +2345,11 @@ class RagEngine:
         is absent or returns nothing — the vector path is lossy because chunk
         boundaries can land mid-sentence and table-row chunks are flattened
         into linear text. Skips parent chunks (`chunk_type == "parent"`) on
-        the scroll path so Phase A5's parent-child indexing doesn't double
-        the emitted text.
+        the scroll path so parent-child indexing doesn't double the emitted
+        text.
 
         Sequential per-source: a knowledge with N sources issues N reads.
-        Acceptable for R1.1 — DIRECT mode invokes this once per query, not
+        Acceptable in practice — DIRECT mode invokes this once per query, not
         per chunk. Batch fetch via `IN (?, ?, ...)` is straightforward to add
         if a real workload exposes the latency.
 
@@ -2398,7 +2395,7 @@ class RagEngine:
         Lossy fallback — chunk boundaries are not guaranteed to align with
         sentence/paragraph boundaries, and table-row chunks emit one linear
         line per row. Filters parent chunks (`chunk_type == "parent"`) so
-        Phase A5's parent-child indexing doesn't double-count text.
+        parent-child indexing doesn't double-count text.
         """
         offset: str | None = None
         ordered: list[tuple[int, str]] = []
@@ -2579,7 +2576,7 @@ class RagEngine:
         post-min-score-filter view returned to the caller.
 
         `top_k` overrides the configured `RetrievalConfig.top_k` for this
-        call only; passed through to `RetrievalService.retrieve`. R5.3's
+        call only; passed through to `RetrievalService.retrieve`. The
         confidence-expansion loop uses this to retry with `top_k * 2`
         without mutating the service-level default.
         """

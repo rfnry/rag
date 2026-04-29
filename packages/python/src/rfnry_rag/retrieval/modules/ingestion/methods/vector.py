@@ -146,7 +146,7 @@ class VectorIngestion:
                         "tags": tags,
                         "source_name": metadata.get("name", ""),
                         "file_url": metadata.get("file_url", ""),
-                        # R3: empty list when document expansion is disabled.
+                        # Empty list when document expansion is disabled.
                         # Stored unconditionally for debugging/audit transparency.
                         "synthetic_queries": list(getattr(chunk, "synthetic_queries", []) or []),
                     },

@@ -1,9 +1,7 @@
-"""RaptorConfig — RAPTOR-style hierarchical summarization retrieval configuration (R2.1).
+"""RaptorConfig — RAPTOR-style hierarchical summarization retrieval configuration.
 
-R2.1 lands the compile-time scaffold (config + BAML + schema migration +
-registry). The runtime tree builder lands in R2.2; the ``RaptorRetrieval``
-method + engine wiring land in R2.3. R2.1 is plumbing only — ``enabled=False``
-is the default and no consumer reads these fields yet.
+Default-off configuration dataclass for RAPTOR. When ``enabled=False``
+(the default) the rest of this module is byte-for-byte unused.
 """
 
 from __future__ import annotations
@@ -24,7 +22,7 @@ class RaptorConfig:
     """RAPTOR-style hierarchical summarization retrieval configuration.
 
     Default-off. When ``enabled=True``, ``RagEngine.build_raptor_index(knowledge_id)``
-    becomes available (R2.2); building a tree clusters chunks under that
+    becomes available; building a tree clusters chunks under that
     knowledge_id, summarises each cluster via the configured ``summary_model``,
     recurses up to ``max_levels``, and persists summary vectors with
     ``vector_role="raptor_summary"``.
@@ -46,7 +44,8 @@ class RaptorConfig:
                 f"RaptorConfig.max_levels must be in [1, 10], got {self.max_levels}"
             )
         # Allowlist over an open string field: prevents typos becoming silent
-        # fall-throughs at build time. Mirrors R6.1's ``gate_mode`` pattern.
+        # fall-throughs at build time. Mirrors the iterative ``gate_mode``
+        # allowlist pattern.
         if self.cluster_algorithm not in _VALID_CLUSTER_ALGORITHMS:
             raise ConfigurationError(
                 f"RaptorConfig.cluster_algorithm must be one of "

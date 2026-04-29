@@ -156,7 +156,7 @@ async def test_ingest_graph_store_failure_warns():
 
 
 async def test_analyzed_ingestion_writes_document_store_exactly_once(tmp_path) -> None:
-    """Phase 3 must be the single authoritative document write."""
+    """The ingest phase must be the single authoritative document write."""
     from unittest.mock import AsyncMock, MagicMock
 
     from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
@@ -173,7 +173,7 @@ async def test_analyzed_ingestion_writes_document_store_exactly_once(tmp_path) -
     # Override embed so it returns exactly one vector per text (avoids zip mismatch)
     service._embeddings.embed = AsyncMock(side_effect=lambda texts: [[0.1] * 10] * len(texts))
 
-    # Phase 1: analyze — metadata_store.create_source saves the source
+    # analyze phase — metadata_store.create_source saves the source
     created_sources: list[Source] = []
 
     async def capture_create(source: Source) -> None:
@@ -183,7 +183,7 @@ async def test_analyzed_ingestion_writes_document_store_exactly_once(tmp_path) -
 
     source = await service.analyze(file_path=xml)
 
-    # Phase 2: synthesize — get_source returns the analyzed source; update_source updates it
+    # synthesize phase — get_source returns the analyzed source; update_source updates it
     service._metadata_store.get_source = AsyncMock(return_value=source)
     service._metadata_store.update_source = AsyncMock()
 
@@ -192,10 +192,10 @@ async def test_analyzed_ingestion_writes_document_store_exactly_once(tmp_path) -
     # Refresh: get_source for phase 3 returns the synthesized source (with synthesis in metadata)
     service._metadata_store.get_source = AsyncMock(return_value=source)
 
-    # Phase 3: ingest
+    # ingest phase
     await service.ingest(source.source_id)
 
-    # The document method must have been called exactly once — in phase 3 only
+    # The document method must have been called exactly once — in the ingest phase only
     assert doc_method.ingest.await_count == 1
 
 

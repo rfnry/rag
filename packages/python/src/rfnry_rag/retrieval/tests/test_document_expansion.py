@@ -1,6 +1,6 @@
-"""R3 — Document expansion at index time.
+"""Document expansion at index time.
 
-Eight tests pinning the public contract of ``DocumentExpansionConfig``,
+Tests pinning the public contract of ``DocumentExpansionConfig``,
 ``ChunkedContent.synthetic_queries`` / ``text_for_embedding`` /
 ``text_for_bm25``, and the ``expand_chunks`` helper.
 

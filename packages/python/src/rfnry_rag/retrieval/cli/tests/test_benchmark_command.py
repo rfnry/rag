@@ -1,4 +1,4 @@
-"""R8.3 — CLI smoke test for `rfnry-rag benchmark`.
+"""CLI smoke test for `rfnry-rag benchmark`.
 
 Stubs `RagEngine` (the async context manager) and `load_config` so the
 test exercises the command's plumbing — argument parsing, JSON loading,

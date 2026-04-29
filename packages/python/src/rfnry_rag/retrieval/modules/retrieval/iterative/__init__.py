@@ -1,9 +1,10 @@
-"""Multi-hop iterative retrieval (R6).
+"""Multi-hop iterative retrieval.
 
-R6.1 shipped the compile-time scaffold (config + BAML function + service
-stub). R6.2 lands the runtime hop loop, decomposer wiring, trace
-surface, and engine integration. R6.3 will add post-loop DIRECT
-escalation on top of this subpackage's outputs.
+Public surface for the iterative-retrieval subpackage: the dataclass
+config (`IterativeRetrievalConfig`), the runtime service
+(`IterativeRetrievalService`), and the trace types (`IterativeHopTrace`,
+`IterativeOutcome`). The engine wraps the service and layers post-loop
+DIRECT escalation on top.
 """
 
 from rfnry_rag.retrieval.modules.retrieval.iterative.config import (

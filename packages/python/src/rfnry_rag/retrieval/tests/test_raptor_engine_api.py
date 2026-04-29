@@ -1,6 +1,6 @@
-"""R2.2 polish — RagEngine.build_raptor_index API guards.
+"""Tests for RagEngine.build_raptor_index API guards.
 
-R2.2 lands the engine-level ``build_raptor_index`` API that lazily constructs
+The engine-level ``build_raptor_index`` API lazily constructs
 ``RaptorTreeBuilder`` + ``RaptorTreeRegistry`` on first call. The runtime
 checks at the engine boundary (config + dependency presence) belong to the
 public surface and need their own coverage so a future regression renaming

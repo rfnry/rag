@@ -81,7 +81,7 @@ class AnalyzedIngestionService:
         metadata: dict[str, Any] | None = None,
         page_range: str | None = None,
     ) -> Source:
-        """Phase 1: Per-page/entity analysis. Returns Source with status='analyzed'."""
+        """Analyze phase: per-page/entity analysis. Returns Source with status='analyzed'."""
         file_path = Path(file_path)
         ext = file_path.suffix.lower()
         logger.info("[analyze/ingestion/analyze] processing file: %s (%s)", file_path.name, ext)
@@ -145,7 +145,7 @@ class AnalyzedIngestionService:
         return source
 
     async def synthesize(self, source_id: str) -> Source:
-        """Phase 2: Cross-page/entity relationship discovery. Returns Source with status='synthesized'."""
+        """Synthesize phase: cross-page/entity relationship discovery. Returns Source with status='synthesized'."""
         source = await self._metadata_store.get_source(source_id)
         if source is None:
             raise IngestionError(f"source not found: {source_id}")
@@ -177,7 +177,7 @@ class AnalyzedIngestionService:
         return source
 
     async def ingest(self, source_id: str) -> Source:
-        """Phase 3: Embed + store. Returns Source with status='completed'."""
+        """Ingest phase: embed + store. Returns Source with status='completed'."""
         source = await self._metadata_store.get_source(source_id)
         if source is None:
             raise IngestionError(f"source not found: {source_id}")

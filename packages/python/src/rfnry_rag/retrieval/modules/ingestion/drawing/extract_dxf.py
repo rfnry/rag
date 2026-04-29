@@ -20,7 +20,7 @@ logger = get_logger("drawing/ingestion/extract_dxf")
 
 # Absolute tolerance (in modelspace units) for matching a wire endpoint to an
 # INSERT bbox. Kept small to avoid false-positive connections on busy drawings;
-# hop to Phase D if real-world drawings require a configurable tolerance.
+# can be promoted to a configurable knob if real-world drawings require it.
 _CONNECTION_TOL = 2
 
 

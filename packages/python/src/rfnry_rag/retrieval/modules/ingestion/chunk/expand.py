@@ -1,4 +1,4 @@
-"""LLM-driven document expansion: synthetic queries per chunk (R3).
+"""LLM-driven document expansion: synthetic queries per chunk.
 
 Sibling to ``chunk/context.py``. Kept separate because expansion is async +
 LLM-driven; contextualisation is pure string templating.

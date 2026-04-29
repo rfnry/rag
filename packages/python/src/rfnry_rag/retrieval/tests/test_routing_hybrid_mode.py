@@ -1,11 +1,11 @@
-"""R1.3 — HYBRID mode (SELF-ROUTE).
+"""HYBRID mode (SELF-ROUTE) tests.
 
-Lights up `mode="hybrid"` user-facing — runs RAG first, then asks the LLM
-"can you answer from these chunks?" via `b.CheckAnswerability`. If yes,
-returns the RAG answer (`routing_decision="hybrid_rag"`). If no, escalates
-to DIRECT-style full-corpus generation (`routing_decision="hybrid_lc"`).
-On answerability-check failure, degrades to RAG to avoid silent LC
-escalation on a transient error (rate limit, timeout, malformed JSON).
+`mode="hybrid"` runs RAG first, then asks the LLM "can you answer from
+these chunks?" via `b.CheckAnswerability`. If yes, returns the RAG answer
+(`routing_decision="hybrid_rag"`). If no, escalates to DIRECT-style
+full-corpus generation (`routing_decision="hybrid_lc"`). On answerability-
+check failure, degrades to RAG to avoid silent long-context escalation on
+a transient error (rate limit, timeout, malformed JSON).
 """
 
 from types import SimpleNamespace
@@ -232,10 +232,10 @@ async def test_query_mode_hybrid_trace_includes_answerability_timing() -> None:
 async def test_query_stream_refuses_non_retrieval_modes(mode: QueryMode) -> None:
     """`query_stream()` raises `ConfigurationError` for any non-RETRIEVAL mode.
 
-    R1.2 + R1.3 both left this gap open: a consumer who configures
-    `mode=DIRECT` / `mode=HYBRID` / `mode=AUTO` and calls `query_stream(...)`
-    silently got RAG-only behavior. Streaming for non-retrieval modes is
-    deferred — refuse explicitly.
+    A consumer who configures `mode=DIRECT` / `mode=HYBRID` / `mode=AUTO`
+    and calls `query_stream(...)` would otherwise silently get RAG-only
+    behavior. Streaming for non-retrieval modes is deferred — refuse
+    explicitly.
     """
     engine = _make_engine(mode=mode)
     with pytest.raises(ConfigurationError, match="does not support mode"):

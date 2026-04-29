@@ -1,22 +1,22 @@
-"""Heuristic failure classification on `RetrievalTrace` (R8.2).
+"""Heuristic failure classification on `RetrievalTrace`.
 
-Pure-inspection function that turns a `RetrievalTrace` (from R8.1) into a
-small `FailureType` enum verdict plus the trace-derived `signals` that
-drove the decision. No LLM calls, no I/O, no new dependencies — the
-classifier is the cheap first pass that lets a benchmark report tell the
-user which class of failure dominates their workload (e.g., "40% of
-failures are vocabulary_mismatch — enable R3 expansion to fix the
+Pure-inspection function that turns a `RetrievalTrace` into a small
+`FailureType` enum verdict plus the trace-derived `signals` that drove
+the decision. No LLM calls, no I/O, no new dependencies — the classifier
+is the cheap first pass that lets a benchmark report tell the user
+which class of failure dominates their workload (e.g., "40% of
+failures are vocabulary_mismatch — enable document expansion to fix the
 dominant class") without paying per-case LLM cost.
 
 Caller's responsibility to invoke only on failed cases. The classifier
-does not itself decide pass/fail — R8.3's benchmark harness will.
+does not itself decide pass/fail — the benchmark harness owns that.
 
 Threshold rationale
 -------------------
 The three module-private constants below are heuristic defaults picked
-by intuition, not benchmark — R8.3's benchmark provides the data needed
-to tune them later. They are NOT consumer-facing config: they live at
-module scope, NOT on a config dataclass, and they do NOT enter
+by intuition. The benchmark harness provides the data needed to tune
+them on a real corpus. They are NOT consumer-facing config: they live
+at module scope, NOT on a config dataclass, and they do NOT enter
 `_CONFIGS_TO_AUDIT`. If a real consumer needs to tune them, promote to
 a `FailureAnalysisConfig` then.
 
@@ -72,7 +72,7 @@ _HIGH_RELEVANCE_THRESHOLD = 0.7
 # are noise even if non-empty.
 _LOW_RELEVANCE_THRESHOLD = 0.3
 
-# Generic "entity-like" token shared with the R5.1 query classifier —
+# Generic "entity-like" token shared with the query classifier —
 # imported from `modules/retrieval/search/classification.py` so the two
 # paths cannot drift. The regex is deliberately permissive (`JSON`,
 # `HTTP` will match too); the `signals["matched_token"]` field reports

@@ -1,10 +1,7 @@
-"""R2.1 — RaptorConfig dataclass invariants.
+"""RaptorConfig dataclass invariants.
 
-R2.1 lands the compile-time scaffold for RAPTOR-style summarisation
-retrieval. The runtime tree builder lands in R2.2; the ``RaptorRetrieval``
-method + engine wiring land in R2.3. These tests pin the dataclass defaults,
-bounds, allowlist, and the cross-field rule (``enabled=True`` requires
-``summary_model``).
+Tests pin the dataclass defaults, bounds, allowlist, and the cross-field
+rule (``enabled=True`` requires ``summary_model``).
 """
 
 from __future__ import annotations

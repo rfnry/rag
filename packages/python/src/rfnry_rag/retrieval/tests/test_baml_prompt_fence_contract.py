@@ -128,7 +128,7 @@ def _has_fence_for_param(body: str, param: str) -> bool:
     Old-style delimiters like ``======== USER QUERY ========`` (no START/END sentinel)
     do NOT satisfy this contract.
 
-    Two interpolation patterns are recognised (R2.1 extends to handle the second):
+    Two interpolation patterns are recognised:
 
       1. Direct interpolation — ``{{ param }}`` appears in the body, fenced by a
          single START … END pair. Used for ``string`` params.
@@ -147,8 +147,8 @@ def _has_fence_for_param(body: str, param: str) -> bool:
         ``X`` is fenced inside the loop body by START/END markers whose tag
         contains a ``\\d+`` placeholder (e.g. ``MEMBER_N``).
     """
-    # Pattern 2: Jinja-loop iteration (R2.1 extension). Detect this first
-    # because a string[] param won't have a direct ``{{ param }}`` site.
+    # Pattern 2: Jinja-loop iteration. Detect this first because a
+    # string[] param won't have a direct ``{{ param }}`` site.
     loop_match = re.search(
         rf"\{{%\s*for\s+(\w+)\s+in\s+{re.escape(param)}\s*%\}}",
         body,

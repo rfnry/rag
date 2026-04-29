@@ -1,9 +1,8 @@
 """RaptorBuildReport — outcome of one ``RagEngine.build_raptor_index`` call.
 
-R2.1 ships the dataclass shape only. Population happens in R2.2 when
-``RaptorTreeBuilder.build`` lands. The shape mirrors R6.2's
-``IterativeOutcome``: a dataclass returned alongside the persisted artefacts
-so consumers can inspect what happened without parsing logs.
+The shape mirrors ``IterativeOutcome``: a dataclass returned alongside
+the persisted artefacts so consumers can inspect what happened without
+parsing logs.
 """
 
 from __future__ import annotations

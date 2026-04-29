@@ -10,7 +10,7 @@ class RankedChunk {
   reasoning string?
 }
 
-// R5.1: query-classifier output. The strict 4-label QueryType allowlist
+// Query-classifier output. The strict 4-label QueryType allowlist
 // (FACTUAL/COMPARATIVE/ENTITY_RELATIONSHIP/PROCEDURAL) describes query
 // SHAPE, not domain — adding a fifth label requires explicit redesign.
 enum QueryComplexity {
@@ -32,7 +32,7 @@ class QueryClassification {
   reasoning string
 }
 
-// R6.1: multi-hop iterative retrieval decomposer output. The loop terminates
+// Multi-hop iterative retrieval decomposer output. The loop terminates
 // on `done=true`; otherwise `next_sub_question` carries the next single
 // retrieval target. `findings_from_last_hop` is a 1-3 sentence restatement
 // of accumulated context (no invention).
@@ -43,7 +43,7 @@ class DecomposeResult {
   reasoning string
 }
 
-// R2.1: RAPTOR cluster summarisation output. The summary is the public payload
+// RAPTOR cluster summarisation output. The summary is the public payload
 // (embedded + persisted as a summary node); `reasoning` is trace-only and
 // records what theme the cluster cohered around.
 class SummarizeClusterResult {

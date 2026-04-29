@@ -1,9 +1,8 @@
-"""R6.2 — IterativeRetrievalService hop loop + engine arm.
+"""IterativeRetrievalService hop loop + engine arm tests.
 
-Lights up the runtime core of multi-hop iterative retrieval. R6.1 shipped
-the config + BAML scaffold; R6.2 lands the loop, the dedup helper, the
-engine `_query_via_iterative` arm, and the trace-surface population. R6.3
-will add post-loop DIRECT escalation.
+Covers the runtime core of multi-hop iterative retrieval: the loop, the
+dedup helper, the engine `_query_via_iterative` arm, the trace-surface
+population, and post-loop DIRECT escalation.
 
 Bias-term hygiene: fixtures use neutral identifiers (`q1`, `chunk_a`,
 `topic_a`, `kb-1`). No domain-specific vocabulary.
@@ -106,14 +105,12 @@ def _make_engine(
 ) -> Any:
     """Build a minimally-wired RagEngine bypassing initialize().
 
-    Mirrors R5.3's test pattern: real `RetrievalConfig` (so `iterative` and
-    `adaptive` exist), `MagicMock` for the dependency services, `AsyncMock`
-    return values where awaitable.
+    Real `RetrievalConfig` (so `iterative` and `adaptive` exist), `MagicMock`
+    for the dependency services, `AsyncMock` return values where awaitable.
 
-    `escalate_to_direct=False` by default keeps the R6.2-baseline tests
-    behaving as they did pre-R6.3 (no post-loop escalation, no
-    `low_confidence_no_escalation` re-tagging). R6.3-specific tests
-    flip the flag to True.
+    `escalate_to_direct=False` by default keeps the baseline tests free of
+    post-loop escalation and `low_confidence_no_escalation` re-tagging.
+    Escalation-specific tests flip the flag to True.
     """
     iterative_cfg = IterativeRetrievalConfig(
         enabled=iterative_enabled,
@@ -446,7 +443,7 @@ async def test_iterative_findings_passed_to_next_decompose_call() -> None:
 async def test_iterative_trace_populates_hop_list() -> None:
     """`trace=True` -> `iterative_hops` populated with ordered hop traces."""
     engine = _make_engine(gate_mode="llm", max_hops=4)
-    # Per-hop trace carries R5.2's adaptive verdict — assert it lands in the
+    # Per-hop trace carries the adaptive verdict — assert it lands in the
     # IterativeHopTrace.adaptive field (boundary-preservation guard).
     inner_trace = RetrievalTrace(
         query="x",
@@ -487,7 +484,7 @@ async def test_iterative_trace_populates_hop_list() -> None:
     assert [h.sub_question for h in hops] == ["sub-q-1", "sub-q-2", None]
     # The done-call has no sub_question; first two are real hops.
     assert hops[2].sub_question is None
-    # R5.2 adaptive verdict survived the boundary into the per-hop trace.
+    # Adaptive verdict survived the boundary into the per-hop trace.
     assert hops[0].adaptive is not None
     assert hops[0].adaptive["complexity"] == "COMPLEX"
     assert hops[0].adaptive["applied_multipliers"] == {"vector": 1.2}
@@ -579,17 +576,17 @@ def test_engine_init_rejects_iterative_without_any_lm_client() -> None:
 
 
 # ---------------------------------------------------------------------------
-# R6.3 — Post-loop DIRECT escalation tests (#13–#18 in the plan).
+# Post-loop DIRECT escalation tests.
 #
-# All R6.3 tests share a common LLM-mode hop pattern: the decomposer makes
-# at least one retrieve call (so `total_retrieve_calls > 0`), then says
-# `done=true` so the loop exits naturally. This puts the run in the
+# All escalation tests share a common LLM-mode hop pattern: the decomposer
+# makes at least one retrieve call (so `total_retrieve_calls > 0`), then
+# says `done=true` so the loop exits naturally. This puts the run in the
 # escalation-eligible state (termination_reason="done", retrieve_calls>0)
 # regardless of whether escalation actually fires.
 # ---------------------------------------------------------------------------
 
 
-def _r63_decompose_sequence() -> AsyncMock:
+def _escalation_decompose_sequence() -> AsyncMock:
     """Two-decompose sequence: one sub-question, then done."""
     return AsyncMock(
         side_effect=[
@@ -623,7 +620,7 @@ async def test_iterative_no_escalation_when_disabled() -> None:
 
     with (
         patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
-        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+        patch(_DECOMPOSE_PATH, new=_escalation_decompose_sequence()),
     ):
         result = await engine.query("q1", knowledge_id="kb-1", trace=True)
 
@@ -655,7 +652,7 @@ async def test_iterative_no_escalation_when_routing_unconfigured(caplog: Any) ->
     # Runtime path: simulate "routing.direct_context_threshold is None"
     # (rather than `routing=None` outright — `query()` reads `routing.mode`,
     # so the routing dataclass has to exist; the threshold is what gates
-    # escalation eligibility per the R6.3 logic).
+    # escalation eligibility).
     engine = _make_engine(
         gate_mode="llm",
         escalate_to_direct=True,
@@ -675,7 +672,7 @@ async def test_iterative_no_escalation_when_routing_unconfigured(caplog: Any) ->
 
     with (
         patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
-        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+        patch(_DECOMPOSE_PATH, new=_escalation_decompose_sequence()),
     ):
         result = await engine.query("q1", knowledge_id="kb-1", trace=True)
 
@@ -743,7 +740,7 @@ async def test_iterative_no_escalation_when_corpus_too_large() -> None:
 
     with (
         patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
-        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+        patch(_DECOMPOSE_PATH, new=_escalation_decompose_sequence()),
     ):
         result = await engine.query("q1", knowledge_id="kb-1", trace=True)
 
@@ -774,7 +771,7 @@ async def test_iterative_escalation_fires_when_corpus_fits() -> None:
 
     with (
         patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
-        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+        patch(_DECOMPOSE_PATH, new=_escalation_decompose_sequence()),
     ):
         result = await engine.query("q1", knowledge_id="kb-1", trace=True)
 
@@ -790,7 +787,7 @@ async def test_iterative_escalation_fires_when_corpus_fits() -> None:
 
 # ---------------------------------------------------------------------------
 # Test 17: escalation preserves iterative hop list on the OUTER trace.
-# This is the explicit countermeasure for the R5.3 review-pattern bug.
+# Countermeasure for the trace-data-dropped-at-boundary bug pattern.
 # ---------------------------------------------------------------------------
 
 
@@ -799,9 +796,8 @@ async def test_iterative_escalation_preserves_hop_trace_on_outer_result() -> Non
 
     Without the merge, `_query_via_direct_context` would return a fresh
     `RetrievalTrace` whose `iterative_hops` is `None` — the multi-hop
-    context would be silently dropped at the boundary. R5.3 caught this
-    same bug pattern after merge (review caught it; this test prevents
-    R6.3 from recurring it).
+    context would be silently dropped at the boundary. This test pins
+    the merge contract so that bug pattern cannot recur.
     """
     engine = _make_engine(
         gate_mode="llm",
@@ -819,7 +815,7 @@ async def test_iterative_escalation_preserves_hop_trace_on_outer_result() -> Non
 
     with (
         patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
-        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+        patch(_DECOMPOSE_PATH, new=_escalation_decompose_sequence()),
     ):
         result = await engine.query("q1", knowledge_id="kb-1", trace=True)
 
@@ -862,7 +858,7 @@ async def test_iterative_grounding_threshold_override_takes_precedence() -> None
     )
     with (
         patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
-        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+        patch(_DECOMPOSE_PATH, new=_escalation_decompose_sequence()),
     ):
         result_a = await engine_a.query("q1", knowledge_id="kb-1", trace=True)
     assert result_a.trace is not None
@@ -883,7 +879,7 @@ async def test_iterative_grounding_threshold_override_takes_precedence() -> None
     )
     with (
         patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
-        patch(_DECOMPOSE_PATH, new=_r63_decompose_sequence()),
+        patch(_DECOMPOSE_PATH, new=_escalation_decompose_sequence()),
     ):
         result_b = await engine_b.query("q1", knowledge_id="kb-1", trace=True)
     assert result_b.trace is not None

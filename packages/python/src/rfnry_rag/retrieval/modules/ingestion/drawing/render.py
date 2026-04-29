@@ -39,8 +39,8 @@ def render_dxf(file_path: Path, dpi: int) -> list[dict]:
     Iterates `doc.layouts.names_in_taborder()` (skipping the Model alias) and
     emits one splitter-shaped page dict per layout. Modelspace is page 1; the
     remaining pages follow DXF tab order. An empty paperspace layout still
-    renders as a blank page — Phase F3.2 favours blank-page-on-empty over
-    silent content loss for multi-sheet drawings.
+    renders as a blank page — we favour blank-page-on-empty over silent
+    content loss for multi-sheet drawings.
     """
     import ezdxf
     import matplotlib

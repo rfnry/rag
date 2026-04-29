@@ -1,9 +1,9 @@
-"""R8.2 — Heuristic failure classification on RetrievalTrace.
+"""Heuristic failure classification on RetrievalTrace.
 
 These tests exercise the pure-inspection classifier `classify_failure`
-that converts a `RetrievalTrace` (R8.1) into a `FailureClassification`
-verdict. The priority-order test (#8) is the regression guard: if a
-future heuristic edit reorders evaluation, that test will catch it.
+that converts a `RetrievalTrace` into a `FailureClassification` verdict.
+The priority-order test (#8) is the regression guard: if a future
+heuristic edit reorders evaluation, that test will catch it.
 
 Bias-term hygiene: fixtures use generic identifiers (`q1`, `chunk_a`,
 `R-101`, `EntityXYZ`) rather than domain vocabulary, mirroring the

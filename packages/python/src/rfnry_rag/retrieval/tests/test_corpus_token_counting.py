@@ -1,7 +1,7 @@
-"""R1.1 — token counting at ingest + corpus-token / corpus-text loaders.
+"""Token counting at ingest plus corpus-token / corpus-text loaders.
 
-Plumbing for R1.2/R1.3/R1.4 routing modes. No user-facing behavior change in
-this slice — `mode="retrieval"` (the default) does not exercise any of this.
+Plumbing for routing modes. No user-facing behavior change when
+`mode="retrieval"` (the default) — that path does not exercise any of this.
 """
 
 from types import SimpleNamespace

@@ -1,9 +1,10 @@
-"""RAPTOR-style summarization retrieval (R2).
+"""RAPTOR-style summarization retrieval.
 
-R2.1 ships the compile-time scaffold — config + BAML + schema migration +
-registry. The runtime tree builder lands in R2.2; the ``RaptorRetrieval``
-method + engine wiring land in R2.3. ``RaptorTreeBuilder`` stays internal
-until R2.2 fills the stub; the rest of the surface is public.
+Public surface for the RAPTOR ingestion subpackage: the dataclass config
+(``RaptorConfig``), the tree builder (``RaptorTreeBuilder``), the
+registry (``RaptorTreeRegistry``), and the build report
+(``RaptorBuildReport``). Sibling retrieval method
+(``RaptorRetrieval``) lives under ``modules/retrieval/methods/``.
 """
 
 from rfnry_rag.retrieval.modules.ingestion.methods.raptor.builder import (

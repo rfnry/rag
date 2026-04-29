@@ -1,4 +1,4 @@
-"""R5.1 — Query classifier (heuristic + LLM, plumbing for R5.2/R5.3/R6).
+"""Query classifier — heuristic + LLM.
 
 Pure async `classify_query(text, lm_client=None)` returns a
 `QueryClassification(complexity, query_type, signals, source)`. Heuristic
@@ -166,7 +166,7 @@ def test_adaptive_llm_classification_requires_enrich_lm_client() -> None:
     """`adaptive.enabled=True AND use_llm_classification=True` requires
     `RetrievalConfig.enrich_lm_client` — enforced in `_validate_config`.
 
-    Regression guard for the cross-config rule introduced in R5.1.
+    Regression guard for the cross-config rule.
     """
     base_persistence = PersistenceConfig(vector_store=MagicMock())
     base_ingestion = IngestionConfig(embeddings=_mock_embeddings())

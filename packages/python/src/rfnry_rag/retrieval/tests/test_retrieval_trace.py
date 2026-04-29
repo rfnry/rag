@@ -1,10 +1,11 @@
-"""R8.1 — RetrievalTrace dataclass + opt-in trace=True flag.
+"""RetrievalTrace dataclass + opt-in trace=True flag.
 
 These tests exercise the trace-collection plumbing at both the
 `RetrievalService.retrieve()` level and the `RagEngine.query()` level.
-They specifically verify the `None` vs `[]` discipline that gates R8.2's
-SCOPE_MISS / DRIFT classifiers — conflating "stage did not run" with
-"stage ran and produced no results" would erase the signal.
+They specifically verify the `None` vs `[]` discipline that gates the
+failure-classification SCOPE_MISS / DRIFT verdicts — conflating "stage
+did not run" with "stage ran and produced no results" would erase the
+signal.
 """
 
 from types import SimpleNamespace
@@ -155,7 +156,7 @@ async def test_retrieve_trace_timings_only_includes_stages_that_ran() -> None:
 
 
 async def test_retrieve_trace_routing_decision_is_none_placeholder() -> None:
-    """Default value before any stage populates it; R1.2/R1.3 populate it during query dispatch."""
+    """Default value before any stage populates it; routing modes populate it during query dispatch."""
     method_a = _mock_method("method_a", [_chunk("chunk_a")])
     service = RetrievalService(retrieval_methods=[method_a], top_k=5)
 

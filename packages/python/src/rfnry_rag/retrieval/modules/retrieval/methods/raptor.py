@@ -1,21 +1,20 @@
-"""RaptorRetrieval — query-time search over RAPTOR summary vectors (R2.3).
+"""RaptorRetrieval — query-time search over RAPTOR summary vectors.
 
-R2.1 shipped the config + registry + skeleton. R2.2 shipped
-``RaptorTreeBuilder`` + ``RagEngine.build_raptor_index`` which writes summary
-vectors tagged ``vector_role="raptor_summary"`` and stamps the active tree
-pointer on the registry. R2.3 closes the loop: ``RaptorRetrieval`` is a
-sibling ``BaseRetrievalMethod`` (alongside ``VectorRetrieval`` /
-``DocumentRetrieval`` / ``GraphRetrieval``) that fetches the active tree id
-from the registry, embeds the query, and runs a payload-filtered vector
-search restricted to that tree's summaries. Results land in the same RRF
+``RaptorRetrieval`` is a sibling ``BaseRetrievalMethod`` (alongside
+``VectorRetrieval`` / ``DocumentRetrieval`` / ``GraphRetrieval``) that
+fetches the active tree id from the registry, embeds the query, and runs
+a payload-filtered vector search restricted to that tree's summaries.
+``RaptorTreeBuilder`` (via ``RagEngine.build_raptor_index``) writes the
+summary vectors tagged ``vector_role="raptor_summary"`` and stamps the
+active tree pointer on the registry. Results land in the same RRF
 fusion pool as the other methods — no special-casing downstream.
 
 Concrete behaviour:
 - ``knowledge_id is None`` short-circuits to ``[]``. RAPTOR is a per-
   ``knowledge_id`` strategy by design (one tree per scope; cross-scope
-  global trees are explicitly out of scope per R2.1's Q2). Cross-scope
-  queries proceed through vector / document / graph retrieval without a
-  RAPTOR contribution.
+  global trees are explicitly out of scope). Cross-scope queries proceed
+  through vector / document / graph retrieval without a RAPTOR
+  contribution.
 - No active tree (registry returns ``None``) → ``[]``. Retrieval continues
   with the other methods; RAPTOR is additive, not gating.
 - Summaries span sources by design; ``RetrievedChunk.source_id`` is set to
@@ -85,8 +84,8 @@ class RaptorRetrieval:
         knowledge_id: str | None = None,
     ) -> list[RetrievedChunk]:
         start = time.perf_counter()
-        # RAPTOR is per-knowledge_id by design (R2.1 Q2): cross-scope global
-        # trees are explicitly out of scope. A query without a knowledge_id
+        # RAPTOR is per-knowledge_id by design: cross-scope global trees
+        # are explicitly out of scope. A query without a knowledge_id
         # cannot identify which tree to consult, so we contribute nothing
         # and let the other methods drive cross-scope retrieval.
         if knowledge_id is None:

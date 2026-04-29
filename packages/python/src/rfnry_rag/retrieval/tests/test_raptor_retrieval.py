@@ -1,4 +1,4 @@
-"""R2.3 — RaptorRetrieval unit tests.
+"""RaptorRetrieval unit tests.
 
 Verifies the per-method behaviour in isolation: registry consultation, payload
 filter shape, ``RetrievedChunk`` mapping, and short-circuit conditions

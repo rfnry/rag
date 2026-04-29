@@ -8,17 +8,16 @@ not ``<=``: a chunk score equal to the threshold is grounded.
 This helper is the single source of truth for the "are these chunks
 weak?" check across two engine arms:
 
-- R5.3's confidence-expansion retry loop in
+- The confidence-expansion retry loop in
   ``RagEngine._query_via_retrieval`` (escalates RETRIEVAL → DIRECT when
   expansion exhausts).
-- R6.3's post-loop iterative-escalation check in
+- The post-loop iterative-escalation check in
   ``RagEngine._query_via_iterative`` (escalates ITERATIVE → DIRECT when
   the multi-hop run finishes with weak accumulated chunks).
 
 Lifting it to ``retrieval/common`` (vs duplicating per arm) keeps the
 boundary semantics identical at both call sites — a divergence in the
-``<`` vs ``<=`` convention here would be a real-world correctness bug
-that R-series review history has flagged before.
+``<`` vs ``<=`` convention here would be a real-world correctness bug.
 
 Match ``GenerationConfig.grounding_threshold``'s existing semantics:
 ``grounding_threshold`` gates "is this answer grounded?", and a chunk

@@ -1,9 +1,7 @@
-"""R2.2 — RaptorTreeBuilder runtime: cluster→summarise→embed→persist→swap→GC.
+"""RaptorTreeBuilder runtime: cluster→summarise→embed→persist→swap→GC.
 
-R2.1 shipped the config + BAML stub + registry + skeleton. R2.2 lands the
-runtime tree-build loop, ``RagEngine.build_raptor_index`` API, and the
-atomic blue/green swap with old-tree GC. R2.3 will add ``RaptorRetrieval``
-+ engine wiring on top of this.
+Tests cover the runtime tree-build loop, ``RagEngine.build_raptor_index``
+API, and the atomic blue/green swap with old-tree GC.
 
 Bias-term hygiene: fixtures use neutral identifiers (``kb-1``, ``topic_a``,
 ``chunk_a``, ``leaf-N``). No domain-specific vocabulary anywhere. Mocks
@@ -768,7 +766,7 @@ async def test_build_returns_report_with_timings_and_counts() -> None:
     assert report.total_decompose_calls == 2  # both clusters had > 1 members
     assert report.duration_seconds >= 0.0
 
-    # Trace-data-dropped-at-boundary regression guard (R5.3 lesson):
+    # Trace-data-dropped-at-boundary regression guard:
     # timings must include per-stage breakdown, not just totals.
     assert "load_leaves" in report.timings
     assert "level_1_cluster" in report.timings

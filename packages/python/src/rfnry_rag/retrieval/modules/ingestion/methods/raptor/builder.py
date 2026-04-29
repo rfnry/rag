@@ -1,4 +1,4 @@
-"""RaptorTreeBuilder — cluster→summarize→embed→persist→recurse loop (R2.2).
+"""RaptorTreeBuilder — cluster→summarize→embed→persist→recurse loop.
 
 Implements the RAPTOR-style hierarchical-summarisation tree build:
   1. Load leaf vectors for the knowledge_id (chunks; drawings excluded).
@@ -151,8 +151,7 @@ class RaptorTreeBuilder:
         """Build a fresh RAPTOR tree for ``knowledge_id`` and swap it active.
 
         Raises ``ConfigurationError`` if the config / knowledge_id combination
-        is ineligible (matches R5/R6's "fail at runtime, don't silently
-        no-op" pattern).
+        is ineligible — fail at runtime, don't silently no-op.
 
         Concurrent-build note: consumers must serialize concurrent builds for
         the same ``knowledge_id``. Two overlapping builds would race on the

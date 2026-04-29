@@ -1,10 +1,8 @@
-"""R6.1 — IterativeRetrievalConfig dataclass invariants.
+"""IterativeRetrievalConfig dataclass invariants.
 
-R6.1 lands the compile-time scaffold for multi-hop iterative retrieval.
-The hop loop, engine integration, and trace surface are deferred to R6.2;
-post-loop DIRECT escalation lands in R6.3. These tests pin the dataclass
-defaults, bounds, allowlist, and the cross-field rule (`gate_mode='llm'`
-requires `decomposition_model` when `enabled=True`).
+Tests pin the dataclass defaults, bounds, allowlist, and the cross-field
+rule (`gate_mode='llm'` requires `decomposition_model` when
+`enabled=True`).
 """
 
 from __future__ import annotations

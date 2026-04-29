@@ -1,16 +1,16 @@
-"""Benchmark harness for retrieval + generation quality (R8.3).
+"""Benchmark harness for retrieval + generation quality.
 
-Pure orchestration over R8.1's `RetrievalTrace` and R8.2's
-`classify_failure`. Reuses the existing `ExactMatch` and `F1Score` from
-`metrics.py`, and (when configured) `LLMJudgment` for per-case judging.
-Adds a source-id-based `retrieval_recall` / `retrieval_precision`
-computation distinct from the content-based `RetrievalRecall` /
-`RetrievalPrecision` in `retrieval_metrics.py` — this measures whether
-the benchmark's `expected_source_ids` were retrieved, not chunk-content
-overlap with the expected answer. No new metric implementations and no
-new LLM calls beyond what the configured metrics already do.
+Pure orchestration over `RetrievalTrace` and `classify_failure`. Reuses
+the existing `ExactMatch` and `F1Score` from `metrics.py`, and (when
+configured) `LLMJudgment` for per-case judging. Adds a source-id-based
+`retrieval_recall` / `retrieval_precision` computation distinct from the
+content-based `RetrievalRecall` / `RetrievalPrecision` in
+`retrieval_metrics.py` — this measures whether the benchmark's
+`expected_source_ids` were retrieved, not chunk-content overlap with the
+expected answer. No new metric implementations and no new LLM calls
+beyond what the configured metrics already do.
 
-R8.3 ships the user-facing payoff of R8.1 + R8.2: aggregate metrics
+The harness ties everything together: aggregate metrics
 (EM / F1 / optional LLM-judge / retrieval recall+precision) PLUS
 per-case traces PLUS failure-class distribution, in one report.
 
@@ -26,8 +26,8 @@ A case is judged a failure when *either*:
    still flagged it ungrounded" category — e.g. the LLM produced a
    plausible-sounding answer that the grounding gate already rejected.
 
-Failures (and only failures) are passed through `classify_failure` from
-R8.2, and the resulting `FailureType` is aggregated into a
+Failures (and only failures) are passed through `classify_failure`, and
+the resulting `FailureType` is aggregated into a
 `failure_distribution` histogram.
 
 `failure_distribution` keying
@@ -91,7 +91,7 @@ class BenchmarkConfig:
 
     `concurrency` defaults to 1 (serial) so a small benchmark behaves
     identically to a `for case in cases: ...` loop. Larger benchmarks
-    opt into parallelism via `run_concurrent` (the same helper R3 uses).
+    opt into parallelism via `run_concurrent`.
     """
 
     concurrency: int = 1
@@ -113,7 +113,7 @@ class BenchmarkCaseResult:
     """Per-case outcome carrying the full `QueryResult` (with `trace`) plus metrics.
 
     `failure` is `None` when the case passed; populated via
-    `classify_failure` (R8.2) when the case is judged a failure. The
+    `classify_failure` when the case is judged a failure. The
     raw `QueryResult` is retained so consumers writing benchmarks can
     drill into the trace for any case (the CLI's `--output` JSON
     flag round-trips this entire structure for offline inspection).

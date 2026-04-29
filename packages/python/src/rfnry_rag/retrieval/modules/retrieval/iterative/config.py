@@ -1,8 +1,8 @@
-"""IterativeRetrievalConfig — multi-hop iterative retrieval configuration (R6.1).
+"""IterativeRetrievalConfig — multi-hop iterative retrieval configuration.
 
-The hop loop, engine integration, and trace surface land in R6.2; post-loop
-DIRECT escalation lands in R6.3. R6.1 is plumbing only — `enabled=False` is
-the default and no consumer reads these fields yet.
+Default-off configuration dataclass for iterative retrieval. When
+`enabled=False` (the default) the rest of this subpackage is byte-for-byte
+unused.
 """
 
 from __future__ import annotations
@@ -19,14 +19,14 @@ _VALID_GATE_MODES = frozenset({"type", "llm"})
 class IterativeRetrievalConfig:
     """Multi-hop iterative retrieval configuration.
 
-    Default-off. When ``enabled=True`` (R6.2), multi-hop queries identified by
-    R5's classifier are decomposed into sequential sub-questions, each
-    retrieved independently. Findings accumulate across hops via the
-    decomposer's self-summarisation; raw chunks deduplicated by ``chunk_id``
-    are passed to final generation unchanged.
+    Default-off. When ``enabled=True``, multi-hop queries identified by the
+    classifier are decomposed into sequential sub-questions, each retrieved
+    independently. Findings accumulate across hops via the decomposer's
+    self-summarisation; raw chunks deduplicated by ``chunk_id`` are passed
+    to final generation unchanged.
 
     ``gate_mode`` selects how the loop decides whether to continue:
-      - ``"type"``: gate on R5 classifier's ``QueryType`` (cheap, deterministic).
+      - ``"type"``: gate on the classifier's ``QueryType`` (cheap, deterministic).
       - ``"llm"``: gate via the ``DecomposeQuery`` BAML function (slower, more
         accurate on ambiguous queries; requires ``decomposition_model``).
 

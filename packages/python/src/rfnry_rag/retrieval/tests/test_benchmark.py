@@ -1,10 +1,10 @@
-"""R8.3 — Benchmark harness unit tests.
+"""Benchmark harness unit tests.
 
 These exercise `run_benchmark` directly (the core orchestrator that
 `RagEngine.benchmark` wraps) so we can stub `query_fn` without standing
-up a full engine. The R8.1 + R8.2 plumbing is exercised end-to-end:
-each case is run with `trace=True`, failures invoke `classify_failure`,
-and the report aggregates by `FailureType.name`.
+up a full engine. The trace + failure-classification plumbing is exercised
+end-to-end: each case is run with `trace=True`, failures invoke
+`classify_failure`, and the report aggregates by `FailureType.name`.
 
 Bias-term hygiene: fixtures use generic identifiers (`q1`, `case_a`,
 `kb-1`, `EntityXYZ`).
@@ -116,10 +116,10 @@ async def test_benchmark_skips_retrieval_metrics_when_no_expected_ids() -> None:
     assert report.retrieval_precision is None
 
 
-# 4. Failure classification via R8.2 -----------------------------------------
+# 4. Failure classification ---------------------------------------------------
 
 
-async def test_benchmark_classifies_failures_via_r8_2() -> None:
+async def test_benchmark_classifies_failures() -> None:
     """Failed cases route through classify_failure; histogram keys on FailureType.name."""
     cases = [
         BenchmarkCase(query="q1", expected_answer="expected one"),
@@ -187,7 +187,7 @@ def test_benchmark_failure_threshold_config_bounded() -> None:
 
 
 async def test_benchmark_concurrency_bounds_in_flight_calls() -> None:
-    """Mirrors R3 pattern: lock-protected counter sees max in-flight <= concurrency, >= 2."""
+    """Lock-protected counter sees max in-flight <= concurrency, >= 2."""
     in_flight = 0
     max_in_flight = 0
     lock = asyncio.Lock()

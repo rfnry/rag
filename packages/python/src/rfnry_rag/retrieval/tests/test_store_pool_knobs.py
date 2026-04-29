@@ -277,11 +277,10 @@ async def test_qdrant_set_payload_forwards_to_client() -> None:
     """``QdrantVectorStore.set_payload`` calls qdrant-client's native
     ``set_payload`` with the provided point ids and payload merge.
 
-    R2.2 polish: the RAPTOR back-reference path relies on partial-payload
-    update so it doesn't have to re-embed children just to write
-    ``raptor_parent_id``. Asserting the call shape here is the contract
-    that lets the builder call ``set_payload`` directly without a runtime
-    ``getattr`` guard.
+    The RAPTOR back-reference path relies on partial-payload update so it
+    doesn't have to re-embed children just to write ``raptor_parent_id``.
+    Asserting the call shape here is the contract that lets the builder
+    call ``set_payload`` directly without a runtime ``getattr`` guard.
     """
     from unittest.mock import AsyncMock
 

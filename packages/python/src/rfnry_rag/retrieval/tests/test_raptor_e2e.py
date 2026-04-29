@@ -1,10 +1,9 @@
-"""R2.3 — RAPTOR end-to-end: build → query → verify summaries flow through fusion.
+"""RAPTOR end-to-end tests: build → query → verify summaries flow through fusion.
 
-Closes the loop opened by R2.1 (config + registry) and R2.2 (builder + engine
-API). These tests validate the integration: ``RaptorTreeBuilder.build`` writes
-summary vectors into the same vector store that ``RaptorRetrieval`` searches at
-query time, ``RetrievalService`` iterates the namespace including RAPTOR, and
-RRF fusion includes RAPTOR's contribution.
+Validates the integration: ``RaptorTreeBuilder.build`` writes summary vectors
+into the same vector store that ``RaptorRetrieval`` searches at query time,
+``RetrievalService`` iterates the namespace including RAPTOR, and RRF fusion
+includes RAPTOR's contribution.
 
 Bias-term hygiene: fixtures use neutral identifiers (``kb-1``, ``topic_a``).
 No domain-specific vocabulary.
@@ -441,7 +440,7 @@ async def test_e2e_raptor_enabled_method_registered_in_namespace() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Polish tests (R2.3 follow-up): soft-skip WARNING + non-SQLA metadata-store raise.
+# Polish tests: soft-skip WARNING + non-SQLA metadata-store raise.
 # ---------------------------------------------------------------------------
 
 
@@ -509,10 +508,10 @@ async def test_engine_init_warns_when_raptor_enabled_but_deps_missing(
 async def test_engine_init_raises_when_raptor_enabled_with_non_sqla_metadata_store() -> None:
     """raptor.enabled=True with a non-SQLAlchemy metadata_store raises at init.
 
-    R2.3 polish: split the soft-skip into "missing wiring" (WARNING) versus
-    "actively wrong wiring" (raise). A non-SQLA metadata store is the latter
-    — the consumer chose a metadata store that cannot host RAPTOR's registry
-    schema, and silently degrading would mask the misconfig until the first
+    Splits the soft-skip into "missing wiring" (WARNING) versus "actively
+    wrong wiring" (raise). A non-SQLA metadata store is the latter — the
+    consumer chose a metadata store that cannot host RAPTOR's registry schema,
+    and silently degrading would mask the misconfig until the first
     ``build_raptor_index`` call (or worse, never if they only retrieve).
     """
     # Stub a BaseMetadataStore-shaped object that is NOT a SQLAlchemyMetadataStore.
@@ -737,8 +736,7 @@ def test_namespace_iteration_includes_raptor_when_registered() -> None:
 
     Trace serialization keys per_method_results by method.name, so iteration
     ordering is not load-bearing for fusion correctness, but the namespace
-    must include RAPTOR when registered (else it would be unreachable —
-    R5.2's "unreachable feature" risk pattern).
+    must include RAPTOR when registered (else it would be unreachable).
     """
     raptor = RaptorRetrieval(
         vector_store=MagicMock(),

@@ -107,10 +107,11 @@ class KnowledgeManager:
         """Sum estimated token counts across every source in scope.
 
         Reads `Source.estimated_tokens` (backed by `metadata["estimated_tokens"]`)
-        when populated. Sources ingested before R1.1 lack the count; for those
-        we lazy-compute by reading source text from the document store and
-        write the result back via `update_source(metadata=...)` so subsequent
-        calls short-circuit. Vector-scroll fallback for legacy sources without
+        when populated. Legacy sources ingested before token counting was
+        added lack the count; for those we lazy-compute by reading source
+        text from the document store and write the result back via
+        `update_source(metadata=...)` so subsequent calls short-circuit.
+        Vector-scroll fallback for legacy sources without
         a document store is intentionally NOT implemented here — the legacy
         path is rare and adding scroll-based reconstruction here would
         duplicate `RagEngine._load_full_corpus`.
@@ -120,9 +121,9 @@ class KnowledgeManager:
 
         sources = await self._metadata_store.list_sources(knowledge_id=knowledge_id)
         # Deterministic order regardless of metadata-store sort. Helps with
-        # concurrency, test fixture stability, and keeps R1.2's prompt-caching
-        # prefix pinned to source_id rather than created_at (mirrors the same
-        # sort applied in `RagEngine._load_full_corpus`).
+        # concurrency, test fixture stability, and keeps the DIRECT-mode
+        # prompt-caching prefix pinned to source_id rather than created_at
+        # (mirrors the same sort applied in `RagEngine._load_full_corpus`).
         sources = sorted(sources, key=lambda s: s.source_id)
         total = 0
         # Sequential per-source: lazy-compute touches the document store + the

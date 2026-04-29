@@ -85,7 +85,7 @@ class DrawingIngestionService:
         source_type: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> Source:
-        """Phase 1 - produce page images. Idempotent on re-entry for the same file_hash. (C4)"""
+        """Render phase — produce page images. Idempotent on re-entry for the same file_hash."""
         path = Path(file_path)
         if not path.exists():
             raise IngestionError(f"drawing file not found: {path}")
@@ -153,7 +153,7 @@ class DrawingIngestionService:
         return source
 
     async def extract(self, source_id: str) -> Source:
-        """Phase 2 - per-page DrawingPageAnalysis. Idempotent when status != 'rendered'. (C5/C6)"""
+        """Extract phase — per-page DrawingPageAnalysis. Idempotent when status != 'rendered'."""
         from rfnry_rag.retrieval.modules.ingestion.drawing.extract_pdf import (
             extract_pdf_analyses,
         )
@@ -215,7 +215,7 @@ class DrawingIngestionService:
         return source
 
     async def link(self, source_id: str) -> Source:
-        """Phase 3 - cross-sheet linking (deterministic + LLM residue). Idempotent. (C7/C8)"""
+        """Link phase — cross-sheet linking (deterministic + LLM residue). Idempotent."""
         source = await self._metadata_store.get_source(source_id)
         if source is None:
             raise IngestionError(f"source not found: {source_id}")
@@ -299,7 +299,7 @@ class DrawingIngestionService:
         return source
 
     async def ingest(self, source_id: str) -> Source:
-        """Phase 4 - embed + graph write. Idempotent on completed. (C10)"""
+        """Ingest phase — embed + graph write. Idempotent on completed."""
         source = await self._metadata_store.get_source(source_id)
         if source is None:
             raise IngestionError(f"source not found: {source_id}")

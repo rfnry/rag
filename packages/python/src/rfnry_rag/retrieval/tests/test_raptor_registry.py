@@ -1,10 +1,10 @@
-"""R2.1 — RaptorTreeRegistry CRUD over the rag_raptor_trees table.
+"""RaptorTreeRegistry CRUD over the rag_raptor_trees table.
 
 The registry is the per-knowledge_id pointer to the active tree; retrieval
-(R2.3) reads it before searching summary vectors. Returning ``None`` for an
-absent record is the supported contract — no tree built yet, fall through
-to chunk-level retrieval. ``set_active`` is the blue/green swap mechanism
-the builder (R2.2) calls after the new tree's vectors are persisted.
+reads it before searching summary vectors. Returning ``None`` for an absent
+record is the supported contract — no tree built yet, fall through to
+chunk-level retrieval. ``set_active`` is the blue/green swap mechanism the
+builder calls after the new tree's vectors are persisted.
 
 Tests use a real ``SQLAlchemyMetadataStore`` against a SQLite file in a
 ``tmp_path`` directory — mirrors the existing metadata-store test patterns
@@ -42,7 +42,7 @@ async def test_registry_set_then_get_returns_tree_id(tmp_path) -> None:
 @pytest.mark.asyncio
 async def test_registry_set_replaces_active_tree_id(tmp_path) -> None:
     # Upsert semantics: a second set_active for the same knowledge_id replaces
-    # the prior pointer (the blue/green swap path the R2.2 builder relies on).
+    # the prior pointer (the blue/green swap path the builder relies on).
     store = SQLAlchemyMetadataStore(f"sqlite:///{tmp_path}/m.db")
     await store.initialize()
     registry = RaptorTreeRegistry(store)
@@ -57,12 +57,11 @@ async def test_registry_set_replaces_active_tree_id(tmp_path) -> None:
 async def test_set_active_persists_level_counts_json_roundtrip(tmp_path) -> None:
     """Regression guard: ``level_counts_json`` survives the JSON encode/decode trip.
 
-    R2.2 will read this column back for GC + observability — if the encoding
-    contract drifts (e.g. someone swaps to the SQLAlchemy ``JSON`` type or
-    forgets the ``json.dumps`` call), R2.2 would be the first to find out.
-    Reaching directly through to ``_session_factory`` keeps the registry's
-    public API surface unchanged — R2.2 will add a metadata-reading method
-    when it actually needs one.
+    The builder reads this column back for GC and observability — if the
+    encoding contract drifts (e.g. someone swaps to the SQLAlchemy ``JSON``
+    type or forgets the ``json.dumps`` call), the builder would be the first
+    to find out. Reaching directly through to ``_session_factory`` keeps the
+    registry's public API surface unchanged.
     """
     import json
 
@@ -92,7 +91,7 @@ async def test_set_active_persists_level_counts_json_roundtrip(tmp_path) -> None
 async def test_delete_record_is_idempotent_on_missing(tmp_path) -> None:
     """Calling delete on a never-set kid (or twice) doesn't raise.
 
-    R2.2's GC pass leans on this — a transient failure mid-cleanup must be
+    The GC pass leans on this — a transient failure mid-cleanup must be
     safe to retry without surfacing as a hard error.
     """
     store = SQLAlchemyMetadataStore(f"sqlite:///{tmp_path}/m.db")
@@ -114,7 +113,7 @@ async def test_delete_record_is_idempotent_on_missing(tmp_path) -> None:
 async def test_get_stale_trees_returns_kids_not_in_active_set(tmp_path) -> None:
     """``get_stale_trees`` finds registry rows whose knowledge_id is no longer active.
 
-    Used by R2.2's GC pass after a knowledge_id is removed from the
+    Used by the GC pass after a knowledge_id is removed from the
     ``KnowledgeManager`` — the registry row outlives the knowledge it
     pointed at. The method returns *knowledge_ids whose row is NOT in the
     active set*, not historical tree_ids within a knowledge_id (the

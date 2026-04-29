@@ -29,8 +29,8 @@ class Source:
     source_type: str | None = None
     source_weight: float = 1.0
 
-    # Stored in `metadata["estimated_tokens"]` rather than a dedicated column so
-    # R1.1 ships without a schema migration; legacy rows return None and are
+    # Stored in `metadata["estimated_tokens"]` rather than a dedicated column —
+    # avoids a schema migration; legacy rows return None and are
     # lazy-computed by `KnowledgeManager.get_corpus_tokens`. Promote to a column
     # only if a real consumer needs to query/sort by token count.
     @property
@@ -102,16 +102,16 @@ class RetrievedChunk:
 class RetrievalTrace:
     """Full per-query pipeline state for observability of vector retrieval.
 
-    Without this, R1's AUTO routing and R5's adaptive weights are unobservable
-    — tuning either blind wastes effort. Constructible with just `query=...`;
-    every other field has a safe default so a partial trace can be filled
+    Without this, AUTO routing and adaptive weights are unobservable — tuning
+    either blind wastes effort. Constructible with just `query=...`; every
+    other field has a safe default so a partial trace can be filled
     progressively as stages run.
 
     `None` vs `[]` distinction matters and is load-bearing for downstream
-    failure classification (R8.2): `None` means "stage did not run" (e.g.
+    failure classification: `None` means "stage did not run" (e.g.
     reranker disabled), while `[]` means "stage ran and produced no results".
-    Conflating them would erase the signal R8.2's SCOPE_MISS / DRIFT
-    classifiers depend on.
+    Conflating them would erase the signal the SCOPE_MISS / DRIFT
+    failure-classifiers depend on.
 
     `per_method_results` is keyed by `BaseRetrievalMethod.name` for configured
     methods, plus a synthetic `"tree"` key when tree-search results were
@@ -121,12 +121,12 @@ class RetrievalTrace:
     concatenated — not deduplicated; fusion handles dedupe at the
     `fused_results` stage.
 
-    `adaptive` (R5.2) is `None` when the adaptive pipeline did not run (the
+    `adaptive` is `None` when the adaptive pipeline did not run (the
     default — `AdaptiveRetrievalConfig.enabled=False`); otherwise carries
     `complexity`, `query_type`, `effective_top_k`, `applied_multipliers`,
     `classification_source`. Asserting via `trace.adaptive["applied_multipliers"]`
     is the supported way for consumers / tests to inspect per-method weights
-    without reaching into service internals. R5.3 adds three more keys when
+    without reaching into service internals. Three more keys are added when
     confidence expansion runs: `expansion_attempts: int`,
     `expansion_outcome: "succeeded" | "exhausted_proceeded" | "exhausted_escalated_to_lc"`,
     and `final_top_k: int`. These keys are absent (not zero/None) when
@@ -136,20 +136,20 @@ class RetrievalTrace:
     `routing_decision` enumerates seven values:
     `"retrieval" | "direct" | "hybrid_rag" | "hybrid_lc"`,
     `"retrieval_then_direct" | "iterative" | "iterative_then_direct"`.
-    `"retrieval_then_direct"` (R5.3) flags the LC-escalation case where
+    `"retrieval_then_direct"` flags the long-context escalation case where
     RETRIEVAL ran, confidence expansion exhausted with weak chunks, and
     the engine fell back to `_query_via_direct_context`. Distinct from
     plain `"direct"` (AUTO chose DIRECT directly) because the cost shape
     differs (RAG-then-LC vs LC-only) and debugging consumers need to
-    attribute escalations. `"iterative"` (R6.2) flags a multi-hop run.
-    `"iterative_then_direct"` (R6.3) flags the post-loop DIRECT
-    escalation case — multi-hop ran, accumulated chunks were still weak,
-    corpus fit the direct-context window, engine fell back to
+    attribute escalations. `"iterative"` flags a multi-hop run.
+    `"iterative_then_direct"` flags the post-loop DIRECT escalation case
+    — multi-hop ran, accumulated chunks were still weak, corpus fit the
+    direct-context window, engine fell back to
     `_query_via_direct_context`. Distinct from `"retrieval_then_direct"`
     (the trigger arm differs) and from `"direct"` (the cost shape
     differs).
 
-    `iterative_hops` (R6.2) has three distinct states:
+    `iterative_hops` has three distinct states:
 
     - `None`: iterative was not enabled / not consulted (the default —
       `IterativeRetrievalConfig.enabled=False`, or the engine arm
@@ -164,12 +164,12 @@ class RetrievalTrace:
 
     `iterative_termination_reason` carries the loop's exit condition
     (`"done" | "max_hops" | "error" | "low_confidence_escalated" |
-    "low_confidence_no_escalation"`). R6.3 added the two
-    low-confidence reasons: `"low_confidence_escalated"` flags a
-    completed run whose accumulated chunks were weak and that escalated
-    to DIRECT; `"low_confidence_no_escalation"` flags a completed run
-    whose accumulated chunks were weak but escalation was either
-    disabled (`escalate_to_direct=False`), unreachable (`RoutingConfig`
+    "low_confidence_no_escalation"`). The two low-confidence reasons:
+    `"low_confidence_escalated"` flags a completed run whose accumulated
+    chunks were weak and that escalated to DIRECT;
+    `"low_confidence_no_escalation"` flags a completed run whose
+    accumulated chunks were weak but escalation was either disabled
+    (`escalate_to_direct=False`), unreachable (`RoutingConfig`
     unconfigured), or ineligible (corpus too large to fit the
     direct-context window).
     """

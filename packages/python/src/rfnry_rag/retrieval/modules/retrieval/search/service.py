@@ -75,7 +75,7 @@ class RetrievalService:
 
         base_top_k = top_k if top_k is not None else self._top_k
 
-        # Adaptive classification (R5.2) runs ONCE here, BEFORE query rewriting.
+        # Adaptive classification runs ONCE here, BEFORE query rewriting.
         # Reasoning: the classifier operates on the original user query; the
         # rewritten variants are LLM-generated and would skew classification
         # toward COMPLEX / COMPARATIVE artificially (HyDE / multi-query expand
@@ -258,7 +258,7 @@ class RetrievalService:
         as before — empty-result methods are dropped from those arrays so
         RRF/source-weight handling is byte-for-byte unchanged.
 
-        `method_multipliers` (R5.2) maps method-name -> float multiplier; the
+        `method_multipliers` maps method-name -> float multiplier; the
         per-method weight pushed into the parallel `weights` array is
         `method.weight * multipliers.get(method.name, 1.0)`. An empty/None map
         leaves the weights byte-for-byte unchanged.

@@ -1,9 +1,9 @@
-"""R1.2 — QueryMode + RoutingConfig + DIRECT context mode dispatch.
+"""Tests for QueryMode + RoutingConfig + DIRECT context mode dispatch.
 
-Lights up `mode="direct"` user-facing. RETRIEVAL stays the default (backward
-compat). DIRECT skips retrieval, loads the full corpus via R1.1's
-`_load_full_corpus`, and routes through `GenerationService.generate_from_corpus`
-(gates skipped — the entire corpus is in the prompt).
+`mode="direct"` is user-facing; RETRIEVAL is the default. DIRECT skips
+retrieval, loads the full corpus via `_load_full_corpus`, and routes through
+`GenerationService.generate_from_corpus` (gates skipped — the entire corpus
+is in the prompt).
 """
 
 from types import SimpleNamespace

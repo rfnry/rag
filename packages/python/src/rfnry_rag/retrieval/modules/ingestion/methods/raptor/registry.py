@@ -1,14 +1,14 @@
 """RaptorTreeRegistry — async CRUD over the ``rag_raptor_trees`` table.
 
-R2.1 ships the registry fully implemented because retrieval (R2.3) needs to
-ask "is there an active tree for this knowledge_id?" before searching summary
-vectors. Returning ``None`` for an absent record is the supported contract —
-no tree built yet, fall through to chunk-level retrieval. The builder (R2.2)
-writes through ``set_active`` after a successful blue/green swap.
+Retrieval needs to ask "is there an active tree for this knowledge_id?"
+before searching summary vectors. Returning ``None`` for an absent record
+is the supported contract — no tree built yet, fall through to chunk-level
+retrieval. The builder writes through ``set_active`` after a successful
+blue/green swap.
 
 The registry is a thin façade over ``SQLAlchemyMetadataStore``'s engine and
-session factory; it intentionally does NOT add a parallel ``BaseMetadataStore``
-method per the "sibling, not fold-in" convention from the R2.1 plan.
+session factory; it intentionally does NOT add a parallel
+``BaseMetadataStore`` method per the "sibling, not fold-in" convention.
 """
 
 from __future__ import annotations
@@ -118,9 +118,8 @@ class RaptorTreeRegistry:
     async def delete_record(self, knowledge_id: str) -> None:
         """Remove the registry row for ``knowledge_id``. Idempotent.
 
-        Called by the knowledge-manager removal flow (not by R2.1 itself —
-        the method is registered now so R2.2 / future cleanup tooling has a
-        stable hook).
+        Called by the knowledge-manager removal flow and by the builder's
+        cleanup tooling.
         """
         async with self._session_factory() as session:
             await session.execute(
@@ -137,7 +136,7 @@ class RaptorTreeRegistry:
             knowledge_id — not stale tree_ids within a knowledge_id.
             Vector-store-level stale-tree GC (deleting old summary vectors after
             a blue/green swap) is separate; see ``RaptorTreeBuilder``'s
-            swap-and-GC step (R2.2).
+            swap-and-GC step.
 
         Used by the GC pass after a knowledge_id is removed from the
         ``KnowledgeManager`` — the registry row may have outlived the

@@ -1,4 +1,4 @@
-"""Query classification (R5.1) — heuristic + LLM, plumbing for R5.2/R5.3/R6.
+"""Query classification — heuristic + LLM.
 
 Pure-async `classify_query(text, lm_client=None) -> QueryClassification`.
 Heuristic path runs by default (free, deterministic, microsecond-scale
@@ -9,14 +9,14 @@ ambiguous queries.
 The `QueryType` 4-label allowlist (FACTUAL / COMPARATIVE /
 ENTITY_RELATIONSHIP / PROCEDURAL) describes query SHAPE — not domain.
 Adding a fifth label requires explicit redesign across this module, the
-BAML enum, and downstream consumers (R5.2 task-aware weights, R5.3
-confidence escalation, R6 multi-hop).
+BAML enum, and downstream consumers (task-aware weights, confidence
+escalation, multi-hop iterative retrieval).
 
-R5.2 lights up the first two consumer-facing mechanisms:
-`_compute_adaptive_params` is the shared entry point both `RetrievalService`
-(dynamic top_k + per-method weight multipliers) and future R5.3 / R6
-consumers call. R5.3 will escalate on `complexity` confidence; R6 will
-share the same classifier to decide multi-hop entry.
+`_compute_adaptive_params` is the shared entry point that
+`RetrievalService` (dynamic top_k + per-method weight multipliers) and
+the confidence-expansion / multi-hop paths call. The confidence path
+escalates on `complexity` confidence; the multi-hop path reuses the same
+classifier verdict to decide iterative entry.
 """
 
 from __future__ import annotations
@@ -42,8 +42,8 @@ logger = get_logger("retrieval.search.classification")
 # {A-Z, 0-9, _, -}. Matches `R-101`, `EntityXYZ`, `ServiceABC`. Excludes
 # single-char tokens (`R`) and pure-lowercase words. Domain vocabulary
 # is intentionally NOT baked in (Convention 1). This is the canonical
-# entity-shape regex for the SDK; R8.2's failure analyser imports it
-# from here so the two paths cannot drift.
+# entity-shape regex for the SDK; the failure analyser imports it from
+# here so the two paths cannot drift.
 _ENTITY_TOKEN_PATTERN = re.compile(r"\b[A-Z][A-Z0-9_-]{2,}\b")
 
 # Module-level compiled regexes — compiled once at import, not per call.
@@ -78,8 +78,9 @@ class QueryClassification:
     `signals` carries the indicators that drove the verdict — the
     heuristic path reports `query_length`, `entity_count`, and a capped
     list of `entities`; the LLM path reports `llm_reasoning`. Downstream
-    consumers (R5.2/R5.3) use these to tune top_k, method weights, and
-    expansion thresholds without re-running the classifier.
+    consumers (adaptive parameters, confidence expansion) use these to
+    tune top_k, method weights, and expansion thresholds without
+    re-running the classifier.
     """
 
     complexity: QueryComplexity
@@ -133,7 +134,7 @@ def _heuristic_classify(text: str) -> QueryClassification:
 async def _llm_classify(text: str, lm_client: LanguageModelClient) -> QueryClassification:
     # Fall back to the heuristic on any LLM failure: a classifier failure
     # must never make the SDK worse than running with no classifier.
-    # Mirrors R1.3's "degrade to RAG on answerability check failure".
+    # Mirrors HYBRID mode's "degrade to RAG on answerability check failure".
     # `build_registry` is inside the try because it can raise
     # `ConfigurationError` on `BOUNDARY_API_KEY` collision — covering it
     # keeps the "never raises" promise in `classify_query`'s docstring.
@@ -176,11 +177,10 @@ async def classify_query(
     return await _llm_classify(text, lm_client)
 
 
-# Research-informed first cut — R8.3's benchmark harness will calibrate
-# these from empirical recall/F1 deltas across query-type buckets. Until
-# that calibration runs, treat the numbers as defensible defaults, not
-# tuned production values. Keys are `QueryType.name` (uppercase); methods
-# absent from a profile fall back to multiplier 1.0 in the lookup helper.
+# Research-informed defaults — calibrated empirically against recall/F1
+# deltas across query-type buckets. Keys are `QueryType.name` (uppercase);
+# methods absent from a profile fall back to multiplier 1.0 in the lookup
+# helper.
 _DEFAULT_TASK_WEIGHT_PROFILES: dict[str, dict[str, float]] = {
     "FACTUAL":             {"vector": 1.2, "document": 0.8, "graph": 0.8, "tree": 0.8},
     "COMPARATIVE":         {"vector": 0.8, "document": 1.2, "graph": 0.8, "tree": 1.2},
@@ -210,8 +210,8 @@ async def _compute_adaptive_params(
     - `effective_top_k` maps `QueryComplexity` -> int. MODERATE intentionally maps
       to `base_top_k` (the static `RetrievalConfig.top_k`) rather than to a
       separate config field — promoting MODERATE to its own knob would create a
-      third tunable that R8.3 calibration would have to optimise against, with no
-      observable behavioural gain over "the existing default".
+      third tunable to calibrate against, with no observable behavioural gain
+      over "the existing default".
     - `multipliers` maps method-name -> float using consumer-provided
       `task_weight_profiles` when present, else `_DEFAULT_TASK_WEIGHT_PROFILES`.
       Override semantics are per-QueryType-key fallback to defaults: a consumer

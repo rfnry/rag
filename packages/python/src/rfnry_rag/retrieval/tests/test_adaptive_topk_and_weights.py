@@ -1,11 +1,11 @@
-"""R5.2 — Dynamic top_k + task-aware method weights.
+"""Dynamic top_k + task-aware method weights.
 
-These tests light up the first two consumer-facing R5 mechanisms: per-query
-`top_k` adjustment based on classified complexity, and per-query method-weight
-multipliers based on classified query type. Both consume R5.1's
-`classify_query` once per `RetrievalService.retrieve` call (BEFORE query
-rewriting, so the classifier sees the original user query rather than
-LLM-generated variants).
+These tests cover per-query `top_k` adjustment based on classified
+complexity, and per-query method-weight multipliers based on classified
+query type. Both consume `classify_query` once per
+`RetrievalService.retrieve` call (BEFORE query rewriting, so the
+classifier sees the original user query rather than LLM-generated
+variants).
 
 When `AdaptiveRetrievalConfig.enabled=False` (default), the pipeline runs
 byte-for-byte unchanged — no classifier call, no multipliers, `trace.adaptive`

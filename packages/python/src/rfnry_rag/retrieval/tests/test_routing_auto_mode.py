@@ -1,10 +1,10 @@
-"""R1.4 — AUTO mode: token-count-based dispatch between RETRIEVAL and DIRECT.
+"""AUTO mode: token-count-based dispatch between RETRIEVAL and DIRECT.
 
-Lights up `mode="auto"` user-facing — recommended for new users. AUTO reads
+`mode="auto"` is user-facing and recommended for new users. AUTO reads
 `KnowledgeManager.get_corpus_tokens(knowledge_id)` and routes to DIRECT when
 `tokens <= direct_context_threshold`, otherwise RETRIEVAL. AUTO never routes
-to HYBRID by design (see plan: HYBRID adds an answerability LLM call that
-isn't justified without benchmark data).
+to HYBRID by design — HYBRID adds an answerability LLM call that isn't
+justified without benchmark data.
 """
 
 from types import SimpleNamespace

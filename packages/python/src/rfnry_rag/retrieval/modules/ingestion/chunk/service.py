@@ -244,7 +244,7 @@ class IngestionService:
         full_text = "\n\n".join(f"[Page {p.page_number}]\n{p.content}" for p in pages)
         title = metadata.get("name", file_path.name)
 
-        # Stamp the per-source token estimate into the metadata blob so R1's
+        # Stamp the per-source token estimate into the metadata blob so the
         # routing layer can sum corpus size without re-reading content. Sum of
         # per-page counts (not count_tokens(full_text)) so the page-marker
         # decoration we added above doesn't inflate the number.

@@ -164,7 +164,7 @@ class GenerationService:
         history: list[tuple[str, str]] | None = None,
         system_prompt: str | None = None,
     ) -> QueryResult:
-        """Generate from a full corpus string (R1.2 DIRECT mode).
+        """Generate from a full corpus string (DIRECT mode).
 
         Skips grounding and clarification gates by design: with the entire
         corpus in the prompt, the chunk-level relevance signal those gates

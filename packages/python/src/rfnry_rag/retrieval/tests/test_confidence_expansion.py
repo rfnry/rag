@@ -1,13 +1,13 @@
-"""R5.3 — Confidence-based expansion + LC escalation.
+"""Confidence-based expansion + long-context escalation.
 
-Closes the R5 series with a self-healing retry loop wrapped around
-`_retrieve_chunks` inside `_query_via_retrieval`. When the first attempt
-returns weak chunks (`max(score) < grounding_threshold`), the loop retries
-with `top_k *= 2` (capped at `top_k_max`); a second retry is reserved for
-a future rewriter swap (no-op placeholder in R5.3). After
-`max_expansion_retries` exhausted with chunks still weak, optional LC
-escalation routes to `_query_via_direct_context` when the corpus fits the
-direct-context threshold, otherwise proceeds with the weak chunks.
+A self-healing retry loop wrapped around `_retrieve_chunks` inside
+`_query_via_retrieval`. When the first attempt returns weak chunks
+(`max(score) < grounding_threshold`), the loop retries with `top_k *= 2`
+(capped at `top_k_max`); a second retry is reserved for a future rewriter
+swap (no-op placeholder for now). After `max_expansion_retries` exhausted
+with chunks still weak, optional long-context escalation routes to
+`_query_via_direct_context` when the corpus fits the direct-context
+threshold, otherwise proceeds with the weak chunks.
 
 When `confidence_expansion=False` (default), the loop runs exactly once
 and the `expansion_*` keys stay absent from `trace.adaptive` — distinct
@@ -129,7 +129,7 @@ async def test_expansion_disabled_runs_single_attempt() -> None:
     assert engine._retrieve_chunks.await_count == 1
     assert result.trace is not None
     assert result.trace.adaptive is not None
-    # The R5.2 keys persist; the R5.3 keys are absent (loop didn't run).
+    # The classifier-verdict keys persist; the expansion keys are absent (loop didn't run).
     assert "expansion_attempts" not in result.trace.adaptive
     assert "expansion_outcome" not in result.trace.adaptive
     assert "final_top_k" not in result.trace.adaptive
@@ -341,15 +341,15 @@ async def test_expansion_uses_grounding_threshold_from_generation_config() -> No
     assert strong_engine._retrieve_chunks.await_count == 1
 
 
-async def test_expansion_escalation_preserves_r5_2_adaptive_classification_keys() -> None:
+async def test_expansion_escalation_preserves_adaptive_classification_keys() -> None:
     """LC escalation MERGES the pre-escalation classifier verdict onto the DIRECT trace.
 
     A consumer debugging "why did this escalate?" needs both signals:
 
-    - R5.2's classifier verdict (`complexity`, `query_type`,
-      `effective_top_k`, `applied_multipliers`, `classification_source`)
-      explains what the classifier said about the failed retrieval.
-    - R5.3's expansion keys (`expansion_attempts`, `expansion_outcome`,
+    - The classifier verdict (`complexity`, `query_type`, `effective_top_k`,
+      `applied_multipliers`, `classification_source`) explains what the
+      classifier said about the failed retrieval.
+    - The expansion keys (`expansion_attempts`, `expansion_outcome`,
       `final_top_k`) explain why the engine gave up on RAG and escalated.
 
     Without the merge, the classifier verdict would be silently dropped at
@@ -364,7 +364,7 @@ async def test_expansion_escalation_preserves_r5_2_adaptive_classification_keys(
         corpus_tokens=50_000,
     )
     weak = [_chunk(score=0.1)]
-    # Classifier verdict the failed retrieval was based on — R5.2's adaptive
+    # Classifier verdict the failed retrieval was based on — the adaptive
     # block carries these keys; the merge must preserve them.
     pre_escalation_adaptive = {
         "complexity": "COMPLEX",
@@ -391,13 +391,13 @@ async def test_expansion_escalation_preserves_r5_2_adaptive_classification_keys(
 
     assert result.trace is not None
     assert result.trace.adaptive is not None
-    # R5.2 keys preserved across the escalation boundary.
+    # Classifier-verdict keys preserved across the escalation boundary.
     assert result.trace.adaptive["complexity"] == "COMPLEX"
     assert result.trace.adaptive["query_type"] == "ENTITY_RELATIONSHIP"
     assert result.trace.adaptive["effective_top_k"] == 15
     assert result.trace.adaptive["applied_multipliers"] == {"vector": 0.8, "graph": 1.5}
     assert result.trace.adaptive["classification_source"] == "heuristic"
-    # R5.3 keys layered on top.
+    # Expansion keys layered on top.
     assert result.trace.adaptive["expansion_outcome"] == "exhausted_escalated_to_lc"
     assert result.trace.adaptive["expansion_attempts"] == 2
     assert "final_top_k" in result.trace.adaptive

@@ -1,9 +1,8 @@
 """IterativeRetrievalService — sibling to RetrievalService for multi-hop queries.
 
-R6.1 shipped the empty stub; R6.2 lands the runtime hop loop, decomposer
-wiring, and trace population. R6.3 will add post-loop DIRECT escalation
-on top of this service (handled at the engine layer, not here — service
-concerns shouldn't know about cross-strategy escalation).
+Owns the hop loop, decomposer wiring, and trace population. Post-loop
+DIRECT escalation is layered on top of this service at the engine layer,
+not here — service concerns shouldn't know about cross-strategy escalation.
 
 The loop is sequential by design (each hop depends on the prior hop's
 findings) so there is no ``asyncio.gather`` over hops. Within a hop, the
@@ -84,15 +83,16 @@ class IterativeRetrievalService:
 
     The service owns the hop loop and the decomposer call; per-hop
     retrieval delegates to ``RetrievalService.retrieve`` unchanged so
-    R5.2's adaptive classifier + R5.3's confidence expansion (when
-    enabled on the underlying retrieval config) compose naturally with
-    iterative without any iterative-specific plumbing.
+    the adaptive classifier and confidence expansion (when enabled on
+    the underlying retrieval config) compose naturally with iterative
+    without any iterative-specific plumbing.
 
-    R5.3's LC escalation lives on ``RagEngine._query_via_retrieval``,
-    NOT on ``RetrievalService.retrieve``. Per-hop calls go through the
-    service directly so they naturally skip that escalation tail —
-    iterative-then-DIRECT escalation is R6.3's job, layered on top of
-    this service at the engine arm.
+    The retrieval-arm long-context escalation lives on
+    ``RagEngine._query_via_retrieval``, NOT on
+    ``RetrievalService.retrieve``. Per-hop calls go through the service
+    directly so they naturally skip that escalation tail —
+    iterative-then-DIRECT escalation is layered on top of this service
+    at the engine arm.
     """
 
     def __init__(
@@ -103,9 +103,10 @@ class IterativeRetrievalService:
         self._retrieval_service = retrieval_service
         # `fallback_decomposition_lm` lets the engine pass
         # `RetrievalConfig.enrich_lm_client` as the default decomposer when
-        # `IterativeRetrievalConfig.decomposition_model` is unset. R5 uses
-        # the same default-fallback pattern (`AdaptiveRetrievalConfig.
-        # use_llm_classification` falls back to `enrich_lm_client`).
+        # `IterativeRetrievalConfig.decomposition_model` is unset. Adaptive
+        # retrieval uses the same default-fallback pattern
+        # (`AdaptiveRetrievalConfig.use_llm_classification` falls back to
+        # `enrich_lm_client`).
         self._fallback_decomposition_lm = fallback_decomposition_lm
 
     async def _call_decompose(
@@ -160,7 +161,7 @@ class IterativeRetrievalService:
         surface the full hop trace via ``RetrievalTrace.iterative_hops``.
 
         ``classification`` is the pre-computed verdict from the engine arm
-        (R5's classifier already runs there before deciding which
+        (the classifier already runs there before deciding which
         ``_query_via_*`` to invoke). The service does not re-classify; in
         ``gate_mode="llm"`` the decomposer is the gate and the type check
         is bypassed entirely.
@@ -297,16 +298,16 @@ class IterativeRetrievalService:
             accumulated_chunks = _merge_chunks_dedup(accumulated_chunks, hop_chunks)
             # The decomposer self-summarises; we replace, not append. This
             # bounds findings growth regardless of `max_hops` and matches
-            # the prompt contract in R6.1's BAML function.
+            # the prompt contract in the BAML decompose function.
             accumulated_findings = result.findings_from_last_hop
 
-            # R6.2: `expansion_applied` is structurally always False here.
-            # Per-hop retrieval calls `RetrievalService.retrieve` directly,
-            # bypassing `RagEngine._query_via_retrieval` where R5.3's
-            # expansion loop sets the `expansion_attempts` key. Field
-            # reserved for future per-hop expansion: when that work lands
-            # it will populate the key and this read becomes truthful
-            # without further changes here.
+            # `expansion_applied` is structurally always False here. Per-hop
+            # retrieval calls `RetrievalService.retrieve` directly, bypassing
+            # `RagEngine._query_via_retrieval` where the confidence-expansion
+            # loop sets the `expansion_attempts` key. Field reserved for
+            # future per-hop expansion: when that work lands it will
+            # populate the key and this read becomes truthful without
+            # further changes here.
             expansion_applied = False
             adaptive_snapshot: dict[str, object] | None = None
             if hop_trace_data is not None and hop_trace_data.adaptive is not None:
