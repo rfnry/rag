@@ -6,6 +6,73 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-04-28 R6.1 — Config + BAML scaffold for multi-hop iterative retrieval
+
+Lands the compile-time foundation for R6 (multi-hop iterative retrieval) with
+no behaviour change: a new `IterativeRetrievalConfig` dataclass, a new
+`DecomposeQuery` BAML function with regenerated client, the `iterative/`
+subpackage skeleton, and contract-test registrations. Default-off; the
+existing 1120 tests pass byte-for-byte.
+
+R6.1 is structurally analogous to R5.1: register a new config dataclass,
+add one BAML function with a stubbed return, generate the BAML client, wire
+registration through audit + fence-contract tests. No engine integration yet
+— the hop loop lands in R6.2; post-loop DIRECT escalation lands in R6.3.
+
+- New subpackage `modules/retrieval/iterative/` (sibling to `RetrievalService`,
+  not a fold-in per Convention 4):
+  - `config.py` — `IterativeRetrievalConfig` dataclass with bounded numeric
+    fields, allowlist-validated `gate_mode`, and a cross-field rule that
+    `enabled=True AND gate_mode="llm"` requires `decomposition_model`.
+  - `trace.py` — `IterativeHopTrace` dataclass (definition only; populated
+    in R6.2). Final-decomposer-call hops carry empty `per_method_results`/
+    `fused_results` and rely on `decompose_reasoning` to explain the stop.
+  - `service.py` — empty `IterativeRetrievalService` stub raising
+    `NotImplementedError`. Keeps the public name importable so R6.2 can
+    fill it in without churning import sites.
+- New BAML function `DecomposeQuery(original_query, accumulated_findings,
+  hop_index, max_hops) -> DecomposeResult` in
+  `baml_src/retrieval/functions.baml`. Both string params fenced with
+  `ORIGINAL_QUERY` and `ACCUMULATED_FINDINGS` `START`/`END` markers per
+  Convention 3. Domain-neutral prompt body per Convention 1. Reuses the
+  existing `Default` BAML client (matches `ClassifyQueryComplexity`'s
+  pattern; `RetrievalAnalysisClient` does not exist in this repo). New
+  `DecomposeResult { done, next_sub_question?, findings_from_last_hop,
+  reasoning }` class in `baml_src/retrieval/types.baml`.
+- BAML client regenerated via `uv run poe baml:generate:retrieval` and
+  committed alongside the source.
+- `RetrievalConfig.iterative: IterativeRetrievalConfig =
+  field(default_factory=lambda: IterativeRetrievalConfig())` added in
+  `server.py`. Default `enabled=False` keeps the field inert until R6.2.
+- Public exports: `IterativeRetrievalConfig` and `IterativeHopTrace` added
+  to `rfnry_rag.retrieval.__init__` and `__all__`.
+- Contract registrations:
+  - `tests/test_config_bounds_contract.py`: `IterativeRetrievalConfig`
+    added to `_CONFIGS_TO_AUDIT`.
+  - `tests/test_baml_prompt_fence_contract.py`: `DecomposeQuery` added to
+    `USER_CONTROLLED_PARAMS` with `["original_query",
+    "accumulated_findings"]`.
+  - `tests/test_baml_prompt_domain_agnostic.py`: passes automatically
+    (whole-file scan) — no registration needed.
+- Spec discrepancies resolved during implementation (noted here so reviewers
+  do not chase them):
+  - The spec's example used `LanguageModelConfig` for the
+    `decomposition_model` field; the actual codebase symbol is
+    `LanguageModelClient`. Matched the existing pattern (e.g.
+    `RoutingConfig.hybrid_answerability_model`).
+  - The spec referenced a `RetrievalAnalysisClient` BAML client; the only
+    BAML client defined in `clients.baml` is `Default`. Matched the
+    pattern set by `ClassifyQueryComplexity` and used `client Default`.
+  - The spec's trace dataclass referenced `ScoredChunk`; the public type
+    in `common/models.py` (used by `RetrievalTrace`) is `RetrievedChunk`.
+    Matched `RetrievalTrace`'s import.
+  - The dataclass raises `ValueError` (per the spec's example bodies and
+    the test plan's "raises ValueError" assertions), not
+    `ConfigurationError` — `ConfigurationError` does not inherit from
+    `ValueError`, so the spec's tests would fail with the latter.
+- 6 new unit tests in `tests/test_iterative_config.py`. Total test count:
+  1120 → 1126 (+6).
+
 ### 2026-04-28 R5.3 — Confidence expansion + LC escalation
 
 Closes the R5 series with a self-healing retry loop wrapped around

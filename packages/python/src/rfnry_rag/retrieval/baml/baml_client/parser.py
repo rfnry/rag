@@ -71,6 +71,12 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="ContinueDocumentStructure", llm_response=llm_response, mode="request")
         return typing.cast(types.ExtractedStructure, __result__)
 
+    def DecomposeQuery(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> types.DecomposeResult:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="DecomposeQuery", llm_response=llm_response, mode="request")
+        return typing.cast(types.DecomposeResult, __result__)
+
     def DetectTableOfContents(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> types.TocDetectionResult:
@@ -246,6 +252,12 @@ class LlmStreamParser:
     ) -> stream_types.ExtractedStructure:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="ContinueDocumentStructure", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.ExtractedStructure, __result__)
+
+    def DecomposeQuery(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> stream_types.DecomposeResult:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="DecomposeQuery", llm_response=llm_response, mode="stream")
+        return typing.cast(stream_types.DecomposeResult, __result__)
 
     def DetectTableOfContents(
         self, llm_response: str, baml_options: BamlCallOptions = {},

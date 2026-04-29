@@ -42,6 +42,7 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     # ---- retrieval / retrieval ----
     "AnalyzeQuery": ["query"],
     "ClassifyQueryComplexity": ["query"],
+    "DecomposeQuery": ["original_query", "accumulated_findings"],
     "RerankChunks": ["query", "passages"],
     "JudgeRetrievalNecessity": ["query"],  # knowledge_description is operator config
     "CompressRetrievedContext": ["query", "passages"],
@@ -165,8 +166,6 @@ def test_all_user_controlled_baml_params_are_fenced() -> None:
             continue
         for param in USER_CONTROLLED_PARAMS[fn_name]:
             if not _has_fence_for_param(body, param):
-                violations.append(
-                    f"{path.name}::{fn_name}({param}) — missing fence around {{{{ {param} }}}}"
-                )
+                violations.append(f"{path.name}::{fn_name}({param}) — missing fence around {{{{ {param} }}}}")
 
     assert not violations, "BAML fence violations:\n  " + "\n  ".join(violations)

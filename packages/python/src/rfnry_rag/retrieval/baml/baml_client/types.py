@@ -52,7 +52,7 @@ class QueryType(str, Enum):
     PROCEDURAL = "PROCEDURAL"
 
 # #########################################################################
-# Generated classes (35)
+# Generated classes (36)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -65,6 +65,12 @@ class AnswerabilityVerdict(BaseModel):
 
 class CompressedContext(BaseModel):
     compressed_text: str = Field(description='The compressed context preserving only query-relevant information')
+
+class DecomposeResult(BaseModel):
+    done: bool
+    next_sub_question: typing.Optional[str] = None
+    findings_from_last_hop: str
+    reasoning: str
 
 class DetectedComponent(BaseModel):
     component_id: str = Field(description='stable within-page ID: \'R1\', \'V-101\', or synthesised')

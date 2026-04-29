@@ -25,6 +25,9 @@ type_map = {
     "types.CompressedContext": types.CompressedContext,
     "stream_types.CompressedContext": stream_types.CompressedContext,
 
+    "types.DecomposeResult": types.DecomposeResult,
+    "stream_types.DecomposeResult": stream_types.DecomposeResult,
+
     "types.DetectedComponent": types.DetectedComponent,
     "stream_types.DetectedComponent": stream_types.DetectedComponent,
 

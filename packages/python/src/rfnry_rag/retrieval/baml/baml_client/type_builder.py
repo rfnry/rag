@@ -20,7 +20,7 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(type_builder.TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["AnswerQualityJudgment","AnswerabilityVerdict","CompressedContext","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","DrawingSetSynthesis","ExtractedSection","ExtractedStructure","HypotheticalDocument","Merge","NarrativeXref","OffPageConnector","PageAnalysis","Port","QueryAnalysis","QueryClassification","QueryVariants","RankedChunk","ReasoningStep","RelevanceJudgment","RetrievalNecessityJudgment","StepBackQuery","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries","TocDetectionResult","TocEntry","TocStructure","ToolDrillDown","ToolFetchPages","ToolResolvedPages",]
+          ["AnswerQualityJudgment","AnswerabilityVerdict","CompressedContext","DecomposeResult","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","DrawingSetSynthesis","ExtractedSection","ExtractedStructure","HypotheticalDocument","Merge","NarrativeXref","OffPageConnector","PageAnalysis","Port","QueryAnalysis","QueryClassification","QueryVariants","RankedChunk","ReasoningStep","RelevanceJudgment","RetrievalNecessityJudgment","StepBackQuery","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries","TocDetectionResult","TocEntry","TocStructure","ToolDrillDown","ToolFetchPages","ToolResolvedPages",]
         ), enums=set(
           ["QueryComplexity","QueryType",]
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
@@ -39,7 +39,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
     # #########################################################################
-    # Generated classes 35
+    # Generated classes 36
     # #########################################################################
 
     @property
@@ -53,6 +53,10 @@ class TypeBuilder(type_builder.TypeBuilder):
     @property
     def CompressedContext(self) -> "CompressedContextViewer":
         return CompressedContextViewer(self)
+
+    @property
+    def DecomposeResult(self) -> "DecomposeResultViewer":
+        return DecomposeResultViewer(self)
 
     @property
     def DetectedComponent(self) -> "DetectedComponentViewer":
@@ -286,7 +290,7 @@ class QueryTypeValues:
 
 
 # #########################################################################
-# Generated classes 35
+# Generated classes 36
 # #########################################################################
 
 class AnswerQualityJudgmentAst:
@@ -410,6 +414,57 @@ class CompressedContextProperties:
     @property
     def compressed_text(self) -> type_builder.ClassPropertyViewer:
         return type_builder.ClassPropertyViewer(self.__bldr.property("compressed_text"))
+    
+    
+
+
+class DecomposeResultAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("DecomposeResult")
+        self._properties: typing.Set[str] = set([  "done",  "next_sub_question",  "findings_from_last_hop",  "reasoning",  ])
+        self._props = DecomposeResultProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "DecomposeResultProperties":
+        return self._props
+
+
+class DecomposeResultViewer(DecomposeResultAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class DecomposeResultProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def done(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("done"))
+    
+    @property
+    def next_sub_question(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("next_sub_question"))
+    
+    @property
+    def findings_from_last_hop(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("findings_from_last_hop"))
+    
+    @property
+    def reasoning(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("reasoning"))
     
     
 

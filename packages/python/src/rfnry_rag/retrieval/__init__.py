@@ -60,6 +60,12 @@ from rfnry_rag.retrieval.modules.ingestion.methods.tree import TreeIngestion as 
 from rfnry_rag.retrieval.modules.ingestion.methods.vector import VectorIngestion as VectorIngestion
 from rfnry_rag.retrieval.modules.ingestion.vision.facade import Vision as Vision
 from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod as BaseRetrievalMethod
+from rfnry_rag.retrieval.modules.retrieval.iterative import (
+    IterativeHopTrace as IterativeHopTrace,
+)
+from rfnry_rag.retrieval.modules.retrieval.iterative import (
+    IterativeRetrievalConfig as IterativeRetrievalConfig,
+)
 from rfnry_rag.retrieval.modules.retrieval.judging import BaseRetrievalJudgment as BaseRetrievalJudgment
 from rfnry_rag.retrieval.modules.retrieval.judging import RetrievalJudgment as RetrievalJudgment
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval as DocumentRetrieval
@@ -143,6 +149,8 @@ __all__ = [
     "IngestionInterruptedError",
     "IngestionService",
     "InputError",
+    "IterativeHopTrace",
+    "IterativeRetrievalConfig",
     "JudgmentResult",
     "LLMJudgment",
     "LanguageModelClient",

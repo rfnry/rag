@@ -202,6 +202,21 @@ class BamlAsyncClient:
                 "existing_structure": existing_structure,"pages_text": pages_text,
             })
             return typing.cast(types.ExtractedStructure, __result__.cast_to(types, types, stream_types, False, __runtime__))
+    async def DecomposeQuery(self, original_query: str,accumulated_findings: str,hop_index: int,max_hops: int,
+        baml_options: BamlCallOptions = {},
+    ) -> types.DecomposeResult:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            # Use streaming internally when on_tick is provided
+            __stream__ = self.stream.DecomposeQuery(original_query=original_query,accumulated_findings=accumulated_findings,hop_index=hop_index,max_hops=max_hops,
+                baml_options=baml_options)
+            return await __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="DecomposeQuery", args={
+                "original_query": original_query,"accumulated_findings": accumulated_findings,"hop_index": hop_index,"max_hops": max_hops,
+            })
+            return typing.cast(types.DecomposeResult, __result__.cast_to(types, types, stream_types, False, __runtime__))
     async def DetectTableOfContents(self, page_text: str,
         baml_options: BamlCallOptions = {},
     ) -> types.TocDetectionResult:
@@ -607,6 +622,18 @@ class BamlStreamClient:
           lambda x: typing.cast(types.ExtractedStructure, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
+    def DecomposeQuery(self, original_query: str,accumulated_findings: str,hop_index: int,max_hops: int,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlStream[stream_types.DecomposeResult, types.DecomposeResult]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="DecomposeQuery", args={
+            "original_query": original_query,"accumulated_findings": accumulated_findings,"hop_index": hop_index,"max_hops": max_hops,
+        })
+        return baml_py.BamlStream[stream_types.DecomposeResult, types.DecomposeResult](
+          __result__,
+          lambda x: typing.cast(stream_types.DecomposeResult, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(types.DecomposeResult, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
     def DetectTableOfContents(self, page_text: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlStream[stream_types.TocDetectionResult, types.TocDetectionResult]:
@@ -911,6 +938,13 @@ class BamlHttpRequestClient:
             "existing_structure": existing_structure,"pages_text": pages_text,
         }, mode="request")
         return __result__
+    async def DecomposeQuery(self, original_query: str,accumulated_findings: str,hop_index: int,max_hops: int,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="DecomposeQuery", args={
+            "original_query": original_query,"accumulated_findings": accumulated_findings,"hop_index": hop_index,"max_hops": max_hops,
+        }, mode="request")
+        return __result__
     async def DetectTableOfContents(self, page_text: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
@@ -1113,6 +1147,13 @@ class BamlHttpStreamRequestClient:
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="ContinueDocumentStructure", args={
             "existing_structure": existing_structure,"pages_text": pages_text,
+        }, mode="stream")
+        return __result__
+    async def DecomposeQuery(self, original_query: str,accumulated_findings: str,hop_index: int,max_hops: int,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="DecomposeQuery", args={
+            "original_query": original_query,"accumulated_findings": accumulated_findings,"hop_index": hop_index,"max_hops": max_hops,
         }, mode="stream")
         return __result__
     async def DetectTableOfContents(self, page_text: str,

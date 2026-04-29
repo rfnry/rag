@@ -48,6 +48,7 @@ from rfnry_rag.retrieval.modules.knowledge.migration import check_embedding_migr
 from rfnry_rag.retrieval.modules.namespace import MethodNamespace
 from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod
 from rfnry_rag.retrieval.modules.retrieval.enrich.service import StructuredRetrievalService
+from rfnry_rag.retrieval.modules.retrieval.iterative.config import IterativeRetrievalConfig
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.vector import VectorRetrieval
@@ -334,6 +335,9 @@ class RetrievalConfig:
     chunk_refiner: BaseChunkRefinement | None = None
     history_window: int = 3
     adaptive: AdaptiveRetrievalConfig = field(default_factory=AdaptiveRetrievalConfig)
+    # R6.1: multi-hop iterative retrieval configuration. Default-off; the
+    # field is inert until R6.2 wires the engine arm.
+    iterative: IterativeRetrievalConfig = field(default_factory=lambda: IterativeRetrievalConfig())
 
     def __post_init__(self) -> None:
         if self.top_k < 1:
