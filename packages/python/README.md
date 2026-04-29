@@ -1,34 +1,24 @@
-## rfnry-rag — retrieval augmented generation engine
+# rfnry-rag
 
-Lexical/Semantical Retrieval Engine
+A retrieval and reasoning toolkit for Python. Two SDKs in one package: a configurable retrieval engine with multi-path search, query routing, and grounded generation; and a set of standalone reasoning services for analysis, classification, clustering, compliance, and evaluation. Both share a common protocol layer so consumers can swap embeddings, vector stores, rerankers, and language model providers without touching the engine.
 
-- **retrieval** — lexical and semantical retrieval engine.
-- **reasoning** — analysis, classification, clustering, compliance, evaluation, toolkit.
+## Get Started
 
-[retrieval](src/rfnry-rag/retrieval/README.md) · [reasoning](src/rfnry-rag/reasoning/README.md) · [examples](examples)
-
-## Fundamentals
-
-- **Modular** Retrieval and ingestion methods are pluggable via `BaseRetrievalMethod` / `BaseIngestionMethod` protocols. Vector, document, graph and tree paths are all optional; at least one must be configured. No mandatory vector DB, no mandatory embeddings. Reasoning services (`AnalysisService`, `ClassificationService`, `ClusteringService`, `ComplianceService`, `EvaluationService`) are standalone. Use one, compose several through `Pipeline`, or wire them into a retrieval flow.
-- **Protocol** `BaseEmbeddings`, `BaseSemanticIndex`, `BaseReranking`, `BaseQueryRewriting`, `BaseChunkRefinement` — any conforming object works. Swap components without touching the engine.
-- **Multi-path** Configured methods run in parallel per query. Results merge via reciprocal rank fusion with per-method weights. Per-method error isolation: one path fails, the rest continue.
-- **Pipeline** Query rewriting → multi-path search → reranking → chunk refinement → grounding and generation. Each stage is optional and independently configurable.
-- **BAML** Structured output parsing, retry and fallback policies, primary + fallback provider routing via `LanguageModelClient`, observability through Boundary Studio or `baml_py.Collector`.
-- **Unified CLI** `rfnry-rag retrieval …` and `rfnry-rag reasoning …` mirror the SDK surface for scripting and inspection.
-
-## Installation
+Install with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv add rfnry-rag                    # core SDK
-uv add "rfnry_rag[graph]"           # + Neo4j graph support
-uv add "rfnry-rag[cli]"             # + CLI
+uv add rfnry-rag                  # core SDK
+uv add "rfnry-rag[graph]"         # + Neo4j graph support
+uv add "rfnry-rag[cli]"           # + command-line interface
 ```
 
-## Retrieval getting started
+A minimal retrieval setup:
 
 ```python
-from rfnry_rag.retrieval import RagEngine, RagServerConfig, PersistenceConfig, IngestionConfig
-from rfnry_rag.retrieval import QdrantVectorStore, Embeddings
+from rfnry_rag.retrieval import (
+    RagEngine, RagServerConfig, PersistenceConfig, IngestionConfig,
+    QdrantVectorStore, Embeddings,
+)
 from rfnry_rag import LanguageModelProvider
 
 config = RagServerConfig(
@@ -44,43 +34,19 @@ config = RagServerConfig(
 
 async with RagEngine(config) as rag:
     await rag.ingest("manual.pdf", knowledge_id="equipment")
-    await rag.ingest("annual_report.pdf", knowledge_id="reports", tree_index=True)
     result = await rag.query("How do I replace the filter?", knowledge_id="equipment")
     print(result.answer)
 ```
 
-Fine-grained method access:
-
-```python
-async with RagEngine(config) as rag:
-    vector_chunks = await rag.retrieval.vector.search("pressure specs", top_k=20)
-    doc_chunks    = await rag.retrieval.document.search("pressure specs", top_k=10)
-    result        = await rag.query("What are the pressure specifications?", knowledge_id="equipment")
-```
-
-CLI:
-
-```bash
-rfnry-rag retrieval init
-rfnry-rag retrieval ingest manual.pdf -k equipment
-rfnry-rag retrieval query "how to replace the filter?" -k equipment
-rfnry-rag retrieval retrieve "part number 8842-A" -k equipment
-```
-
-## Reasoning getting started
-
-Each service is standalone. Compose them through `Pipeline` when you need sequential steps.
+Reasoning services are standalone — instantiate one, configure it, call it:
 
 ```python
 from rfnry_rag.reasoning import AnalysisService, AnalysisConfig, DimensionDefinition
 from rfnry_rag import LanguageModelClient, LanguageModelProvider
 
-lm = LanguageModelClient(
-    provider=LanguageModelProvider(
-        provider="anthropic", model="claude-sonnet-4-20250514", api_key="...",
-    ),
-)
-
+lm = LanguageModelClient(provider=LanguageModelProvider(
+    provider="anthropic", model="claude-sonnet-4-20250514", api_key="...",
+))
 analyzer = AnalysisService(lm_client=lm)
 result = await analyzer.analyze(
     "My order FB-12345 hasn't arrived and I need it by Friday.",
@@ -89,63 +55,58 @@ result = await analyzer.analyze(
         summarize=True,
     ),
 )
-print(f"{result.primary_intent} — urgency: {result.dimensions['urgency'].value}")
 ```
 
-CLI:
+CLI mirrors the SDK surface (`rfnry-rag retrieval ...` / `rfnry-rag reasoning ...`).
 
-```bash
-rfnry-rag reasoning init
-rfnry-rag reasoning analyze "My order FB-12345 hasn't arrived and I need it by Friday"
-rfnry-rag reasoning classify "I want my money back" --categories categories.json
-rfnry-rag reasoning compliance "We'll give you 150% refund" --references policy.md
-```
+---
 
-Runnable examples: [`examples/retrieval/sdk`](examples/retrieval/sdk), [`examples/reasoning/sdk`](examples/reasoning/sdk), and their `cli/` counterparts.
+## Features
 
-## Development Setup
+### Modular hybrid retrieval
 
-All tasks run via [poethepoet](https://github.com/nat-n/poethepoet):
+Retrieval methods are pluggable via the `BaseRetrievalMethod` protocol. Vector (dense + SPLADE + BM25 fused internally), document (full-text + substring), graph (entity lookup + N-hop traversal), and structural tree navigation all run concurrently per query and merge through reciprocal rank fusion with per-method weights. No mandatory backend; configure only the paths you need. Per-method error isolation means one failing path does not break the others.
 
-```bash
-uv sync --extra dev                   # dev extras only
-uv sync --all-extras                  # everything
+### Query routing modes
 
-uv run poe format                     # ruff format
-uv run poe check                      # ruff lint
-uv run poe check:fix                  # ruff lint + auto-fix
-uv run poe typecheck                  # mypy
-uv run poe test                       # pytest
-uv run poe baml:generate:retrieval    # regenerate retrieval BAML client
-uv run poe baml:generate:reasoning    # regenerate reasoning BAML client
-```
+Each query can be answered through one of four modes: standard retrieval, full-corpus direct context (cheaper and more accurate at small corpus sizes when prompt caching is in play), hybrid SELF-ROUTE (RAG first, escalate to long-context only when an LLM judges the retrieved chunks insufficient), or auto (corpus-token threshold picks retrieval-vs-direct per query). The choice is per-query and reflected in the trace.
 
-## Observability
+### Adaptive retrieval parameters
 
-All LLM calls go through [BAML](https://docs.boundaryml.com/).
+A query classifier (heuristic by default; opt-in LLM for ambiguous text) labels each query by complexity and shape. Top-k scales by complexity (simple queries retrieve fewer chunks, complex queries retrieve more), and per-method weights shift by query type (entity-relationship queries lean on graph; comparative queries lean on document/tree). When initial retrieval returns weak results, the engine retries with expanded parameters and optionally escalates to direct-context mode.
 
-- **Boundary Studio** — set `boundary_api_key` on a `LanguageModelClient` to enable automatic cloud tracing with token counts, latency, and function-level tracking.
-- **Programmatic** — use `baml_py.Collector` for in-process token usage tracking.
+### Multi-hop iterative retrieval
 
-## Environment variables
+For queries that chain across entities ("what nationality is the performer of song X?"), an opt-in iterative service decomposes the query into sequential sub-questions, retrieves each independently with the full pipeline, and accumulates findings across hops. The decomposer self-summarizes between hops to bound prompt growth. Gates on query type or LLM verdict so cheap queries stay on the cheap path. Falls back to direct-context mode when accumulated chunks remain weak.
 
-SDK (read when used as a library):
+### Hierarchical summarization retrieval
 
-```bash
-RFNRY_RAG_LOG_ENABLED=false    # true / false
-RFNRY_RAG_LOG_LEVEL=INFO       # DEBUG, INFO, WARNING, ERROR
-RFNRY_RAG_BAML_LOG=warn        # info, warn, debug — BAML runtime log level
-```
+A consumer-triggered build clusters chunks under a knowledge scope, generates summaries for each cluster, and recurses up to a configurable depth — producing a tree of progressively more abstract representations. A sibling retrieval method searches the summary nodes alongside the leaf-chunk methods, so abstract or broad queries match summaries while specific queries match leaves. Atomic blue/green rebuilds with immediate garbage collection of stale trees.
 
-CLI only (never read by the SDK — pass API keys explicitly via `LanguageModelProvider(api_key=...)`):
+### Document expansion at index time
 
-```bash
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-COHERE_API_KEY=
-VOYAGE_API_KEY=
-```
+For each chunk, an optional LLM call generates synthetic queries the chunk would answer. The synthetic queries flow into both BM25 indexing and embedding generation, bridging the user-vocabulary-vs-document-vocabulary gap that hurts both lexical and dense retrieval. Stored separately on the chunk for transparency. Independently gated for embedding vs BM25.
 
-## License
+### Chunk-position-aware context assembly
 
-MIT — see [`LICENSE`](./LICENSE).
+Generation context can be assembled in score-descending order (default), primacy-recency (highest-scored chunks at the beginning and end of context), or sandwich. The non-default orderings mitigate the U-shaped attention effect where LLMs use information at the beginning and end of context more reliably than information in the middle.
+
+### Drawing-aware ingestion
+
+A sibling pipeline for diagram-first documents (schematics, P&ID, wiring, mechanical). PDFs go through a vision LLM with consumer-overridable symbol vocabularies (IEC 60617 + ISA 5.1 ship as defaults). DXF files parse deterministically through `ezdxf` with no LLM calls — modelspace plus all paperspace layouts in tab order, so multi-sheet drawings emit one page per layout. Cross-sheet connectivity (off-page connectors, fuzzy label merges) resolves deterministically with LLM residue only when unresolved candidates remain.
+
+### Diagnostic trace, failure classification, and benchmark harness
+
+Every query can return a `RetrievalTrace` capturing per-stage state: rewritten queries, per-method results (keyed by method name, including empty-result methods), fusion output, reranking, refinement, grounding decision, confidence, routing decision, and per-stage timings. A heuristic `classify_failure` function maps a failed trace to one of seven failure types (vocabulary mismatch, chunk boundary, scope miss, entity-not-indexed, low relevance, insufficient context, unknown). A benchmark harness runs structured test cases and aggregates EM, F1, retrieval recall/precision, optional LLM-judge scores, and the failure-type distribution. Available as both a Python API and CLI.
+
+### Reasoning SDK
+
+Standalone services that compose without a vector store: `AnalysisService` (intent + named dimensions + entity tracking), `ClassificationService` (LLM or hybrid kNN→LLM), `ClusteringService` (K-Means + HDBSCAN with optional LLM cluster labeling), `ComplianceService` (policy violation checking against reference documents), `EvaluationService` (similarity + LLM-judge scoring). Compose them sequentially through `Pipeline` or wire them into a retrieval flow.
+
+### Structured LLM I/O via BAML
+
+All LLM calls go through [BAML](https://docs.boundaryml.com/) for structured output parsing, retry and fallback policies, and primary-plus-fallback provider routing through `LanguageModelClient`. Every user-controlled prompt parameter is fenced with explicit start/end markers; a contract test guards the convention so new prompts can't slip through unfenced. Domain-neutral prompts by default — features needing vocabulary (entity types, relationship keywords, symbol libraries) expose consumer-overridable config. Observability through Boundary Studio or `baml_py.Collector`.
+
+### Unified CLI
+
+`rfnry-rag retrieval ...` and `rfnry-rag reasoning ...` mirror the SDK surface for scripting, inspection, and one-off operations: ingest, query, retrieve (without generation), benchmark, analyze, classify, compliance-check. Configuration loads from `~/.config/rfnry_rag/config.toml` plus a `.env`.
