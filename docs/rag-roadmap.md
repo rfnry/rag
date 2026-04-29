@@ -8,7 +8,9 @@ For the research analysis behind these decisions, see [rfnry-rag Long-Context St
 
 ## Status at a glance
 
-Last updated: 2026-04-29.
+Last updated: 2026-04-29. **Roadmap status: complete (2026-04-29).** All
+eight in-scope priorities (R3 + R4 + R8 + R1 + R5 + R6 + R2; R7 dropped)
+are landed across Phases 1-3.
 
 ### Phase 1 — Foundation (independent, small scope)
 
@@ -33,13 +35,13 @@ Phase 1 closed.
 | Item | Status | Notes |
 |---|---|---|
 | **R6** — Multi-Hop Iterative Retrieval | ✅ Done | 6 commits ending `5e8f356` (2026-04-29). R6.1 config + BAML scaffold (`IterativeRetrievalConfig`, `DecomposeQuery` BAML); R6.2 `IterativeRetrievalService` + hop loop + engine arm + `routing_decision="iterative"`; R6.3 post-loop DIRECT escalation, new `routing_decision="iterative_then_direct"`, new termination reasons `"low_confidence_escalated"` / `"low_confidence_no_escalation"`, helper lift to `common/grounding.py`. Test count 1120 → 1147 (+27). |
-| **R2** — RAPTOR-Style Summarization Retrieval | ⏳ Next | New ingestion + retrieval method pair. Requires the embedding/vector infrastructure to be well-tested. R5 + R6 + R8 are now in place. |
+| **R2** — RAPTOR-Style Summarization Retrieval | ✅ Done | 8 commits ending `95bb413` (2026-04-29). R2.1 config + `SummarizeCluster` BAML + `rag_raptor_trees` schema + `RaptorTreeRegistry`; R2.2 `RaptorTreeBuilder` (cluster → cap → summarize → embed → persist → recurse) + atomic blue/green swap + `set_payload` Protocol promotion + GC; R2.3 `RaptorRetrieval` method + engine wiring (eager registry, lazy builder, soft-skip on missing deps, raise on non-SQLA metadata store) + RRF fusion + drawing-corpus skip. Test count 1147 → 1208 (+61). |
 
-### Recommended next pick
+### Roadmap complete
 
-**R2** — RAPTOR-Style Summarization Retrieval. With R6 closed (R5's classifier and R1's long-context fallback shipped), R2 is the last unstarted Phase-3 item. New ingestion + retrieval method pair: recursive cluster→summarize→embed→store loop on top of the existing `ClusteringService` (already in the reasoning SDK), a new `SummarizeCluster` BAML function, and a new `RaptorRetrieval` method that filters by `raptor_level` metadata. Per Convention 6, summary vectors get a new `vector_role="raptor_summary"`; leaf chunks keep their existing role.
+With R2 closed, all eight in-scope priorities (R3 + R4 + R8 + R1 + R5 + R6 + R2; R7 dropped) are landed across Phases 1-3. Future work — beyond the explicit "Out of scope" exclusions section below — belongs in a new design document, not this one.
 
-Phase 2 closed. Phase 3 in progress (R6 done, R2 remaining).
+Phase 2 closed. Phase 3 closed.
 
 ### Out of scope (explicitly NOT planned)
 
