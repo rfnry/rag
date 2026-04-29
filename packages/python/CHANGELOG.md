@@ -81,7 +81,27 @@ existing 1187 R2.2-baseline tests byte-for-byte unchanged.
 - Test count: +19 (target was +12 = 7 unit + 5 e2e; landed
   9 unit + 10 e2e covering the eager-vs-lazy registry
   coordination, namespace iteration, weight-honoured RRF, and
-  module-import sanity). Total: 1206 = 1187 baseline + 19 new.
+  module-import sanity).
+- Polish (`95bb413`): split the engine-init RAPTOR eligibility
+  check into two cases — a missing dep (vector_store / embeddings
+  / metadata_store) keeps the WARNING + soft-skip pattern with
+  the message tightened to name the specific missing dep so
+  operators can act on it directly; a non-`SQLAlchemyMetadataStore`
+  metadata-store now raises `ConfigurationError` at init because
+  RAPTOR's registry schema lives in the SQLA store and silently
+  degrading would mask the misconfig until the first
+  `build_raptor_index` call (or never, for retrieval-only
+  consumers). `build_raptor_index` keeps its own isinstance check
+  as defence-in-depth for paths that bypass `initialize()`. Two
+  regression guards added in `test_raptor_e2e.py`: a caplog-based
+  test asserting the WARNING fires and names `vector_store` when
+  `raptor.enabled=True` with `vector_store=None` (protects against
+  silent demotion of the WARNING level or removal of the soft-skip
+  branch in a future refactor), and a `ConfigurationError` test
+  asserting init raises when `metadata_store` is a non-SQLA
+  implementation.
+
+Total test count: 1187 → 1208 (+21 = 19 main + 2 polish).
 
 ### 2026-04-29 R2.2 — RAPTOR tree builder + atomic-swap rebuild
 
@@ -168,11 +188,45 @@ byte-for-byte unchanged.
   back-references / atomic swap order / first-run no-op GC /
   `run_concurrent` dispatch / level-1 vs level-N input texts /
   per-stage `timings` keys.
-- 1180 tests passing (1160 + 20).
+- Polish (`def66dd`):
+  - **I1**: promote `set_payload` from a `getattr`-guarded optional
+    to a first-class `BaseVectorStore` Protocol member with a
+    Qdrant implementation that delegates to qdrant-client's native
+    API. RAPTOR's back-reference path now calls `set_payload`
+    directly without the runtime `getattr` guard that silently
+    no-op'd in production.
+  - **I2**: 5 new engine-API tests (`test_raptor_engine_api.py`)
+    covering `RagEngine.build_raptor_index` runtime guards —
+    disabled, `summary_model` nulled post-init, missing
+    `vector_store`, non-SQLAlchemy `metadata_store`, default-off
+    `__init__`. Each guarded `ConfigurationError` raise site at
+    `server.py:2211-2272` was previously uncovered.
+  - **I3**: hoist `SQLAlchemyMetadataStore` import to the top of
+    `server.py`; no import cycle.
+  - **I4**: wrap empty-corpus GC in the same try/except as the
+    main-path GC so a post-swap GC failure on an empty
+    `knowledge_id` is logged-and-continued rather than raised.
+  - **I5**: replace 22-line stale comment block in
+    `_set_parent_back_references` with 3-line WHY about the
+    partial-update primitive.
+  - **I6**: batch back-ref writes by parent — one `set_payload`
+    call per summary covers all of its children with the same
+    `raptor_parent_id`. K calls per level instead of K*N (1000
+    RTTs at 50 clusters * 20 children → 50). Per-parent writes
+    run through `run_concurrent` mirroring per-cluster
+    summarisation concurrency.
+  - **M1 / M4**: remove dead `persisted_summaries_by_id` dict and
+    the dead `payload.get("_vector")` lookup (the scroll API never
+    populates it; re-embed path is unchanged).
+  - +2 `QdrantVectorStore.set_payload` mock-based tests in
+    `test_store_pool_knobs.py` asserting the client call shape and
+    the empty-input short-circuit.
 - Out of scope: `RaptorRetrieval` method (R2.3), engine wiring of
   the retrieval method (R2.3), e2e build→query tests (R2.3), the
   roadmap flip (R2.4). Lazy GC, retention, and rollback are
   explicitly out of scope for R2.
+
+Total test count: 1160 → 1187 (+27 = 20 main + 7 polish).
 
 ### 2026-04-29 R2.1 — RAPTOR config + BAML scaffold + schema + registry
 
@@ -279,7 +333,26 @@ Spec discrepancies resolved (noted here so reviewers don't chase them):
 - The R2.1 spec example used `ConfigurationError` (matching R6.1's
   harmonisation note). Followed verbatim.
 
-Total test count: 1147 → 1157.
+Polish (`97d3d4b`): closes the R2.1 review gaps so R2.2 doesn't
+have to re-discover them.
+
+- 3 new registry tests in `test_raptor_registry.py`:
+  `level_counts_json` JSON round-trip via direct `_session_factory`
+  read (regression guard against a future drift to the SQLAlchemy
+  `JSON` type or a missing `json.dumps` call — R2.2 reads this
+  column for GC and observability), `delete_record` idempotency,
+  and `get_stale_trees` orphan-row detection.
+- Clarify `RaptorTreeRegistry.get_stale_trees` docstring: the
+  registry only stores the active pointer per `knowledge_id`, so
+  this method finds orphan registry rows (kid no longer in the
+  active set), NOT historical `tree_id`s within a `knowledge_id`.
+  Vector-store-level stale-tree GC after a blue/green swap is
+  separate (R2.2's builder).
+- `builder.py` stub: rename `knowledge_id` → `_knowledge_id` to
+  use Python's idiomatic leading-underscore "intentionally unused"
+  convention; drop the `# noqa: ARG002 — stub` comment.
+
+Total test count: 1147 → 1160 (+13 = 10 main + 3 polish).
 
 ### 2026-04-29 R6.3 — Post-loop DIRECT escalation + final polish
 
