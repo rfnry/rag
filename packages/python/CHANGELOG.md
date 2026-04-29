@@ -6,6 +6,97 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### 2026-04-29 R2.2 — RAPTOR tree builder + atomic-swap rebuild
+
+Lights up the runtime core of RAPTOR-style hierarchical summarisation.
+R2.1 shipped the compile-time scaffold (config + BAML + schema +
+registry); R2.2 lands `RaptorTreeBuilder.build`, the
+`RagEngine.build_raptor_index(knowledge_id)` engine API, and the
+atomic blue/green swap with stale-tree GC. `RaptorRetrieval` (the
+read-side) and engine wiring of the retrieval method land in R2.3.
+Default-off — `RaptorConfig.enabled=False` keeps existing consumers
+byte-for-byte unchanged.
+
+- `RaptorTreeBuilder` is the runtime cluster→summarise→embed→persist
+  →recurse loop. Per level: cluster current vectors via
+  `run_clustering` (K-Means default, HDBSCAN opt-in via
+  `cluster_algorithm`), cap each cluster at
+  `MAX_CLUSTER_MEMBERS_PER_SUMMARY=20` centroid-nearest, summarise
+  each cluster concurrently via `b.SummarizeCluster` (cluster-of-one
+  shortcuts the LLM call and reuses the member text — avoids a
+  degenerate "summary of one chunk"), embed via the configured
+  `BaseEmbeddings`, persist as `vector_role="raptor_summary"` with
+  the full payload schema (`raptor_tree_id`, `raptor_level`,
+  `raptor_parent_id`, `raptor_cluster_size`, `raptor_reasoning`),
+  and back-link each child point's `raptor_parent_id` via the vector
+  store's optional `set_payload` primitive.
+- `MAX_CLUSTER_MEMBERS_PER_SUMMARY = 20` is hardcoded at module
+  scope, not a config knob — tuning past ~30 risks the summary
+  devolving into a list rather than synthesis. Bounded LLM cost per
+  call regardless of cluster size.
+- `_can_cluster_meaningfully` is the algorithm-specific termination
+  guard. K-Means: `len(current) > clusters_per_level + 1` (else
+  every cluster degenerates to ~1 member). HDBSCAN:
+  `len(current) >= 2 * min_cluster_size` (else no two clusters can
+  each meet the size floor). Either case stops the recursion rather
+  than burning LLM calls producing trivial summaries.
+- Atomic swap order: persist all summaries → `set_active` → GC.
+  Order is load-bearing: if GC raises after `set_active` succeeds,
+  the new tree is live and old summary vectors are orphans (still
+  tagged with the old `raptor_tree_id` so retrieval correctly
+  filters them out at query time). The R2.2 spec accepts this orphan
+  window; a future `gc_orphans` sweep can sweep them.
+- Drawing components (`vector_role="drawing_component"`) are
+  excluded at the leaf-load query — their text representation is
+  component-tag-style and not amenable to narrative summarisation;
+  mixing them into clusters would skew summaries.
+- Per-cluster summarisation runs concurrently through
+  `run_concurrent` with a hardcoded `_SUMMARIZE_CONCURRENCY=5`
+  (mirrors `IngestionConfig.analyze_concurrency` default — stays
+  under typical Tier-1 LLM rate limits).
+- `RagEngine.build_raptor_index(knowledge_id)` is the consumer API.
+  Lazily constructs `RaptorTreeBuilder` + `RaptorTreeRegistry` on
+  first call (mirrors R6.2's `_iterative_service` lazy-construction
+  pattern) so the default-off path doesn't pay any RAPTOR-related
+  construction cost. Validates: `raptor.enabled=True`,
+  `summary_model` configured, `vector_store` + `embeddings` +
+  `metadata_store` all present. Raises `ConfigurationError` on
+  misconfig — never silently no-ops.
+- `RaptorBuildReport` populated end-to-end:
+  `level_counts` (e.g., `[1000, 100, 11, 1]`),
+  `total_summaries`, `total_decompose_calls` (excludes
+  cluster-of-one passthroughs), `total_cost_usd` (None — the
+  `LanguageModelClient` doesn't expose pricing yet), `duration_seconds`,
+  `timings` dict with per-stage breakdown
+  (`load_leaves`, per-level `level_N_cluster` / `level_N_summarize` /
+  `level_N_embed` / `level_N_persist` / `level_N_parent_link`,
+  plus `swap`, `gc`, `gc_deleted_count`).
+- `ClusteringService` exposes only sample-bounded `Cluster` objects, not
+  raw per-input cluster labels. R2.2 routes around this by importing
+  `run_clustering` from `reasoning.modules.clustering.algorithms`
+  directly — gives raw `(labels, centroids)` without the sample-cap
+  that the higher-level service applies. Avoids extending the
+  reasoning SDK for a single-consumer need.
+- `BaseVectorStore.delete(filters)` already supports
+  payload-equality and `IN` (via list values → Qdrant `MatchAny`),
+  so no protocol extension is needed. The GC's "delete every tree
+  except the new one" is implemented as a two-step
+  scroll-then-delete (the existing filter shape supports equality /
+  `IN`, not `$ne`).
+- Tests: `test_raptor_builder.py` (+20 cases — domain-neutral
+  fixtures throughout). Coverage: enabled / summary_model / empty
+  knowledge_id / drawing skip / K-Means + HDBSCAN dispatch /
+  max_levels / K-Means + HDBSCAN termination / member cap /
+  cluster-of-one passthrough / payload schema / parent-id
+  back-references / atomic swap order / first-run no-op GC /
+  `run_concurrent` dispatch / level-1 vs level-N input texts /
+  per-stage `timings` keys.
+- 1180 tests passing (1160 + 20).
+- Out of scope: `RaptorRetrieval` method (R2.3), engine wiring of
+  the retrieval method (R2.3), e2e build→query tests (R2.3), the
+  roadmap flip (R2.4). Lazy GC, retention, and rollback are
+  explicitly out of scope for R2.
+
 ### 2026-04-29 R2.1 — RAPTOR config + BAML scaffold + schema + registry
 
 Lands the compile-time foundation for RAPTOR-style hierarchical

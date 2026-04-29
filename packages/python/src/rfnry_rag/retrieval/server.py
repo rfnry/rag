@@ -41,7 +41,10 @@ from rfnry_rag.retrieval.modules.ingestion.embeddings.sparse.base import BaseSpa
 from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.graph import GraphIngestion
+from rfnry_rag.retrieval.modules.ingestion.methods.raptor.builder import RaptorTreeBuilder
 from rfnry_rag.retrieval.modules.ingestion.methods.raptor.config import RaptorConfig
+from rfnry_rag.retrieval.modules.ingestion.methods.raptor.registry import RaptorTreeRegistry
+from rfnry_rag.retrieval.modules.ingestion.methods.raptor.report import RaptorBuildReport
 from rfnry_rag.retrieval.modules.ingestion.methods.tree import TreeIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.vector import VectorIngestion
 from rfnry_rag.retrieval.modules.ingestion.vision.base import BaseVision
@@ -607,6 +610,11 @@ class RagEngine:
         self._embedding_model_name: str = ""
         self._expansion_registry: Any = None  # Built in _initialize_impl when document_expansion is enabled
         self._answerability_registry: Any = None  # Built in _initialize_impl when mode=HYBRID
+        # R2.2: lazily constructed on the first ``build_raptor_index`` call
+        # when ``RaptorConfig.enabled=True``. Stays ``None`` otherwise so the
+        # default-off path doesn't pay any RAPTOR-related construction cost.
+        self._raptor_builder: RaptorTreeBuilder | None = None
+        self._raptor_registry: RaptorTreeRegistry | None = None
 
     @property
     def knowledge(self) -> KnowledgeManager:
@@ -1093,6 +1101,8 @@ class RagEngine:
         self._step_service = None
         self._tree_indexing_service = None
         self._tree_search_service = None
+        self._raptor_builder = None
+        self._raptor_registry = None
         self._retrieval_namespace = None
         self._ingestion_namespace = None
         self._retrieval_by_collection.clear()
@@ -2197,6 +2207,70 @@ class RagEngine:
         _validate_query_text(text)
         vectors = await self._config.ingestion.embeddings.embed([text])
         return vectors[0]
+
+    async def build_raptor_index(self, knowledge_id: str) -> RaptorBuildReport:
+        """Build a RAPTOR summary tree for ``knowledge_id`` and swap it active.
+
+        Lazy-constructs ``RaptorTreeBuilder`` on first call so the default
+        ``RaptorConfig.enabled=False`` path is byte-for-byte unchanged
+        (no service wired, no registry constructed). Validates eligibility
+        at the engine layer (config, dependencies); the builder itself
+        re-validates defensively. Returns the populated build report so
+        callers can inspect ``level_counts``, ``timings``, and the
+        ``tree_id`` without parsing logs.
+
+        Raises ``ConfigurationError`` when:
+          - ``RaptorConfig.enabled=False`` (opt-in only),
+          - ``RaptorConfig.summary_model`` is unset,
+          - the engine lacks a ``vector_store``, ``embeddings``, or
+            ``metadata_store`` (RAPTOR needs all three).
+        """
+        self._check_initialized()
+        cfg = self._config.ingestion.raptor
+        if not cfg.enabled:
+            raise ConfigurationError(
+                "build_raptor_index() requires IngestionConfig.raptor.enabled=True"
+            )
+        if cfg.summary_model is None:
+            # Defensive: ``RaptorConfig.__post_init__`` already enforces this
+            # cross-field rule, but a consumer could mutate the field after
+            # construction. Re-checking here surfaces the misconfig at the
+            # API boundary rather than as a confusing builder error.
+            raise ConfigurationError(
+                "build_raptor_index() requires RaptorConfig.summary_model to be set"
+            )
+        persistence = self._config.persistence
+        if persistence.vector_store is None:
+            raise ConfigurationError("build_raptor_index() requires a vector_store")
+        if self._config.ingestion.embeddings is None:
+            raise ConfigurationError("build_raptor_index() requires embeddings")
+        if persistence.metadata_store is None:
+            raise ConfigurationError(
+                "build_raptor_index() requires a metadata_store (for RaptorTreeRegistry)"
+            )
+        assert self._knowledge_manager is not None
+
+        # Lazy: only spin up the builder + registry once a build is actually
+        # requested. Keeps the default-off path free of RAPTOR-specific
+        # construction overhead and side effects.
+        if self._raptor_registry is None:
+            from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+
+            if not isinstance(persistence.metadata_store, SQLAlchemyMetadataStore):
+                raise ConfigurationError(
+                    "build_raptor_index() requires SQLAlchemyMetadataStore "
+                    f"(got {type(persistence.metadata_store).__name__})"
+                )
+            self._raptor_registry = RaptorTreeRegistry(persistence.metadata_store)
+        if self._raptor_builder is None:
+            self._raptor_builder = RaptorTreeBuilder(
+                config=cfg,
+                vector_store=persistence.vector_store,
+                embeddings=self._config.ingestion.embeddings,
+                registry=self._raptor_registry,
+                knowledge_manager=self._knowledge_manager,
+            )
+        return await self._raptor_builder.build(knowledge_id)
 
     async def _load_full_corpus(self, knowledge_id: str | None) -> str:
         """Concatenate every source's text under ``knowledge_id`` into one string.
