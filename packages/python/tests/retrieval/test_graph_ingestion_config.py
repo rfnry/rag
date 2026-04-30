@@ -51,23 +51,33 @@ def test_entity_type_patterns_must_be_compilable_regex() -> None:
         GraphIngestionConfig(entity_type_patterns=[(r"[invalid(regex", "type")])
 
 
-def test_nested_into_ingestion_config() -> None:
+def test_graph_config_carried_by_analyzed_method_in_ingestion_config() -> None:
+    from unittest.mock import MagicMock
+
+    from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
     from rfnry_rag.server import IngestionConfig
 
-    cfg = IngestionConfig(
-        graph=GraphIngestionConfig(
+    method = AnalyzedIngestion(
+        store=MagicMock(),
+        embeddings=MagicMock(),
+        graph_config=GraphIngestionConfig(
             entity_type_patterns=[(r"\bmotor\b", "motor")],
-        )
+        ),
     )
-    assert cfg.graph is not None
-    assert len(cfg.graph.entity_type_patterns) == 1
+    cfg = IngestionConfig(methods=[method])
+    analyzed_methods = [m for m in cfg.methods if isinstance(m, AnalyzedIngestion)]
+    assert len(analyzed_methods) == 1
+    assert analyzed_methods[0]._graph_config is not None
+    assert len(analyzed_methods[0]._graph_config.entity_type_patterns) == 1
 
 
-def test_graph_none_by_default() -> None:
-    from rfnry_rag.server import IngestionConfig
+def test_analyzed_method_graph_config_unset_by_default() -> None:
+    from unittest.mock import MagicMock
 
-    cfg = IngestionConfig()
-    assert cfg.graph is None  # opt-in
+    from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
+
+    method = AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock())
+    assert method._graph_config is None  # opt-in
 
 
 def test_registered_in_config_bounds_contract() -> None:
