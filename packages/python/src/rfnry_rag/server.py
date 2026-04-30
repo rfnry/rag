@@ -680,11 +680,7 @@ class RagEngine:
 
         analyzed_method = getattr(self, "_analyzed_method", None)
         if analyzed_method is not None:
-            analyzed_route = (
-                self._structured_ingestion is not None
-                and not drawing_route
-                and analyzed_method.accepts(file_path, source_type)
-            )
+            analyzed_route = self._structured_ingestion is not None and analyzed_method.accepts(file_path, source_type)
         else:
             analyzed_route = ext in SUPPORTED_STRUCTURED_EXTENSIONS and self._structured_ingestion is not None
         if analyzed_route:
