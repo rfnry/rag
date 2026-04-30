@@ -120,18 +120,28 @@ def test_disabled_config_skips_validation() -> None:
     assert cfg.enabled is False
 
 
-def test_nested_into_ingestion_config() -> None:
+def test_drawing_method_carries_config_into_ingestion_config() -> None:
+    from unittest.mock import MagicMock
+
     from rfnry_rag.config.drawing import DrawingIngestionConfig
+    from rfnry_rag.ingestion.methods.drawing import DrawingIngestion
     from rfnry_rag.server import IngestionConfig
 
-    cfg = IngestionConfig(drawings=DrawingIngestionConfig(enabled=True))
-    assert cfg.drawings is not None
-    assert cfg.drawings.enabled is True
-    assert cfg.drawings.dpi == 400
+    method = DrawingIngestion(
+        config=DrawingIngestionConfig(enabled=True),
+        store=MagicMock(),
+        embeddings=MagicMock(),
+    )
+    cfg = IngestionConfig(methods=[method])
+    drawing_methods = [m for m in cfg.methods if isinstance(m, DrawingIngestion)]
+    assert len(drawing_methods) == 1
+    assert drawing_methods[0]._config.enabled is True
+    assert drawing_methods[0]._config.dpi == 400
 
 
-def test_drawings_none_by_default() -> None:
+def test_ingestion_config_methods_empty_by_default() -> None:
+    from rfnry_rag.ingestion.methods.drawing import DrawingIngestion
     from rfnry_rag.server import IngestionConfig
 
     cfg = IngestionConfig()
-    assert cfg.drawings is None
+    assert [m for m in cfg.methods if isinstance(m, DrawingIngestion)] == []
