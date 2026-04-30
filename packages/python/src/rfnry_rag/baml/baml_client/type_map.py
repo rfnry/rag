@@ -46,9 +46,6 @@ type_map = {
     "types.Port": types.Port,
     "stream_types.Port": stream_types.Port,
 
-    "types.RankedChunk": types.RankedChunk,
-    "stream_types.RankedChunk": stream_types.RankedChunk,
-
     "types.RelevanceJudgment": types.RelevanceJudgment,
     "stream_types.RelevanceJudgment": stream_types.RelevanceJudgment,
 

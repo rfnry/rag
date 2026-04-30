@@ -20,7 +20,7 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(type_builder.TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["AnswerQualityJudgment","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","OffPageConnector","PageAnalysis","Port","RankedChunk","RelevanceJudgment","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries",]
+          ["AnswerQualityJudgment","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","OffPageConnector","PageAnalysis","Port","RelevanceJudgment","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries",]
         ), enums=set(
           []
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
@@ -31,7 +31,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
     # #########################################################################
-    # Generated classes 15
+    # Generated classes 14
     # #########################################################################
 
     @property
@@ -75,10 +75,6 @@ class TypeBuilder(type_builder.TypeBuilder):
         return PortViewer(self)
 
     @property
-    def RankedChunk(self) -> "RankedChunkViewer":
-        return RankedChunkViewer(self)
-
-    @property
     def RelevanceJudgment(self) -> "RelevanceJudgmentViewer":
         return RelevanceJudgmentViewer(self)
 
@@ -102,7 +98,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
 # #########################################################################
-# Generated classes 15
+# Generated classes 14
 # #########################################################################
 
 class AnswerQualityJudgmentAst:
@@ -627,53 +623,6 @@ class PortProperties:
     @property
     def position(self) -> type_builder.ClassPropertyViewer:
         return type_builder.ClassPropertyViewer(self.__bldr.property("position"))
-    
-    
-
-
-class RankedChunkAst:
-    def __init__(self, tb: type_builder.TypeBuilder):
-        _tb = tb._tb # type: ignore (we know how to use this private attribute)
-        self._bldr = _tb.class_("RankedChunk")
-        self._properties: typing.Set[str] = set([  "index",  "score",  "reasoning",  ])
-        self._props = RankedChunkProperties(self._bldr, self._properties)
-
-    def type(self) -> baml_py.FieldType:
-        return self._bldr.field()
-
-    @property
-    def props(self) -> "RankedChunkProperties":
-        return self._props
-
-
-class RankedChunkViewer(RankedChunkAst):
-    def __init__(self, tb: type_builder.TypeBuilder):
-        super().__init__(tb)
-
-    
-    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
-        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
-    
-
-
-class RankedChunkProperties:
-    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
-        self.__bldr = bldr
-        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
-
-    
-    
-    @property
-    def index(self) -> type_builder.ClassPropertyViewer:
-        return type_builder.ClassPropertyViewer(self.__bldr.property("index"))
-    
-    @property
-    def score(self) -> type_builder.ClassPropertyViewer:
-        return type_builder.ClassPropertyViewer(self.__bldr.property("score"))
-    
-    @property
-    def reasoning(self) -> type_builder.ClassPropertyViewer:
-        return type_builder.ClassPropertyViewer(self.__bldr.property("reasoning"))
     
     
 

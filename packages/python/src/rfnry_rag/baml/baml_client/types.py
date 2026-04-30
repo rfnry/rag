@@ -41,7 +41,7 @@ def all_succeeded(checks: typing.Dict[CheckName, Check]) -> bool:
 # #########################################################################
 
 # #########################################################################
-# Generated classes (15)
+# Generated classes (14)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -107,11 +107,6 @@ class PageAnalysis(BaseModel):
 class Port(BaseModel):
     port_id: str = Field(description='label or index of the port')
     position: typing.Optional[typing.List[int]] = Field(default=None, description='[x, y] in page pixel coords, optional')
-
-class RankedChunk(BaseModel):
-    index: int
-    score: float
-    reasoning: typing.Optional[str] = None
 
 class RelevanceJudgment(BaseModel):
     relevant: bool

@@ -187,21 +187,6 @@ class BamlAsyncClient:
                 "query": query,"prediction": prediction,"reference": reference,
             })
             return typing.cast(types.AnswerQualityJudgment, __result__.cast_to(types, types, stream_types, False, __runtime__))
-    async def RerankChunks(self, query: str,passages: str,
-        baml_options: BamlCallOptions = {},
-    ) -> typing.List["types.RankedChunk"]:
-        # Check if on_tick is provided
-        if 'on_tick' in baml_options:
-            # Use streaming internally when on_tick is provided
-            __stream__ = self.stream.RerankChunks(query=query,passages=passages,
-                baml_options=baml_options)
-            return await __stream__.get_final_response()
-        else:
-            # Original non-streaming code
-            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="RerankChunks", args={
-                "query": query,"passages": passages,
-            })
-            return typing.cast(typing.List["types.RankedChunk"], __result__.cast_to(types, types, stream_types, False, __runtime__))
     async def SynthesizeDocument(self, page_analyses: str,
         baml_options: BamlCallOptions = {},
     ) -> types.DocumentSynthesis:
@@ -310,18 +295,6 @@ class BamlStreamClient:
           lambda x: typing.cast(types.AnswerQualityJudgment, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
-    def RerankChunks(self, query: str,passages: str,
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.BamlStream[typing.List["stream_types.RankedChunk"], typing.List["types.RankedChunk"]]:
-        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="RerankChunks", args={
-            "query": query,"passages": passages,
-        })
-        return baml_py.BamlStream[typing.List["stream_types.RankedChunk"], typing.List["types.RankedChunk"]](
-          __result__,
-          lambda x: typing.cast(typing.List["stream_types.RankedChunk"], x.cast_to(types, types, stream_types, True, __runtime__)),
-          lambda x: typing.cast(typing.List["types.RankedChunk"], x.cast_to(types, types, stream_types, False, __runtime__)),
-          __ctx__,
-        )
     def SynthesizeDocument(self, page_analyses: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlStream[stream_types.DocumentSynthesis, types.DocumentSynthesis]:
@@ -391,13 +364,6 @@ class BamlHttpRequestClient:
             "query": query,"prediction": prediction,"reference": reference,
         }, mode="request")
         return __result__
-    async def RerankChunks(self, query: str,passages: str,
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.baml_py.HTTPRequest:
-        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="RerankChunks", args={
-            "query": query,"passages": passages,
-        }, mode="request")
-        return __result__
     async def SynthesizeDocument(self, page_analyses: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
@@ -460,13 +426,6 @@ class BamlHttpStreamRequestClient:
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="JudgeAnswerQuality", args={
             "query": query,"prediction": prediction,"reference": reference,
-        }, mode="stream")
-        return __result__
-    async def RerankChunks(self, query: str,passages: str,
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.baml_py.HTTPRequest:
-        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="RerankChunks", args={
-            "query": query,"passages": passages,
         }, mode="stream")
         return __result__
     async def SynthesizeDocument(self, page_analyses: str,

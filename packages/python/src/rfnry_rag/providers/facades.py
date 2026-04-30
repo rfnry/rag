@@ -9,10 +9,8 @@ from rfnry_rag.ingestion.vision.anthropic import _AnthropicVision
 from rfnry_rag.ingestion.vision.gemini import _GeminiVision
 from rfnry_rag.ingestion.vision.openai import _OpenAIVision
 from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.providers.client import LanguageModelClient
 from rfnry_rag.providers.provider import LanguageModelProvider
 from rfnry_rag.retrieval.search.reranking.cohere import _CohereReranking
-from rfnry_rag.retrieval.search.reranking.llm import _LLMReranking
 from rfnry_rag.retrieval.search.reranking.voyage import _VoyageReranking
 
 _DEDICATED_RERANKER_PROVIDERS = {"cohere", "voyage"}
@@ -78,22 +76,17 @@ class Vision:
 
 
 class Reranking:
-    """Unified reranker facade.
+    """Reranker facade dispatching to a dedicated provider API (Cohere or Voyage)."""
 
-    Accepts either a LanguageModelProvider (dispatches to a dedicated reranker API —
-    Cohere or Voyage) or a LanguageModelClient (dispatches to LLM-as-reranker via BAML).
-    """
-
-    def __init__(self, config: LanguageModelProvider | LanguageModelClient) -> None:
-        if isinstance(config, LanguageModelClient):
-            self._impl: _LLMReranking | _CohereReranking | _VoyageReranking = _LLMReranking(config)
-        else:
-            if config.provider not in _DEDICATED_RERANKER_PROVIDERS:
-                raise ConfigurationError(
-                    f"Provider {config.provider!r} has no dedicated reranker API. "
-                    f"Wrap it in LanguageModelClient to use LLM-as-reranker."
-                )
-            self._impl = _CohereReranking(config) if config.provider == "cohere" else _VoyageReranking(config)
+    def __init__(self, provider: LanguageModelProvider) -> None:
+        if provider.provider not in _DEDICATED_RERANKER_PROVIDERS:
+            raise ConfigurationError(
+                f"Provider {provider.provider!r} has no dedicated reranker API. "
+                f"Supported: {', '.join(sorted(_DEDICATED_RERANKER_PROVIDERS))}."
+            )
+        self._impl: _CohereReranking | _VoyageReranking = (
+            _CohereReranking(provider) if provider.provider == "cohere" else _VoyageReranking(provider)
+        )
 
     async def rerank(self, query: str, results: list[RetrievedChunk], top_k: int = 5) -> list[RetrievedChunk]:
         return await self._impl.rerank(query, results, top_k)
