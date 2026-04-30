@@ -9,6 +9,7 @@ from typing import Any
 
 from rank_bm25 import BM25Okapi
 
+from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
 from rfnry_rag.logging import get_logger
@@ -45,9 +46,16 @@ class VectorRetrieval:
         bm25_max_indexes: int = 16,
         bm25_max_chunks: int = 50_000,
         bm25_tokenizer: Callable[[str], list[str]] | None = None,
-        weight: float = 1.0,
-        top_k: int | None = None,
+        weight: float = 1.0,  # unbounded: caller-tuned RRF weight; downstream fusion handles outliers
+        top_k: int | None = None,  # unbounded: soft override of RetrievalConfig.top_k
     ) -> None:
+        if not (1 <= bm25_max_indexes <= 1000):
+            raise ConfigurationError(f"VectorRetrieval.bm25_max_indexes={bm25_max_indexes} out of range [1, 1000]")
+        if bm25_max_chunks > 200_000:
+            raise ConfigurationError(
+                f"VectorRetrieval.bm25_max_chunks={bm25_max_chunks} out of range [, 200_000] — "
+                "in-memory BM25 index at that size risks OOM; use sparse_embeddings instead"
+            )
         self._store = store
         self._embeddings = embeddings
         self._sparse = sparse_embeddings

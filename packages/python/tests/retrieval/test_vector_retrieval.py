@@ -1,6 +1,9 @@
 import re
 from unittest.mock import AsyncMock
 
+import pytest
+
+from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.models import SparseVector, VectorResult
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 
@@ -205,3 +208,19 @@ async def test_custom_bm25_tokenizer():
     )
     await method.search(query="1756-EN2T", top_k=5)
     assert len(call_log) > 0
+
+
+def test_bm25_max_indexes_bounds() -> None:
+    store = AsyncMock()
+    embeddings = AsyncMock()
+    with pytest.raises(ConfigurationError, match="bm25_max_indexes"):
+        VectorRetrieval(store=store, embeddings=embeddings, bm25_max_indexes=0)
+    with pytest.raises(ConfigurationError, match="bm25_max_indexes"):
+        VectorRetrieval(store=store, embeddings=embeddings, bm25_max_indexes=1001)
+
+
+def test_bm25_max_chunks_bounds() -> None:
+    store = AsyncMock()
+    embeddings = AsyncMock()
+    with pytest.raises(ConfigurationError, match="bm25_max_chunks"):
+        VectorRetrieval(store=store, embeddings=embeddings, bm25_max_chunks=200_001)

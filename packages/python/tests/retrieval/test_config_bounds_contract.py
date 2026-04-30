@@ -20,6 +20,7 @@ from rfnry_rag.ingestion.chunk.batch import BatchConfig
 from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
 from rfnry_rag.observability.benchmark import BenchmarkConfig
 from rfnry_rag.providers import LanguageModelClient, LanguageModelProvider
+from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.server import (
     DocumentExpansionConfig,
     GenerationConfig,
@@ -47,6 +48,7 @@ _CONFIGS_TO_AUDIT: list[type] = [
 # ``dataclasses.fields()`` does not reach them.
 _INIT_PARAM_BOUNDED_CLASSES: list[type] = [
     AnalyzedIngestion,
+    VectorRetrieval,
 ]
 
 
