@@ -5,8 +5,7 @@ patterns, relation-type vocabulary, fuzzy-matching thresholds) is consumer-
 configurable. The SDK ships sensible defaults (IEC 60617 electrical + ISA 5.1
 P&ID) but every knob is overridable.
 
-Nested into ``IngestionConfig.drawings`` (see ``rfnry_rag.server``);
-defaults to ``None`` so existing configs remain untouched.
+Passed as the ``config=`` argument to ``DrawingIngestion``.
 """
 
 from __future__ import annotations

@@ -698,8 +698,8 @@ def _deserialize_analysis(data: dict[str, Any]) -> PageAnalysis:
         annotations=data.get("annotations", []),
         page_type=data.get("page_type", ""),
         metadata=data.get("metadata", {}),
-        raw_text=data.get("raw_text", ""),  # back-compat: older persisted sources lack this field
-        page_hash=data.get("page_hash", ""),  # back-compat: older persisted sources lack this field
+        raw_text=data.get("raw_text", ""),
+        page_hash=data.get("page_hash", ""),
     )
 
 
