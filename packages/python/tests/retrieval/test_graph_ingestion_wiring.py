@@ -1,4 +1,4 @@
-"""Wiring: IngestionConfig.graph flows through to the mapper via both services."""
+"""Wiring: graph_config flows through to the mapper via both services."""
 
 from __future__ import annotations
 
