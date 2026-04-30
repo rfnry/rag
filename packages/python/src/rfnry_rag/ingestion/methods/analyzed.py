@@ -30,7 +30,7 @@ class AnalyzedIngestion:
         graph_store: BaseGraphStore | None = None,
         metadata_store: BaseMetadataStore | None = None,
         embedding_model_name: str = "",
-        dpi: int = 300,
+        dpi: int = 300,  # unbounded: passed straight to pdf2image; the renderer rejects pathological values
         analyze_text_skip_threshold_chars: int = 300,
         analyze_concurrency: int = 5,
         graph_config: GraphIngestionConfig | None = None,
