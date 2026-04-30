@@ -85,11 +85,9 @@ class _MinimalEngine:
         **_kwargs: Any,
     ) -> Source:
         """Status-based resume across the 3-phase pipeline (mirrors server.py logic)."""
-        from rfnry_rag.server import SUPPORTED_STRUCTURED_EXTENSIONS
-
         fp = Path(file_path)
         ext = fp.suffix.lower()
-        if ext not in SUPPORTED_STRUCTURED_EXTENSIONS:
+        if ext not in {".xml", ".l5x"}:
             raise ValueError(f"unsupported extension for structured ingestion: {ext}")
 
         # Compute file_hash via asyncio.to_thread (same pattern as server.py).

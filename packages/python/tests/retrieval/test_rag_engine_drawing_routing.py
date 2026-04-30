@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -13,19 +14,25 @@ from rfnry_rag.config.engine import RagEngineConfig
 from rfnry_rag.config.ingestion import IngestionConfig
 from rfnry_rag.config.retrieval import RetrievalConfig
 from rfnry_rag.exceptions import ConfigurationError
+from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
 from rfnry_rag.ingestion.methods.drawing import DrawingIngestion
 from rfnry_rag.ingestion.methods.vector import VectorIngestion
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
-from rfnry_rag.server import SUPPORTED_DRAWING_EXTENSIONS, RagEngine
+from rfnry_rag.server import RagEngine
 
 
 def test_drawing_extensions_allowlist_is_dxf_only() -> None:
     """Only .dxf auto-routes to drawing; .pdf is tiebroken via source_type='drawing'."""
-    assert ".dxf" in SUPPORTED_DRAWING_EXTENSIONS
-    assert ".pdf" not in SUPPORTED_DRAWING_EXTENSIONS
-    from rfnry_rag.server import SUPPORTED_STRUCTURED_EXTENSIONS
+    drawing = DrawingIngestion(config=DrawingIngestionConfig(), store=MagicMock(), embeddings=MagicMock())
+    assert drawing.accepts(Path("x.dxf"), None) is True
+    assert drawing.accepts(Path("x.pdf"), None) is False
+    assert drawing.accepts(Path("x.pdf"), "drawing") is True
 
-    assert {".xml", ".l5x"} == SUPPORTED_STRUCTURED_EXTENSIONS
+    analyzed = AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock())
+    assert analyzed.accepts(Path("x.xml"), None) is True
+    assert analyzed.accepts(Path("x.l5x"), None) is True
+    assert analyzed.accepts(Path("x.pdf"), None) is True
+    assert analyzed.accepts(Path("x.txt"), None) is False
 
 
 def test_engine_exposes_stepped_drawing_methods() -> None:

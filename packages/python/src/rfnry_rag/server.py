@@ -56,9 +56,6 @@ from rfnry_rag.stores.vector.base import BaseVectorStore
 
 logger = get_logger("server")
 
-SUPPORTED_STRUCTURED_EXTENSIONS = {".xml", ".l5x"}
-SUPPORTED_DRAWING_EXTENSIONS = {".dxf"}  # .pdf is tiebroken via source_type="drawing"
-
 # Size guards on user-supplied inputs. These prevent monetary-DoS (huge query
 # sent to every embedding provider) and OOM (unbounded text or metadata). The
 # values are conservative but configurable via construction arguments.
