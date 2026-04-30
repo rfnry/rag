@@ -28,7 +28,9 @@ from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
 from rfnry_rag.ingestion.hashing import file_hash as compute_file_hash
+from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
 from rfnry_rag.ingestion.methods.document import DocumentIngestion
+from rfnry_rag.ingestion.methods.drawing import DrawingIngestion
 from rfnry_rag.ingestion.methods.graph import GraphIngestion
 from rfnry_rag.ingestion.methods.vector import VectorIngestion
 from rfnry_rag.knowledge.manager import KnowledgeManager
@@ -206,6 +208,8 @@ class RagEngine:
         self._ingestion_service: IngestionService | None = None
         self._structured_ingestion: AnalyzedIngestionService | None = None
         self._drawing_ingestion: DrawingIngestionService | None = None
+        self._analyzed_method: AnalyzedIngestion | None = None
+        self._drawing_method: DrawingIngestion | None = None
         self._retrieval_service: RetrievalService | None = None
         self._structured_retrieval: StructuredRetrievalService | None = None
         self._generation_service: GenerationService | None = None
@@ -324,12 +328,29 @@ class RagEngine:
         ingestion_methods: list[Any] = list(ingestion.methods)
         retrieval_methods: list[Any] = list(retrieval.methods)
 
+        # standard_methods drives the regular IngestionService chunked dispatch
+        # AND serves as delegate_methods for the analyzed pipeline's phase-3
+        # fan-out. Excluding the phased wrappers prevents double-running them
+        # on plain ingest paths.
+        standard_methods: list[Any] = [
+            m for m in ingestion_methods if not isinstance(m, AnalyzedIngestion | DrawingIngestion)
+        ]
+
         # Vector store init: ask the first VectorIngestion/VectorRetrieval method
         # for its embedding dimension and pre-create the store collection.
-        if self._vector_store is not None and ingestion.embeddings is not None:
-            vector_size = await ingestion.embeddings.embedding_dimension()
+        # Prefer the legacy ingestion.embeddings field when set; otherwise pull
+        # from any method exposing ``_embeddings`` (covers the methods-list path
+        # for both standard and phased wrappers).
+        embeddings_for_dim: BaseEmbeddings | None = ingestion.embeddings
+        if embeddings_for_dim is None:
+            embeddings_for_dim = next(
+                (m._embeddings for m in ingestion_methods if hasattr(m, "_embeddings")),
+                None,
+            )
+        if self._vector_store is not None and embeddings_for_dim is not None:
+            vector_size = await embeddings_for_dim.embedding_dimension()
             await self._vector_store.initialize(vector_size)
-            self._embedding_model_name = _derive_embedding_model_name(ingestion.embeddings)
+            self._embedding_model_name = _derive_embedding_model_name(embeddings_for_dim)
 
         # Chunker
         self._chunker = SemanticChunker(
@@ -364,7 +385,7 @@ class RagEngine:
         # Build services
         self._ingestion_service = IngestionService(
             chunker=self._chunker,
-            ingestion_methods=ingestion_methods,
+            ingestion_methods=standard_methods,
             embedding_model_name=self._embedding_model_name,
             source_type_weights=retrieval.source_type_weights,
             metadata_store=metadata_store,
@@ -375,9 +396,31 @@ class RagEngine:
             expansion_registry=self._expansion_registry,
         )
 
-        # Analyzed ingestion — shares document method from main list, graph store passed directly
-        if metadata_store and self._vector_store and ingestion.embeddings:
-            analyzed_methods = [m for m in ingestion_methods if isinstance(m, DocumentIngestion)]
+        # Phased pipelines: prefer the method-list path; fall back to the legacy
+        # IngestionConfig fields until B2/B3 migrations land. The fallback
+        # branches are transitional and removed in C1.
+        analyzed_method = next((m for m in ingestion_methods if isinstance(m, AnalyzedIngestion)), None)
+        drawing_method = next((m for m in ingestion_methods if isinstance(m, DrawingIngestion)), None)
+
+        if analyzed_method is not None and metadata_store is not None:
+            document_delegates = [m for m in standard_methods if isinstance(m, DocumentIngestion)]
+            if not document_delegates:
+                logger.warning(
+                    "AnalyzedIngestion configured but no DocumentIngestion in methods — "
+                    "phase 3 will skip document storage"
+                )
+            analyzed_method.bind(
+                metadata_store=metadata_store,
+                delegate_methods=document_delegates,
+                on_ingestion_complete=self._on_ingestion_complete,
+                source_type_weights=retrieval.source_type_weights or {},
+            )
+            self._structured_ingestion = analyzed_method._service_ref()
+            self._analyzed_method = analyzed_method
+            if analyzed_method._vision is None:
+                logger.warning("no vision provider on AnalyzedIngestion — structured PDF analysis disabled")
+        elif metadata_store and self._vector_store and ingestion.embeddings:
+            analyzed_methods = [m for m in standard_methods if isinstance(m, DocumentIngestion)]
             if not analyzed_methods:
                 logger.warning(
                     "structured ingestion enabled but no DocumentIngestion configured — "
@@ -403,9 +446,15 @@ class RagEngine:
             if not ingestion.vision:
                 logger.warning("no vision provider — structured PDF analysis disabled")
 
-        # Drawing ingestion — sibling of structured. Enabled only if the consumer
-        # explicitly configures IngestionConfig.drawings (opt-in).
-        if ingestion.drawings is not None and ingestion.drawings.enabled:
+        if drawing_method is not None and metadata_store is not None:
+            drawing_method.bind(
+                metadata_store=metadata_store,
+                delegate_methods=list(standard_methods),
+            )
+            self._drawing_ingestion = drawing_method._service_ref()
+            self._drawing_method = drawing_method
+            logger.info("drawing ingestion: enabled (via DrawingIngestion method)")
+        elif ingestion.drawings is not None and ingestion.drawings.enabled:
             if metadata_store is None or self._vector_store is None:
                 raise ConfigurationError(
                     "DrawingIngestionConfig.enabled=True requires metadata_store and a vector store"
@@ -419,7 +468,7 @@ class RagEngine:
                 metadata_store=metadata_store,
                 embedding_model_name=self._embedding_model_name,
                 graph_store=self._graph_store,
-                ingestion_methods=list(ingestion_methods),
+                ingestion_methods=list(standard_methods),
             )
             logger.info("drawing ingestion: enabled")
 
@@ -547,6 +596,8 @@ class RagEngine:
         self._ingestion_service = None
         self._structured_ingestion = None
         self._drawing_ingestion = None
+        self._analyzed_method = None
+        self._drawing_method = None
         self._retrieval_service = None
         self._structured_retrieval = None
         self._generation_service = None
@@ -583,8 +634,14 @@ class RagEngine:
         file_path = Path(file_path)
         ext = file_path.suffix.lower()
 
-        # Drawing route: .dxf always; .pdf only when source_type='drawing'.
-        drawing_route = ext in SUPPORTED_DRAWING_EXTENSIONS or (ext == ".pdf" and source_type == "drawing")
+        # Drawing route: when a DrawingIngestion method is configured, defer to
+        # its ``accepts()``; otherwise fall back to the legacy extension-set
+        # check (.dxf always; .pdf only with source_type='drawing').
+        drawing_method = getattr(self, "_drawing_method", None)
+        if drawing_method is not None:
+            drawing_route = drawing_method.accepts(file_path, source_type)
+        else:
+            drawing_route = ext in SUPPORTED_DRAWING_EXTENSIONS or (ext == ".pdf" and source_type == "drawing")
         if drawing_route:
             if self._drawing_ingestion is None:
                 raise ValueError(
@@ -621,7 +678,17 @@ class RagEngine:
                 source = await self._drawing_ingestion.ingest(source.source_id)
             return source
 
-        if ext in SUPPORTED_STRUCTURED_EXTENSIONS and self._structured_ingestion:
+        analyzed_method = getattr(self, "_analyzed_method", None)
+        if analyzed_method is not None:
+            analyzed_route = (
+                self._structured_ingestion is not None
+                and not drawing_route
+                and analyzed_method.accepts(file_path, source_type)
+            )
+        else:
+            analyzed_route = ext in SUPPORTED_STRUCTURED_EXTENSIONS and self._structured_ingestion is not None
+        if analyzed_route:
+            assert self._structured_ingestion is not None
             if collection is not None:
                 raise ValueError(
                     f"structured ingestion does not support collection routing "
