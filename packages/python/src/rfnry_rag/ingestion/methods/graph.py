@@ -85,7 +85,6 @@ class GraphIngestion:
                 logger.info("no entities found in %.1fms", elapsed)
                 return
 
-            # Convert BAML output to internal model
             analysis = PageAnalysis(
                 page_number=1,
                 description=result.description,
@@ -103,7 +102,6 @@ class GraphIngestion:
                 page_type=result.page_type or "text",
             )
 
-            # Reuse existing mapper
             graph_entities = page_entities_to_graph(analysis, source_id, self._graph_config)
 
             await self._store.add_entities(
