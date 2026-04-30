@@ -89,6 +89,7 @@ src/rfnry_rag/
 
 `RagEngine.query()` runs:
 
+0. **Index-time enrichment** (ingestion-side, not query-time). Chunks may be enriched at ingest time via `chunk_context_headers` (structural template), `DocumentExpansionConfig` (synthetic queries via LLM), and `ContextualChunkConfig` (Anthropic Contextual Retrieval — situating context via LLM, prepended into `contextualized` text used for embedding/BM25). Composes orthogonally; consumers opt in.
 1. **Routing.** `RoutingConfig.mode` selects between `INDEXED` (the standard pipeline below), `FULL_CONTEXT` (load the corpus into a prompt-cached prefix, skip retrieval), and `AUTO` (per-query corpus-token threshold dispatches between the two via `KnowledgeManager.get_corpus_tokens`).
 2. **Multi-path retrieval.** Configured methods run concurrently; results merge via reciprocal rank fusion with per-method weights:
    - `VectorRetrieval` — dense + BM25 fused internally.
@@ -212,6 +213,9 @@ These act as regression guards — they enforce whole-class invariants:
 - `IngestionConfig.chunk_size_unit`: `Literal["chars", "tokens"]`, default `"tokens"`. Default `chunk_size=375` tokens, `chunk_overlap=40`.
 - `IngestionConfig.parent_chunk_size`: sentinel `-1` (default) resolves to `3 * chunk_size`; explicit `0` disables parent-child indexing.
 - `IngestionConfig.document_expansion`: nested `DocumentExpansionConfig`. Defaults disabled. When `enabled=True`, `lm_client` is required.
+- `IngestionConfig.contextual_chunk`: nested `ContextualChunkConfig`. Defaults disabled. When `enabled=True`, `lm_client` is required.
+- `ContextualChunkConfig.concurrency`: `1 ≤ n ≤ 100`, default 5.
+- `ContextualChunkConfig.max_context_tokens`: `10 ≤ n ≤ 500`, default 100.
 - `AnalyzedIngestion.dpi`: `72 ≤ dpi ≤ 600`, default 300.
 - `AnalyzedIngestion.analyze_concurrency`: `1 ≤ n ≤ 100`, default 5.
 - `AnalyzedIngestion.analyze_text_skip_threshold_chars`: `0 ≤ n ≤ 100_000`, default 300.

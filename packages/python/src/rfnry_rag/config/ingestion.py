@@ -43,6 +43,43 @@ class DocumentExpansionConfig:
 
 
 @dataclass
+class ContextualChunkConfig:
+    """Opt-in LLM-generated situating context per chunk at index time.
+
+    Anthropic's "Contextual Retrieval" recipe: each chunk gets a 50–100
+    token blob explaining its role in the source document, prepended
+    before embedding/BM25. Reduces retrieval failures 35–67% vs
+    structural-header-only chunking on Anthropic's reported corpora.
+
+    Defaults are disabled and ``lm_client`` is None — consumers must opt
+    in. Native SDK dispatch (no BAML); ``lm_client`` carries credentials,
+    retries, timeout, temperature.
+    """
+
+    enabled: bool = False
+    lm_client: LanguageModelClient | None = None
+    concurrency: int = 5
+    max_context_tokens: int = 100
+    include_in_embeddings: bool = True
+    include_in_bm25: bool = True
+
+    def __post_init__(self) -> None:
+        if not (1 <= self.concurrency <= 100):
+            raise ConfigurationError(
+                f"ContextualChunkConfig.concurrency={self.concurrency} out of range [1, 100]"
+            )
+        if not (10 <= self.max_context_tokens <= 500):
+            raise ConfigurationError(
+                f"ContextualChunkConfig.max_context_tokens={self.max_context_tokens} out of range [10, 500]"
+            )
+        if self.enabled and self.lm_client is None:
+            raise ConfigurationError(
+                "ContextualChunkConfig.enabled=True requires lm_client — provide a LanguageModelClient "
+                "(no opinionated default model; consumer chooses)."
+            )
+
+
+@dataclass
 class IngestionConfig:
     methods: list[BaseIngestionMethod | PhasedIngestionMethod] = field(default_factory=list)
     chunk_size: int = 375
@@ -52,6 +89,7 @@ class IngestionConfig:
     parent_chunk_overlap: int = 200
     chunk_context_headers: bool = True
     document_expansion: DocumentExpansionConfig = field(default_factory=lambda: DocumentExpansionConfig())
+    contextual_chunk: ContextualChunkConfig = field(default_factory=lambda: ContextualChunkConfig())
 
     def __post_init__(self) -> None:
         if self.chunk_size_unit not in ("chars", "tokens"):

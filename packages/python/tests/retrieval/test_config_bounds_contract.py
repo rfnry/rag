@@ -15,6 +15,7 @@ from dataclasses import fields
 from typing import Any
 
 from rfnry_rag.config import (
+    ContextualChunkConfig,
     DocumentExpansionConfig,
     GenerationConfig,
     IngestionConfig,
@@ -38,6 +39,7 @@ _CONFIGS_TO_AUDIT: list[type] = [
     LanguageModelClient,
     LanguageModel,
     BatchConfig,
+    ContextualChunkConfig,
     DocumentExpansionConfig,
     BenchmarkConfig,
     RoutingConfig,

@@ -23,6 +23,7 @@ class ChunkedContent:
     chunk_type: Literal["child", "parent"] = "child"
     was_hard_split: bool = False
     synthetic_queries: list[str] = field(default_factory=list)
+    situating_context: str = ""
 
     @property
     def embedding_text(self) -> str:
