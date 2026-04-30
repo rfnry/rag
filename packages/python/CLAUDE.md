@@ -90,13 +90,12 @@ src/rfnry_rag/
 `RagEngine.query()` runs:
 
 1. **Routing.** `RoutingConfig.mode` selects between `INDEXED` (the standard pipeline below), `FULL_CONTEXT` (load the corpus into a prompt-cached prefix, skip retrieval), and `AUTO` (per-query corpus-token threshold dispatches between the two via `KnowledgeManager.get_corpus_tokens`).
-2. **Query rewriting** (optional, single strategy: multi-query). Configured via `RetrievalConfig.query_rewriter`.
-3. **Multi-path retrieval.** Configured methods run concurrently; results merge via reciprocal rank fusion with per-method weights:
+2. **Multi-path retrieval.** Configured methods run concurrently; results merge via reciprocal rank fusion with per-method weights:
    - `VectorRetrieval` — dense + BM25 fused internally.
    - `DocumentRetrieval` — Postgres FTS + substring (requires document store).
    - `GraphRetrieval` — entity lookup + N-hop traversal (requires graph store).
-4. **Reranking** (optional). Cross-encoder against the original query (Cohere, Voyage).
-5. **Generation.** Grounding gate → context assembly via `chunks_to_context()` (`SCORE_DESCENDING` default; `PRIMACY_RECENCY` and `SANDWICH` opt-in) → LLM generation.
+3. **Reranking** (optional). Cross-encoder against the original query (Cohere, Voyage).
+4. **Generation.** Grounding gate → context assembly via `chunks_to_context()` (`SCORE_DESCENDING` default; `PRIMACY_RECENCY` and `SANDWICH` opt-in) → LLM generation.
 
 Methods carry `weight` and `top_k` configuration. Per-method error isolation: catch, log, continue. Failure of one path does not break others.
 
@@ -154,9 +153,32 @@ All LLM calls go through BAML for structured output parsing, retry/fallback, and
 
 `LanguageModelClient` (in `providers/client.py`) builds a BAML `ClientRegistry` with primary + optional fallback provider routing. `LanguageModelProvider` (in `providers/provider.py`) configures a single endpoint (API key, base URL, model). Facades (`Embeddings`, `Vision`, `Reranking` in `providers/facades.py`) dispatch to the correct backend at runtime based on the configured provider.
 
+### When to use BAML for a new feature
+
+BAML's value is **structured-output parsing** with primary/fallback routing. After the 2026-04 prune the SDK keeps only 7 BAML functions, all substrate-only (vision extraction, entity extraction, index-time synthetic-query generation, answer-quality judging, relevance gating, cross-page synthesis).
+
+Before adding a new BAML function, answer all 5. **Two or more "no" → don't use BAML.**
+
+1. **Does the caller need a typed object, not a string?** If the consumer immediately stringifies the output or treats it as free text, BAML's structured-output value is wasted. *Substrate check: does code downstream of the call read named fields?*
+
+2. **Is the schema a system boundary?** Does the parsed output flow into a store / index / mapper that requires specific shapes (`DiscoveredEntity`, `DetectedComponent`, `AnswerQualityJudgment`)? *If the schema only exists to feed the next prompt, it's not a boundary — just emit text.*
+
+3. **Will the caller get *more* useful as the model improves?** If better reasoning makes the call redundant (e.g. "decide if we should retrieve" vanishes when the model handles irrelevant context natively), it fails the substrate test from this file's "Pre-change checklist" and the BAML wrapping is a deprecation magnet.
+
+4. **Does the value justify the friction tax?** Adding a BAML function means: a `.baml` source file, a `poe baml:generate` regen step, a `baml_client/` diff, a `ClientRegistry` plumbing call, and three contract tests touching it. *For one-off structured output, native SDK JSON-mode or tool calling may be lighter.*
+
+5. **Is this index-time augmentation, not query-time decision-making?** Index-time use (chunk expansion, entity extraction, vision OCR) compounds with model improvement. Query-time LLM-as-router/classifier/decomposer competes with the model. *Index-time → BAML is fine. Query-time → suspect.*
+
+**Decision rule:**
+- Five yeses → use BAML.
+- One no on #4 only → use BAML, but consider native JSON-mode first.
+- Two or more nos → don't use BAML. Either skip the structured shape (return text), or make it a Python-side regex / dataclass parse.
+
+**Removed BAML functions (do not add back without satisfying the checklist):** `JudgeRetrievalNecessity`, `GenerateReasoningStep`, `CompressRetrievedContext`, `AnalyzeQuery`, `GenerateQueryVariants`, `RerankChunks`, `GenerateAnswer` (replaced by native `LanguageModelClient.generate_text`). See `docs/plans/2026-04-30-baml-prune.md` for the per-function 7-question rationale.
+
 ## Key patterns
 
-- **Protocol-based abstraction.** No inheritance; `Protocol` classes define interfaces (`BaseEmbeddings`, `BaseRetrievalMethod`, `BaseIngestionMethod`, `BaseQueryRewriting`, etc.). Any conforming object works.
+- **Protocol-based abstraction.** No inheritance; `Protocol` classes define interfaces (`BaseEmbeddings`, `BaseRetrievalMethod`, `BaseIngestionMethod`, `BaseReranking`, etc.). Any conforming object works.
 - **Facade pattern.** `Embeddings(LanguageModelProvider)`, `Vision(LanguageModelProvider)`, `Reranking(LanguageModelProvider | LanguageModelClient)` are public facades that select the correct private provider implementation at runtime.
 - **Modular pipeline.** Services receive `list[BaseRetrievalMethod]` / `list[BaseIngestionMethod]` and dispatch generically. Per-method error isolation.
 - **Async-first.** All I/O is async. Services use `async def`; stores use asyncpg / aiosqlite.
