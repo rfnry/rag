@@ -322,7 +322,7 @@ class QueryMode(Enum):
 
     `RETRIEVAL` runs the standard indexed pipeline. `DIRECT` skips retrieval
     and loads the full corpus into a prompt-cached prefix. `AUTO` dispatches
-    between the two based on `direct_context_threshold` versus corpus tokens.
+    between the two based on `full_context_threshold` versus corpus tokens.
     """
 
     RETRIEVAL = "retrieval"
@@ -337,13 +337,12 @@ class RoutingConfig:
     transparently."""
 
     mode: QueryMode = QueryMode.RETRIEVAL
-    direct_context_threshold: int = 150_000
+    full_context_threshold: int = 150_000
 
     def __post_init__(self) -> None:
-        if not (1_000 <= self.direct_context_threshold <= 2_000_000):
+        if not (1_000 <= self.full_context_threshold <= 2_000_000):
             raise ConfigurationError(
-                f"RoutingConfig.direct_context_threshold={self.direct_context_threshold} "
-                "out of range [1_000, 2_000_000]"
+                f"RoutingConfig.full_context_threshold={self.full_context_threshold} out of range [1_000, 2_000_000]"
             )
 
 
@@ -1046,7 +1045,7 @@ class RagEngine:
         RETRIEVAL (default) runs retrieve-then-generate. DIRECT loads the
         entire corpus into the prompt and skips retrieval. AUTO picks
         DIRECT or RETRIEVAL per query based on corpus size
-        (`RoutingConfig.direct_context_threshold`).
+        (`RoutingConfig.full_context_threshold`).
         """
         self._check_initialized()
         _validate_query_text(text)
@@ -1152,7 +1151,7 @@ class RagEngine:
         """AUTO: pick DIRECT or RETRIEVAL per query based on corpus token count."""
         assert self._knowledge_manager is not None
         tokens = await self._knowledge_manager.get_corpus_tokens(knowledge_id)
-        threshold = self._config.routing.direct_context_threshold
+        threshold = self._config.routing.full_context_threshold
 
         if tokens <= threshold:
             logger.info("auto routing: tokens=%d threshold=%d → DIRECT", tokens, threshold)

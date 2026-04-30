@@ -27,16 +27,16 @@ def test_routing_config_default_mode_is_retrieval() -> None:
     assert config.mode == QueryMode.RETRIEVAL
 
 
-def test_routing_config_direct_context_threshold_bounded() -> None:
-    """`direct_context_threshold` bounded `1_000 ≤ n ≤ 2_000_000`."""
+def test_routing_config_full_context_threshold_bounded() -> None:
+    """`full_context_threshold` bounded `1_000 ≤ n ≤ 2_000_000`."""
     with pytest.raises(ConfigurationError):
-        RoutingConfig(direct_context_threshold=999)
+        RoutingConfig(full_context_threshold=999)
     with pytest.raises(ConfigurationError):
-        RoutingConfig(direct_context_threshold=2_000_001)
+        RoutingConfig(full_context_threshold=2_000_001)
     # Boundary values + nominal default succeed.
-    RoutingConfig(direct_context_threshold=1_000)
-    RoutingConfig(direct_context_threshold=150_000)
-    RoutingConfig(direct_context_threshold=2_000_000)
+    RoutingConfig(full_context_threshold=1_000)
+    RoutingConfig(full_context_threshold=150_000)
+    RoutingConfig(full_context_threshold=2_000_000)
 
 
 async def test_query_mode_retrieval_uses_existing_pipeline(make_engine: Any) -> None:

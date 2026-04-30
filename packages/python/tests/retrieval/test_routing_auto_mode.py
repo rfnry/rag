@@ -2,7 +2,7 @@
 
 `mode="auto"` is user-facing and recommended for new users. AUTO reads
 `KnowledgeManager.get_corpus_tokens(knowledge_id)` and routes to DIRECT when
-`tokens <= direct_context_threshold`, otherwise RETRIEVAL. AUTO never routes
+`tokens <= full_context_threshold`, otherwise RETRIEVAL. AUTO never routes
 to HYBRID by design — HYBRID adds an answerability LLM call that isn't
 justified without benchmark data.
 """
@@ -35,7 +35,7 @@ def _engine(
     cast(Any, km).get_corpus_tokens = AsyncMock(return_value=corpus_tokens)
     return make_engine(
         retrieval=SimpleNamespace(history_window=3),
-        routing=RoutingConfig(mode=mode, direct_context_threshold=threshold),
+        routing=RoutingConfig(mode=mode, full_context_threshold=threshold),
         knowledge_manager=km,
     )
 
