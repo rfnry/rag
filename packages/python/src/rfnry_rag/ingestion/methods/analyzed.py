@@ -95,10 +95,7 @@ class AnalyzedIngestion:
 
     def _build_service(self) -> AnalyzedIngestionService:
         if self._metadata_store is None:
-            raise RuntimeError(
-                "AnalyzedIngestion not bound to an engine — call bind() first or "
-                "use it via RagEngine which binds at initialize()."
-            )
+            raise RuntimeError("AnalyzedIngestion not bound — call bind() first")
         return AnalyzedIngestionService(
             embeddings=self._embeddings,
             vector_store=self._store,
@@ -127,7 +124,7 @@ class AnalyzedIngestion:
     async def synthesize(self, source_id: str) -> Source:
         return await self._service_ref().synthesize(source_id)
 
-    async def ingest(self, source_id: str, *args: Any, **kwargs: Any) -> Source:
+    async def ingest(self, source_id: str) -> Source:
         return await self._service_ref().ingest(source_id)
 
     async def delete(self, source_id: str) -> None:
