@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +33,7 @@ class DrawingIngestion:
         delegate_methods: list[Any] | None = None,
     ) -> None:
         if config.lm_client is None and lm_client is not None:
-            config = DrawingIngestionConfig(**{**config.__dict__, "lm_client": lm_client})
+            config = replace(config, lm_client=lm_client)
         self._config = config
         self._store = store
         if not embedding_model_name:
