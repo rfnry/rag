@@ -142,21 +142,6 @@ class BamlAsyncClient:
                 "query": query,"passage": passage,
             })
             return typing.cast(types.RelevanceJudgment, __result__.cast_to(types, types, stream_types, False, __runtime__))
-    async def CompressRetrievedContext(self, query: str,passages: str,
-        baml_options: BamlCallOptions = {},
-    ) -> types.CompressedContext:
-        # Check if on_tick is provided
-        if 'on_tick' in baml_options:
-            # Use streaming internally when on_tick is provided
-            __stream__ = self.stream.CompressRetrievedContext(query=query,passages=passages,
-                baml_options=baml_options)
-            return await __stream__.get_final_response()
-        else:
-            # Original non-streaming code
-            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="CompressRetrievedContext", args={
-                "query": query,"passages": passages,
-            })
-            return typing.cast(types.CompressedContext, __result__.cast_to(types, types, stream_types, False, __runtime__))
     async def ExtractEntitiesFromText(self, text: str,
         baml_options: BamlCallOptions = {},
     ) -> types.PageAnalysis:
@@ -319,18 +304,6 @@ class BamlStreamClient:
           lambda x: typing.cast(types.RelevanceJudgment, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
-    def CompressRetrievedContext(self, query: str,passages: str,
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.BamlStream[stream_types.CompressedContext, types.CompressedContext]:
-        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="CompressRetrievedContext", args={
-            "query": query,"passages": passages,
-        })
-        return baml_py.BamlStream[stream_types.CompressedContext, types.CompressedContext](
-          __result__,
-          lambda x: typing.cast(stream_types.CompressedContext, x.cast_to(types, types, stream_types, True, __runtime__)),
-          lambda x: typing.cast(types.CompressedContext, x.cast_to(types, types, stream_types, False, __runtime__)),
-          __ctx__,
-        )
     def ExtractEntitiesFromText(self, text: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlStream[stream_types.PageAnalysis, types.PageAnalysis]:
@@ -451,13 +424,6 @@ class BamlHttpRequestClient:
             "query": query,"passage": passage,
         }, mode="request")
         return __result__
-    async def CompressRetrievedContext(self, query: str,passages: str,
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.baml_py.HTTPRequest:
-        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="CompressRetrievedContext", args={
-            "query": query,"passages": passages,
-        }, mode="request")
-        return __result__
     async def ExtractEntitiesFromText(self, text: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
@@ -541,13 +507,6 @@ class BamlHttpStreamRequestClient:
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="CheckRelevance", args={
             "query": query,"passage": passage,
-        }, mode="stream")
-        return __result__
-    async def CompressRetrievedContext(self, query: str,passages: str,
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.baml_py.HTTPRequest:
-        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="CompressRetrievedContext", args={
-            "query": query,"passages": passages,
         }, mode="stream")
         return __result__
     async def ExtractEntitiesFromText(self, text: str,

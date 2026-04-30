@@ -47,12 +47,6 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="CheckRelevance", llm_response=llm_response, mode="request")
         return typing.cast(types.RelevanceJudgment, __result__)
 
-    def CompressRetrievedContext(
-        self, llm_response: str, baml_options: BamlCallOptions = {},
-    ) -> types.CompressedContext:
-        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="CompressRetrievedContext", llm_response=llm_response, mode="request")
-        return typing.cast(types.CompressedContext, __result__)
-
     def ExtractEntitiesFromText(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> types.PageAnalysis:
@@ -126,12 +120,6 @@ class LlmStreamParser:
     ) -> stream_types.RelevanceJudgment:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="CheckRelevance", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.RelevanceJudgment, __result__)
-
-    def CompressRetrievedContext(
-        self, llm_response: str, baml_options: BamlCallOptions = {},
-    ) -> stream_types.CompressedContext:
-        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="CompressRetrievedContext", llm_response=llm_response, mode="stream")
-        return typing.cast(stream_types.CompressedContext, __result__)
 
     def ExtractEntitiesFromText(
         self, llm_response: str, baml_options: BamlCallOptions = {},

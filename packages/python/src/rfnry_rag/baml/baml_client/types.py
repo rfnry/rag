@@ -41,15 +41,12 @@ def all_succeeded(checks: typing.Dict[CheckName, Check]) -> bool:
 # #########################################################################
 
 # #########################################################################
-# Generated classes (18)
+# Generated classes (17)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
     score: float = Field(description='Answer quality score from 0.0 (completely wrong) to 1.0 (perfect)')
     reasoning: str = Field(description='Brief explanation of the score')
-
-class CompressedContext(BaseModel):
-    compressed_text: str = Field(description='The compressed context preserving only query-relevant information')
 
 class DetectedComponent(BaseModel):
     component_id: str = Field(description='stable within-page ID: \'R1\', \'V-101\', or synthesised')

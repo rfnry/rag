@@ -23,15 +23,12 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
     value: StreamStateValueT
     state: typing_extensions.Literal["Pending", "Incomplete", "Complete"]
 # #########################################################################
-# Generated classes (18)
+# Generated classes (17)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
     score: typing.Optional[float] = Field(default=None, description='Answer quality score from 0.0 (completely wrong) to 1.0 (perfect)')
     reasoning: typing.Optional[str] = Field(default=None, description='Brief explanation of the score')
-
-class CompressedContext(BaseModel):
-    compressed_text: typing.Optional[str] = Field(default=None, description='The compressed context preserving only query-relevant information')
 
 class DetectedComponent(BaseModel):
     component_id: typing.Optional[str] = Field(default=None, description='stable within-page ID: \'R1\', \'V-101\', or synthesised')

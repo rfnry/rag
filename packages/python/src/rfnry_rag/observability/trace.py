@@ -26,7 +26,6 @@ class RetrievalTrace:
     per_method_results: dict[str, list[RetrievedChunk]] = field(default_factory=dict)
     fused_results: list[RetrievedChunk] = field(default_factory=list)
     reranked_results: list[RetrievedChunk] | None = None
-    refined_results: list[RetrievedChunk] | None = None
     final_results: list[RetrievedChunk] = field(default_factory=list)
     grounding_decision: str | None = None
     confidence: float | None = None

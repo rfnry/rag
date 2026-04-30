@@ -472,7 +472,6 @@ class RagEngine:
             top_k=retrieval.top_k,
             source_type_weights=retrieval.source_type_weights,
             query_rewriter=retrieval.query_rewriter,
-            chunk_refiner=retrieval.chunk_refiner,
         )
 
         # Structured retrieval. Reuse whichever embeddings instance the
@@ -994,7 +993,7 @@ class RagEngine:
 
         Returns ``(chunks, trace)``. With ``trace=False`` (default), the second
         element is ``None`` so callers may unpack ``chunks, _ = await rag.retrieve(...)``
-        for chunks-only access. With ``trace=True``, returns the post-refinement
+        for chunks-only access. With ``trace=True``, returns the
         :class:`RetrievalTrace` with ``grounding_decision`` and ``confidence``
         left as ``None`` (no generation/grounding stage runs in raw retrieval);
         ``final_results`` carries the post-min-score-filter chunks.
@@ -1216,7 +1215,6 @@ class RagEngine:
             top_k=retrieval.top_k,
             source_type_weights=retrieval.source_type_weights,
             query_rewriter=retrieval.query_rewriter,
-            chunk_refiner=retrieval.chunk_refiner,
         )
         structured: StructuredRetrievalService | None = None
         if embeddings is not None:

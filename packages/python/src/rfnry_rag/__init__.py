@@ -65,9 +65,6 @@ from rfnry_rag.retrieval.methods.document import DocumentRetrieval as DocumentRe
 from rfnry_rag.retrieval.methods.enrich import StructuredRetrieval as StructuredRetrieval
 from rfnry_rag.retrieval.methods.graph import GraphRetrieval as GraphRetrieval
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval as VectorRetrieval
-from rfnry_rag.retrieval.refinement.abstractive import AbstractiveRefinement as AbstractiveRefinement
-from rfnry_rag.retrieval.refinement.base import BaseChunkRefinement as BaseChunkRefinement
-from rfnry_rag.retrieval.refinement.extractive import ExtractiveRefinement as ExtractiveRefinement
 from rfnry_rag.retrieval.search.rewriting.multi_query import (
     MultiQueryRewriting as MultiQueryRewriting,
 )
@@ -84,9 +81,7 @@ from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore as SQLA
 from rfnry_rag.stores.vector.qdrant import QdrantVectorStore as QdrantVectorStore
 
 __all__ = [
-    "AbstractiveRefinement",
     "AnalyzedIngestion",
-    "BaseChunkRefinement",
     "BaseIngestionMethod",
     "BaseRetrievalMethod",
     "BenchmarkCase",
@@ -103,7 +98,6 @@ __all__ = [
     "Embeddings",
     "EmptyDocumentError",
     "ExactMatch",
-    "ExtractiveRefinement",
     "F1Score",
     "FastEmbedSparseEmbeddings",
     "FilesystemDocumentStore",

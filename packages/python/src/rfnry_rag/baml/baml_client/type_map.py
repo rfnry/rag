@@ -19,9 +19,6 @@ type_map = {
     "types.AnswerQualityJudgment": types.AnswerQualityJudgment,
     "stream_types.AnswerQualityJudgment": stream_types.AnswerQualityJudgment,
 
-    "types.CompressedContext": types.CompressedContext,
-    "stream_types.CompressedContext": stream_types.CompressedContext,
-
     "types.DetectedComponent": types.DetectedComponent,
     "stream_types.DetectedComponent": stream_types.DetectedComponent,
 

@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.providers import LanguageModelClient
-from rfnry_rag.retrieval.refinement.base import BaseChunkRefinement
 from rfnry_rag.retrieval.search.reranking.base import BaseReranking
 from rfnry_rag.retrieval.search.rewriting.base import BaseQueryRewriting
 
@@ -27,7 +26,6 @@ class RetrievalConfig:
     reranker: BaseReranking | None = None
     query_rewriter: BaseQueryRewriting | None = None
     source_type_weights: dict[str, float] | None = None
-    chunk_refiner: BaseChunkRefinement | None = None
     history_window: int = 3
     cross_reference_enrichment: bool = True
     enrich_lm_client: LanguageModelClient | None = None

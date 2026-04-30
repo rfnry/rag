@@ -8,7 +8,6 @@ from rfnry_rag.logging import get_logger, query_logging_enabled
 from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.observability.trace import RetrievalTrace
 from rfnry_rag.retrieval.base import BaseRetrievalMethod
-from rfnry_rag.retrieval.refinement.base import BaseChunkRefinement
 from rfnry_rag.retrieval.search.fusion import reciprocal_rank_fusion
 from rfnry_rag.retrieval.search.reranking.base import BaseReranking
 from rfnry_rag.retrieval.search.rewriting.base import BaseQueryRewriting
@@ -24,14 +23,12 @@ class RetrievalService:
         top_k: int = 5,
         source_type_weights: dict[str, float] | None = None,
         query_rewriter: BaseQueryRewriting | None = None,
-        chunk_refiner: BaseChunkRefinement | None = None,
     ) -> None:
         self._retrieval_methods = retrieval_methods
         self._reranking = reranking
         self._top_k = top_k
         self._source_type_weights = source_type_weights
         self._query_rewriter = query_rewriter
-        self._chunk_refiner = chunk_refiner
 
     @property
     def methods(self) -> list[BaseRetrievalMethod]:
@@ -166,15 +163,6 @@ class RetrievalService:
                 trace_obj.timings["reranking"] = time.perf_counter() - reranking_start
         else:
             fused = fused[:top_k]
-
-        if self._chunk_refiner:
-            refinement_start = time.perf_counter() if trace_obj is not None else 0.0
-            if fused:
-                fused = await self._chunk_refiner.refine(query, fused)
-                logger.info("chunk refinement: %d chunks after refinement", len(fused))
-            if trace_obj is not None:
-                trace_obj.refined_results = list(fused)
-                trace_obj.timings["refinement"] = time.perf_counter() - refinement_start
 
         if trace_obj is not None:
             trace_obj.final_results = list(fused)

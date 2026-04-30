@@ -125,8 +125,8 @@ async def test_retrieve_trace_per_method_includes_empty_results_method() -> None
     assert trace.per_method_results["method_a"] != []
 
 
-async def test_retrieve_trace_reranked_and_refined_none_when_disabled() -> None:
-    """No reranker / no refiner => reranked_results and refined_results are None.
+async def test_retrieve_trace_reranked_none_when_disabled() -> None:
+    """No reranker => reranked_results is None.
 
     This is the load-bearing distinction: None means "stage did not run",
     not "stage ran with no results".
@@ -138,11 +138,10 @@ async def test_retrieve_trace_reranked_and_refined_none_when_disabled() -> None:
 
     assert trace is not None
     assert trace.reranked_results is None
-    assert trace.refined_results is None
 
 
 async def test_retrieve_trace_timings_only_includes_stages_that_ran() -> None:
-    """No rewriter, no reranker, no refiner => timings only has retrieval + fusion."""
+    """No rewriter, no reranker => timings only has retrieval + fusion."""
     method_a = _mock_method("method_a", [_chunk("chunk_a")])
     service = RetrievalService(retrieval_methods=[method_a], top_k=5)
 
@@ -166,8 +165,8 @@ async def test_retrieve_trace_routing_decision_is_none_placeholder() -> None:
 async def test_rag_engine_retrieve_with_trace_returns_trace_alongside_chunks() -> None:
     """`engine.retrieve(text, trace=True)` returns (chunks, trace) with the
     raw-retrieval-trace shape: grounding_decision and confidence are None
-    (no grounding stage runs), and final_results carries the post-refinement
-    chunks the caller actually receives.
+    (no grounding stage runs), and final_results carries the chunks the
+    caller actually receives.
     """
     from rfnry_rag.observability.trace import RetrievalTrace
 
@@ -182,5 +181,5 @@ async def test_rag_engine_retrieve_with_trace_returns_trace_alongside_chunks() -
     assert trace.query == "query"
     assert trace.grounding_decision is None
     assert trace.confidence is None
-    assert trace.final_results  # populated with the post-refinement chunks
+    assert trace.final_results  # populated with the chunks the caller receives
     assert trace.final_results[0].chunk_id == "c1"
