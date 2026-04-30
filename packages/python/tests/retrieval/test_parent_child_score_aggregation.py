@@ -86,7 +86,7 @@ def test_expand_parents_without_matching_parent_in_lookup_is_skipped() -> None:
 def test_default_parent_chunk_size_is_enabled() -> None:
     """IngestionConfig now defaults to parent-child retrieval enabled:
     parent_chunk_size = 3 * chunk_size when not overridden."""
-    from rfnry_rag.server import IngestionConfig
+    from rfnry_rag.config import IngestionConfig
 
     cfg = IngestionConfig(chunk_size=375)
     assert cfg.parent_chunk_size > 0, "parent-child should be enabled by default"
@@ -95,7 +95,7 @@ def test_default_parent_chunk_size_is_enabled() -> None:
 
 def test_parent_chunk_size_zero_still_disables_parent_child() -> None:
     """Explicit parent_chunk_size=0 still disables parent-child mode."""
-    from rfnry_rag.server import IngestionConfig
+    from rfnry_rag.config import IngestionConfig
 
     cfg = IngestionConfig(chunk_size=375, parent_chunk_size=0)
     assert cfg.parent_chunk_size == 0
@@ -103,7 +103,7 @@ def test_parent_chunk_size_zero_still_disables_parent_child() -> None:
 
 def test_explicit_parent_chunk_size_respected() -> None:
     """An explicit positive parent_chunk_size overrides the 3x auto-resolution."""
-    from rfnry_rag.server import IngestionConfig
+    from rfnry_rag.config import IngestionConfig
 
     cfg = IngestionConfig(chunk_size=375, parent_chunk_size=2000)
     assert cfg.parent_chunk_size == 2000

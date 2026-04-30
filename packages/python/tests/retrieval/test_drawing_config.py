@@ -123,9 +123,9 @@ def test_disabled_config_skips_validation() -> None:
 def test_drawing_method_carries_config_into_ingestion_config() -> None:
     from unittest.mock import MagicMock
 
+    from rfnry_rag.config import IngestionConfig
     from rfnry_rag.config.drawing import DrawingIngestionConfig
     from rfnry_rag.ingestion.methods.drawing import DrawingIngestion
-    from rfnry_rag.server import IngestionConfig
 
     method = DrawingIngestion(
         config=DrawingIngestionConfig(enabled=True),
@@ -140,8 +140,8 @@ def test_drawing_method_carries_config_into_ingestion_config() -> None:
 
 
 def test_ingestion_config_methods_empty_by_default() -> None:
+    from rfnry_rag.config import IngestionConfig
     from rfnry_rag.ingestion.methods.drawing import DrawingIngestion
-    from rfnry_rag.server import IngestionConfig
 
     cfg = IngestionConfig()
     assert [m for m in cfg.methods if isinstance(m, DrawingIngestion)] == []

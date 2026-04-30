@@ -12,11 +12,11 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from rfnry_rag.config import RoutingConfig
+from rfnry_rag.config import RagEngineConfig, RoutingConfig
 from rfnry_rag.generation.models import QueryResult
 from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.retrieval.search.service import RetrievalService
-from rfnry_rag.server import RagEngine, RagEngineConfig
+from rfnry_rag.server import RagEngine
 
 
 def _chunk(chunk_id: str, score: float = 0.9) -> RetrievedChunk:

@@ -5,12 +5,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from rfnry_rag.config import RagEngineConfig
 from rfnry_rag.ingestion.methods.document import DocumentIngestion
 from rfnry_rag.ingestion.methods.vector import VectorIngestion
 from rfnry_rag.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.methods.graph import GraphRetrieval
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
-from rfnry_rag.server import RagEngine, RagEngineConfig
+from rfnry_rag.server import RagEngine
 
 
 def _has(methods, cls) -> bool:

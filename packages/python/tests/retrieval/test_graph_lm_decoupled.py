@@ -3,9 +3,10 @@ pre-populated graph shouldn't be forced to configure an ingestion LLM."""
 
 from unittest.mock import MagicMock, patch
 
+from rfnry_rag.config import IngestionConfig, RagEngineConfig, RetrievalConfig
 from rfnry_rag.ingestion.methods.graph import GraphIngestion
 from rfnry_rag.retrieval.methods.graph import GraphRetrieval
-from rfnry_rag.server import IngestionConfig, RagEngine, RagEngineConfig, RetrievalConfig
+from rfnry_rag.server import RagEngine
 
 
 def test_graph_store_without_ingestion_lm_client_does_not_raise() -> None:

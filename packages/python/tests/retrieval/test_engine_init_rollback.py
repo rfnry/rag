@@ -8,11 +8,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from rfnry_rag.config import IngestionConfig, RagEngineConfig, RetrievalConfig
 from rfnry_rag.ingestion.methods.document import DocumentIngestion
 from rfnry_rag.ingestion.methods.graph import GraphIngestion
 from rfnry_rag.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.methods.graph import GraphRetrieval
-from rfnry_rag.server import IngestionConfig, RagEngine, RagEngineConfig, RetrievalConfig
+from rfnry_rag.server import RagEngine
 
 
 @pytest.mark.asyncio

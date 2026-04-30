@@ -54,8 +54,8 @@ def test_entity_type_patterns_must_be_compilable_regex() -> None:
 def test_graph_config_carried_by_analyzed_method_in_ingestion_config() -> None:
     from unittest.mock import MagicMock
 
+    from rfnry_rag.config import IngestionConfig
     from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
-    from rfnry_rag.server import IngestionConfig
 
     method = AnalyzedIngestion(
         store=MagicMock(),

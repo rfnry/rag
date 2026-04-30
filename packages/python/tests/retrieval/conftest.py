@@ -7,8 +7,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from rfnry_rag.config import RagEngineConfig
 from rfnry_rag.generation.models import QueryResult
-from rfnry_rag.server import RagEngine, RagEngineConfig
+from rfnry_rag.server import RagEngine
 
 _UNSET: Any = object()
 

@@ -11,13 +11,12 @@ from __future__ import annotations
 
 import pytest
 
-from rfnry_rag.config import GenerationConfig, RetrievalConfig, RoutingConfig
+from rfnry_rag.config import GenerationConfig, RagEngineConfig, RetrievalConfig, RoutingConfig
 from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.providers import LanguageModelClient, LanguageModelProvider
 from rfnry_rag.server import (
     _FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS,
     RagEngine,
-    RagEngineConfig,
 )
 
 
