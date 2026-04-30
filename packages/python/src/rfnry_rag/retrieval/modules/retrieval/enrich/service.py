@@ -3,8 +3,8 @@
 import asyncio
 from typing import Any
 
-from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
-from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.common.language_model import LanguageModelClient, build_registry
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievedChunk
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.modules.retrieval.enrich.enrichment import enrich_with_cross_references

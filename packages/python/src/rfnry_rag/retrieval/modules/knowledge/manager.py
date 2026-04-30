@@ -4,7 +4,7 @@ import builtins
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import Chunk, Source, SourceStats
 from rfnry_rag.retrieval.modules.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.retrieval.stores.document.base import BaseDocumentStore

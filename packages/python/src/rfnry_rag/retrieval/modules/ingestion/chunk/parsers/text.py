@@ -1,7 +1,7 @@
 from pathlib import Path
 
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.errors import ParseError
-from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.modules.ingestion.models import ParsedPage
 
 logger = get_logger("chunk/ingestion/parse")

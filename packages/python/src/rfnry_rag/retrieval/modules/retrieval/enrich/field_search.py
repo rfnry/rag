@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievedChunk, VectorResult
 
 logger = get_logger("enrich/retrieval/field")

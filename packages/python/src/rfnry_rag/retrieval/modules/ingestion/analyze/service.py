@@ -8,10 +8,10 @@ from uuid import uuid4
 from baml_py import ClientRegistry
 from baml_py import errors as baml_errors
 
+from rfnry_rag.common.language_model import LanguageModelClient, build_registry
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.errors import ConfigurationError, IngestionError
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
-from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
-from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import Source, VectorPoint
 from rfnry_rag.retrieval.common.page_range import parse_page_range
 from rfnry_rag.retrieval.modules.ingestion.analyze.models import (

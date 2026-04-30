@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import ContentMatch, RetrievedChunk
 from rfnry_rag.retrieval.stores.document.base import BaseDocumentStore
 

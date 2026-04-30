@@ -1,9 +1,11 @@
 """RAG — Retrieval-Augmented Generation SDK."""
 
-from rfnry_rag.retrieval.common.startup import check_baml as _check_baml
+from rfnry_rag.common.startup import check_baml as _check_baml
 
-_check_baml()
+_check_baml("retrieval", "rfnry_rag.retrieval.baml.baml_client")
 
+from rfnry_rag.common.language_model import LanguageModelClient as LanguageModelClient
+from rfnry_rag.common.language_model import LanguageModelProvider as LanguageModelProvider
 from rfnry_rag.retrieval.common.errors import ConfigurationError as ConfigurationError
 from rfnry_rag.retrieval.common.errors import DuplicateSourceError as DuplicateSourceError
 from rfnry_rag.retrieval.common.errors import EmbeddingError as EmbeddingError
@@ -17,8 +19,6 @@ from rfnry_rag.retrieval.common.errors import RagError as RagError
 from rfnry_rag.retrieval.common.errors import RetrievalError as RetrievalError
 from rfnry_rag.retrieval.common.errors import SourceNotFoundError as SourceNotFoundError
 from rfnry_rag.retrieval.common.errors import StoreError as StoreError
-from rfnry_rag.retrieval.common.language_model import LanguageModelClient as LanguageModelClient
-from rfnry_rag.retrieval.common.language_model import LanguageModelProvider as LanguageModelProvider
 from rfnry_rag.retrieval.common.models import ContentMatch as ContentMatch
 from rfnry_rag.retrieval.common.models import RetrievalTrace as RetrievalTrace
 from rfnry_rag.retrieval.common.models import RetrievedChunk as RetrievedChunk

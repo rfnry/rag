@@ -2,11 +2,11 @@ from collections.abc import AsyncIterator
 
 from baml_py import errors as baml_errors
 
+from rfnry_rag.common.language_model import LanguageModelClient, build_registry
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.baml.baml_client.async_client import b
 from rfnry_rag.retrieval.common.errors import GenerationError
 from rfnry_rag.retrieval.common.formatting import ChunkOrdering, chunks_to_context
-from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
-from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievedChunk
 from rfnry_rag.retrieval.modules.generation.grounding import DEFAULT_ESCALATION, RelevanceGate, ScoreGate
 from rfnry_rag.retrieval.modules.generation.models import Clarification, QueryResult, SourceReference, StreamEvent

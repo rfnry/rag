@@ -7,7 +7,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.drawing.models import (
     DetectedComponent,

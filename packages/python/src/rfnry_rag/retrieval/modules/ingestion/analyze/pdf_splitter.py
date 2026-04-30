@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pymupdf
 
-from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.common.logging import get_logger
 
 logger = get_logger("analyze/ingestion/analyze")
 

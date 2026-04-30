@@ -5,7 +5,7 @@ import time
 from typing import Any
 from uuid import uuid4
 
-from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import SparseVector, VectorPoint
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.modules.ingestion.embeddings.sparse.base import BaseSparseEmbeddings

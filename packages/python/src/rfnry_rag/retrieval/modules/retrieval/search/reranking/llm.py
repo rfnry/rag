@@ -2,8 +2,8 @@ from dataclasses import replace
 
 from baml_py import errors as baml_errors
 
-from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
-from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.common.language_model import LanguageModelClient, build_registry
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievedChunk
 
 logger = get_logger(__name__)

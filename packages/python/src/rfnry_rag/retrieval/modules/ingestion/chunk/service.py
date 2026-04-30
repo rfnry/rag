@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.errors import (
     ConfigurationError,
     DuplicateSourceError,
@@ -14,7 +15,6 @@ from rfnry_rag.retrieval.common.errors import (
     IngestionError,
 )
 from rfnry_rag.retrieval.common.hashing import file_hash
-from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import Source
 from rfnry_rag.retrieval.common.page_range import parse_page_range
 from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker

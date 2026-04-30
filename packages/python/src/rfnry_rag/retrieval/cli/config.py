@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from rfnry_rag.common.cli import get_api_key as _get_api_key
+from rfnry_rag.common.language_model import LanguageModelClient, LanguageModelProvider
 from rfnry_rag.retrieval.cli.constants import CONFIG_FILE, ENV_FILE, ConfigError, load_dotenv
-from rfnry_rag.retrieval.common.language_model import LanguageModelClient, LanguageModelProvider
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.modules.ingestion.embeddings.facade import Embeddings
 from rfnry_rag.retrieval.modules.ingestion.embeddings.sparse.fastembed import FastEmbedSparseEmbeddings

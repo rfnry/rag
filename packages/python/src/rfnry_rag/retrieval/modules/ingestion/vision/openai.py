@@ -4,8 +4,8 @@ from pathlib import Path
 from openai import AsyncOpenAI
 
 from rfnry_rag.common.language_model import LanguageModelProvider
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.errors import ParseError
-from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.modules.ingestion.models import ParsedPage
 from rfnry_rag.retrieval.modules.ingestion.vision.constants import (
     MAX_VISION_FILE_SIZE,

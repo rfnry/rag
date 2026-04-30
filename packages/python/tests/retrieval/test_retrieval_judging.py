@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from rfnry_rag.retrieval.common.language_model import LanguageModelClient, LanguageModelProvider
+from rfnry_rag.common.language_model import LanguageModelClient, LanguageModelProvider
 from rfnry_rag.retrieval.modules.retrieval.judging import RetrievalJudgment
 
 

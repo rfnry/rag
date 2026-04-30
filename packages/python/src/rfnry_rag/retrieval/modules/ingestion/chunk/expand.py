@@ -9,9 +9,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from rfnry_rag.common.concurrency import run_concurrent
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.baml.baml_client.async_client import b
 from rfnry_rag.retrieval.common.errors import IngestionError
-from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.modules.ingestion.models import ChunkedContent
 
 if TYPE_CHECKING:

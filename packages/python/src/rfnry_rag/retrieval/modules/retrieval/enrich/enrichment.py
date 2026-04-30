@@ -3,7 +3,7 @@
 import asyncio
 from typing import Any
 
-from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievedChunk
 from rfnry_rag.retrieval.stores.vector.base import BaseVectorStore
 

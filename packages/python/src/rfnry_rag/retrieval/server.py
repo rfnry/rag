@@ -8,12 +8,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
 
+from rfnry_rag.common.language_model import LanguageModelClient, build_registry
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.errors import ConfigurationError, InputError
 from rfnry_rag.retrieval.common.formatting import ChunkOrdering
 from rfnry_rag.retrieval.common.grounding import max_chunk_score
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
-from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
-from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk, Source
 from rfnry_rag.retrieval.modules.evaluation.benchmark import (
     BenchmarkCase,

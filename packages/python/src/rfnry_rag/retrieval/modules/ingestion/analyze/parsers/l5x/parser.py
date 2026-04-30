@@ -3,7 +3,7 @@ from pathlib import Path
 
 from lxml import etree
 
-from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.modules.ingestion.analyze.parsers.l5x.models import (
     AoiEntity,
     AoiParameter,

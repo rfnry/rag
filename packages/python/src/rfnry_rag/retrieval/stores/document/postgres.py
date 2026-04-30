@@ -5,8 +5,8 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.errors import ConfigurationError
-from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import ContentMatch
 from rfnry_rag.retrieval.stores.document.excerpt import extract_window
 

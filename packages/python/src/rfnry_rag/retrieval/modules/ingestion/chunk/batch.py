@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import Source, VectorPoint
 from rfnry_rag.retrieval.modules.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.retrieval.modules.ingestion.embeddings.utils import embed_batched

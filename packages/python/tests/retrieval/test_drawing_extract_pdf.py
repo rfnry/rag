@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from rfnry_rag.common.language_model import LanguageModelClient, LanguageModelProvider
 from rfnry_rag.retrieval.common.errors import IngestionError
-from rfnry_rag.retrieval.common.language_model import LanguageModelClient, LanguageModelProvider
 from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.drawing.service import DrawingIngestionService
 

@@ -3,8 +3,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
-from rfnry_rag.retrieval.common.logging import get_logger
+from rfnry_rag.common.language_model import LanguageModelClient, build_registry
+from rfnry_rag.common.logging import get_logger
 from rfnry_rag.retrieval.modules.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
 from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.models import ChunkedContent, ParsedPage
