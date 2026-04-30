@@ -11,260 +11,129 @@
 # baml-cli is available with the baml package.
 
 import typing
-
 import typing_extensions
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+import baml_py
 
 from . import types
 
-StreamStateValueT = typing.TypeVar("StreamStateValueT")
-
-
+StreamStateValueT = typing.TypeVar('StreamStateValueT')
 class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
     value: StreamStateValueT
     state: typing_extensions.Literal["Pending", "Incomplete", "Complete"]
-
-
 # #########################################################################
-# Generated classes (37)
+# Generated classes (20)
 # #########################################################################
-
 
 class AnswerQualityJudgment(BaseModel):
-    score: float | None = Field(
-        default=None, description="Answer quality score from 0.0 (completely wrong) to 1.0 (perfect)"
-    )
-    reasoning: str | None = Field(default=None, description="Brief explanation of the score")
-
-
-class AnswerabilityVerdict(BaseModel):
-    answerable: bool | None = None
-    reasoning: str | None = None
-
+    score: typing.Optional[float] = Field(default=None, description='Answer quality score from 0.0 (completely wrong) to 1.0 (perfect)')
+    reasoning: typing.Optional[str] = Field(default=None, description='Brief explanation of the score')
 
 class CompressedContext(BaseModel):
-    compressed_text: str | None = Field(
-        default=None, description="The compressed context preserving only query-relevant information"
-    )
-
-
-class DecomposeResult(BaseModel):
-    done: bool | None = None
-    next_sub_question: str | None = None
-    findings_from_last_hop: str | None = None
-    reasoning: str | None = None
-
+    compressed_text: typing.Optional[str] = Field(default=None, description='The compressed context preserving only query-relevant information')
 
 class DetectedComponent(BaseModel):
-    component_id: str | None = Field(default=None, description="stable within-page ID: 'R1', 'V-101', or synthesised")
-    symbol_class: str | None = Field(
-        default=None, description="resistor | capacitor | valve | pump | junction | off_page_connector | ..."
-    )
-    label: str | None = Field(default=None, description="visible printed text near the symbol")
-    bbox: list[int] = Field(description="[x, y, w, h] page pixel coords")
-    ports: list["Port"]
-    properties: dict[str, str] | None = None
-
+    component_id: typing.Optional[str] = Field(default=None, description='stable within-page ID: \'R1\', \'V-101\', or synthesised')
+    symbol_class: typing.Optional[str] = Field(default=None, description='resistor | capacitor | valve | pump | junction | off_page_connector | ...')
+    label: typing.Optional[str] = Field(default=None, description='visible printed text near the symbol')
+    bbox: typing.List[int] = Field(description='[x, y, w, h] page pixel coords')
+    ports: typing.List["Port"]
+    properties: typing.Optional[typing.Dict[str, str]] = None
 
 class DetectedConnection(BaseModel):
-    from_component: str | None = None
-    from_port: str | None = None
-    to_component: str | None = None
-    to_port: str | None = None
-    net_label: str | None = Field(default=None, description="'N5', '+24V', or null for unnamed")
-    wire_style: str | None = Field(default=None, description="solid | dashed | pneumatic | hydraulic | signal")
-
+    from_component: typing.Optional[str] = None
+    from_port: typing.Optional[str] = None
+    to_component: typing.Optional[str] = None
+    to_port: typing.Optional[str] = None
+    net_label: typing.Optional[str] = Field(default=None, description='\'N5\', \'+24V\', or null for unnamed')
+    wire_style: typing.Optional[str] = Field(default=None, description='solid | dashed | pneumatic | hydraulic | signal')
 
 class DiscoveredEntity(BaseModel):
-    name: str | None = None
-    category: str | None = None
-    value: str | None = None
-    context: str | None = None
-
+    name: typing.Optional[str] = None
+    category: typing.Optional[str] = None
+    value: typing.Optional[str] = None
+    context: typing.Optional[str] = None
 
 class DiscoveredTable(BaseModel):
-    title: str | None = None
-    columns: list[str]
-    rows: list[dict[str, str]]
-
+    title: typing.Optional[str] = None
+    columns: typing.List[str]
+    rows: typing.List[typing.Dict[str, str]]
 
 class DocumentSynthesis(BaseModel):
-    cross_references: list["SynthesisCrossReference"]
-    page_clusters: list["SynthesisPageCluster"]
-    document_summary: str | None = None
-
+    cross_references: typing.List["SynthesisCrossReference"]
+    page_clusters: typing.List["SynthesisPageCluster"]
+    document_summary: typing.Optional[str] = None
 
 class DrawingPageAnalysis(BaseModel):
-    page_number: int | None = None
-    sheet_number: str | None = None
-    zone_grid: str | None = Field(default=None, description="'A-H horizontal, 1-8 vertical' or similar grid spec")
-    domain: str | None = Field(default=None, description="electrical | p_and_id | mechanical | mixed")
-    components: list["DetectedComponent"]
-    connections: list["DetectedConnection"]
-    off_page_connectors: list["OffPageConnector"]
-    title_block: dict[str, str] | None = None
-    notes: list[str]
-    page_type: str | None = Field(default=None, description="drawing | title_page | bom | text | mixed")
-
-
-class DrawingSetSynthesis(BaseModel):
-    ambiguous_component_merges: list["Merge"]
-    narrative_cross_references: list["NarrativeXref"]
-    document_summary: str | None = None
-
-
-class ExtractedSection(BaseModel):
-    structure: str | None = Field(default=None, description="hierarchical numbering")
-    title: str | None = Field(default=None, description="section title")
-    start_page: int | None = Field(default=None, description="page where this section begins")
-
-
-class ExtractedStructure(BaseModel):
-    sections: list["ExtractedSection"] = Field(description="document sections discovered from content")
-
-
-class HypotheticalDocument(BaseModel):
-    passage: str | None = Field(default=None, description="A hypothetical document passage answering the question")
-
-
-class Merge(BaseModel):
-    page_a: int | None = None
-    component_a: str | None = None
-    page_b: int | None = None
-    component_b: str | None = None
-    confidence: float | None = None
-    rationale: str | None = None
-
-
-class NarrativeXref(BaseModel):
-    source_page: int | None = None
-    target_page: int | None = None
-    description: str | None = None
-
+    page_number: typing.Optional[int] = None
+    sheet_number: typing.Optional[str] = None
+    zone_grid: typing.Optional[str] = Field(default=None, description='\'A-H horizontal, 1-8 vertical\' or similar grid spec')
+    domain: typing.Optional[str] = Field(default=None, description='electrical | p_and_id | mechanical | mixed')
+    components: typing.List["DetectedComponent"]
+    connections: typing.List["DetectedConnection"]
+    off_page_connectors: typing.List["OffPageConnector"]
+    title_block: typing.Optional[typing.Dict[str, str]] = None
+    notes: typing.List[str]
+    page_type: typing.Optional[str] = Field(default=None, description='drawing | title_page | bom | text | mixed')
 
 class OffPageConnector(BaseModel):
-    tag: str | None = Field(default=None, description="'/A2', 'OPC-1', 'to sheet 3 zone B2'")
-    bound_component: str | None = Field(default=None, description="on-page component_id it terminates at")
-    target_hint: str | None = Field(default=None, description="parsed 'sheet 3, zone B2' hint if present")
-
+    tag: typing.Optional[str] = Field(default=None, description='\'/A2\', \'OPC-1\', \'to sheet 3 zone B2\'')
+    bound_component: typing.Optional[str] = Field(default=None, description='on-page component_id it terminates at')
+    target_hint: typing.Optional[str] = Field(default=None, description='parsed \'sheet 3, zone B2\' hint if present')
 
 class PageAnalysis(BaseModel):
-    description: str | None = None
-    entities: list["DiscoveredEntity"]
-    tables: list["DiscoveredTable"]
-    annotations: list[str]
-    page_type: str | None = None
-
+    description: typing.Optional[str] = None
+    entities: typing.List["DiscoveredEntity"]
+    tables: typing.List["DiscoveredTable"]
+    annotations: typing.List[str]
+    page_type: typing.Optional[str] = None
 
 class Port(BaseModel):
-    port_id: str | None = Field(default=None, description="label or index of the port")
-    position: list[int] | None = Field(default=None, description="[x, y] in page pixel coords, optional")
-
+    port_id: typing.Optional[str] = Field(default=None, description='label or index of the port')
+    position: typing.Optional[typing.List[int]] = Field(default=None, description='[x, y] in page pixel coords, optional')
 
 class QueryAnalysis(BaseModel):
-    keywords: list[str]
-    entity_references: list[str]
-    intent: str | None = None
-
-
-class QueryClassification(BaseModel):
-    complexity: types.QueryComplexity | None = None
-    query_type: types.QueryType | None = None
-    reasoning: str | None = None
-
+    keywords: typing.List[str]
+    entity_references: typing.List[str]
+    intent: typing.Optional[str] = None
 
 class QueryVariants(BaseModel):
-    variants: list[str] = Field(description="Alternative query formulations")
-
+    variants: typing.List[str] = Field(description='Alternative query formulations')
 
 class RankedChunk(BaseModel):
-    index: int | None = None
-    score: float | None = None
-    reasoning: str | None = None
-
+    index: typing.Optional[int] = None
+    score: typing.Optional[float] = None
+    reasoning: typing.Optional[str] = None
 
 class ReasoningStep(BaseModel):
-    text: str | None = Field(default=None, description="The generated reasoning step or final answer")
-    is_final: bool | None = Field(
-        default=None, description="True if this is a final answer, false if more reasoning is needed"
-    )
-
+    text: typing.Optional[str] = Field(default=None, description='The generated reasoning step or final answer')
+    is_final: typing.Optional[bool] = Field(default=None, description='True if this is a final answer, false if more reasoning is needed')
 
 class RelevanceJudgment(BaseModel):
-    relevant: bool | None = None
-    reasoning: str | None = None
-    needs_clarification: bool | None = None
-    clarifying_question: str | None = None
-    clarifying_options: list[str] | None = None
-
+    relevant: typing.Optional[bool] = None
+    reasoning: typing.Optional[str] = None
+    needs_clarification: typing.Optional[bool] = None
+    clarifying_question: typing.Optional[str] = None
+    clarifying_options: typing.Optional[typing.List[str]] = None
 
 class RetrievalNecessityJudgment(BaseModel):
-    should_retrieve: bool | None = Field(
-        default=None, description="True if the query requires domain-specific knowledge retrieval"
-    )
-    confidence: float | None = Field(default=None, description="Confidence in the judgment from 0.0 to 1.0")
-    reasoning: str | None = Field(default=None, description="Brief explanation of why retrieval is or is not needed")
-
-
-class StepBackQuery(BaseModel):
-    broader_query: str | None = Field(default=None, description="A broader version of the original question")
-
-
-class SummarizeClusterResult(BaseModel):
-    summary: str | None = Field(
-        default=None,
-        description="Domain-neutral summary of the thematic content shared across the cluster member texts. 1-3 paragraphs, at most max_summary_tokens. Does not invent content beyond what the members say.",
-    )
-    reasoning: str | None = Field(
-        default=None, description="Brief WHY: what theme the cluster is organized around. Trace-only."
-    )
-
+    should_retrieve: typing.Optional[bool] = Field(default=None, description='True if the query requires domain-specific knowledge retrieval')
+    confidence: typing.Optional[float] = Field(default=None, description='Confidence in the judgment from 0.0 to 1.0')
+    reasoning: typing.Optional[str] = Field(default=None, description='Brief explanation of why retrieval is or is not needed')
 
 class SynthesisCrossReference(BaseModel):
-    source_page: int | None = None
-    target_page: int | None = None
-    relationship: str | None = None
-    shared_entities: list[str]
-
+    source_page: typing.Optional[int] = None
+    target_page: typing.Optional[int] = None
+    relationship: typing.Optional[str] = None
+    shared_entities: typing.List[str]
 
 class SynthesisPageCluster(BaseModel):
-    pages: list[int]
-    reason: str | None = None
-
+    pages: typing.List[int]
+    reason: typing.Optional[str] = None
 
 class SyntheticQueries(BaseModel):
-    queries: list[str] = Field(description="Short questions the passage directly answers, one per facet.")
-
-
-class TocDetectionResult(BaseModel):
-    has_toc: bool | None = Field(default=None, description="whether the page contains a table of contents")
-    has_page_numbers: bool | None = Field(default=None, description="whether the TOC entries include page numbers")
-
-
-class TocEntry(BaseModel):
-    structure: str | None = Field(default=None, description="hierarchical numbering, e.g. '1', '1.1', '1.1.2'")
-    title: str | None = Field(default=None, description="section title text")
-    page: int | None = Field(default=None, description="page number if present in TOC, null otherwise")
-
-
-class TocStructure(BaseModel):
-    entries: list["TocEntry"] = Field(description="ordered list of TOC entries with hierarchy")
-
-
-class ToolDrillDown(BaseModel):
-    node_id: str | None = Field(default=None, description="ID of the node to explore deeper")
-    reasoning: str | None = Field(default=None, description="why this subtree needs closer inspection")
-
-
-class ToolFetchPages(BaseModel):
-    pages: str | None = Field(default=None, description="page ranges to retrieve, e.g. '5-7' or '3,8,12-15'")
-    reasoning: str | None = Field(default=None, description="why these pages are likely relevant to the query")
-
-
-class ToolResolvedPages(BaseModel):
-    pages: str | None = Field(default=None, description="final relevant page ranges that answer the query")
-    reasoning: str | None = Field(default=None, description="summary of how these pages address the query")
-
+    queries: typing.List[str] = Field(description='Short questions the passage directly answers, one per facet.')
 
 # #########################################################################
 # Generated type aliases (0)
