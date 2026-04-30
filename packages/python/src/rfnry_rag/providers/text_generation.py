@@ -45,8 +45,7 @@ async def generate_text(
     timeout_seconds: int,
 ) -> str:
     system = _compose_system(system_prompt, history)
-    backend = provider.backend
-    if backend == "anthropic":
+    if provider.backend == "anthropic":
         return await _anthropic_generate(
             provider=provider,
             system=system,
@@ -56,7 +55,7 @@ async def generate_text(
             max_retries=max_retries,
             timeout_seconds=timeout_seconds,
         )
-    if backend == "openai":
+    if provider.backend == "openai":
         return await _openai_generate(
             provider=provider,
             system=system,
@@ -66,7 +65,7 @@ async def generate_text(
             max_retries=max_retries,
             timeout_seconds=timeout_seconds,
         )
-    if backend == "gemini":
+    if provider.backend == "gemini":
         return await _gemini_generate(
             provider=provider,
             system=system,
@@ -77,7 +76,7 @@ async def generate_text(
             timeout_seconds=timeout_seconds,
         )
     raise ConfigurationError(
-        f"Unsupported text-generation provider: {backend!r}. Supported: anthropic, openai, gemini."
+        f"Unsupported text-generation provider: {provider.backend!r}. Supported: anthropic, openai, gemini."
     )
 
 
@@ -92,8 +91,7 @@ def stream_text(
     timeout_seconds: int,
 ) -> AsyncIterator[str]:
     system = _compose_system(system_prompt, history)
-    backend = provider.backend
-    if backend == "anthropic":
+    if provider.backend == "anthropic":
         return _anthropic_stream(
             provider=provider,
             system=system,
@@ -103,7 +101,7 @@ def stream_text(
             max_retries=max_retries,
             timeout_seconds=timeout_seconds,
         )
-    if backend == "openai":
+    if provider.backend == "openai":
         return _openai_stream(
             provider=provider,
             system=system,
@@ -113,7 +111,7 @@ def stream_text(
             max_retries=max_retries,
             timeout_seconds=timeout_seconds,
         )
-    if backend == "gemini":
+    if provider.backend == "gemini":
         return _gemini_stream(
             provider=provider,
             system=system,
@@ -124,7 +122,7 @@ def stream_text(
             timeout_seconds=timeout_seconds,
         )
     raise ConfigurationError(
-        f"Unsupported text-generation provider: {backend!r}. Supported: anthropic, openai, gemini."
+        f"Unsupported text-generation provider: {provider.backend!r}. Supported: anthropic, openai, gemini."
     )
 
 
