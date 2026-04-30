@@ -110,7 +110,7 @@ async def test_ingest_dxf_raises_when_drawing_service_not_configured() -> None:
     engine._initialized = True  # type: ignore[attr-defined]
     engine._structured_ingestion = None  # type: ignore[attr-defined]
     engine._config = SimpleNamespace(  # type: ignore[assignment]
-        persistence=SimpleNamespace(metadata_store=None),
+        metadata_store=None,
     )
 
     with pytest.raises(ValueError, match="(?i)drawing"):
@@ -156,6 +156,6 @@ def _make_engine_stub_with_drawing(drawing_service: Any):
         ingest=AsyncMock(side_effect=_async_source_factory(status="completed")),
     )
     engine._config = SimpleNamespace(  # type: ignore[assignment]
-        persistence=SimpleNamespace(metadata_store=None),
+        metadata_store=None,
     )
     return engine

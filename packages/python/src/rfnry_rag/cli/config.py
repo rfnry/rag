@@ -9,14 +9,16 @@ from rfnry_rag.cli.utils import get_api_key as _get_api_key
 from rfnry_rag.config import (
     GenerationConfig,
     IngestionConfig,
-    PersistenceConfig,
     RagEngineConfig,
     RetrievalConfig,
 )
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.fastembed import FastEmbedSparseEmbeddings
+from rfnry_rag.ingestion.methods.vector import VectorIngestion
 from rfnry_rag.providers import Embeddings, LanguageModelClient, LanguageModelProvider, Reranking, Vision
+from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.retrieval.search.rewriting.multi_query import MultiQueryRewriting
+from rfnry_rag.server import _derive_embedding_model_name
 from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
@@ -254,7 +256,16 @@ def _load_config(config_path: str | Path | None) -> RagEngineConfig:
         "chunk_context_headers",
         ingestion_cfg.get("contextual_chunking", True),
     )
+    embedding_model_name = _derive_embedding_model_name(embeddings)
     ingestion = IngestionConfig(
+        methods=[
+            VectorIngestion(
+                store=vector_store,
+                embeddings=embeddings,
+                embedding_model_name=embedding_model_name,
+                sparse_embeddings=sparse_embeddings,
+            )
+        ],
         embeddings=embeddings,
         vision=_build_vision(ingestion_cfg),
         chunk_size=ingestion_cfg.get("chunk_size", 500),
@@ -266,9 +277,18 @@ def _load_config(config_path: str | Path | None) -> RagEngineConfig:
     )
 
     retrieval_cfg = toml.get("retrieval", {})
+    bm25_enabled = retrieval_cfg.get("bm25_enabled", False)
     retrieval = RetrievalConfig(
+        methods=[
+            VectorRetrieval(
+                store=vector_store,
+                embeddings=embeddings,
+                sparse_embeddings=sparse_embeddings,
+                bm25_enabled=bm25_enabled,
+            )
+        ],
         top_k=retrieval_cfg.get("top_k", 5),
-        bm25_enabled=retrieval_cfg.get("bm25_enabled", False),
+        bm25_enabled=bm25_enabled,
         reranker=_build_reranker(retrieval_cfg),
         query_rewriter=_build_query_rewriter(retrieval_cfg),
     )
@@ -277,10 +297,7 @@ def _load_config(config_path: str | Path | None) -> RagEngineConfig:
     generation = _build_generation_config(generation_cfg) if generation_cfg else GenerationConfig()
 
     return RagEngineConfig(
-        persistence=PersistenceConfig(
-            vector_store=vector_store,
-            metadata_store=metadata_store,
-        ),
+        metadata_store=metadata_store,
         ingestion=ingestion,
         retrieval=retrieval,
         generation=generation,

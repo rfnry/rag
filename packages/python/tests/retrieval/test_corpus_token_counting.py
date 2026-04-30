@@ -148,13 +148,9 @@ async def test_load_full_corpus_prefers_document_store_over_vector_scroll() -> N
     )
 
     engine = RagEngine.__new__(RagEngine)
-    engine._config = SimpleNamespace(  # type: ignore[assignment]
-        persistence=SimpleNamespace(
-            metadata_store=metadata_store,
-            document_store=document_store,
-            vector_store=vector_store,
-        )
-    )
+    engine._config = SimpleNamespace(metadata_store=metadata_store)  # type: ignore[assignment]
+    engine._document_store = document_store  # type: ignore[assignment]
+    engine._vector_store = vector_store  # type: ignore[assignment]
 
     corpus = await engine._load_full_corpus(knowledge_id="kb-1")
 
@@ -185,13 +181,9 @@ async def test_load_full_corpus_returns_empty_string_for_empty_knowledge_scope()
     vector_store = SimpleNamespace(scroll=AsyncMock())
 
     engine = RagEngine.__new__(RagEngine)
-    engine._config = SimpleNamespace(  # type: ignore[assignment]
-        persistence=SimpleNamespace(
-            metadata_store=metadata_store,
-            document_store=document_store,
-            vector_store=vector_store,
-        )
-    )
+    engine._config = SimpleNamespace(metadata_store=metadata_store)  # type: ignore[assignment]
+    engine._document_store = document_store  # type: ignore[assignment]
+    engine._vector_store = vector_store  # type: ignore[assignment]
 
     corpus = await engine._load_full_corpus(knowledge_id="kb-empty")
 

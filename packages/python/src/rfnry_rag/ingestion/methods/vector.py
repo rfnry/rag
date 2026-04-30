@@ -23,14 +23,21 @@ class VectorIngestion:
 
     def __init__(
         self,
-        vector_store: BaseVectorStore,
-        embeddings: BaseEmbeddings,
-        embedding_model_name: str,
+        store: BaseVectorStore | None = None,
+        embeddings: BaseEmbeddings | None = None,
+        embedding_model_name: str = "",
         sparse_embeddings: BaseSparseEmbeddings | None = None,
         include_synthetic_in_embeddings: bool = True,
         include_synthetic_in_bm25: bool = True,
+        *,
+        vector_store: BaseVectorStore | None = None,
     ) -> None:
-        self._store = vector_store
+        store = store if store is not None else vector_store
+        if store is None:
+            raise TypeError("VectorIngestion requires `store=` (or legacy `vector_store=`)")
+        if embeddings is None:
+            raise TypeError("VectorIngestion requires `embeddings=`")
+        self._store = store
         self._embeddings = embeddings
         self._sparse = sparse_embeddings
         self._embedding_model_name = embedding_model_name

@@ -15,11 +15,16 @@ class DocumentRetrieval:
 
     def __init__(
         self,
-        document_store: BaseDocumentStore,
+        store: BaseDocumentStore | None = None,
         weight: float = 1.0,
         top_k: int | None = None,
+        *,
+        document_store: BaseDocumentStore | None = None,
     ) -> None:
-        self._store = document_store
+        store = store if store is not None else document_store
+        if store is None:
+            raise TypeError("DocumentRetrieval requires `store=` (or legacy `document_store=`)")
+        self._store = store
         self._weight = weight
         self._top_k = top_k
 

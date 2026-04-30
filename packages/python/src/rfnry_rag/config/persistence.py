@@ -1,3 +1,20 @@
+"""Back-compat shim.
+
+The canonical config shape places stores inside the methods that use them
+(``VectorIngestion(store=v, embeddings=e)``) and exposes ``metadata_store``
+at the engine level. ``PersistenceConfig`` remains accepted as a legacy
+``RagEngineConfig.persistence`` field — when supplied, the engine
+auto-assembles ingestion + retrieval methods from it at initialize() time.
+
+Prefer the explicit shape:
+
+    RagEngineConfig(
+        metadata_store=m,
+        ingestion=IngestionConfig(methods=[VectorIngestion(store=v, embeddings=e), ...]),
+        retrieval=RetrievalConfig(methods=[VectorRetrieval(store=v, embeddings=e), ...]),
+    )
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,23 +27,6 @@ from rfnry_rag.stores.vector.base import BaseVectorStore
 
 @dataclass
 class PersistenceConfig:
-    """Storage backends for the RAG engine.
-
-    Two distinct routing concepts coexist in the engine:
-
-    - **collection** (e.g. ``vector_store.collections=["knowledge", "logs"]``):
-      the backend routing key — a Qdrant collection name, filesystem subdir, or
-      Postgres schema. Chosen per-ingest/retrieve call via the ``collection=``
-      argument and maps 1:1 to a pipeline instance.
-    - **knowledge_id** (e.g. ``knowledge_id="tenant-42"``): a per-document
-      partition filter applied at query time. Multiple knowledge_ids share the
-      same collection; retrieval filters to the requested one.
-
-    Use ``collection`` to physically separate data (different Qdrant clusters
-    or schemas); use ``knowledge_id`` to logically partition within one
-    collection.
-    """
-
     vector_store: BaseVectorStore | None = None
     metadata_store: BaseMetadataStore | None = None
     document_store: BaseDocumentStore | None = None

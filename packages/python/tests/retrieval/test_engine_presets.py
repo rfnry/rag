@@ -5,7 +5,16 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from rfnry_rag.ingestion.methods.document import DocumentIngestion
+from rfnry_rag.ingestion.methods.vector import VectorIngestion
+from rfnry_rag.retrieval.methods.document import DocumentRetrieval
+from rfnry_rag.retrieval.methods.graph import GraphRetrieval
+from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.server import RagEngine, RagEngineConfig
+
+
+def _has(methods, cls) -> bool:
+    return any(isinstance(m, cls) for m in methods)
 
 
 def test_vector_only_preset_yields_valid_config() -> None:
@@ -16,10 +25,10 @@ def test_vector_only_preset_yields_valid_config() -> None:
     config = RagEngine.vector_only(vector_store=vector_store, embeddings=embeddings)
 
     assert isinstance(config, RagEngineConfig)
-    assert config.persistence.vector_store is vector_store
-    assert config.ingestion.embeddings is embeddings
-    assert config.persistence.document_store is None
-    assert config.persistence.graph_store is None
+    assert _has(config.ingestion.methods, VectorIngestion)
+    assert _has(config.retrieval.methods, VectorRetrieval)
+    assert not _has(config.ingestion.methods, DocumentIngestion)
+    assert config.metadata_store is None
 
 
 def test_vector_only_with_reranker_and_top_k() -> None:
@@ -38,8 +47,9 @@ def test_document_only_preset() -> None:
     document_store = MagicMock()
     config = RagEngine.document_only(document_store=document_store)
 
-    assert config.persistence.document_store is document_store
-    assert config.persistence.vector_store is None
+    assert _has(config.ingestion.methods, DocumentIngestion)
+    assert _has(config.retrieval.methods, DocumentRetrieval)
+    assert not _has(config.ingestion.methods, VectorIngestion)
     assert config.ingestion.embeddings is None
 
 
@@ -58,9 +68,9 @@ def test_hybrid_preset_wires_all_stores() -> None:
         reranker=reranker,
     )
 
-    assert config.persistence.vector_store is vector_store
-    assert config.persistence.document_store is document_store
-    assert config.persistence.graph_store is graph_store
+    assert _has(config.ingestion.methods, VectorIngestion)
+    assert _has(config.ingestion.methods, DocumentIngestion)
+    assert _has(config.retrieval.methods, GraphRetrieval)
     assert config.retrieval.reranker is reranker
 
 
@@ -69,16 +79,14 @@ def test_hybrid_preset_without_optional_stores() -> None:
         vector_store=MagicMock(),
         embeddings=MagicMock(model="m"),
     )
-    assert config.persistence.vector_store is not None
-    assert config.persistence.document_store is None
-    assert config.persistence.graph_store is None
+    assert _has(config.ingestion.methods, VectorIngestion)
+    assert not _has(config.ingestion.methods, DocumentIngestion)
+    assert not _has(config.retrieval.methods, GraphRetrieval)
 
 
 def test_presets_return_usable_config_for_engine_construction() -> None:
     """Smoke test: the preset configs must satisfy RagEngine._validate_config."""
     config = RagEngine.vector_only(vector_store=MagicMock(), embeddings=MagicMock(model="m"))
-    # _validate_config is called in RagEngine.initialize; exercising it ensures
-    # the preset satisfies cross-config constraints.
     RagEngine(config)._validate_config()
 
     config2 = RagEngine.document_only(document_store=MagicMock())

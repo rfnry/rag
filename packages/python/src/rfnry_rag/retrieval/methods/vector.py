@@ -35,8 +35,8 @@ class VectorRetrieval:
 
     def __init__(
         self,
-        vector_store: BaseVectorStore,
-        embeddings: BaseEmbeddings,
+        store: BaseVectorStore | None = None,
+        embeddings: BaseEmbeddings | None = None,
         sparse_embeddings: BaseSparseEmbeddings | None = None,
         parent_expansion: bool = False,
         bm25_enabled: bool = False,
@@ -45,8 +45,15 @@ class VectorRetrieval:
         bm25_tokenizer: Callable[[str], list[str]] | None = None,
         weight: float = 1.0,
         top_k: int | None = None,
+        *,
+        vector_store: BaseVectorStore | None = None,
     ) -> None:
-        self._store = vector_store
+        store = store if store is not None else vector_store
+        if store is None:
+            raise TypeError("VectorRetrieval requires `store=` (or legacy `vector_store=`)")
+        if embeddings is None:
+            raise TypeError("VectorRetrieval requires `embeddings=`")
+        self._store = store
         self._embeddings = embeddings
         self._sparse = sparse_embeddings
         self._parent_expansion = parent_expansion

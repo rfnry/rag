@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.providers import LanguageModelClient
@@ -9,22 +10,29 @@ from rfnry_rag.retrieval.refinement.base import BaseChunkRefinement
 from rfnry_rag.retrieval.search.reranking.base import BaseReranking
 from rfnry_rag.retrieval.search.rewriting.base import BaseQueryRewriting
 
+if TYPE_CHECKING:
+    from rfnry_rag.retrieval.base import BaseRetrievalMethod
+
 
 @dataclass
 class RetrievalConfig:
+    methods: list[BaseRetrievalMethod] = field(default_factory=list)
     top_k: int = 5
     reranker: BaseReranking | None = None
     query_rewriter: BaseQueryRewriting | None = None
+    source_type_weights: dict[str, float] | None = None
+    cross_reference_enrichment: bool = True
+    enrich_lm_client: LanguageModelClient | None = None
+    chunk_refiner: BaseChunkRefinement | None = None
+    history_window: int = 3
+    # Defaults consumed by the collection-scoped pipeline rebuilder when a
+    # multi-collection vector store is configured; primary `methods` list is
+    # the canonical place to tune VectorRetrieval per-instance.
     bm25_enabled: bool = False
     bm25_max_indexes: int = 16
     bm25_max_chunks: int = 50_000
     bm25_tokenizer: Callable[[str], list[str]] | None = None
-    source_type_weights: dict[str, float] | None = None
-    cross_reference_enrichment: bool = True
-    enrich_lm_client: LanguageModelClient | None = None
     parent_expansion: bool = True
-    chunk_refiner: BaseChunkRefinement | None = None
-    history_window: int = 3
 
     def __post_init__(self) -> None:
         if self.top_k < 1:

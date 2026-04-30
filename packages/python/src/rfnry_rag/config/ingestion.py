@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from rfnry_rag.config.drawing import DrawingIngestionConfig
 from rfnry_rag.config.graph import GraphIngestionConfig
@@ -10,6 +10,9 @@ from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
 from rfnry_rag.ingestion.vision.base import BaseVision
 from rfnry_rag.providers import LanguageModelClient
+
+if TYPE_CHECKING:
+    from rfnry_rag.ingestion.base import BaseIngestionMethod
 
 
 @dataclass
@@ -46,6 +49,7 @@ class DocumentExpansionConfig:
 
 @dataclass
 class IngestionConfig:
+    methods: list[BaseIngestionMethod] = field(default_factory=list)
     embeddings: BaseEmbeddings | None = None
     vision: BaseVision | None = None
     chunk_size: int = 375

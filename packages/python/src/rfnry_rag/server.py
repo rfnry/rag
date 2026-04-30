@@ -14,7 +14,7 @@ from rfnry_rag.config.generation import GenerationConfig as GenerationConfig
 from rfnry_rag.config.graph import GraphIngestionConfig as GraphIngestionConfig
 from rfnry_rag.config.ingestion import DocumentExpansionConfig as DocumentExpansionConfig
 from rfnry_rag.config.ingestion import IngestionConfig
-from rfnry_rag.config.persistence import PersistenceConfig
+from rfnry_rag.config.persistence import PersistenceConfig as PersistenceConfig
 from rfnry_rag.config.retrieval import RetrievalConfig
 from rfnry_rag.config.routing import QueryMode
 from rfnry_rag.config.routing import RoutingConfig as RoutingConfig
@@ -106,16 +106,37 @@ class RagEngine:
         *,
         vector_store: BaseVectorStore,
         embeddings: BaseEmbeddings,
+        embedding_model_name: str = "",
+        metadata_store: Any = None,
         top_k: int = 5,
         reranker: BaseReranking | None = None,
         query_rewriter: BaseQueryRewriting | None = None,
         sparse_embeddings: BaseSparseEmbeddings | None = None,
     ) -> RagEngineConfig:
-        """Preset: dense vector search only. Add reranker/rewriter for quality."""
+        """Preset: dense vector search only."""
+        name = embedding_model_name or _derive_embedding_model_name(embeddings)
         return RagEngineConfig(
-            persistence=PersistenceConfig(vector_store=vector_store),
-            ingestion=IngestionConfig(embeddings=embeddings, sparse_embeddings=sparse_embeddings),
-            retrieval=RetrievalConfig(top_k=top_k, reranker=reranker, query_rewriter=query_rewriter),
+            metadata_store=metadata_store,
+            ingestion=IngestionConfig(
+                methods=[
+                    VectorIngestion(
+                        store=vector_store,
+                        embeddings=embeddings,
+                        embedding_model_name=name,
+                        sparse_embeddings=sparse_embeddings,
+                    )
+                ],
+                embeddings=embeddings,
+                sparse_embeddings=sparse_embeddings,
+            ),
+            retrieval=RetrievalConfig(
+                methods=[
+                    VectorRetrieval(store=vector_store, embeddings=embeddings, sparse_embeddings=sparse_embeddings)
+                ],
+                top_k=top_k,
+                reranker=reranker,
+                query_rewriter=query_rewriter,
+            ),
         )
 
     @classmethod
@@ -123,14 +144,19 @@ class RagEngine:
         cls,
         *,
         document_store: BaseDocumentStore,
+        metadata_store: Any = None,
         top_k: int = 5,
         reranker: BaseReranking | None = None,
     ) -> RagEngineConfig:
         """Preset: full-text / substring search only. No embeddings needed."""
         return RagEngineConfig(
-            persistence=PersistenceConfig(document_store=document_store),
-            ingestion=IngestionConfig(),
-            retrieval=RetrievalConfig(top_k=top_k, reranker=reranker),
+            metadata_store=metadata_store,
+            ingestion=IngestionConfig(methods=[DocumentIngestion(store=document_store)]),
+            retrieval=RetrievalConfig(
+                methods=[DocumentRetrieval(store=document_store, weight=0.8)],
+                top_k=top_k,
+                reranker=reranker,
+            ),
         )
 
     @classmethod
@@ -141,20 +167,37 @@ class RagEngine:
         embeddings: BaseEmbeddings,
         document_store: BaseDocumentStore | None = None,
         graph_store: BaseGraphStore | None = None,
+        metadata_store: Any = None,
         sparse_embeddings: BaseSparseEmbeddings | None = None,
         reranker: BaseReranking | None = None,
         query_rewriter: BaseQueryRewriting | None = None,
         top_k: int = 5,
     ) -> RagEngineConfig:
         """Preset: multi-path retrieval with optional document/graph/sparse paths + rerank."""
+        name = _derive_embedding_model_name(embeddings)
+        ing_methods: list[Any] = [
+            VectorIngestion(
+                store=vector_store,
+                embeddings=embeddings,
+                embedding_model_name=name,
+                sparse_embeddings=sparse_embeddings,
+            )
+        ]
+        ret_methods: list[Any] = [
+            VectorRetrieval(store=vector_store, embeddings=embeddings, sparse_embeddings=sparse_embeddings)
+        ]
+        if document_store is not None:
+            ing_methods.append(DocumentIngestion(store=document_store))
+            ret_methods.append(DocumentRetrieval(store=document_store, weight=0.8))
+        if graph_store is not None:
+            ret_methods.append(GraphRetrieval(store=graph_store, weight=0.7))
+
         return RagEngineConfig(
-            persistence=PersistenceConfig(
-                vector_store=vector_store,
-                document_store=document_store,
-                graph_store=graph_store,
+            metadata_store=metadata_store,
+            ingestion=IngestionConfig(methods=ing_methods, embeddings=embeddings, sparse_embeddings=sparse_embeddings),
+            retrieval=RetrievalConfig(
+                methods=ret_methods, top_k=top_k, reranker=reranker, query_rewriter=query_rewriter
             ),
-            ingestion=IngestionConfig(embeddings=embeddings, sparse_embeddings=sparse_embeddings),
-            retrieval=RetrievalConfig(top_k=top_k, reranker=reranker, query_rewriter=query_rewriter),
         )
 
     def __init__(self, config: RagEngineConfig) -> None:
@@ -181,6 +224,80 @@ class RagEngine:
         self._embedding_model_name: str = ""
         self._expansion_registry: Any = None
 
+        # Stores discovered from configured methods at initialize() time.
+        # Populated by _discover_stores(); used by sub-pipelines (drawing,
+        # analyzed) and by the lifecycle teardown in shutdown().
+        self._vector_store: BaseVectorStore | None = None
+        self._document_store: BaseDocumentStore | None = None
+        self._graph_store: BaseGraphStore | None = None
+
+    def _discover_stores(self) -> None:
+        """Walk configured methods, capture distinct store instances."""
+        methods: list[Any] = list(self._config.ingestion.methods) + list(self._config.retrieval.methods)
+        for m in methods:
+            store = getattr(m, "_store", None)
+            if store is None:
+                continue
+            if isinstance(m, VectorIngestion | VectorRetrieval) and self._vector_store is None:
+                self._vector_store = store
+            elif isinstance(m, DocumentIngestion | DocumentRetrieval) and self._document_store is None:
+                self._document_store = store
+            elif isinstance(m, GraphIngestion | GraphRetrieval) and self._graph_store is None:
+                self._graph_store = store
+
+    def _auto_assemble_from_persistence(self) -> None:
+        """Legacy: build methods from PersistenceConfig + IngestionConfig resources."""
+        cfg = self._config
+        p = cfg.persistence
+        assert p is not None
+        ingestion = cfg.ingestion
+        retrieval = cfg.retrieval
+
+        ing_methods: list[Any] = []
+        ret_methods: list[Any] = []
+
+        if p.vector_store is not None and ingestion.embeddings is not None:
+            name = _derive_embedding_model_name(ingestion.embeddings)
+            ing_methods.append(
+                VectorIngestion(
+                    store=p.vector_store,
+                    embeddings=ingestion.embeddings,
+                    embedding_model_name=name,
+                    sparse_embeddings=ingestion.sparse_embeddings,
+                    include_synthetic_in_embeddings=ingestion.document_expansion.include_in_embeddings,
+                    include_synthetic_in_bm25=ingestion.document_expansion.include_in_bm25,
+                )
+            )
+            ret_methods.append(
+                VectorRetrieval(
+                    store=p.vector_store,
+                    embeddings=ingestion.embeddings,
+                    sparse_embeddings=ingestion.sparse_embeddings,
+                    parent_expansion=retrieval.parent_expansion,
+                    bm25_enabled=retrieval.bm25_enabled,
+                    bm25_max_indexes=retrieval.bm25_max_indexes,
+                    bm25_max_chunks=retrieval.bm25_max_chunks,
+                    bm25_tokenizer=retrieval.bm25_tokenizer,
+                    weight=1.0,
+                )
+            )
+        if p.document_store is not None:
+            ing_methods.append(DocumentIngestion(store=p.document_store))
+            ret_methods.append(DocumentRetrieval(store=p.document_store, weight=0.8))
+        if p.graph_store is not None:
+            if ingestion.lm_client is not None:
+                ing_methods.append(
+                    GraphIngestion(
+                        store=p.graph_store,
+                        lm_client=ingestion.lm_client,
+                        graph_config=ingestion.graph,
+                    )
+                )
+            ret_methods.append(GraphRetrieval(store=p.graph_store, weight=0.7))
+
+        ingestion.methods = ing_methods
+        retrieval.methods = ret_methods
+
     @property
     def knowledge(self) -> KnowledgeManager:
         self._check_initialized()
@@ -190,7 +307,7 @@ class RagEngine:
     @property
     def collections(self) -> list[str]:
         """Available Qdrant collections."""
-        store = self._config.persistence.vector_store
+        store = self._vector_store
         if store and hasattr(store, "collections"):
             return store.collections  # type: ignore[no-any-return]
         return []
@@ -210,42 +327,14 @@ class RagEngine:
         return self._ingestion_namespace
 
     def _validate_config(self) -> None:
-        """Cross-config validation: ensure at least one retrieval path and required deps."""
+        """Cross-config validation: ensure at least one retrieval method is configured."""
         cfg = self._config
-        p = cfg.persistence
-        i = cfg.ingestion
-
-        has_vector = p.vector_store is not None and i.embeddings is not None
-        has_document = p.document_store is not None
-        has_graph = p.graph_store is not None
-
-        if not any([has_vector, has_document, has_graph]):
+        if not cfg.retrieval.methods and cfg.persistence is None:
             raise ConfigurationError(
-                "At least one retrieval path must be configured: "
-                "vector (vector_store + embeddings), "
-                "document (document_store), or graph (graph_store)"
-            )
-
-        if p.vector_store and not i.embeddings:
-            raise ConfigurationError("vector_store requires embeddings")
-        if i.embeddings and not p.vector_store:
-            raise ConfigurationError("embeddings requires vector_store")
-
-        if has_graph and not i.lm_client:
-            # Previously raised at init-time which blocked retrieval-only users
-            # with a pre-populated graph. GraphIngestion itself handles the
-            # missing-client case at runtime (warn + skip), so degrade this to
-            # a one-shot warning here rather than a hard failure.
-            logger.warning(
-                "graph_store configured without ingestion.lm_client — entity "
-                "extraction during ingestion will be skipped. Graph retrieval "
-                "still works if the graph is pre-populated."
-            )
-
-        if cfg.retrieval.bm25_enabled and i.sparse_embeddings:
-            raise ConfigurationError(
-                "bm25_enabled cannot be used together with sparse_embeddings — "
-                "sparse embeddings supersede BM25. Disable one."
+                "RetrievalConfig.methods must not be empty — configure at least one "
+                "retrieval method (VectorRetrieval, DocumentRetrieval, or GraphRetrieval). "
+                "(Legacy: a non-empty PersistenceConfig may be passed as RagEngineConfig.persistence "
+                "to auto-assemble methods.)"
             )
 
     async def initialize(self) -> None:
@@ -270,72 +359,41 @@ class RagEngine:
 
     async def _initialize_impl(self) -> None:
         cfg = self._config
-        persistence = cfg.persistence
         ingestion = cfg.ingestion
         retrieval = cfg.retrieval
         gen = cfg.generation
 
+        # Legacy auto-assembly: if a PersistenceConfig was supplied and the
+        # explicit methods lists are empty, build VectorIngestion / DocumentIngestion
+        # / GraphIngestion (and matching retrieval methods) from the stores.
+        if cfg.persistence is not None and not ingestion.methods and not retrieval.methods:
+            self._auto_assemble_from_persistence()
+
+        metadata_store = cfg.metadata_store
+
         logger.info("ragengine initializing")
+
+        # Discover stores from configured methods.
+        self._discover_stores()
 
         # Initialize stores
         self._stores_opened = True  # from this point forward, shutdown() must run teardown
-        if persistence.metadata_store:
-            await persistence.metadata_store.initialize()
-        if persistence.document_store:
-            await persistence.document_store.initialize()
-        if persistence.graph_store:
-            await persistence.graph_store.initialize()
+        if metadata_store:
+            await metadata_store.initialize()
+        if self._document_store:
+            await self._document_store.initialize()
+        if self._graph_store:
+            await self._graph_store.initialize()
 
-        ingestion_methods: list[Any] = []
-        retrieval_methods: list[Any] = []
+        ingestion_methods: list[Any] = list(ingestion.methods)
+        retrieval_methods: list[Any] = list(retrieval.methods)
 
-        # Vector path
-        if persistence.vector_store and ingestion.embeddings:
+        # Vector store init: ask the first VectorIngestion/VectorRetrieval method
+        # for its embedding dimension and pre-create the store collection.
+        if self._vector_store is not None and ingestion.embeddings is not None:
             vector_size = await ingestion.embeddings.embedding_dimension()
-            await persistence.vector_store.initialize(vector_size)
-
+            await self._vector_store.initialize(vector_size)
             self._embedding_model_name = _derive_embedding_model_name(ingestion.embeddings)
-
-            ingestion_methods.append(
-                VectorIngestion(
-                    vector_store=persistence.vector_store,
-                    embeddings=ingestion.embeddings,
-                    embedding_model_name=self._embedding_model_name,
-                    sparse_embeddings=ingestion.sparse_embeddings,
-                    include_synthetic_in_embeddings=ingestion.document_expansion.include_in_embeddings,
-                    include_synthetic_in_bm25=ingestion.document_expansion.include_in_bm25,
-                )
-            )
-            retrieval_methods.append(
-                VectorRetrieval(
-                    vector_store=persistence.vector_store,
-                    embeddings=ingestion.embeddings,
-                    sparse_embeddings=ingestion.sparse_embeddings,
-                    parent_expansion=retrieval.parent_expansion,
-                    bm25_enabled=retrieval.bm25_enabled,
-                    bm25_max_indexes=retrieval.bm25_max_indexes,
-                    bm25_max_chunks=retrieval.bm25_max_chunks,
-                    bm25_tokenizer=retrieval.bm25_tokenizer,
-                    weight=1.0,
-                )
-            )
-
-        # Document path
-        if persistence.document_store:
-            ingestion_methods.append(DocumentIngestion(document_store=persistence.document_store))
-            retrieval_methods.append(DocumentRetrieval(document_store=persistence.document_store, weight=0.8))
-
-        # Graph path
-        if persistence.graph_store:
-            if ingestion.lm_client:
-                ingestion_methods.append(
-                    GraphIngestion(
-                        graph_store=persistence.graph_store,
-                        lm_client=ingestion.lm_client,
-                        graph_config=ingestion.graph,
-                    )
-                )
-            retrieval_methods.append(GraphRetrieval(graph_store=persistence.graph_store, weight=0.7))
 
         # Chunker
         self._chunker = SemanticChunker(
@@ -373,7 +431,7 @@ class RagEngine:
             ingestion_methods=ingestion_methods,
             embedding_model_name=self._embedding_model_name,
             source_type_weights=retrieval.source_type_weights,
-            metadata_store=persistence.metadata_store,
+            metadata_store=metadata_store,
             on_ingestion_complete=self._on_ingestion_complete,
             vision_parser=ingestion.vision,
             chunk_context_headers=ingestion.chunk_context_headers,
@@ -382,7 +440,7 @@ class RagEngine:
         )
 
         # Analyzed ingestion — shares document method from main list, graph store passed directly
-        if persistence.metadata_store and persistence.vector_store and ingestion.embeddings:
+        if metadata_store and self._vector_store and ingestion.embeddings:
             analyzed_methods = [m for m in ingestion_methods if isinstance(m, DocumentIngestion)]
             if not analyzed_methods:
                 logger.warning(
@@ -392,15 +450,15 @@ class RagEngine:
 
             self._structured_ingestion = AnalyzedIngestionService(
                 embeddings=ingestion.embeddings,
-                vector_store=persistence.vector_store,
-                metadata_store=persistence.metadata_store,
+                vector_store=self._vector_store,
+                metadata_store=metadata_store,
                 embedding_model_name=self._embedding_model_name,
                 vision=ingestion.vision,
                 dpi=ingestion.dpi,
                 source_type_weights=retrieval.source_type_weights,
                 on_ingestion_complete=self._on_ingestion_complete,
                 lm_client=ingestion.lm_client,
-                graph_store=persistence.graph_store,
+                graph_store=self._graph_store,
                 ingestion_methods=analyzed_methods,
                 analyze_text_skip_threshold_chars=ingestion.analyze_text_skip_threshold_chars,
                 analyze_concurrency=ingestion.analyze_concurrency,
@@ -412,17 +470,19 @@ class RagEngine:
         # Drawing ingestion — sibling of structured. Enabled only if the consumer
         # explicitly configures IngestionConfig.drawings (opt-in).
         if ingestion.drawings is not None and ingestion.drawings.enabled:
-            if persistence.metadata_store is None or persistence.vector_store is None:
-                raise ConfigurationError("DrawingIngestionConfig.enabled=True requires metadata_store and vector_store")
+            if metadata_store is None or self._vector_store is None:
+                raise ConfigurationError(
+                    "DrawingIngestionConfig.enabled=True requires metadata_store and a vector store"
+                )
             if ingestion.embeddings is None:
                 raise ConfigurationError("DrawingIngestionConfig.enabled=True requires IngestionConfig.embeddings")
             self._drawing_ingestion = DrawingIngestionService(
                 config=ingestion.drawings,
                 embeddings=ingestion.embeddings,
-                vector_store=persistence.vector_store,
-                metadata_store=persistence.metadata_store,
+                vector_store=self._vector_store,
+                metadata_store=metadata_store,
                 embedding_model_name=self._embedding_model_name,
-                graph_store=persistence.graph_store,
+                graph_store=self._graph_store,
                 ingestion_methods=list(ingestion_methods),
             )
             logger.info("drawing ingestion: enabled")
@@ -437,9 +497,9 @@ class RagEngine:
         )
 
         # Structured retrieval (unchanged)
-        if persistence.vector_store and ingestion.embeddings:
+        if self._vector_store and ingestion.embeddings:
             self._structured_retrieval = StructuredRetrievalService(
-                vector_store=persistence.vector_store,
+                vector_store=self._vector_store,
                 embeddings=ingestion.embeddings,
                 lm_client=retrieval.enrich_lm_client,
                 top_k=retrieval.top_k,
@@ -452,8 +512,8 @@ class RagEngine:
         # back to the default pipeline.
         self._retrieval_by_collection.clear()
         self._ingestion_by_collection.clear()
-        if persistence.vector_store and hasattr(persistence.vector_store, "collections"):
-            store_collections: list[str] = persistence.vector_store.collections
+        if self._vector_store and hasattr(self._vector_store, "collections"):
+            store_collections: list[str] = self._vector_store.collections
             for coll_name in store_collections:
                 # INTENTIONAL: the first collection reuses the already-built default service
                 # instances. Consequence: retrieving explicitly by the first collection's
@@ -471,8 +531,8 @@ class RagEngine:
                     self._ingestion_by_collection[coll_name] = self._ingestion_service
                     continue
 
-                scoped_store = persistence.vector_store.scoped(coll_name)  # type: ignore[attr-defined]
-                scoped_retrieval = self._build_retrieval_pipeline(scoped_store, ingestion, retrieval, persistence)
+                scoped_store = self._vector_store.scoped(coll_name)  # type: ignore[attr-defined]
+                scoped_retrieval = self._build_retrieval_pipeline(scoped_store, ingestion, retrieval)
                 self._retrieval_by_collection[coll_name] = scoped_retrieval
                 self._ingestion_by_collection[coll_name] = self._build_ingestion_service(scoped_store)
                 logger.info("pipelines built for collection '%s'", coll_name)
@@ -502,15 +562,15 @@ class RagEngine:
             logger.info("step generation: enabled")
 
         self._knowledge_manager = KnowledgeManager(
-            vector_store=persistence.vector_store,
-            metadata_store=persistence.metadata_store,
+            vector_store=self._vector_store,
+            metadata_store=metadata_store,
             on_source_removed=self._on_source_removed,
-            document_store=persistence.document_store,
-            graph_store=persistence.graph_store,
+            document_store=self._document_store,
+            graph_store=self._graph_store,
         )
 
         stale = await check_embedding_migration(
-            metadata_store=persistence.metadata_store,
+            metadata_store=metadata_store,
             embedding_model_name=self._embedding_model_name,
         )
         if stale:
@@ -526,26 +586,25 @@ class RagEngine:
         if not self._stores_opened:
             return  # idempotent: no stores were opened, or shutdown already ran
         self._stores_opened = False  # prevent re-entrant teardown on a second call
-        persistence = self._config.persistence
         # Reverse-init order: vector → graph → document → metadata
-        if persistence.vector_store:
+        if self._vector_store:
             try:
-                await persistence.vector_store.shutdown()
+                await self._vector_store.shutdown()
             except Exception:
                 logger.exception("error shutting down vector store")
-        if persistence.graph_store:
+        if self._graph_store:
             try:
-                await persistence.graph_store.shutdown()
+                await self._graph_store.shutdown()
             except Exception:
                 logger.exception("error shutting down graph store")
-        if persistence.document_store:
+        if self._document_store:
             try:
-                await persistence.document_store.shutdown()
+                await self._document_store.shutdown()
             except Exception:
                 logger.exception("error shutting down document store")
-        if persistence.metadata_store:
+        if self._config.metadata_store:
             try:
-                await persistence.metadata_store.shutdown()
+                await self._config.metadata_store.shutdown()
             except Exception:
                 logger.exception("error shutting down metadata store")
         # Null out service refs so post-shutdown access fails cleanly
@@ -600,7 +659,7 @@ class RagEngine:
                 raise ValueError("collection routing is not supported with drawing ingestion")
 
             # Status-based resume
-            metadata_store = self._config.persistence.metadata_store
+            metadata_store = self._config.metadata_store
             existing: Source | None = None
             if metadata_store is not None:
                 file_hash_value = await asyncio.to_thread(compute_file_hash, file_path)
@@ -634,7 +693,7 @@ class RagEngine:
                 )
 
             # Status-based resume: find any prior ingest for the same file_hash.
-            metadata_store = self._config.persistence.metadata_store
+            metadata_store = self._config.metadata_store
             existing = None
             if metadata_store is not None:
                 file_hash_value = await asyncio.to_thread(compute_file_hash, file_path)
@@ -1040,11 +1099,11 @@ class RagEngine:
 
         Returns the empty string when the knowledge has no sources.
         """
-        persistence = self._config.persistence
-        if persistence.metadata_store is None:
+        metadata_store = self._config.metadata_store
+        if metadata_store is None:
             return ""
 
-        sources = await persistence.metadata_store.list_sources(knowledge_id=knowledge_id)
+        sources = await metadata_store.list_sources(knowledge_id=knowledge_id)
         # Pin the corpus prefix to a stable function of WHICH sources are
         # present, not WHEN they were ingested. The metadata store today orders
         # by `created_at DESC`, which means re-ingesting a source bumps it to
@@ -1052,8 +1111,8 @@ class RagEngine:
         # here makes re-ingestion cache-invalidate only the affected slot, and
         # adding a new source only changes the suffix below existing ones.
         sources = sorted(sources, key=lambda s: s.source_id)
-        document_store = persistence.document_store
-        vector_store = persistence.vector_store
+        document_store = self._document_store
+        vector_store = self._vector_store
         parts: list[str] = []
         for source in sources:
             text: str | None = None
@@ -1160,13 +1219,12 @@ class RagEngine:
         vector_store: BaseVectorStore,
         ingestion: IngestionConfig,
         retrieval: RetrievalConfig,
-        persistence: PersistenceConfig,
     ) -> tuple[RetrievalService, StructuredRetrievalService | None]:
         methods: list = []
         if ingestion.embeddings:
             methods.append(
                 VectorRetrieval(
-                    vector_store=vector_store,
+                    store=vector_store,
                     embeddings=ingestion.embeddings,
                     sparse_embeddings=ingestion.sparse_embeddings,
                     parent_expansion=retrieval.parent_expansion,
@@ -1177,10 +1235,10 @@ class RagEngine:
                     weight=1.0,
                 )
             )
-        if persistence.document_store:
-            methods.append(DocumentRetrieval(document_store=persistence.document_store, weight=0.8))
-        if persistence.graph_store:
-            methods.append(GraphRetrieval(graph_store=persistence.graph_store, weight=0.7))
+        if self._document_store is not None:
+            methods.append(DocumentRetrieval(store=self._document_store, weight=0.8))
+        if self._graph_store is not None:
+            methods.append(GraphRetrieval(store=self._graph_store, weight=0.7))
 
         unstructured = RetrievalService(
             retrieval_methods=methods,
@@ -1208,7 +1266,7 @@ class RagEngine:
         if cfg.ingestion.embeddings:
             methods.append(
                 VectorIngestion(
-                    vector_store=vector_store,
+                    store=vector_store,
                     embeddings=cfg.ingestion.embeddings,
                     embedding_model_name=self._embedding_model_name,
                     sparse_embeddings=cfg.ingestion.sparse_embeddings,
@@ -1216,12 +1274,12 @@ class RagEngine:
                     include_synthetic_in_bm25=cfg.ingestion.document_expansion.include_in_bm25,
                 )
             )
-        if cfg.persistence.document_store:
-            methods.append(DocumentIngestion(document_store=cfg.persistence.document_store))
-        if cfg.persistence.graph_store and cfg.ingestion.lm_client:
+        if self._document_store is not None:
+            methods.append(DocumentIngestion(store=self._document_store))
+        if self._graph_store is not None and cfg.ingestion.lm_client:
             methods.append(
                 GraphIngestion(
-                    graph_store=cfg.persistence.graph_store,
+                    store=self._graph_store,
                     lm_client=cfg.ingestion.lm_client,
                     graph_config=cfg.ingestion.graph,
                 )
@@ -1232,7 +1290,7 @@ class RagEngine:
             ingestion_methods=methods,
             embedding_model_name=self._embedding_model_name,
             source_type_weights=cfg.retrieval.source_type_weights,
-            metadata_store=cfg.persistence.metadata_store,
+            metadata_store=cfg.metadata_store,
             on_ingestion_complete=self._on_ingestion_complete,
             vision_parser=cfg.ingestion.vision,
             chunk_context_headers=cfg.ingestion.chunk_context_headers,
