@@ -33,7 +33,6 @@ def make_engine() -> Any:
         retrieval_service: Any = _UNSET,
         structured_retrieval: Any = _UNSET,
         generation_service: Any = _UNSET,
-        step_service: Any = _UNSET,
         knowledge_manager: Any = _UNSET,
         ingestion_service: Any = _UNSET,
         structured_ingestion: Any = _UNSET,
@@ -77,7 +76,6 @@ def make_engine() -> Any:
         else:
             engine._generation_service = generation_service
 
-        engine._step_service = None if step_service is _UNSET else step_service
         engine._knowledge_manager = None if knowledge_manager is _UNSET else knowledge_manager
         engine._ingestion_service = None if ingestion_service is _UNSET else ingestion_service
         engine._structured_ingestion = None if structured_ingestion is _UNSET else structured_ingestion

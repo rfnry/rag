@@ -53,7 +53,6 @@ def _make_engine_for_query(retrieve_return: tuple[list[RetrievedChunk], Any]) ->
     server._structured_retrieval = None
     server._generation_service = AsyncMock()
     server._generation_service.generate = AsyncMock(return_value=_query_result())
-    server._step_service = None
     server._knowledge_manager = None
     server._ingestion_service = None
     server._structured_ingestion = None
