@@ -30,7 +30,7 @@ class AnalyzedIngestion:
         graph_store: BaseGraphStore | None = None,
         metadata_store: BaseMetadataStore | None = None,
         embedding_model_name: str = "",
-        dpi: int = 300,  # unbounded: passed straight to pdf2image; the renderer rejects pathological values
+        dpi: int = 300,
         analyze_text_skip_threshold_chars: int = 300,
         analyze_concurrency: int = 5,
         graph_config: GraphIngestionConfig | None = None,
@@ -38,6 +38,8 @@ class AnalyzedIngestion:
         on_ingestion_complete: Callable[[str | None], Awaitable[None]] | None = None,
         delegate_methods: list[Any] | None = None,
     ) -> None:
+        if not (72 <= dpi <= 600):
+            raise ConfigurationError(f"AnalyzedIngestion.dpi={dpi} out of range [72, 600]")
         if not (1 <= analyze_concurrency <= 100):
             raise ConfigurationError(
                 f"AnalyzedIngestion.analyze_concurrency={analyze_concurrency} out of range [1, 100]"

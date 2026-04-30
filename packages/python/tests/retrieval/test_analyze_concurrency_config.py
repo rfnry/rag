@@ -37,6 +37,18 @@ def test_wrapper_text_skip_threshold_bounds() -> None:
         AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock(), analyze_text_skip_threshold_chars=100_001)
 
 
+def test_wrapper_dpi_bounds_out_of_range_raises() -> None:
+    with pytest.raises(ConfigurationError, match="dpi"):
+        AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock(), dpi=71)
+    with pytest.raises(ConfigurationError, match="dpi"):
+        AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock(), dpi=601)
+
+
+def test_wrapper_dpi_accepts_boundary_values() -> None:
+    assert AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock(), dpi=72)._dpi == 72
+    assert AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock(), dpi=600)._dpi == 600
+
+
 def test_service_stores_configured_concurrency() -> None:
     """AnalyzedIngestionService.__init__ exposes _analyze_concurrency matching the arg."""
     from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
