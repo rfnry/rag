@@ -66,48 +66,20 @@ class RetrievalService:
         else:
             logger.info("query: (len=%d, knowledge_id=%s)", len(query), knowledge_id)
 
-        queries = [query]
-
         retrieval_start = time.perf_counter() if trace_obj is not None else 0.0
-        search_tasks = [
-            self._search_single_query(
-                q,
-                fetch_k,
-                filters,
-                knowledge_id,
-                collect_per_method=trace_obj is not None,
-            )
-            for q in queries
-        ]
-        query_results = await asyncio.gather(*search_tasks, return_exceptions=True)
-
-        all_result_lists: list[list[RetrievedChunk]] = []
-        all_weights: list[float] = []
-        successes = 0
-        # Per-method aggregation seeded with every declared method so the
-        # "ran-and-empty" vs "not configured" distinction survives even when
-        # every variant returned [] for a given method.
-        per_method: dict[str, list[RetrievedChunk]] = (
-            {m.name: [] for m in self._retrieval_methods} if trace_obj is not None else {}
+        all_result_lists, all_weights, by_method = await self._search_single_query(
+            query,
+            fetch_k,
+            filters,
+            knowledge_id,
+            collect_per_method=trace_obj is not None,
         )
-        for idx, outcome in enumerate(query_results):
-            if isinstance(outcome, BaseException):
-                logger.warning("query variant %d failed: %s — skipping", idx, outcome)
-                continue
-            successes += 1
-            result_lists, weights, by_method = outcome
-            all_result_lists.extend(result_lists)
-            all_weights.extend(weights)
-            if trace_obj is not None and by_method is not None:
-                for method_name, results in by_method.items():
-                    per_method.setdefault(method_name, []).extend(results)
-
-        if query_results and successes == 0:
-            from rfnry_rag.exceptions import RetrievalError
-
-            raise RetrievalError("all retrieval query variants failed")
 
         if trace_obj is not None:
+            per_method: dict[str, list[RetrievedChunk]] = {m.name: [] for m in self._retrieval_methods}
+            if by_method is not None:
+                for method_name, results in by_method.items():
+                    per_method[method_name] = list(results)
             trace_obj.per_method_results = per_method
             trace_obj.timings["retrieval"] = time.perf_counter() - retrieval_start
 
