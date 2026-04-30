@@ -350,6 +350,15 @@ class RagEngine:
         self._retrieval_namespace = MethodNamespace(retrieval_methods)
         self._ingestion_namespace = MethodNamespace(ingestion_methods)
 
+        logger.info(
+            "ingestion methods: %s",
+            ", ".join(m.name for m in ingestion_methods) or "(none)",
+        )
+        logger.info(
+            "retrieval methods: %s",
+            ", ".join(f"{m.name}(weight={m.weight})" for m in retrieval_methods) or "(none)",
+        )
+
         # Build expansion registry once (shared across all collection-scoped services)
         # Registry construction is cheap but should not be repeated per-ingest.
         self._expansion_registry = (
