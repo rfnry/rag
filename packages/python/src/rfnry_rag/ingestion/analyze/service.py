@@ -425,7 +425,7 @@ class AnalyzedIngestionService:
             raise ConfigurationError("vision provider required for structured PDF analysis")
         if not self._registry:
             raise ConfigurationError(
-                "IngestionConfig.lm_client is required for structured PDF analysis "
+                "AnalyzedIngestion.lm_client is required for structured PDF analysis "
                 "(used by AnalyzePage and SynthesizeDocument BAML functions). "
                 "Provide a LanguageModelClient with your LLM provider and API key."
             )
@@ -495,7 +495,7 @@ class AnalyzedIngestionService:
         """Use LLM to find cross-page relationships in PDF analyses."""
         if not self._registry:
             raise ConfigurationError(
-                "IngestionConfig.lm_client is required for PDF synthesis "
+                "AnalyzedIngestion.lm_client is required for PDF synthesis "
                 "(used by SynthesizeDocument BAML function). "
                 "Provide a LanguageModelClient with your LLM provider and API key."
             )
