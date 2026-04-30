@@ -9,8 +9,8 @@ from baml_py import ClientRegistry, Image
 from baml_py import errors as baml_errors
 
 from rfnry_rag.baml.baml_client.async_client import b
+from rfnry_rag.config.drawing import DrawingIngestionConfig
 from rfnry_rag.exceptions import IngestionError
-from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.ingestion.drawing.models import (
     DetectedComponent,
     DetectedConnection,

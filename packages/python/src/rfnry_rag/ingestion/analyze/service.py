@@ -8,6 +8,7 @@ from uuid import uuid4
 from baml_py import ClientRegistry
 from baml_py import errors as baml_errors
 
+from rfnry_rag.config.graph import GraphIngestionConfig
 from rfnry_rag.exceptions import ConfigurationError, IngestionError
 from rfnry_rag.ingestion.analyze.models import (
     CrossReference,
@@ -22,7 +23,6 @@ from rfnry_rag.ingestion.analyze.parsers.xml import is_l5x, parse_xml
 from rfnry_rag.ingestion.analyze.pdf_splitter import iter_pdf_page_images
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.batching import embed_batched
-from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.ingestion.hashing import file_hash as compute_file_hash
 from rfnry_rag.ingestion.page_range import parse_page_range
 from rfnry_rag.ingestion.vision.base import BaseVision

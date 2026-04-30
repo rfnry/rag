@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
+from rfnry_rag.config.drawing import DrawingIngestionConfig
 from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
+from rfnry_rag.config.graph import GraphIngestionConfig
 
 
 def test_analyzed_service_stores_graph_config() -> None:

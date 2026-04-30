@@ -3,13 +3,21 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from dataclasses import dataclass, field
-from enum import Enum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
+from rfnry_rag.config.drawing import DrawingIngestionConfig as DrawingIngestionConfig
+from rfnry_rag.config.generation import DEFAULT_SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
+from rfnry_rag.config.generation import GenerationConfig as GenerationConfig
+from rfnry_rag.config.graph import GraphIngestionConfig as GraphIngestionConfig
+from rfnry_rag.config.ingestion import DocumentExpansionConfig as DocumentExpansionConfig
+from rfnry_rag.config.ingestion import IngestionConfig
+from rfnry_rag.config.persistence import PersistenceConfig
+from rfnry_rag.config.retrieval import RetrievalConfig
+from rfnry_rag.config.routing import QueryMode
+from rfnry_rag.config.routing import RoutingConfig as RoutingConfig
+from rfnry_rag.config.server import RagServerConfig
 from rfnry_rag.exceptions import ConfigurationError, InputError
-from rfnry_rag.generation.formatting import ChunkOrdering
 from rfnry_rag.generation.models import QueryResult, StepResult, StreamEvent
 from rfnry_rag.generation.service import GenerationService
 from rfnry_rag.generation.step import StepGenerationService
@@ -17,16 +25,13 @@ from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
 from rfnry_rag.ingestion.base import BaseIngestionMethod
 from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
 from rfnry_rag.ingestion.chunk.service import IngestionService
-from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
-from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.ingestion.hashing import file_hash as compute_file_hash
 from rfnry_rag.ingestion.methods.document import DocumentIngestion
 from rfnry_rag.ingestion.methods.graph import GraphIngestion
 from rfnry_rag.ingestion.methods.vector import VectorIngestion
-from rfnry_rag.ingestion.vision.base import BaseVision
 from rfnry_rag.knowledge.manager import KnowledgeManager
 from rfnry_rag.knowledge.migration import check_embedding_migration
 from rfnry_rag.logging import get_logger
@@ -39,20 +44,18 @@ from rfnry_rag.observability.benchmark import (
 )
 from rfnry_rag.observability.metrics import LLMJudgment
 from rfnry_rag.observability.trace import RetrievalTrace
-from rfnry_rag.providers import LanguageModelClient, build_registry
+from rfnry_rag.providers import build_registry
 from rfnry_rag.retrieval.base import BaseRetrievalMethod
 from rfnry_rag.retrieval.enrich.service import StructuredRetrievalService
 from rfnry_rag.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.methods.graph import GraphRetrieval
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.retrieval.namespace import MethodNamespace
-from rfnry_rag.retrieval.refinement.base import BaseChunkRefinement
 from rfnry_rag.retrieval.search.reranking.base import BaseReranking
 from rfnry_rag.retrieval.search.rewriting.base import BaseQueryRewriting
 from rfnry_rag.retrieval.search.service import RetrievalService
 from rfnry_rag.stores.document.base import BaseDocumentStore
 from rfnry_rag.stores.graph.base import BaseGraphStore
-from rfnry_rag.stores.metadata.base import BaseMetadataStore
 from rfnry_rag.stores.vector.base import BaseVectorStore
 
 logger = get_logger("server")
@@ -87,272 +90,6 @@ def _validate_metadata(metadata: dict[str, Any] | None) -> None:
     for k, v in metadata.items():
         if isinstance(v, str) and len(v) > _MAX_METADATA_VALUE_CHARS:
             raise InputError(f"metadata[{k!r}] value exceeds {_MAX_METADATA_VALUE_CHARS} chars (got {len(v)})")
-
-
-DEFAULT_SYSTEM_PROMPT = (
-    "You are a helpful assistant. Use only the provided context to answer questions. "
-    "Cite sources with page numbers when available. If the context does not contain "
-    "enough information to answer, say so."
-)
-
-
-@dataclass
-class PersistenceConfig:
-    """Storage backends for the RAG engine.
-
-    Two distinct routing concepts coexist in the engine:
-
-    - **collection** (e.g. ``vector_store.collections=["knowledge", "logs"]``):
-      the backend routing key — a Qdrant collection name, filesystem subdir, or
-      Postgres schema. Chosen per-ingest/retrieve call via the ``collection=``
-      argument and maps 1:1 to a pipeline instance.
-    - **knowledge_id** (e.g. ``knowledge_id="tenant-42"``): a per-document
-      partition filter applied at query time. Multiple knowledge_ids share the
-      same collection; retrieval filters to the requested one.
-
-    Use ``collection`` to physically separate data (different Qdrant clusters
-    or schemas); use ``knowledge_id`` to logically partition within one
-    collection.
-    """
-
-    vector_store: BaseVectorStore | None = None
-    metadata_store: BaseMetadataStore | None = None
-    document_store: BaseDocumentStore | None = None
-    graph_store: BaseGraphStore | None = None
-
-
-@dataclass
-class DocumentExpansionConfig:
-    """Opt-in document expansion at index time.
-
-    When enabled, each chunk gets ``num_queries`` LLM-generated synthetic
-    questions appended to its embedding/BM25 text — a docT5query-style
-    expansion that bridges the user-vocabulary-vs-document-vocabulary gap.
-    BEIR shows this beats vanilla BM25 on 11/18 datasets while preserving
-    BM25's generalization.
-
-    Defaults are disabled and ``lm_client`` is None — consumers must opt in.
-    """
-
-    enabled: bool = False
-    num_queries: int = 5
-    lm_client: LanguageModelClient | None = None
-    include_in_embeddings: bool = True
-    include_in_bm25: bool = True
-    concurrency: int = 5
-
-    def __post_init__(self) -> None:
-        if not (1 <= self.num_queries <= 20):
-            raise ConfigurationError(f"DocumentExpansionConfig.num_queries={self.num_queries} out of range [1, 20]")
-        if not (1 <= self.concurrency <= 100):
-            raise ConfigurationError(f"DocumentExpansionConfig.concurrency={self.concurrency} out of range [1, 100]")
-        if self.enabled and self.lm_client is None:
-            raise ConfigurationError(
-                "DocumentExpansionConfig.enabled=True requires lm_client — provide a LanguageModelClient "
-                "(no opinionated default model; consumer chooses)."
-            )
-
-
-@dataclass
-class IngestionConfig:
-    embeddings: BaseEmbeddings | None = None
-    vision: BaseVision | None = None
-    # 375 tokens per chunk (~1500 chars) — fills modern 512-token embedding windows well.
-    # chunk_size is now in token units when chunk_size_unit='tokens' (the default).
-    chunk_size: int = 375
-    # ~10% overlap preserves cross-boundary context without blowing up chunk count.
-    chunk_overlap: int = 40
-    # Unit for chunk_size and chunk_overlap: 'tokens' (default) or 'chars'.
-    # 'tokens' uses tiktoken cl100k_base; falls back to word count if tiktoken unavailable.
-    chunk_size_unit: Literal["chars", "tokens"] = "tokens"
-    dpi: int = 300
-    lm_client: LanguageModelClient | None = None
-    sparse_embeddings: BaseSparseEmbeddings | None = None
-    parent_chunk_size: int = -1  # sentinel: -1 means "auto = 3 * chunk_size"; 0 explicitly disables
-    parent_chunk_overlap: int = 200
-    # Whether to prepend a short source/type header string to each chunk before
-    # embedding. This is pure string templating — NOT the LLM-generated
-    # contextual-chunking technique the old name implied.
-    chunk_context_headers: bool = True
-    # Deprecated — use chunk_context_headers. Accepted for one release with a
-    # DeprecationWarning; will be removed next major version.
-    contextual_chunking: bool | None = None
-    # Text-density pre-filter: pages with >= this many extractable chars AND no embedded
-    # images skip the vision LLM call and are built from raw text directly. Set to 0 to
-    # disable the pre-filter and send every page through vision.
-    analyze_text_skip_threshold_chars: int = 300
-    # Max concurrent vision LLM calls during PDF analysis. Default 5 stays under
-    # Tier-1 rate limits; Tier-2+ accounts can raise this to 8-16 for wall-clock wins.
-    analyze_concurrency: int = 5
-    # Optional nested config for the DrawingIngestion pipeline.
-    # None by default so existing consumers are unaffected.
-    drawings: DrawingIngestionConfig | None = None
-    # Optional nested config for the analyze-path graph mapper.
-    # None by default so existing consumers are unaffected; when provided,
-    # ``GraphIngestionConfig.__post_init__`` handles its own validation.
-    graph: GraphIngestionConfig | None = None
-    # Opt-in LLM-driven synthetic-query expansion at index time.
-    # ``DocumentExpansionConfig`` defaults to disabled; consumers must set
-    # ``enabled=True`` AND provide ``lm_client`` to activate.
-    document_expansion: DocumentExpansionConfig = field(default_factory=lambda: DocumentExpansionConfig())
-
-    def __post_init__(self) -> None:
-        if self.chunk_size_unit not in ("chars", "tokens"):
-            raise ConfigurationError(
-                f"IngestionConfig.chunk_size_unit must be 'chars' or 'tokens', got {self.chunk_size_unit!r}"
-            )
-        if self.chunk_size < 1:
-            raise ConfigurationError("chunk_size must be positive")
-        if self.chunk_overlap < 0:
-            raise ConfigurationError("chunk_overlap must be non-negative")
-        if self.chunk_overlap >= self.chunk_size:
-            raise ConfigurationError("chunk_overlap must be less than chunk_size")
-        # Resolve sentinel: -1 means "auto = 3 * chunk_size". Values < -1 are invalid.
-        if self.parent_chunk_size < -1:
-            raise ConfigurationError(
-                f"parent_chunk_size must be >= -1 (-1=auto, 0=disabled, >0=explicit), got {self.parent_chunk_size}"
-            )
-        if self.parent_chunk_size == -1:
-            self.parent_chunk_size = 3 * self.chunk_size
-        if self.parent_chunk_size > 0 and self.parent_chunk_size <= self.chunk_size:
-            raise ConfigurationError("parent_chunk_size must be greater than chunk_size")
-        if self.parent_chunk_size > 0:
-            if self.parent_chunk_overlap < 0:
-                raise ConfigurationError("parent_chunk_overlap must be non-negative")
-            if self.parent_chunk_overlap >= self.parent_chunk_size:
-                raise ConfigurationError(
-                    f"parent_chunk_overlap ({self.parent_chunk_overlap}) must be less than "
-                    f"parent_chunk_size ({self.parent_chunk_size})"
-                )
-        # dpi upper bound: beyond ~600 the PDF-to-image buffer grows pathologically
-        # (each page can exceed 100MB), causing OOM rather than slow rendering.
-        if not (72 <= self.dpi <= 600):
-            raise ConfigurationError(f"dpi must be between 72 and 600, got {self.dpi}")
-        if not (0 <= self.analyze_text_skip_threshold_chars <= 100_000):
-            raise ConfigurationError(
-                f"analyze_text_skip_threshold_chars={self.analyze_text_skip_threshold_chars} out of range [0, 100_000]"
-            )
-        if not (1 <= self.analyze_concurrency <= 100):
-            raise ConfigurationError(
-                f"IngestionConfig.analyze_concurrency={self.analyze_concurrency} out of range [1, 100]"
-            )
-        if self.contextual_chunking is not None:
-            import warnings
-
-            warnings.warn(
-                "contextual_chunking is deprecated; use chunk_context_headers. "
-                "The old name implied LLM-generated context (Anthropic-style) but "
-                "the implementation is pure string templating.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            self.chunk_context_headers = self.contextual_chunking
-
-
-@dataclass
-class RetrievalConfig:
-    top_k: int = 5
-    reranker: BaseReranking | None = None
-    query_rewriter: BaseQueryRewriting | None = None
-    bm25_enabled: bool = False
-    bm25_max_indexes: int = 16
-    bm25_max_chunks: int = 50_000
-    bm25_tokenizer: Callable[[str], list[str]] | None = None
-    source_type_weights: dict[str, float] | None = None
-    cross_reference_enrichment: bool = True
-    enrich_lm_client: LanguageModelClient | None = None
-    parent_expansion: bool = True
-    chunk_refiner: BaseChunkRefinement | None = None
-    history_window: int = 3
-
-    def __post_init__(self) -> None:
-        if self.top_k < 1:
-            raise ConfigurationError("top_k must be positive")
-        if self.top_k > 200:
-            raise ConfigurationError(
-                f"top_k must be <= 200, got {self.top_k} — requesting thousands of results OOMs the reranker"
-            )
-        if self.bm25_max_chunks > 200_000:
-            raise ConfigurationError(
-                f"bm25_max_chunks must be <= 200_000, got {self.bm25_max_chunks} — "
-                "in-memory BM25 index at that size risks OOM; use sparse_embeddings instead"
-            )
-        if not (1 <= self.bm25_max_indexes <= 1000):
-            raise ConfigurationError(f"bm25_max_indexes must be 1-1000, got {self.bm25_max_indexes}")
-        if not (1 <= self.history_window <= 20):
-            raise ConfigurationError(f"history_window must be 1-20, got {self.history_window}")
-        if self.source_type_weights is not None:
-            for key, weight in self.source_type_weights.items():
-                if not 0 < weight <= 10.0:
-                    raise ConfigurationError(f"source_type_weights[{key!r}]={weight} — weight must be in (0, 10]")
-
-
-@dataclass
-class GenerationConfig:
-    lm_client: LanguageModelClient | None = None
-    system_prompt: str = DEFAULT_SYSTEM_PROMPT
-    grounding_enabled: bool = False
-    grounding_threshold: float = 0.5
-    relevance_gate_enabled: bool = False
-    relevance_gate_model: LanguageModelClient | None = None
-    guiding_enabled: bool = False
-    step_lm_client: LanguageModelClient | None = None
-    chunk_ordering: ChunkOrdering = ChunkOrdering.SCORE_DESCENDING
-
-    def __post_init__(self) -> None:
-        if self.grounding_threshold < 0 or self.grounding_threshold > 1:
-            raise ConfigurationError("grounding_threshold must be between 0 and 1")
-        if self.relevance_gate_enabled and not self.grounding_enabled:
-            raise ConfigurationError("relevance_gate_enabled requires grounding_enabled")
-        if self.relevance_gate_enabled and not self.relevance_gate_model:
-            raise ConfigurationError("relevance_gate_enabled requires relevance_gate_model")
-        if self.guiding_enabled and not self.relevance_gate_enabled:
-            raise ConfigurationError("guiding_enabled requires relevance_gate_enabled")
-        # Boundary sanity: threshold 0.0 with grounding enabled accepts every
-        # answer (no-op); threshold 1.0 blocks every answer. Either is a
-        # misconfiguration, though only 0.0 is outright incoherent.
-        if self.grounding_enabled and self.grounding_threshold == 0.0:
-            raise ConfigurationError("grounding_enabled=True with grounding_threshold=0.0 is a no-op")
-        if self.grounding_enabled and self.lm_client is None:
-            raise ConfigurationError("grounding_enabled requires lm_client")
-
-
-class QueryMode(Enum):
-    """Per-query routing strategy.
-
-    `RETRIEVAL` runs the standard indexed pipeline. `DIRECT` skips retrieval
-    and loads the full corpus into a prompt-cached prefix. `AUTO` dispatches
-    between the two based on `full_context_threshold` versus corpus tokens.
-    """
-
-    RETRIEVAL = "retrieval"
-    DIRECT = "direct"
-    AUTO = "auto"
-
-
-@dataclass
-class RoutingConfig:
-    """Top-level routing strategy. AUTO is the recommended mode: as context
-    windows grow, more corpora cross the threshold and shift to DIRECT
-    transparently."""
-
-    mode: QueryMode = QueryMode.RETRIEVAL
-    full_context_threshold: int = 150_000
-
-    def __post_init__(self) -> None:
-        if not (1_000 <= self.full_context_threshold <= 2_000_000):
-            raise ConfigurationError(
-                f"RoutingConfig.full_context_threshold={self.full_context_threshold} out of range [1_000, 2_000_000]"
-            )
-
-
-@dataclass
-class RagServerConfig:
-    persistence: PersistenceConfig
-    ingestion: IngestionConfig
-    retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
-    generation: GenerationConfig = field(default_factory=GenerationConfig)
-    routing: RoutingConfig = field(default_factory=RoutingConfig)
 
 
 def _derive_embedding_model_name(embeddings: BaseEmbeddings) -> str:

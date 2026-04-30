@@ -2,8 +2,8 @@
 
 import pytest
 
+from rfnry_rag.config.graph import GraphIngestionConfig
 from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
 
 
 def test_default_config_has_empty_vocabularies() -> None:

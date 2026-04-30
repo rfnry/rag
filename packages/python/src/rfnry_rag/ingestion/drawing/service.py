@@ -23,8 +23,8 @@ from uuid import uuid4
 
 from baml_py import ClientRegistry
 
+from rfnry_rag.config.drawing import DrawingIngestionConfig
 from rfnry_rag.exceptions import IngestionError
-from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.ingestion.drawing.extract_dxf import extract_dxf_analysis
 from rfnry_rag.ingestion.drawing.linker import pair_off_page_connectors
 from rfnry_rag.ingestion.drawing.models import (

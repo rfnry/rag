@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
+from rfnry_rag.config.drawing import DrawingIngestionConfig
 from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
 from rfnry_rag.models import VectorPoint
 

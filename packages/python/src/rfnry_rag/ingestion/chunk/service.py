@@ -31,8 +31,8 @@ from rfnry_rag.stores.metadata.base import BaseMetadataStore
 if TYPE_CHECKING:
     from baml_py import ClientRegistry
 
+    from rfnry_rag.config.ingestion import DocumentExpansionConfig
     from rfnry_rag.ingestion.base import BaseIngestionMethod
-    from rfnry_rag.server import DocumentExpansionConfig
 
 logger = get_logger("chunk/ingestion")
 

@@ -17,7 +17,7 @@ from rfnry_rag.logging import get_logger
 if TYPE_CHECKING:
     from baml_py import ClientRegistry
 
-    from rfnry_rag.server import DocumentExpansionConfig
+    from rfnry_rag.config.ingestion import DocumentExpansionConfig
 
 logger = get_logger("ingestion.chunk.expand")
 

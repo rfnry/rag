@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
+from rfnry_rag.config.drawing import DrawingIngestionConfig
 from rfnry_rag.ingestion.drawing.models import (
     DetectedComponent,
     DetectedConnection,
