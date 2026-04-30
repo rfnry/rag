@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.retrieval.search.reranking.base import BaseReranking
-from rfnry_rag.retrieval.search.rewriting.base import BaseQueryRewriting
 
 if TYPE_CHECKING:
     from rfnry_rag.retrieval.base import BaseRetrievalMethod
@@ -23,7 +22,6 @@ class RetrievalConfig:
     methods: list[BaseRetrievalMethod] = field(default_factory=list)
     top_k: int = 5
     reranker: BaseReranking | None = None
-    query_rewriter: BaseQueryRewriting | None = None
     source_type_weights: dict[str, float] | None = None
     history_window: int = 3
     cross_reference_enrichment: bool = True

@@ -20,7 +20,7 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(type_builder.TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["AnswerQualityJudgment","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","OffPageConnector","PageAnalysis","Port","QueryVariants","RankedChunk","RelevanceJudgment","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries",]
+          ["AnswerQualityJudgment","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","OffPageConnector","PageAnalysis","Port","RankedChunk","RelevanceJudgment","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries",]
         ), enums=set(
           []
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
@@ -31,7 +31,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
     # #########################################################################
-    # Generated classes 16
+    # Generated classes 15
     # #########################################################################
 
     @property
@@ -75,10 +75,6 @@ class TypeBuilder(type_builder.TypeBuilder):
         return PortViewer(self)
 
     @property
-    def QueryVariants(self) -> "QueryVariantsViewer":
-        return QueryVariantsViewer(self)
-
-    @property
     def RankedChunk(self) -> "RankedChunkViewer":
         return RankedChunkViewer(self)
 
@@ -106,7 +102,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
 # #########################################################################
-# Generated classes 16
+# Generated classes 15
 # #########################################################################
 
 class AnswerQualityJudgmentAst:
@@ -631,45 +627,6 @@ class PortProperties:
     @property
     def position(self) -> type_builder.ClassPropertyViewer:
         return type_builder.ClassPropertyViewer(self.__bldr.property("position"))
-    
-    
-
-
-class QueryVariantsAst:
-    def __init__(self, tb: type_builder.TypeBuilder):
-        _tb = tb._tb # type: ignore (we know how to use this private attribute)
-        self._bldr = _tb.class_("QueryVariants")
-        self._properties: typing.Set[str] = set([  "variants",  ])
-        self._props = QueryVariantsProperties(self._bldr, self._properties)
-
-    def type(self) -> baml_py.FieldType:
-        return self._bldr.field()
-
-    @property
-    def props(self) -> "QueryVariantsProperties":
-        return self._props
-
-
-class QueryVariantsViewer(QueryVariantsAst):
-    def __init__(self, tb: type_builder.TypeBuilder):
-        super().__init__(tb)
-
-    
-    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
-        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
-    
-
-
-class QueryVariantsProperties:
-    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
-        self.__bldr = bldr
-        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
-
-    
-    
-    @property
-    def variants(self) -> type_builder.ClassPropertyViewer:
-        return type_builder.ClassPropertyViewer(self.__bldr.property("variants"))
     
     
 

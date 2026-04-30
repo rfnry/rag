@@ -17,7 +17,6 @@ from rfnry_rag.ingestion.embeddings.sparse.fastembed import FastEmbedSparseEmbed
 from rfnry_rag.ingestion.methods.vector import VectorIngestion
 from rfnry_rag.providers import Embeddings, LanguageModelClient, LanguageModelProvider, Reranking
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
-from rfnry_rag.retrieval.search.rewriting.multi_query import MultiQueryRewriting
 from rfnry_rag.server import _derive_embedding_model_name
 from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
@@ -79,36 +78,6 @@ def _build_reranker(cfg: dict[str, Any]):
     model = cfg.get("reranker_model", _RERANKER_DEFAULTS[provider])
 
     return Reranking(LanguageModelProvider(provider=provider, model=model, api_key=api_key))
-
-
-def _build_query_rewriter(cfg: dict[str, Any]):
-    rewriter = cfg.get("rewriter")
-    if not rewriter:
-        return None
-
-    provider = cfg.get("rewriter_provider")
-    if not provider:
-        raise ConfigError("[retrieval] rewriter requires 'rewriter_provider'")
-    model = cfg.get("rewriter_model")
-    if not model:
-        raise ConfigError("[retrieval] rewriter requires 'rewriter_model'")
-
-    env_var = _GENERATION_KEYS.get(provider)
-    if env_var is None:
-        raise ConfigError(f"Unknown rewriter provider: {provider!r}. Supported: {', '.join(_GENERATION_KEYS)}")
-    api_key = _get_api_key(env_var, provider)
-
-    lm_client = LanguageModelClient(
-        provider=LanguageModelProvider(provider=provider, model=model, api_key=api_key),
-    )
-
-    rewriters = {
-        "multi_query": MultiQueryRewriting,
-    }
-    rewriter_cls = rewriters.get(rewriter)
-    if rewriter_cls is None:
-        raise ConfigError(f"Unknown rewriter: {rewriter!r}. Supported: {', '.join(rewriters)}")
-    return rewriter_cls(lm_client=lm_client)
 
 
 _GENERATION_KEYS = {
@@ -257,7 +226,6 @@ def _load_config(config_path: str | Path | None) -> RagEngineConfig:
         ],
         top_k=retrieval_cfg.get("top_k", 5),
         reranker=_build_reranker(retrieval_cfg),
-        query_rewriter=_build_query_rewriter(retrieval_cfg),
     )
 
     generation_cfg = toml.get("generation")

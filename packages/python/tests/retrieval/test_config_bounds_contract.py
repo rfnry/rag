@@ -20,7 +20,6 @@ from rfnry_rag.ingestion.chunk.batch import BatchConfig
 from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
 from rfnry_rag.observability.benchmark import BenchmarkConfig
 from rfnry_rag.providers import LanguageModelClient, LanguageModelProvider
-from rfnry_rag.retrieval.search.rewriting.multi_query import MultiQueryRewriting
 from rfnry_rag.server import (
     DocumentExpansionConfig,
     GenerationConfig,
@@ -38,7 +37,6 @@ _CONFIGS_TO_AUDIT: list[type] = [
     LanguageModelClient,
     LanguageModelProvider,
     BatchConfig,
-    MultiQueryRewriting,
     DocumentExpansionConfig,
     BenchmarkConfig,
     RoutingConfig,

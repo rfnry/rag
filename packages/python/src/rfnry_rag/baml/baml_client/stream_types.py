@@ -23,7 +23,7 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
     value: StreamStateValueT
     state: typing_extensions.Literal["Pending", "Incomplete", "Complete"]
 # #########################################################################
-# Generated classes (16)
+# Generated classes (15)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -89,9 +89,6 @@ class PageAnalysis(BaseModel):
 class Port(BaseModel):
     port_id: typing.Optional[str] = Field(default=None, description='label or index of the port')
     position: typing.Optional[typing.List[int]] = Field(default=None, description='[x, y] in page pixel coords, optional')
-
-class QueryVariants(BaseModel):
-    variants: typing.List[str] = Field(description='Alternative query formulations')
 
 class RankedChunk(BaseModel):
     index: typing.Optional[int] = None

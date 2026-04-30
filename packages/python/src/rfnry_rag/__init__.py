@@ -65,9 +65,6 @@ from rfnry_rag.retrieval.methods.document import DocumentRetrieval as DocumentRe
 from rfnry_rag.retrieval.methods.enrich import StructuredRetrieval as StructuredRetrieval
 from rfnry_rag.retrieval.methods.graph import GraphRetrieval as GraphRetrieval
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval as VectorRetrieval
-from rfnry_rag.retrieval.search.rewriting.multi_query import (
-    MultiQueryRewriting as MultiQueryRewriting,
-)
 from rfnry_rag.retrieval.search.service import RetrievalService as RetrievalService
 from rfnry_rag.server import RagEngine as RagEngine
 from rfnry_rag.stores.document.filesystem import FilesystemDocumentStore as FilesystemDocumentStore
@@ -118,7 +115,6 @@ __all__ = [
     "LanguageModelClient",
     "LanguageModelProvider",
     "MetricResult",
-    "MultiQueryRewriting",
     "Neo4jGraphStore",
     "ParseError",
     "PostgresDocumentStore",

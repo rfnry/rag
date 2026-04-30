@@ -33,8 +33,6 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     "GenerateAnswer": ["context", "query"],
     "CheckRelevance": ["query", "passage"],
     "SynthesizeDocument": [],
-    # ---- retrieval / rewriting ----
-    "GenerateQueryVariants": ["query"],
     # ---- retrieval / retrieval ----
     "RerankChunks": ["query", "passages"],
     # ---- retrieval / evaluation ----

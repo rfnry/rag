@@ -157,21 +157,6 @@ class BamlAsyncClient:
                 "system_prompt": system_prompt,"context": context,"query": query,"history": history,
             })
             return typing.cast(str, __result__.cast_to(types, types, stream_types, False, __runtime__))
-    async def GenerateQueryVariants(self, query: str,num_variants: int,
-        baml_options: BamlCallOptions = {},
-    ) -> types.QueryVariants:
-        # Check if on_tick is provided
-        if 'on_tick' in baml_options:
-            # Use streaming internally when on_tick is provided
-            __stream__ = self.stream.GenerateQueryVariants(query=query,num_variants=num_variants,
-                baml_options=baml_options)
-            return await __stream__.get_final_response()
-        else:
-            # Original non-streaming code
-            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="GenerateQueryVariants", args={
-                "query": query,"num_variants": num_variants,
-            })
-            return typing.cast(types.QueryVariants, __result__.cast_to(types, types, stream_types, False, __runtime__))
     async def GenerateSyntheticQueries(self, passage: str,num_queries: int,
         baml_options: BamlCallOptions = {},
     ) -> types.SyntheticQueries:
@@ -301,18 +286,6 @@ class BamlStreamClient:
           lambda x: typing.cast(str, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
-    def GenerateQueryVariants(self, query: str,num_variants: int,
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.BamlStream[stream_types.QueryVariants, types.QueryVariants]:
-        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="GenerateQueryVariants", args={
-            "query": query,"num_variants": num_variants,
-        })
-        return baml_py.BamlStream[stream_types.QueryVariants, types.QueryVariants](
-          __result__,
-          lambda x: typing.cast(stream_types.QueryVariants, x.cast_to(types, types, stream_types, True, __runtime__)),
-          lambda x: typing.cast(types.QueryVariants, x.cast_to(types, types, stream_types, False, __runtime__)),
-          __ctx__,
-        )
     def GenerateSyntheticQueries(self, passage: str,num_queries: int,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlStream[stream_types.SyntheticQueries, types.SyntheticQueries]:
@@ -404,13 +377,6 @@ class BamlHttpRequestClient:
             "system_prompt": system_prompt,"context": context,"query": query,"history": history,
         }, mode="request")
         return __result__
-    async def GenerateQueryVariants(self, query: str,num_variants: int,
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.baml_py.HTTPRequest:
-        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="GenerateQueryVariants", args={
-            "query": query,"num_variants": num_variants,
-        }, mode="request")
-        return __result__
     async def GenerateSyntheticQueries(self, passage: str,num_queries: int,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
@@ -480,13 +446,6 @@ class BamlHttpStreamRequestClient:
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="GenerateAnswer", args={
             "system_prompt": system_prompt,"context": context,"query": query,"history": history,
-        }, mode="stream")
-        return __result__
-    async def GenerateQueryVariants(self, query: str,num_variants: int,
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.baml_py.HTTPRequest:
-        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="GenerateQueryVariants", args={
-            "query": query,"num_variants": num_variants,
         }, mode="stream")
         return __result__
     async def GenerateSyntheticQueries(self, passage: str,num_queries: int,

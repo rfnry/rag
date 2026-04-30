@@ -85,19 +85,6 @@ async def test_retrieve_with_trace_populates_query_field() -> None:
 # --- Service-level: per-stage population ---
 
 
-async def test_retrieve_with_trace_captures_rewritten_queries() -> None:
-    """Stub query rewriter returns 2 variants; trace records exactly those."""
-    method_a = _mock_method("method_a", [_chunk("chunk_a")])
-    rewriter = SimpleNamespace(rewrite=AsyncMock(return_value=["q1", "q2"]))
-    service = RetrievalService(retrieval_methods=[method_a], top_k=5, query_rewriter=rewriter)
-
-    chunks, trace = await service.retrieve(query="original", trace=True)
-
-    assert trace is not None
-    assert trace.rewritten_queries == ["q1", "q2"]
-    assert chunks  # method_a returned a chunk for at least one variant
-
-
 async def test_retrieve_trace_per_method_dict_keys_match_method_names() -> None:
     """Trace's per_method_results is keyed by `BaseRetrievalMethod.name`."""
     method_a = _mock_method("method_a", [_chunk("chunk_a")])

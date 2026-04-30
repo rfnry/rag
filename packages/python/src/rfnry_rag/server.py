@@ -53,7 +53,6 @@ from rfnry_rag.retrieval.methods.graph import GraphRetrieval
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.retrieval.namespace import MethodNamespace
 from rfnry_rag.retrieval.search.reranking.base import BaseReranking
-from rfnry_rag.retrieval.search.rewriting.base import BaseQueryRewriting
 from rfnry_rag.retrieval.search.service import RetrievalService
 from rfnry_rag.stores.document.base import BaseDocumentStore
 from rfnry_rag.stores.graph.base import BaseGraphStore
@@ -117,7 +116,6 @@ class RagEngine:
         metadata_store: Any = None,
         top_k: int = 5,
         reranker: BaseReranking | None = None,
-        query_rewriter: BaseQueryRewriting | None = None,
         sparse_embeddings: BaseSparseEmbeddings | None = None,
     ) -> RagEngineConfig:
         """Preset: dense vector search only."""
@@ -140,7 +138,6 @@ class RagEngine:
                 ],
                 top_k=top_k,
                 reranker=reranker,
-                query_rewriter=query_rewriter,
             ),
         )
 
@@ -175,7 +172,6 @@ class RagEngine:
         metadata_store: Any = None,
         sparse_embeddings: BaseSparseEmbeddings | None = None,
         reranker: BaseReranking | None = None,
-        query_rewriter: BaseQueryRewriting | None = None,
         top_k: int = 5,
     ) -> RagEngineConfig:
         """Preset: multi-path retrieval with optional document/graph/sparse paths + rerank."""
@@ -200,9 +196,7 @@ class RagEngine:
         return RagEngineConfig(
             metadata_store=metadata_store,
             ingestion=IngestionConfig(methods=ing_methods),
-            retrieval=RetrievalConfig(
-                methods=ret_methods, top_k=top_k, reranker=reranker, query_rewriter=query_rewriter
-            ),
+            retrieval=RetrievalConfig(methods=ret_methods, top_k=top_k, reranker=reranker),
         )
 
     def __init__(self, config: RagEngineConfig) -> None:
@@ -471,7 +465,6 @@ class RagEngine:
             reranking=retrieval.reranker,
             top_k=retrieval.top_k,
             source_type_weights=retrieval.source_type_weights,
-            query_rewriter=retrieval.query_rewriter,
         )
 
         # Structured retrieval. Reuse whichever embeddings instance the
@@ -1213,7 +1206,6 @@ class RagEngine:
             reranking=retrieval.reranker,
             top_k=retrieval.top_k,
             source_type_weights=retrieval.source_type_weights,
-            query_rewriter=retrieval.query_rewriter,
         )
         structured: StructuredRetrievalService | None = None
         if embeddings is not None:

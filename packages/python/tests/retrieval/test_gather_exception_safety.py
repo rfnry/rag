@@ -1,39 +1,9 @@
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
-from rfnry_rag.retrieval.search.service import RetrievalService
-
-
-def _chunk(cid: str, score: float = 1.0) -> RetrievedChunk:
-    return RetrievedChunk(chunk_id=cid, source_id="s", content=cid, score=score)
-
-
-@pytest.mark.asyncio
-async def test_one_failing_query_does_not_crash_retrieval() -> None:
-    """A failing query variant must not crash the whole retrieve() call — the
-    surviving variants' results should still come through."""
-    good_method = SimpleNamespace(name="good", weight=1.0, top_k=None, search=AsyncMock(return_value=[_chunk("c1")]))
-    rewriter = SimpleNamespace(rewrite=AsyncMock(return_value=["alt1", "alt2"]))
-    service = RetrievalService(retrieval_methods=[good_method], top_k=5, query_rewriter=rewriter)
-    call_counter = {"n": 0}
-
-    async def flaky(
-        q: str, *_a: Any, **_kw: Any
-    ) -> tuple[list[list[RetrievedChunk]], list[float], dict[str, list[RetrievedChunk]] | None]:
-        call_counter["n"] += 1
-        if call_counter["n"] == 2:
-            raise RuntimeError("boom")
-        return ([[_chunk(f"c{call_counter['n']}")]], [1.0], None)
-
-    service._search_single_query = flaky
-    results, _ = await service.retrieve(query="q")
-    assert results
-    assert {c.chunk_id for c in results} >= {"c1", "c3"}
 
 
 @pytest.mark.asyncio

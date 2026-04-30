@@ -10,7 +10,6 @@ from rfnry_rag.observability.trace import RetrievalTrace
 from rfnry_rag.retrieval.base import BaseRetrievalMethod
 from rfnry_rag.retrieval.search.fusion import reciprocal_rank_fusion
 from rfnry_rag.retrieval.search.reranking.base import BaseReranking
-from rfnry_rag.retrieval.search.rewriting.base import BaseQueryRewriting
 
 logger = get_logger("retrieval.search.service")
 
@@ -22,13 +21,11 @@ class RetrievalService:
         reranking: BaseReranking | None = None,
         top_k: int = 5,
         source_type_weights: dict[str, float] | None = None,
-        query_rewriter: BaseQueryRewriting | None = None,
     ) -> None:
         self._retrieval_methods = retrieval_methods
         self._reranking = reranking
         self._top_k = top_k
         self._source_type_weights = source_type_weights
-        self._query_rewriter = query_rewriter
 
     @property
     def methods(self) -> list[BaseRetrievalMethod]:
@@ -70,26 +67,6 @@ class RetrievalService:
             logger.info("query: (len=%d, knowledge_id=%s)", len(query), knowledge_id)
 
         queries = [query]
-        if self._query_rewriter:
-            rewriting_start = time.perf_counter() if trace_obj is not None else 0.0
-            try:
-                rewritten = await self._query_rewriter.rewrite(query)
-                queries.extend(rewritten)
-                if rewritten:
-                    logger.info(
-                        "query rewriting: %d total queries (1 original + %d rewritten)",
-                        len(queries),
-                        len(rewritten),
-                    )
-                if trace_obj is not None:
-                    trace_obj.rewritten_queries = list(rewritten)
-            except Exception as exc:
-                logger.exception("query rewriter failed: %s — proceeding with original query", exc)
-                # Rewriter failure leaves rewritten_queries=[] (not the partial
-                # variants) — the trace records "rewriter ran and produced no
-                # usable variants".
-            if trace_obj is not None:
-                trace_obj.timings["rewriting"] = time.perf_counter() - rewriting_start
 
         retrieval_start = time.perf_counter() if trace_obj is not None else 0.0
         search_tasks = [

@@ -15,11 +15,3 @@ def test_answer_baml_source_has_content_boundary() -> None:
     query_end = content.index("======== QUERY END ========")
     context_start = content.index("======== CONTEXT START ========")
     assert context_start > query_end
-
-
-def test_rewriting_baml_source_fences_untrusted_query() -> None:
-    """Multi-query prompts must fence {{ query }}."""
-    src = Path("src/rfnry_rag/baml/baml_src/retrieval/rewriting_functions.baml").read_text()
-    assert "GenerateQueryVariants" in src
-    assert "======== QUERY START ========" in src
-    assert "======== QUERY END ========" in src

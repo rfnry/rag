@@ -136,43 +136,6 @@ class TestLoadConfigProviders:
             with pytest.raises(ConfigError, match="Unknown reranker"):
                 load_config(path)
 
-    def test_rewriter_multi_query(self, tmp_path):
-        rewriter_cfg = (
-            '\n[retrieval]\nrewriter = "multi_query"\nrewriter_provider = "anthropic"\n'
-            'rewriter_model = "claude-haiku-4-5-20251001"\n'
-        )
-        path = _write_config(
-            tmp_path,
-            rewriter_cfg,
-            {"ANTHROPIC_API_KEY": "sk-ant-test"},
-        )
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("OPENAI_API_KEY", None)
-            os.environ.pop("ANTHROPIC_API_KEY", None)
-            cfg = load_config(path)
-        from rfnry_rag.retrieval.search.rewriting.multi_query import MultiQueryRewriting
-
-        assert isinstance(cfg.retrieval.query_rewriter, MultiQueryRewriting)
-
-    def test_rewriter_missing_provider_raises(self, tmp_path):
-        path = _write_config(tmp_path, '\n[retrieval]\nrewriter = "multi_query"\n')
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("OPENAI_API_KEY", None)
-            with pytest.raises(ConfigError, match="rewriter_provider"):
-                load_config(path)
-
-    def test_rewriter_unknown_type_raises(self, tmp_path):
-        path = _write_config(
-            tmp_path,
-            '\n[retrieval]\nrewriter = "bad"\nrewriter_provider = "anthropic"\nrewriter_model = "m"\n',
-            {"ANTHROPIC_API_KEY": "sk-ant-test"},
-        )
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("OPENAI_API_KEY", None)
-            os.environ.pop("ANTHROPIC_API_KEY", None)
-            with pytest.raises(ConfigError, match="Unknown rewriter"):
-                load_config(path)
-
     def test_sparse_embeddings_enabled(self, tmp_path):
         from rfnry_rag.ingestion.methods.vector import VectorIngestion
 
