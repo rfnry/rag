@@ -73,6 +73,13 @@ _MAX_INGEST_CHARS = 5_000_000
 _MAX_METADATA_KEYS = 50
 _MAX_METADATA_VALUE_CHARS = 8_000
 
+# Reserve subtracted from the generation provider's advertised window when
+# validating that ``RoutingConfig.full_context_threshold`` fits in FULL_CONTEXT
+# mode. Covers system prompt (~2k) + chat history (~6k) + the public query cap
+# (~8k tokens for 32k chars). Output tokens are added separately from
+# ``LanguageModelClient.max_tokens``.
+_FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS = 16_000
+
 
 def _validate_query_text(text: str) -> None:
     if len(text) > _MAX_QUERY_CHARS:
@@ -275,12 +282,42 @@ class RagEngine:
         return self._ingestion_namespace
 
     def _validate_config(self) -> None:
-        """Cross-config validation: ensure at least one retrieval method is configured."""
+        """Cross-config validation: ensure at least one retrieval method is configured
+        and the FULL_CONTEXT routing threshold fits inside the generation provider's
+        advertised window when one is declared."""
         cfg = self._config
         if not cfg.retrieval.methods:
             raise ConfigurationError(
                 "RetrievalConfig.methods must not be empty — configure at least one "
                 "retrieval method (VectorRetrieval, DocumentRetrieval, or GraphRetrieval)."
+            )
+        self._validate_full_context_fits_provider_window()
+
+    def _validate_full_context_fits_provider_window(self) -> None:
+        """When the generation provider declares ``context_size``, ensure the
+        FULL_CONTEXT path cannot overflow the model's window.
+
+        Reserve = ``_FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS`` (system prompt +
+        history + question cap) + ``lm_client.max_tokens`` (output budget).
+        Skipped when generation has no client or the provider omits
+        ``context_size``.
+        """
+        cfg = self._config
+        client = cfg.generation.lm_client
+        if client is None:
+            return
+        window = client.provider.context_size
+        if window is None:
+            return
+        threshold = cfg.routing.full_context_threshold
+        output_reserve = client.max_tokens
+        total_reserve = _FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS + output_reserve
+        if threshold + total_reserve > window:
+            raise ConfigurationError(
+                f"RoutingConfig.full_context_threshold={threshold} + reserve={total_reserve} "
+                f"({_FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS} non-output + {output_reserve} max_tokens output) "
+                f"exceeds LanguageModelProvider.context_size={window} for "
+                f"{client.provider.name}. Lower full_context_threshold or raise context_size."
             )
 
     async def initialize(self) -> None:
@@ -1055,9 +1092,11 @@ class RagEngine:
     async def _load_full_corpus(self, knowledge_id: str | None) -> str:
         """Concatenate every source's text under ``knowledge_id`` into one string.
 
-        Plumbing for DIRECT / HYBRID modes — they need the whole corpus
-        in-prompt, not retrieval-ranked chunks. Caller is responsible for the
-        downstream model-context-limit check; this method does not truncate.
+        Plumbing for FULL_CONTEXT mode — it needs the whole corpus in-prompt,
+        not retrieval-ranked chunks. The model-context-limit check is enforced
+        upfront at engine init by
+        ``_validate_full_context_fits_provider_window`` when the generation
+        provider declares ``context_size``; this method does not truncate.
 
         Strategy per source: prefer the document store (lossless, original
         text). Fall back to a vector-store scroll only when the document store

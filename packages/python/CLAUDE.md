@@ -197,7 +197,7 @@ These act as regression guards — they enforce whole-class invariants:
 - `RetrievalConfig.bm25_max_chunks`: `≤ 200_000`.
 - `RetrievalConfig.bm25_max_indexes`: `1 ≤ n ≤ 1000`, default 16.
 - `RoutingConfig.mode`: `QueryMode` enum, default `INDEXED`. Other values: `FULL_CONTEXT`, `AUTO`.
-- `RoutingConfig.full_context_threshold`: `1_000 ≤ n ≤ 2_000_000`, default 150_000 (AUTO routes corpora `≤ threshold` to `FULL_CONTEXT`).
+- `RoutingConfig.full_context_threshold`: `1_000 ≤ n ≤ 2_000_000`, default 150_000 (AUTO routes corpora `≤ threshold` to `FULL_CONTEXT`). Default = Anthropic's ~200k stuff-it-all anchor minus ~25% headroom for system prompt + history + question + answer; do **not** raise to match a model's advertised window (Lost-in-the-Middle / LaRA: effective ≪ advertised).
 - `GenerationConfig`: `grounding_enabled=True` requires `grounding_threshold > 0` and an `lm_client`.
 - `GenerationConfig.chunk_ordering`: `ChunkOrdering` enum, default `SCORE_DESCENDING`.
 - `BenchmarkConfig.concurrency`: `1 ≤ n ≤ 20`, default 1.
@@ -209,6 +209,7 @@ These act as regression guards — they enforce whole-class invariants:
 - `GraphIngestionConfig.relationship_keyword_map`: all values must be in `ALLOWED_RELATION_TYPES`.
 - `LanguageModelClient.timeout_seconds`: `> 0`, default 60.
 - `LanguageModelClient.temperature`: `0.0 ≤ t ≤ 2.0`.
+- `LanguageModelProvider.context_size`: `int | None`, default `None`. When set, must be `≥ 1`; declares the model's advertised input window. Used as a *safety cap*, not a routing threshold: `RagEngine.initialize()` refuses configs where `RoutingConfig.full_context_threshold + 16_000 (non-output reserve) + LanguageModelClient.max_tokens (output reserve)` exceeds it.
 - `Neo4jGraphStore.password`: required.
 - Public-input bounds: query ≤ 32 000 chars, `ingest_text` ≤ 5 000 000 chars, metadata ≤ 50 keys × 8 000 chars.
 

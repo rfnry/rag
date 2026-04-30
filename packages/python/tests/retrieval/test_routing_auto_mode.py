@@ -2,9 +2,7 @@
 
 `mode="auto"` is user-facing and recommended for new users. AUTO reads
 `KnowledgeManager.get_corpus_tokens(knowledge_id)` and routes to DIRECT when
-`tokens <= full_context_threshold`, otherwise RETRIEVAL. AUTO never routes
-to HYBRID by design — HYBRID adds an answerability LLM call that isn't
-justified without benchmark data.
+`tokens <= full_context_threshold`, otherwise RETRIEVAL.
 """
 
 from types import SimpleNamespace
