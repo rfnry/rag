@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from rfnry_rag.config.graph import GraphIngestionConfig
+from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.vision.base import BaseVision
@@ -37,6 +38,15 @@ class AnalyzedIngestion:
         on_ingestion_complete: Callable[[str | None], Awaitable[None]] | None = None,
         delegate_methods: list[Any] | None = None,
     ) -> None:
+        if not (1 <= analyze_concurrency <= 100):
+            raise ConfigurationError(
+                f"AnalyzedIngestion.analyze_concurrency={analyze_concurrency} out of range [1, 100]"
+            )
+        if not (0 <= analyze_text_skip_threshold_chars <= 100_000):
+            raise ConfigurationError(
+                f"AnalyzedIngestion.analyze_text_skip_threshold_chars={analyze_text_skip_threshold_chars} "
+                "out of range [0, 100_000]"
+            )
         self._store = store
         if not embedding_model_name:
             embedding_model_name = getattr(embeddings, "name", "") or ""
