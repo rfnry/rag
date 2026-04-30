@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Protocol
 
 from rfnry_rag.ingestion.models import ChunkedContent, ParsedPage
@@ -34,5 +35,18 @@ class BaseIngestionMethod(Protocol):
         hash_value: str | None = None,
         pages: list[ParsedPage] | None = None,
     ) -> None: ...
+
+    async def delete(self, source_id: str) -> None: ...
+
+
+class PhasedIngestionMethod(Protocol):
+    """Multi-phase ingestion methods (drawing, analyzed) — engine routes by isinstance."""
+
+    required: bool
+
+    @property
+    def name(self) -> str: ...
+
+    def accepts(self, file_path: Path, source_type: str | None) -> bool: ...
 
     async def delete(self, source_id: str) -> None: ...

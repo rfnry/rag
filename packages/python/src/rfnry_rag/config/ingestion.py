@@ -7,7 +7,7 @@ from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.providers import LanguageModelClient
 
 if TYPE_CHECKING:
-    from rfnry_rag.ingestion.base import BaseIngestionMethod
+    from rfnry_rag.ingestion.base import BaseIngestionMethod, PhasedIngestionMethod
 
 
 @dataclass
@@ -44,7 +44,7 @@ class DocumentExpansionConfig:
 
 @dataclass
 class IngestionConfig:
-    methods: list[BaseIngestionMethod] = field(default_factory=list)
+    methods: list[BaseIngestionMethod | PhasedIngestionMethod] = field(default_factory=list)
     chunk_size: int = 375
     chunk_overlap: int = 40
     chunk_size_unit: Literal["chars", "tokens"] = "tokens"
