@@ -12,8 +12,8 @@ import pytest_asyncio
 
 from rfnry_rag.ingestion.analyze.models import PageAnalysis
 from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
+from rfnry_rag.ingestion.hashing import file_hash as compute_file_hash
 from rfnry_rag.models import Source
-from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 

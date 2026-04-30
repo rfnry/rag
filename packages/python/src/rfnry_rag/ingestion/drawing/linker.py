@@ -10,11 +10,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.ingestion.drawing.models import (
     DetectedConnection,
     DrawingPageAnalysis,
 )
+from rfnry_rag.logging import get_logger
 
 logger = get_logger("drawing/ingestion/linker")
 

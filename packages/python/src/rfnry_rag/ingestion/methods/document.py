@@ -3,8 +3,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.ingestion.models import ChunkedContent, ParsedPage
+from rfnry_rag.logging import get_logger
 from rfnry_rag.stores.document.base import BaseDocumentStore
 
 logger = get_logger("ingestion.methods.document")

@@ -3,7 +3,7 @@ from collections import Counter
 from typing import Protocol
 
 from rfnry_rag.baml.baml_client.async_client import b
-from rfnry_rag.common.logging import get_logger
+from rfnry_rag.logging import get_logger
 from rfnry_rag.observability.models import MetricResult
 from rfnry_rag.observability.normalize import normalize_answer
 from rfnry_rag.providers import LanguageModelClient, build_registry

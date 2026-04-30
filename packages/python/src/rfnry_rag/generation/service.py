@@ -3,13 +3,13 @@ from collections.abc import AsyncIterator
 from baml_py import errors as baml_errors
 
 from rfnry_rag.baml.baml_client.async_client import b
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.exceptions import GenerationError
+from rfnry_rag.generation.formatting import ChunkOrdering, chunks_to_context
 from rfnry_rag.generation.grounding import DEFAULT_ESCALATION, RelevanceGate, ScoreGate
 from rfnry_rag.generation.models import Clarification, QueryResult, SourceReference, StreamEvent
+from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.providers import LanguageModelClient, build_registry
-from rfnry_rag.retrieval.common.formatting import ChunkOrdering, chunks_to_context
 
 logger = get_logger("generation")
 

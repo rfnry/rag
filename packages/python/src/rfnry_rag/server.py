@@ -8,8 +8,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.exceptions import ConfigurationError, InputError
+from rfnry_rag.generation.formatting import ChunkOrdering
 from rfnry_rag.generation.models import QueryResult, StepResult, StreamEvent
 from rfnry_rag.generation.service import GenerationService
 from rfnry_rag.generation.step import StepGenerationService
@@ -22,12 +22,14 @@ from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
 from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
+from rfnry_rag.ingestion.hashing import file_hash as compute_file_hash
 from rfnry_rag.ingestion.methods.document import DocumentIngestion
 from rfnry_rag.ingestion.methods.graph import GraphIngestion
 from rfnry_rag.ingestion.methods.vector import VectorIngestion
 from rfnry_rag.ingestion.vision.base import BaseVision
 from rfnry_rag.knowledge.manager import KnowledgeManager
 from rfnry_rag.knowledge.migration import check_embedding_migration
+from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk, Source
 from rfnry_rag.observability.benchmark import (
     BenchmarkCase,
@@ -39,9 +41,6 @@ from rfnry_rag.observability.metrics import LLMJudgment
 from rfnry_rag.observability.trace import RetrievalTrace
 from rfnry_rag.providers import LanguageModelClient, build_registry
 from rfnry_rag.retrieval.base import BaseRetrievalMethod
-from rfnry_rag.retrieval.common.formatting import ChunkOrdering
-from rfnry_rag.retrieval.common.grounding import max_chunk_score
-from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 from rfnry_rag.retrieval.enrich.service import StructuredRetrievalService
 from rfnry_rag.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.methods.graph import GraphRetrieval
@@ -1061,10 +1060,6 @@ class RagEngine:
         if mode == QueryMode.DIRECT:
             return await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
         return await self._query_via_auto(text, knowledge_id, history, min_score, collection, system_prompt, trace)
-
-    @staticmethod
-    def _max_chunk_score(chunks: list[RetrievedChunk]) -> float | None:
-        return max_chunk_score(chunks)
 
     async def _query_via_retrieval(
         self,

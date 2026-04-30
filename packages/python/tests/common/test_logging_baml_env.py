@@ -4,7 +4,7 @@ import pytest
 
 
 def test_rfnry_rag_baml_log_propagates_to_baml_log(monkeypatch):
-    from rfnry_rag.common.logging import _propagate_baml_log_env
+    from rfnry_rag.logging import _propagate_baml_log_env
 
     monkeypatch.delenv("BAML_LOG", raising=False)
     monkeypatch.setenv("RFNRY_RAG_BAML_LOG", "debug")
@@ -13,7 +13,7 @@ def test_rfnry_rag_baml_log_propagates_to_baml_log(monkeypatch):
 
 
 def test_existing_baml_log_is_not_overridden(monkeypatch):
-    from rfnry_rag.common.logging import _propagate_baml_log_env
+    from rfnry_rag.logging import _propagate_baml_log_env
 
     monkeypatch.setenv("BAML_LOG", "info")
     monkeypatch.setenv("RFNRY_RAG_BAML_LOG", "debug")
@@ -22,7 +22,7 @@ def test_existing_baml_log_is_not_overridden(monkeypatch):
 
 
 def test_no_env_no_propagation(monkeypatch):
-    from rfnry_rag.common.logging import _propagate_baml_log_env
+    from rfnry_rag.logging import _propagate_baml_log_env
 
     monkeypatch.delenv("BAML_LOG", raising=False)
     monkeypatch.delenv("RFNRY_RAG_BAML_LOG", raising=False)
@@ -31,16 +31,16 @@ def test_no_env_no_propagation(monkeypatch):
 
 
 def test_invalid_log_level_raises_configuration_error(monkeypatch) -> None:
-    from rfnry_rag.common.logging import _resolve_level
     from rfnry_rag.exceptions import ConfigurationError
+    from rfnry_rag.logging import _resolve_level
 
     with pytest.raises(ConfigurationError, match="unknown log level"):
         _resolve_level("TRACE")
 
 
 def test_invalid_baml_log_level_raises_configuration_error(monkeypatch) -> None:
-    from rfnry_rag.common.logging import _propagate_baml_log_env
     from rfnry_rag.exceptions import ConfigurationError
+    from rfnry_rag.logging import _propagate_baml_log_env
 
     monkeypatch.delenv("BAML_LOG", raising=False)
     monkeypatch.setenv("RFNRY_RAG_BAML_LOG", "verbose")
@@ -49,7 +49,7 @@ def test_invalid_baml_log_level_raises_configuration_error(monkeypatch) -> None:
 
 
 def test_valid_baml_log_level_propagates(monkeypatch) -> None:
-    from rfnry_rag.common.logging import _propagate_baml_log_env
+    from rfnry_rag.logging import _propagate_baml_log_env
 
     monkeypatch.delenv("BAML_LOG", raising=False)
     monkeypatch.setenv("RFNRY_RAG_BAML_LOG", "WARN")

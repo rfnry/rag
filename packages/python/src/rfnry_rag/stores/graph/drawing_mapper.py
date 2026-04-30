@@ -18,13 +18,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.ingestion.drawing.models import (
     DetectedComponent,
     DetectedConnection,
     DrawingPageAnalysis,
 )
+from rfnry_rag.logging import get_logger
 from rfnry_rag.stores.graph.models import GraphEntity, GraphRelation
 
 logger = get_logger(__name__)

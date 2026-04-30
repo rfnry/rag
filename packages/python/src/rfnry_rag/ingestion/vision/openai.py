@@ -3,7 +3,6 @@ from pathlib import Path
 
 from openai import AsyncOpenAI
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.exceptions import ParseError
 from rfnry_rag.ingestion.models import ParsedPage
 from rfnry_rag.ingestion.vision.constants import (
@@ -11,6 +10,7 @@ from rfnry_rag.ingestion.vision.constants import (
     MEDIA_TYPES,
     VISION_EXTRACTION_PROMPT,
 )
+from rfnry_rag.logging import get_logger
 from rfnry_rag.providers.provider import LanguageModelProvider
 
 logger = get_logger(__name__)

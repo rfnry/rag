@@ -3,8 +3,8 @@ from dataclasses import replace
 
 import numpy as np
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
+from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk
 
 logger = get_logger("retrieval/refinement/extractive")

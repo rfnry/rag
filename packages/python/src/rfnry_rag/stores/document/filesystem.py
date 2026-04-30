@@ -8,7 +8,7 @@ from typing import Any
 
 from rank_bm25 import BM25Okapi
 
-from rfnry_rag.common.logging import get_logger
+from rfnry_rag.logging import get_logger
 from rfnry_rag.models import ContentMatch
 from rfnry_rag.stores.document.excerpt import extract_window
 

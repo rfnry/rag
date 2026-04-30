@@ -3,7 +3,7 @@ import cohere
 from rfnry_rag.providers.provider import LanguageModelProvider
 
 # Maximum texts per single API call. Callers should use embed_batched() from
-# rfnry_rag.common.embeddings when sending more than this many texts — that
+# rfnry_rag.ingestion.embeddings.batching when sending more than this many texts — that
 # helper owns sub-batch chunking and concurrency.
 _COHERE_MAX_BATCH = 96
 
@@ -22,7 +22,7 @@ class _CohereEmbeddings:
         """Embed *texts* in a single API call.
 
         Callers must ensure ``len(texts) <= _COHERE_MAX_BATCH``; use
-        ``embed_batched()`` from ``rfnry_rag.common.embeddings`` to chunk and
+        ``embed_batched()`` from ``rfnry_rag.ingestion.embeddings.batching`` to chunk and
         gather larger inputs automatically."""
         response = await self._client.embed(
             texts=texts,

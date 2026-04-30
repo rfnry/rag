@@ -23,8 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.schema import ColumnDefault
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.exceptions import ConfigurationError, DuplicateSourceError, SourceNotFoundError
+from rfnry_rag.logging import get_logger
 from rfnry_rag.models import Source, SourceStats
 
 logger = get_logger(__name__)

@@ -6,8 +6,8 @@ from dataclasses import asdict
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from rfnry_rag.common.cli import OutputMode as OutputMode
-from rfnry_rag.common.cli import get_output_mode as get_output_mode
+from rfnry_rag.cli.utils import OutputMode as OutputMode
+from rfnry_rag.cli.utils import get_output_mode as get_output_mode
 
 if TYPE_CHECKING:
     from rfnry_rag.generation.models import QueryResult

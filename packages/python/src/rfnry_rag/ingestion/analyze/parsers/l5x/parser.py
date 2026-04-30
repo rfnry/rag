@@ -3,7 +3,6 @@ from pathlib import Path
 
 from lxml import etree
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.ingestion.analyze.parsers.l5x.models import (
     AoiEntity,
     AoiParameter,
@@ -25,6 +24,7 @@ from rfnry_rag.ingestion.analyze.parsers.l5x.renderers import (
     render_tag_group,
     render_udt,
 )
+from rfnry_rag.logging import get_logger
 
 logger = get_logger("analyze/ingestion/analyze/l5x")
 

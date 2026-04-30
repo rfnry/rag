@@ -48,9 +48,9 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from rfnry_rag.common.concurrency import run_concurrent
-from rfnry_rag.common.logging import get_logger
+from rfnry_rag.concurrency import run_concurrent
 from rfnry_rag.exceptions import ConfigurationError
+from rfnry_rag.logging import get_logger
 from rfnry_rag.observability.metrics import ExactMatch, F1Score, LLMJudgment
 
 if TYPE_CHECKING:

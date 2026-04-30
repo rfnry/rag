@@ -1,6 +1,6 @@
 """RAG — Retrieval-Augmented Generation SDK."""
 
-from rfnry_rag.common.startup import check_baml as _check_baml
+from rfnry_rag.baml.version_check import check_baml as _check_baml
 
 _check_baml("retrieval", "rfnry_rag.baml.baml_client")
 

@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pymupdf
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.exceptions import ParseError
 from rfnry_rag.ingestion.models import ParsedPage
+from rfnry_rag.logging import get_logger
 
 logger = get_logger("chunk/ingestion/parse")
 

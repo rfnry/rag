@@ -1,4 +1,4 @@
-from rfnry_rag.common.logging import get_logger
+from rfnry_rag.logging import get_logger
 from rfnry_rag.stores.metadata.base import BaseMetadataStore
 
 logger = get_logger("knowledge/migration")

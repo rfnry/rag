@@ -5,11 +5,11 @@ import time
 from typing import Any
 from uuid import uuid4
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
+from rfnry_rag.ingestion.embeddings.batching import embed_batched
 from rfnry_rag.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
-from rfnry_rag.ingestion.embeddings.utils import embed_batched
 from rfnry_rag.ingestion.models import ChunkedContent, ParsedPage
+from rfnry_rag.logging import get_logger
 from rfnry_rag.models import SparseVector, VectorPoint
 from rfnry_rag.stores.vector.base import BaseVectorStore
 

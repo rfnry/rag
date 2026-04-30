@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import re
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.ingestion.analyze.models import DocumentSynthesis, PageAnalysis
 from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
+from rfnry_rag.logging import get_logger
 from rfnry_rag.stores.graph.models import GraphEntity, GraphRelation
 
 logger = get_logger(__name__)

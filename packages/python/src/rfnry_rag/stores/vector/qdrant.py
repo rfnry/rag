@@ -22,8 +22,8 @@ from qdrant_client.models import (
     SparseVector as QdrantSparseVector,
 )
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.exceptions import ConfigurationError
+from rfnry_rag.logging import get_logger
 from rfnry_rag.models import SparseVector, VectorPoint, VectorResult
 
 logger = get_logger(__name__)

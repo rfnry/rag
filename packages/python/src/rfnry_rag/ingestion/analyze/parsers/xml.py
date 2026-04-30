@@ -2,8 +2,8 @@ from pathlib import Path
 
 from lxml import etree
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
+from rfnry_rag.logging import get_logger
 
 logger = get_logger("analyze/ingestion/analyze/xml")
 

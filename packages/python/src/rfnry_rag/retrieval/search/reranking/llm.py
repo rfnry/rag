@@ -2,7 +2,7 @@ from dataclasses import replace
 
 from baml_py import errors as baml_errors
 
-from rfnry_rag.common.logging import get_logger
+from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.providers.client import LanguageModelClient
 from rfnry_rag.providers.registry import build_registry

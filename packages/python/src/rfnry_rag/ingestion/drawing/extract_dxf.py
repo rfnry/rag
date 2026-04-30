@@ -7,7 +7,6 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.ingestion.drawing.models import (
     DetectedComponent,
@@ -16,6 +15,7 @@ from rfnry_rag.ingestion.drawing.models import (
     OffPageConnector,
 )
 from rfnry_rag.ingestion.drawing.render import _iter_renderable_layouts
+from rfnry_rag.logging import get_logger
 
 logger = get_logger("drawing/ingestion/extract_dxf")
 

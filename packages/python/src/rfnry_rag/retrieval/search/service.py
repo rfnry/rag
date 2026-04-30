@@ -4,7 +4,7 @@ import asyncio
 import time
 from typing import Any
 
-from rfnry_rag.common.logging import get_logger, query_logging_enabled
+from rfnry_rag.logging import get_logger, query_logging_enabled
 from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.observability.trace import RetrievalTrace
 from rfnry_rag.retrieval.base import BaseRetrievalMethod

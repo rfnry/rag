@@ -6,7 +6,7 @@ from baml_py import ClientRegistry
 from baml_py import errors as baml_errors
 
 from rfnry_rag.baml.baml_client.async_client import b
-from rfnry_rag.common.logging import get_logger
+from rfnry_rag.logging import get_logger
 
 logger = get_logger("enrich/retrieval/query")
 

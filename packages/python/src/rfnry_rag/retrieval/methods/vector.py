@@ -7,9 +7,9 @@ from typing import Any
 
 from rank_bm25 import BM25Okapi
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
+from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk, VectorResult
 from rfnry_rag.retrieval.search.fusion import reciprocal_rank_fusion
 from rfnry_rag.stores.vector.base import BaseVectorStore

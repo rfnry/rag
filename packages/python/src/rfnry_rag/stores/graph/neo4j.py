@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from rfnry_rag.common.logging import get_logger
+from rfnry_rag.logging import get_logger
 from rfnry_rag.stores.graph.models import GraphEntity, GraphPath, GraphRelation, GraphResult
 
 logger = get_logger(__name__)

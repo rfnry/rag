@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.exceptions import (
     ConfigurationError,
     DuplicateSourceError,
@@ -20,12 +19,13 @@ from rfnry_rag.ingestion.chunk.expand import expand_chunks
 from rfnry_rag.ingestion.chunk.parsers.pdf import PDFParser
 from rfnry_rag.ingestion.chunk.parsers.text import TextParser
 from rfnry_rag.ingestion.chunk.token_counter import count_tokens
+from rfnry_rag.ingestion.hashing import file_hash
 from rfnry_rag.ingestion.models import ParsedPage
+from rfnry_rag.ingestion.page_range import parse_page_range
 from rfnry_rag.ingestion.vision.base import BaseVision
 from rfnry_rag.ingestion.vision.constants import IMAGE_EXTENSIONS
+from rfnry_rag.logging import get_logger
 from rfnry_rag.models import Source
-from rfnry_rag.retrieval.common.hashing import file_hash
-from rfnry_rag.retrieval.common.page_range import parse_page_range
 from rfnry_rag.stores.metadata.base import BaseMetadataStore
 
 if TYPE_CHECKING:

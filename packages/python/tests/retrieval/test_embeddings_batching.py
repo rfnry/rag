@@ -187,7 +187,7 @@ async def test_embed_batched_chunks_large_input() -> None:
         async def embedding_dimension(self) -> int:
             return 1
 
-    from rfnry_rag.common.embeddings import embed_batched
+    from rfnry_rag.ingestion.embeddings.batching import embed_batched
 
     result = await embed_batched(Fake(), ["x"] * 500, batch_size=100)
     assert len(result) == 500
@@ -215,7 +215,7 @@ async def test_embed_batched_overlaps_sub_batches() -> None:
         async def embedding_dimension(self) -> int:
             return 1
 
-    from rfnry_rag.common.embeddings import embed_batched
+    from rfnry_rag.ingestion.embeddings.batching import embed_batched
 
     result = await embed_batched(Fake(), ["x"] * 500, batch_size=100)
     assert len(result) == 500
@@ -237,7 +237,7 @@ async def test_embed_batched_empty_input() -> None:
         async def embedding_dimension(self) -> int:
             return 1
 
-    from rfnry_rag.common.embeddings import embed_batched
+    from rfnry_rag.ingestion.embeddings.batching import embed_batched
 
     result = await embed_batched(Fake(), [], batch_size=100)
     assert result == []
@@ -259,7 +259,7 @@ async def test_embed_batched_within_batch_size_single_call() -> None:
         async def embedding_dimension(self) -> int:
             return 1
 
-    from rfnry_rag.common.embeddings import embed_batched
+    from rfnry_rag.ingestion.embeddings.batching import embed_batched
 
     result = await embed_batched(Fake(), ["x"] * 50, batch_size=100)
     assert len(result) == 50
@@ -279,7 +279,7 @@ async def test_embed_batched_invalid_batch_size() -> None:
         async def embedding_dimension(self) -> int:
             return 1
 
-    from rfnry_rag.common.embeddings import embed_batched
+    from rfnry_rag.ingestion.embeddings.batching import embed_batched
 
     with pytest.raises(ValueError, match="batch_size"):
         await embed_batched(Fake(), ["x"], batch_size=0)

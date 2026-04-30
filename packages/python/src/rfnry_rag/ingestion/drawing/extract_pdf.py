@@ -9,7 +9,6 @@ from baml_py import ClientRegistry, Image
 from baml_py import errors as baml_errors
 
 from rfnry_rag.baml.baml_client.async_client import b
-from rfnry_rag.common.logging import get_logger
 from rfnry_rag.exceptions import IngestionError
 from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.ingestion.drawing.models import (
@@ -19,6 +18,7 @@ from rfnry_rag.ingestion.drawing.models import (
     OffPageConnector,
     Port,
 )
+from rfnry_rag.logging import get_logger
 
 logger = get_logger("drawing/ingestion/extract_pdf")
 
