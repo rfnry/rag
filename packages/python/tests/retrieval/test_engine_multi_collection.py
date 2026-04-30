@@ -13,7 +13,7 @@ from rfnry_rag.server import (
     IngestionConfig,
     PersistenceConfig,
     RagEngine,
-    RagServerConfig,
+    RagEngineConfig,
 )
 
 
@@ -49,7 +49,7 @@ async def test_initialize_populates_both_maps_for_every_collection():
     embeddings = _make_embeddings()
 
     engine = RagEngine(
-        RagServerConfig(
+        RagEngineConfig(
             persistence=PersistenceConfig(vector_store=vector_store),
             ingestion=IngestionConfig(embeddings=embeddings),
         )
@@ -65,7 +65,7 @@ async def test_get_ingestion_raises_on_unknown_collection():
     vector_store = _make_vector_store(["a"])
     embeddings = _make_embeddings()
     engine = RagEngine(
-        RagServerConfig(
+        RagEngineConfig(
             persistence=PersistenceConfig(vector_store=vector_store),
             ingestion=IngestionConfig(embeddings=embeddings),
         )
@@ -81,7 +81,7 @@ async def test_get_retrieval_raises_on_unknown_collection():
     vector_store = _make_vector_store(["a"])
     embeddings = _make_embeddings()
     engine = RagEngine(
-        RagServerConfig(
+        RagEngineConfig(
             persistence=PersistenceConfig(vector_store=vector_store),
             ingestion=IngestionConfig(embeddings=embeddings),
         )
@@ -97,7 +97,7 @@ async def test_non_default_collection_uses_scoped_store():
     vector_store = _make_vector_store(["a", "b"])
     embeddings = _make_embeddings()
     engine = RagEngine(
-        RagServerConfig(
+        RagEngineConfig(
             persistence=PersistenceConfig(vector_store=vector_store),
             ingestion=IngestionConfig(embeddings=embeddings),
         )
@@ -113,7 +113,7 @@ async def test_default_collection_uses_unscoped_default_services():
     vector_store = _make_vector_store(["a"])
     embeddings = _make_embeddings()
     engine = RagEngine(
-        RagServerConfig(
+        RagEngineConfig(
             persistence=PersistenceConfig(vector_store=vector_store),
             ingestion=IngestionConfig(embeddings=embeddings),
         )
@@ -131,7 +131,7 @@ async def test_cache_invalidation_fans_out_to_all_scoped_collections():
     vector_store = _make_vector_store(["a", "b", "c"])
     embeddings = _make_embeddings()
     engine = RagEngine(
-        RagServerConfig(
+        RagEngineConfig(
             persistence=PersistenceConfig(vector_store=vector_store),
             ingestion=IngestionConfig(embeddings=embeddings),
         )
@@ -183,7 +183,7 @@ async def _build_multi_collection_engine() -> RagEngine:
     metadata_store = _make_metadata_store()
 
     engine = RagEngine(
-        RagServerConfig(
+        RagEngineConfig(
             persistence=PersistenceConfig(
                 vector_store=vector_store,
                 metadata_store=metadata_store,
@@ -249,7 +249,7 @@ async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
     lm_client = MagicMock()  # GraphIngestion only calls it at ingest time, not at init
 
     engine = RagEngine(
-        RagServerConfig(
+        RagEngineConfig(
             persistence=PersistenceConfig(
                 vector_store=vector_store,
                 metadata_store=metadata_store,

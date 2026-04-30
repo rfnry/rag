@@ -10,9 +10,14 @@ from rfnry_rag.config.routing import RoutingConfig
 
 
 @dataclass
-class RagServerConfig:
+class RagEngineConfig:
     persistence: PersistenceConfig
     ingestion: IngestionConfig
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     generation: GenerationConfig = field(default_factory=GenerationConfig)
     routing: RoutingConfig = field(default_factory=RoutingConfig)
+
+
+# Back-compat alias — ``RagServerConfig`` was renamed to ``RagEngineConfig``;
+# the engine class is ``RagEngine``, so the config name now matches.
+RagServerConfig = RagEngineConfig

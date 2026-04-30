@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 from rfnry_rag.generation.models import QueryResult
 from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.retrieval.search.service import RetrievalService
-from rfnry_rag.server import RagEngine, RagServerConfig, RoutingConfig
+from rfnry_rag.server import RagEngine, RagEngineConfig, RoutingConfig
 
 
 def _chunk(chunk_id: str, score: float = 0.9) -> RetrievedChunk:
@@ -42,7 +42,7 @@ def _make_engine_for_query(retrieve_return: tuple[list[RetrievedChunk], Any]) ->
     `_retrieval_service.retrieve` mock returns the supplied tuple verbatim,
     so callers control whether trace is None or a populated RetrievalTrace.
     """
-    config = MagicMock(spec=RagServerConfig)
+    config = MagicMock(spec=RagEngineConfig)
     config.retrieval = SimpleNamespace(history_window=3)
     config.routing = RoutingConfig()
     server = RagEngine.__new__(RagEngine)

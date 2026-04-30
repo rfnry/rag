@@ -12,7 +12,7 @@ from rfnry_rag.server import (
     IngestionConfig,
     PersistenceConfig,
     RagEngine,
-    RagServerConfig,
+    RagEngineConfig,
 )
 
 
@@ -31,7 +31,7 @@ async def test_initialize_rolls_back_already_opened_stores_on_failure():
     graph_store.initialize = AsyncMock(side_effect=RuntimeError("graph failed"))
     graph_store.shutdown = AsyncMock()
 
-    cfg = RagServerConfig(
+    cfg = RagEngineConfig(
         persistence=PersistenceConfig(
             metadata_store=metadata_store,
             document_store=document_store,
@@ -56,7 +56,7 @@ async def test_initialize_does_not_call_shutdown_on_success():
     document_store.initialize = AsyncMock()
     document_store.shutdown = AsyncMock()
 
-    cfg = RagServerConfig(
+    cfg = RagEngineConfig(
         persistence=PersistenceConfig(document_store=document_store),
         ingestion=IngestionConfig(),
     )

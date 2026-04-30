@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from rfnry_rag.config.drawing import DrawingIngestionConfig as DrawingIngestionConfig
+from rfnry_rag.config.engine import RagEngineConfig
+from rfnry_rag.config.engine import RagServerConfig as RagServerConfig
 from rfnry_rag.config.generation import DEFAULT_SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
 from rfnry_rag.config.generation import GenerationConfig as GenerationConfig
 from rfnry_rag.config.graph import GraphIngestionConfig as GraphIngestionConfig
@@ -16,7 +18,6 @@ from rfnry_rag.config.persistence import PersistenceConfig
 from rfnry_rag.config.retrieval import RetrievalConfig
 from rfnry_rag.config.routing import QueryMode
 from rfnry_rag.config.routing import RoutingConfig as RoutingConfig
-from rfnry_rag.config.server import RagServerConfig
 from rfnry_rag.exceptions import ConfigurationError, InputError
 from rfnry_rag.generation.models import QueryResult, StepResult, StreamEvent
 from rfnry_rag.generation.service import GenerationService
@@ -109,9 +110,9 @@ class RagEngine:
         reranker: BaseReranking | None = None,
         query_rewriter: BaseQueryRewriting | None = None,
         sparse_embeddings: BaseSparseEmbeddings | None = None,
-    ) -> RagServerConfig:
+    ) -> RagEngineConfig:
         """Preset: dense vector search only. Add reranker/rewriter for quality."""
-        return RagServerConfig(
+        return RagEngineConfig(
             persistence=PersistenceConfig(vector_store=vector_store),
             ingestion=IngestionConfig(embeddings=embeddings, sparse_embeddings=sparse_embeddings),
             retrieval=RetrievalConfig(top_k=top_k, reranker=reranker, query_rewriter=query_rewriter),
@@ -124,9 +125,9 @@ class RagEngine:
         document_store: BaseDocumentStore,
         top_k: int = 5,
         reranker: BaseReranking | None = None,
-    ) -> RagServerConfig:
+    ) -> RagEngineConfig:
         """Preset: full-text / substring search only. No embeddings needed."""
-        return RagServerConfig(
+        return RagEngineConfig(
             persistence=PersistenceConfig(document_store=document_store),
             ingestion=IngestionConfig(),
             retrieval=RetrievalConfig(top_k=top_k, reranker=reranker),
@@ -144,9 +145,9 @@ class RagEngine:
         reranker: BaseReranking | None = None,
         query_rewriter: BaseQueryRewriting | None = None,
         top_k: int = 5,
-    ) -> RagServerConfig:
+    ) -> RagEngineConfig:
         """Preset: multi-path retrieval with optional document/graph/sparse paths + rerank."""
-        return RagServerConfig(
+        return RagEngineConfig(
             persistence=PersistenceConfig(
                 vector_store=vector_store,
                 document_store=document_store,
@@ -156,7 +157,7 @@ class RagEngine:
             retrieval=RetrievalConfig(top_k=top_k, reranker=reranker, query_rewriter=query_rewriter),
         )
 
-    def __init__(self, config: RagServerConfig) -> None:
+    def __init__(self, config: RagEngineConfig) -> None:
         self._config = config
         self._initialized = False
         self._stores_opened = False  # set True before first store.initialize(); guards re-entrant shutdown

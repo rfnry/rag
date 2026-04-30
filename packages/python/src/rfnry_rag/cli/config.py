@@ -10,7 +10,7 @@ from rfnry_rag.config import (
     GenerationConfig,
     IngestionConfig,
     PersistenceConfig,
-    RagServerConfig,
+    RagEngineConfig,
     RetrievalConfig,
 )
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
@@ -193,8 +193,8 @@ def _build_metadata_store(cfg: dict[str, Any]) -> SQLAlchemyMetadataStore:
     return SQLAlchemyMetadataStore(url=url)
 
 
-def load_config(config_path: str | None = None) -> RagServerConfig:
-    """Load TOML config + .env, build RagServerConfig."""
+def load_config(config_path: str | None = None) -> RagEngineConfig:
+    """Load TOML config + .env, build RagEngineConfig."""
     return _load_config(config_path)
 
 
@@ -219,7 +219,7 @@ def _validate_toml_keys(toml: dict) -> None:
         )
 
 
-def _load_config(config_path: str | Path | None) -> RagServerConfig:
+def _load_config(config_path: str | Path | None) -> RagEngineConfig:
     path = Path(config_path) if config_path else CONFIG_FILE
     if not path.exists():
         raise ConfigError(f"Config not found: {path}\nRun 'rfnry-rag retrieval init' to create it.")
@@ -276,7 +276,7 @@ def _load_config(config_path: str | Path | None) -> RagServerConfig:
     generation_cfg = toml.get("generation")
     generation = _build_generation_config(generation_cfg) if generation_cfg else GenerationConfig()
 
-    return RagServerConfig(
+    return RagEngineConfig(
         persistence=PersistenceConfig(
             vector_store=vector_store,
             metadata_store=metadata_store,

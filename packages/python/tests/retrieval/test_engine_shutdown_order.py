@@ -10,7 +10,7 @@ from rfnry_rag.server import (
     IngestionConfig,
     PersistenceConfig,
     RagEngine,
-    RagServerConfig,
+    RagEngineConfig,
 )
 
 
@@ -39,7 +39,7 @@ async def test_shutdown_tears_down_in_reverse_init_order() -> None:
     embeddings.model = "test"
     embeddings.embedding_dimension = AsyncMock(return_value=128)
 
-    cfg = RagServerConfig(
+    cfg = RagEngineConfig(
         persistence=PersistenceConfig(
             metadata_store=metadata,
             document_store=document,
@@ -60,7 +60,7 @@ async def test_shutdown_clears_service_refs() -> None:
     document.initialize = AsyncMock()
     document.shutdown = AsyncMock()
 
-    cfg = RagServerConfig(
+    cfg = RagEngineConfig(
         persistence=PersistenceConfig(document_store=document),
         ingestion=IngestionConfig(),
     )
@@ -92,7 +92,7 @@ async def test_shutdown_is_idempotent() -> None:
     embeddings.model = "test"
     embeddings.embedding_dimension = AsyncMock(return_value=128)
 
-    cfg = RagServerConfig(
+    cfg = RagEngineConfig(
         persistence=PersistenceConfig(
             metadata_store=metadata,
             vector_store=vector,

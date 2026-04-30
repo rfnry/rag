@@ -12,6 +12,7 @@ from rfnry_rag.config import GenerationConfig as GenerationConfig
 from rfnry_rag.config import IngestionConfig as IngestionConfig
 from rfnry_rag.config import PersistenceConfig as PersistenceConfig
 from rfnry_rag.config import QueryMode as QueryMode
+from rfnry_rag.config import RagEngineConfig as RagEngineConfig
 from rfnry_rag.config import RagServerConfig as RagServerConfig
 from rfnry_rag.config import RetrievalConfig as RetrievalConfig
 from rfnry_rag.config import RoutingConfig as RoutingConfig
@@ -136,6 +137,7 @@ __all__ = [
     "QueryMode",
     "QueryResult",
     "RagEngine",
+    "RagEngineConfig",
     "RagError",
     "RagServerConfig",
     "Reranking",

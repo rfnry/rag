@@ -1,11 +1,11 @@
 """Preset factory tests — these cover the common pipeline shapes so users
-don't have to hand-assemble RagServerConfig for simple cases."""
+don't have to hand-assemble RagEngineConfig for simple cases."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rfnry_rag.server import RagEngine, RagServerConfig
+from rfnry_rag.server import RagEngine, RagEngineConfig
 
 
 def test_vector_only_preset_yields_valid_config() -> None:
@@ -15,7 +15,7 @@ def test_vector_only_preset_yields_valid_config() -> None:
 
     config = RagEngine.vector_only(vector_store=vector_store, embeddings=embeddings)
 
-    assert isinstance(config, RagServerConfig)
+    assert isinstance(config, RagEngineConfig)
     assert config.persistence.vector_store is vector_store
     assert config.ingestion.embeddings is embeddings
     assert config.persistence.document_store is None

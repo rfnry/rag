@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from rfnry_rag.generation.models import QueryResult
-from rfnry_rag.server import RagEngine, RagServerConfig
+from rfnry_rag.server import RagEngine, RagEngineConfig
 
 _UNSET: Any = object()
 
@@ -41,7 +41,7 @@ def make_engine() -> Any:
         ingestion_namespace: Any = _UNSET,
     ) -> Any:
         if config is _UNSET:
-            built: Any = MagicMock(spec=RagServerConfig)
+            built: Any = MagicMock(spec=RagEngineConfig)
             if retrieval is not _UNSET:
                 built.retrieval = retrieval
             if routing is not _UNSET:
