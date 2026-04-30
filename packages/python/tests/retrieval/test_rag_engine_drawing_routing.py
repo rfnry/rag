@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -177,9 +178,7 @@ async def test_ingest_routes_pdf_to_drawing_only_with_source_type(tmp_path: Any)
     engine = await _make_engine_with_drawing_stub(stub)
 
     fast_ingest = AsyncMock(side_effect=_async_source_factory(status="completed"))
-    engine._get_ingestion = lambda collection: type(  # type: ignore[assignment,method-assign]
-        "S", (), {"ingest": fast_ingest}
-    )()
+    engine._get_ingestion = lambda collection: SimpleNamespace(ingest=fast_ingest)  # type: ignore[assignment,method-assign]
 
     try:
         await engine.ingest(str(pdf_path), knowledge_id="k")
