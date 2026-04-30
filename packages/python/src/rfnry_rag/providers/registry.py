@@ -50,7 +50,7 @@ def build_registry(client: LanguageModelClient) -> ClientRegistry:
 
     registry.add_llm_client(
         _CLIENT_DEFAULT,
-        provider=client.provider.provider,
+        provider=client.provider.backend,
         options=_build_client_options(client.provider, client.max_tokens, client.temperature, client.timeout_seconds),
         retry_policy=policy,
     )
@@ -58,7 +58,7 @@ def build_registry(client: LanguageModelClient) -> ClientRegistry:
     if client.strategy == "fallback" and client.fallback is not None:
         registry.add_llm_client(
             _CLIENT_FALLBACK,
-            provider=client.fallback.provider,
+            provider=client.fallback.backend,
             options=_build_client_options(
                 client.fallback, client.max_tokens, client.temperature, client.timeout_seconds
             ),
@@ -76,8 +76,8 @@ def build_registry(client: LanguageModelClient) -> ClientRegistry:
     _apply_boundary_api_key(client.boundary_api_key)
 
     _boundary_logger.info(
-        "language model client: provider=%s model=%s strategy=%s max_retries=%d timeout=%ds fallback=%s",
-        client.provider.provider,
+        "language model client: backend=%s model=%s strategy=%s max_retries=%d timeout=%ds fallback=%s",
+        client.provider.backend,
         client.provider.model,
         client.strategy,
         client.max_retries,

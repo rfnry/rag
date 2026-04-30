@@ -21,7 +21,7 @@ class Embeddings:
 
     def __init__(self, provider: LanguageModelProvider) -> None:
         self._provider = provider
-        match provider.provider:
+        match provider.backend:
             case "openai":
                 self._impl: _OpenAIEmbeddings | _VoyageEmbeddings | _CohereEmbeddings = _OpenAIEmbeddings(provider)
             case "voyage":
@@ -30,7 +30,7 @@ class Embeddings:
                 self._impl = _CohereEmbeddings(provider)
             case _:
                 raise ConfigurationError(
-                    f"Unsupported embeddings provider: {provider.provider!r}. Supported: openai, voyage, cohere."
+                    f"Unsupported embeddings provider: {provider.backend!r}. Supported: openai, voyage, cohere."
                 )
 
     @property
@@ -57,7 +57,7 @@ class Vision:
         max_tokens: int = 4096,
         max_retries: int = 3,
     ) -> None:
-        match provider.provider:
+        match provider.backend:
             case "anthropic":
                 self._impl: _AnthropicVision | _OpenAIVision | _GeminiVision = _AnthropicVision(
                     provider, max_tokens=max_tokens, max_retries=max_retries
@@ -68,7 +68,7 @@ class Vision:
                 self._impl = _GeminiVision(provider, max_tokens=max_tokens, max_retries=max_retries)
             case _:
                 raise ConfigurationError(
-                    f"Unsupported vision provider: {provider.provider!r}. Supported: anthropic, openai, gemini."
+                    f"Unsupported vision provider: {provider.backend!r}. Supported: anthropic, openai, gemini."
                 )
 
     async def parse(self, file_path: str, pages: set[int] | None = None) -> list[ParsedPage]:
@@ -79,13 +79,13 @@ class Reranking:
     """Reranker facade dispatching to a dedicated provider API (Cohere or Voyage)."""
 
     def __init__(self, provider: LanguageModelProvider) -> None:
-        if provider.provider not in _DEDICATED_RERANKER_PROVIDERS:
+        if provider.backend not in _DEDICATED_RERANKER_PROVIDERS:
             raise ConfigurationError(
-                f"Provider {provider.provider!r} has no dedicated reranker API. "
+                f"Provider {provider.backend!r} has no dedicated reranker API. "
                 f"Supported: {', '.join(sorted(_DEDICATED_RERANKER_PROVIDERS))}."
             )
         self._impl: _CohereReranking | _VoyageReranking = (
-            _CohereReranking(provider) if provider.provider == "cohere" else _VoyageReranking(provider)
+            _CohereReranking(provider) if provider.backend == "cohere" else _VoyageReranking(provider)
         )
 
     async def rerank(self, query: str, results: list[RetrievedChunk], top_k: int = 5) -> list[RetrievedChunk]:

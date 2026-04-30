@@ -53,7 +53,7 @@ class _InMemoryMetadataStore:
 def _make_config_with_lm() -> DrawingIngestionConfig:
     # Minimal lm_client so DrawingIngestionService initializes a BAML ClientRegistry.
     lm = LanguageModelClient(
-        provider=LanguageModelProvider(provider="openai", api_key="sk-test", model="gpt-4o"),
+        provider=LanguageModelProvider(backend="openai", api_key="sk-test", model="gpt-4o"),
     )
     return DrawingIngestionConfig(enabled=True, lm_client=lm)
 
@@ -197,7 +197,7 @@ async def test_extract_respects_analyze_concurrency() -> None:
     doc.close()
 
     lm = LanguageModelClient(
-        provider=LanguageModelProvider(provider="openai", api_key="sk-test", model="gpt-4o"),
+        provider=LanguageModelProvider(backend="openai", api_key="sk-test", model="gpt-4o"),
     )
     cfg = DrawingIngestionConfig(enabled=True, lm_client=lm, analyze_concurrency=2)
     metadata = _InMemoryMetadataStore()

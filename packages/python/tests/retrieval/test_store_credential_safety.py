@@ -53,5 +53,5 @@ def test_neo4j_graph_store_rejects_empty_password():
 def test_language_model_provider_repr_does_not_leak_api_key():
     from rfnry_rag.providers import LanguageModelProvider
 
-    p = LanguageModelProvider(provider="openai", model="m", api_key="sk-TOPSECRET")
+    p = LanguageModelProvider(backend="openai", model="m", api_key="sk-TOPSECRET")
     assert "TOPSECRET" not in repr(p)

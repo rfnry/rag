@@ -22,7 +22,7 @@ def _chunk(chunk_id: str = "c1", score: float = 0.9) -> RetrievedChunk:
 
 
 def _lm_client() -> LanguageModelClient:
-    return LanguageModelClient(provider=LanguageModelProvider(provider="openai", model="gpt-4o-mini"))
+    return LanguageModelClient(provider=LanguageModelProvider(backend="openai", model="gpt-4o-mini"))
 
 
 def _make_service(

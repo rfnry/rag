@@ -36,7 +36,7 @@ def _make_engine_for_validation(
     FULL_CONTEXT-window cross-check.
     """
     provider = LanguageModelProvider(
-        provider="anthropic",
+        backend="anthropic",
         model="claude-test",
         api_key="k",
         context_size=context_size,
@@ -59,16 +59,16 @@ def _make_engine_for_validation(
 def test_provider_context_size_must_be_positive_when_set() -> None:
     """``context_size=0`` and negatives are rejected at construction."""
     with pytest.raises(ConfigurationError, match="context_size"):
-        LanguageModelProvider(provider="x", model="y", context_size=0)
+        LanguageModelProvider(backend="x", model="y", context_size=0)
     with pytest.raises(ConfigurationError, match="context_size"):
-        LanguageModelProvider(provider="x", model="y", context_size=-1)
+        LanguageModelProvider(backend="x", model="y", context_size=-1)
 
 
 def test_provider_context_size_none_and_positive_accepted() -> None:
     """``None`` (default) and positive ints are accepted."""
-    LanguageModelProvider(provider="x", model="y")
-    LanguageModelProvider(provider="x", model="y", context_size=200_000)
-    LanguageModelProvider(provider="x", model="y", context_size=1)
+    LanguageModelProvider(backend="x", model="y")
+    LanguageModelProvider(backend="x", model="y", context_size=200_000)
+    LanguageModelProvider(backend="x", model="y", context_size=1)
 
 
 def test_validate_skipped_when_context_size_unset() -> None:

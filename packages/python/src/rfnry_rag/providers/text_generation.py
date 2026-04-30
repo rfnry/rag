@@ -45,7 +45,7 @@ async def generate_text(
     timeout_seconds: int,
 ) -> str:
     system = _compose_system(system_prompt, history)
-    backend = provider.provider
+    backend = provider.backend
     if backend == "anthropic":
         return await _anthropic_generate(
             provider=provider,
@@ -92,7 +92,7 @@ def stream_text(
     timeout_seconds: int,
 ) -> AsyncIterator[str]:
     system = _compose_system(system_prompt, history)
-    backend = provider.provider
+    backend = provider.backend
     if backend == "anthropic":
         return _anthropic_stream(
             provider=provider,

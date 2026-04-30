@@ -11,7 +11,7 @@ from rfnry_rag.providers import LanguageModelProvider
 
 
 def _make_vision() -> _GeminiVision:
-    provider = LanguageModelProvider(provider="gemini", model="gemini-2.5-flash", api_key="x")
+    provider = LanguageModelProvider(backend="gemini", model="gemini-2.5-flash", api_key="x")
     return _GeminiVision(provider)
 
 

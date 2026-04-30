@@ -53,7 +53,7 @@ def _build_embeddings(cfg: dict[str, Any]) -> BaseEmbeddings:
     api_key = _get_api_key(env_var, provider)
     model = cfg.get("model", _EMBEDDINGS_DEFAULTS[provider])
 
-    return Embeddings(LanguageModelProvider(provider=provider, model=model, api_key=api_key))
+    return Embeddings(LanguageModelProvider(backend=provider, model=model, api_key=api_key))
 
 
 _RERANKER_KEYS = {
@@ -77,7 +77,7 @@ def _build_reranker(cfg: dict[str, Any]):
     api_key = _get_api_key(env_var, provider)
     model = cfg.get("reranker_model", _RERANKER_DEFAULTS[provider])
 
-    return Reranking(LanguageModelProvider(provider=provider, model=model, api_key=api_key))
+    return Reranking(LanguageModelProvider(backend=provider, model=model, api_key=api_key))
 
 
 _GENERATION_KEYS = {
@@ -104,7 +104,7 @@ def _build_generation_config(cfg: dict[str, Any]) -> GenerationConfig:
 
     lm_client = LanguageModelClient(
         provider=LanguageModelProvider(
-            provider=provider,
+            backend=provider,
             model=model,
             api_key=api_key,
         ),
@@ -119,7 +119,7 @@ def _build_generation_config(cfg: dict[str, Any]) -> GenerationConfig:
             raise ConfigError(f"Unknown relevance_gate_provider: {rg_provider!r}")
         rg_api_key = _get_api_key(rg_env_var, rg_provider)
         relevance_gate_lm = LanguageModelClient(
-            provider=LanguageModelProvider(provider=rg_provider, model=rg_model, api_key=rg_api_key),
+            provider=LanguageModelProvider(backend=rg_provider, model=rg_model, api_key=rg_api_key),
         )
 
     return GenerationConfig(

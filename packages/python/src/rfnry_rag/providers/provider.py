@@ -7,14 +7,17 @@ from rfnry_rag.exceptions import ConfigurationError
 
 @dataclass
 class LanguageModelProvider:
-    """Identity: which API, which model, auth key, advertised window.
+    """Identity: which API backend, which model, auth key, advertised window.
 
     Used directly by Embeddings/Vision/Reranking for dedicated provider APIs,
     or wrapped by LanguageModelClient for BAML-routed LLM calls.
 
+    ``backend`` is the dispatch key — the SDK/API to call (e.g. ``"anthropic"``,
+    ``"openai"``, ``"gemini"``, ``"voyage"``, ``"cohere"``).
+
     ``name`` is an optional stable identifier used as a fingerprint for
     cross-process consistency checks (e.g. embedding-model migration). When
-    omitted it defaults to ``"{provider}:{model}"``.
+    omitted it defaults to ``"{backend}:{model}"``.
 
     ``context_size`` is the model's advertised input window in tokens. It is
     a *safety cap*, not a routing threshold: when set, RagEngine init refuses
@@ -25,7 +28,7 @@ class LanguageModelProvider:
     match the window. ``None`` disables the cap.
     """
 
-    provider: str
+    backend: str
     model: str
     api_key: str | None = field(default=None, repr=False)
     name: str = ""
@@ -33,7 +36,7 @@ class LanguageModelProvider:
 
     def __post_init__(self) -> None:
         if not self.name:
-            self.name = f"{self.provider}:{self.model}"
+            self.name = f"{self.backend}:{self.model}"
         if self.context_size is not None and self.context_size < 1:
             raise ConfigurationError(
                 f"LanguageModelProvider.context_size={self.context_size} must be a positive integer or None"

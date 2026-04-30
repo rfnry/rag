@@ -133,7 +133,7 @@ def test_build_registry_logs_lm_policy(caplog) -> None:
 
     caplog.set_level(logging.INFO, logger="rfnry_rag.providers.registry")
     client = LanguageModelClient(
-        provider=LanguageModelProvider(provider="openai", model="gpt-4o", api_key="sk-test"),
+        provider=LanguageModelProvider(backend="openai", model="gpt-4o", api_key="sk-test"),
         max_retries=2,
         timeout_seconds=30,
     )
