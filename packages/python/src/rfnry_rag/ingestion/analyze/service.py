@@ -321,13 +321,6 @@ class AnalyzedIngestionService:
         logger.info("[analyze/ingestion/ingest] complete: %d vectors, status=completed", len(points))
         return source
 
-    async def _analyze_pdf(self, file_path: Path, page_range: set[int] | None) -> list[PageAnalysis]:
-        """Original PDF analysis without per-page cache. Kept for back-compat; internal callers
-        now use _analyze_pdf_with_cache instead."""
-        sem = asyncio.Semaphore(self._analyze_concurrency)
-        pages = list(iter_pdf_page_images(file_path, dpi=self._dpi, pages=page_range))
-        return list(await asyncio.gather(*(self._analyze_one(p, sem) for p in pages)))
-
     async def _analyze_pdf_with_cache(
         self,
         file_path: Path,
@@ -466,8 +459,6 @@ class AnalyzedIngestionService:
             annotations=result.annotations,
             page_type=result.page_type,
         )
-        # raw_text and page_hash are injected by the caller (_analyze_pdf_with_cache or _analyze_pdf)
-        # after the LLM call, keeping them canonical to the image data.
 
         logger.info(
             "[analyze/ingestion/analyze/vision] page %d analyzed (%s, %d entities)",
