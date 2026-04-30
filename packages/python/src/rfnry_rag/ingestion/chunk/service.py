@@ -15,6 +15,7 @@ from rfnry_rag.exceptions import (
 )
 from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
 from rfnry_rag.ingestion.chunk.context import contextualize_chunks
+from rfnry_rag.ingestion.chunk.contextualize import contextualize_chunks_with_llm
 from rfnry_rag.ingestion.chunk.expand import expand_chunks
 from rfnry_rag.ingestion.chunk.parsers.pdf import PDFParser
 from rfnry_rag.ingestion.chunk.parsers.text import TextParser
@@ -31,7 +32,7 @@ from rfnry_rag.stores.metadata.base import BaseMetadataStore
 if TYPE_CHECKING:
     from baml_py import ClientRegistry
 
-    from rfnry_rag.config.ingestion import DocumentExpansionConfig
+    from rfnry_rag.config.ingestion import ContextualChunkConfig, DocumentExpansionConfig
     from rfnry_rag.ingestion.base import BaseIngestionMethod
 
 logger = get_logger("chunk/ingestion")
@@ -61,6 +62,7 @@ class IngestionService:
         chunk_context_headers: bool = True,
         document_expansion: DocumentExpansionConfig | None = None,
         expansion_registry: ClientRegistry | None = None,
+        contextual_chunk: ContextualChunkConfig | None = None,
     ) -> None:
         self._chunker = chunker
         self._ingestion_methods = ingestion_methods
@@ -72,6 +74,7 @@ class IngestionService:
         self._chunk_context_headers = chunk_context_headers
         self._document_expansion = document_expansion
         self._expansion_registry = expansion_registry
+        self._contextual_chunk = contextual_chunk
 
     def _resolve_weight(self, source_type: str | None) -> float:
         if self._source_type_weights is None:
@@ -237,11 +240,19 @@ class IngestionService:
             source_name = (metadata or {}).get("name", file_path.name)
             chunks = contextualize_chunks(chunks, source_name=source_name, source_type=source_type)
 
+        full_text = "\n\n".join(f"[Page {p.page_number}]\n{p.content}" for p in pages)
+
+        if self._contextual_chunk is not None and self._contextual_chunk.enabled:
+            chunks = await contextualize_chunks_with_llm(
+                chunks,
+                document_text=full_text,
+                config=self._contextual_chunk,
+            )
+
         if self._document_expansion is not None and self._document_expansion.enabled:
             assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__
             chunks = await expand_chunks(chunks, self._document_expansion, self._expansion_registry)
 
-        full_text = "\n\n".join(f"[Page {p.page_number}]\n{p.content}" for p in pages)
         title = metadata.get("name", file_path.name)
 
         # Stamp the per-source token estimate into the metadata blob so the
@@ -308,6 +319,13 @@ class IngestionService:
         if self._chunk_context_headers:
             source_name = (metadata or {}).get("name", "text-input")
             chunks = contextualize_chunks(chunks, source_name=source_name, source_type=source_type)
+
+        if self._contextual_chunk is not None and self._contextual_chunk.enabled:
+            chunks = await contextualize_chunks_with_llm(
+                chunks,
+                document_text=content,
+                config=self._contextual_chunk,
+            )
 
         if self._document_expansion is not None and self._document_expansion.enabled:
             assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__

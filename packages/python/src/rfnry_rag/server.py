@@ -424,6 +424,7 @@ class RagEngine:
             chunk_context_headers=ingestion.chunk_context_headers,
             document_expansion=ingestion.document_expansion,
             expansion_registry=self._expansion_registry,
+            contextual_chunk=ingestion.contextual_chunk,
         )
 
         if analyzed_method is not None and metadata_store is not None:
@@ -1234,6 +1235,7 @@ class RagEngine:
             chunk_context_headers=cfg.ingestion.chunk_context_headers,
             document_expansion=cfg.ingestion.document_expansion,
             expansion_registry=self._expansion_registry,
+            contextual_chunk=cfg.ingestion.contextual_chunk,
         )
 
     async def _retrieve_chunks(

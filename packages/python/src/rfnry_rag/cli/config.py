@@ -7,6 +7,7 @@ from typing import Any
 from rfnry_rag.cli.constants import CONFIG_FILE, ENV_FILE, ConfigError, load_dotenv
 from rfnry_rag.cli.utils import get_api_key as _get_api_key
 from rfnry_rag.config import (
+    ContextualChunkConfig,
     GenerationConfig,
     IngestionConfig,
     RagEngineConfig,
@@ -133,6 +134,40 @@ def _build_generation_config(cfg: dict[str, Any]) -> GenerationConfig:
     )
 
 
+def _build_contextual_chunk_config(cfg: dict[str, Any]) -> ContextualChunkConfig:
+    """Build ``ContextualChunkConfig`` from ``[ingestion.contextual_chunk]``.
+
+    Provider/model/api_key follow the same env-var conventions as
+    ``[generation]``. Section absent → returns the default-disabled config.
+    """
+    if not cfg:
+        return ContextualChunkConfig()
+    enabled = cfg.get("enabled", False)
+    lm_client = None
+    if enabled:
+        provider = cfg.get("provider")
+        if not provider:
+            raise ConfigError("[ingestion.contextual_chunk] enabled=true requires 'provider'")
+        env_var = _GENERATION_KEYS.get(provider)
+        if env_var is None:
+            raise ConfigError(
+                f"Unknown contextual_chunk provider: {provider!r}. Supported: {', '.join(_GENERATION_KEYS)}"
+            )
+        api_key = _get_api_key(env_var, provider)
+        model = cfg.get("model", _GENERATION_DEFAULTS[provider])
+        lm_client = LanguageModelClient(
+            lm=LanguageModel(provider=provider, model=model, api_key=api_key),
+        )
+    return ContextualChunkConfig(
+        enabled=enabled,
+        lm_client=lm_client,
+        concurrency=cfg.get("concurrency", 5),
+        max_context_tokens=cfg.get("max_context_tokens", 100),
+        include_in_embeddings=cfg.get("include_in_embeddings", True),
+        include_in_bm25=cfg.get("include_in_bm25", True),
+    )
+
+
 def _build_metadata_store(cfg: dict[str, Any]) -> SQLAlchemyMetadataStore:
     url = cfg.get("url")
     if not url:
@@ -197,6 +232,7 @@ def _load_config(config_path: str | Path | None) -> RagEngineConfig:
 
     chunk_context_headers = ingestion_cfg.get("chunk_context_headers", True)
     embedding_model_name = _derive_embedding_model_name(embeddings)
+    contextual_chunk = _build_contextual_chunk_config(ingestion_cfg.get("contextual_chunk", {}))
     ingestion = IngestionConfig(
         methods=[
             VectorIngestion(
@@ -211,6 +247,7 @@ def _load_config(config_path: str | Path | None) -> RagEngineConfig:
         parent_chunk_size=ingestion_cfg.get("parent_chunk_size", 0),
         parent_chunk_overlap=ingestion_cfg.get("parent_chunk_overlap", 200),
         chunk_context_headers=chunk_context_headers,
+        contextual_chunk=contextual_chunk,
     )
 
     retrieval_cfg = toml.get("retrieval", {})

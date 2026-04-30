@@ -315,3 +315,77 @@ async def test_fold_skips_empty_structural_header() -> None:
         await contextualize_chunks_with_llm(chunks, document_text="d", config=cfg)
 
     assert chunks[0].contextualized == "BLOB\n\nalpha"
+
+
+# ---------------------------------------------------------------------------
+# IngestionService wiring — on/off behavior at the service level
+# ---------------------------------------------------------------------------
+
+
+def _service_chunker(contents: list[str]) -> MagicMock:
+    chunker = MagicMock()
+    chunker.chunk = MagicMock(
+        return_value=[
+            ChunkedContent(content=c, page_number=1, chunk_index=i) for i, c in enumerate(contents)
+        ]
+    )
+    return chunker
+
+
+def _ingest_method() -> SimpleNamespace:
+    return SimpleNamespace(name="vector", required=True, ingest=AsyncMock(), delete=AsyncMock())
+
+
+async def test_ingestion_service_skips_llm_when_disabled() -> None:
+    from rfnry_rag.ingestion.chunk.service import IngestionService
+
+    method = _ingest_method()
+    service = IngestionService(
+        chunker=_service_chunker(["alpha", "beta"]),
+        ingestion_methods=[method],
+        contextual_chunk=ContextualChunkConfig(enabled=False),
+    )
+
+    with patch("anthropic.AsyncAnthropic") as mock_cls:
+        await service.ingest_text(content="DOCBODY", metadata={"name": "src"})
+
+    mock_cls.assert_not_called()
+    chunks = method.ingest.call_args.kwargs["chunks"]
+    assert all(c.situating_context == "" for c in chunks)
+
+
+async def test_ingestion_service_invokes_llm_when_enabled() -> None:
+    from rfnry_rag.ingestion.chunk.service import IngestionService
+
+    captured_docs: list[str] = []
+
+    async def fake_create(**kwargs: object) -> object:
+        system = kwargs["system"]
+        captured_docs.append(system[0]["text"])  # type: ignore[index]
+        return SimpleNamespace(content=[SimpleNamespace(text="SITUATED")])
+
+    method = _ingest_method()
+    service = IngestionService(
+        chunker=_service_chunker(["alpha", "beta"]),
+        ingestion_methods=[method],
+        contextual_chunk=ContextualChunkConfig(
+            enabled=True,
+            lm_client=_make_client("anthropic"),
+            concurrency=1,
+        ),
+    )
+
+    with patch("anthropic.AsyncAnthropic") as mock_cls, patch(
+        "anthropic.types.TextBlock", new=SimpleNamespace
+    ):
+        fake_client = MagicMock()
+        fake_client.messages.create = AsyncMock(side_effect=fake_create)
+        mock_cls.return_value = fake_client
+
+        await service.ingest_text(content="DOCBODY", metadata={"name": "src"})
+
+    assert len(captured_docs) == 2
+    assert all("DOCBODY" in d for d in captured_docs)
+    chunks = method.ingest.call_args.kwargs["chunks"]
+    assert all(c.situating_context == "SITUATED" for c in chunks)
+    assert all("SITUATED" in c.contextualized for c in chunks)
