@@ -3,8 +3,8 @@ from unittest.mock import patch
 
 import pytest
 
-from rfnry_rag.retrieval.cli.config import ConfigError, load_config
-from rfnry_rag.retrieval.cli.constants import load_dotenv
+from rfnry_rag.cli.config import ConfigError, load_config
+from rfnry_rag.cli.constants import load_dotenv
 
 _BASE_CONFIG = """\
 [persistence]
@@ -169,7 +169,7 @@ class TestLoadConfigProviders:
             os.environ.pop("OPENAI_API_KEY", None)
             os.environ.pop("ANTHROPIC_API_KEY", None)
             cfg = load_config(path)
-        from rfnry_rag.retrieval.modules.retrieval.search.rewriting.multi_query import MultiQueryRewriting
+        from rfnry_rag.retrieval.search.rewriting.multi_query import MultiQueryRewriting
 
         assert isinstance(cfg.retrieval.query_rewriter, MultiQueryRewriting)
 

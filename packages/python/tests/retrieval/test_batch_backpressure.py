@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.retrieval.modules.ingestion.chunk.batch import (
+from rfnry_rag.ingestion.chunk.batch import (
     BatchConfig,
     BatchIngestionService,
     TextRecord,

@@ -18,14 +18,14 @@ from unittest.mock import AsyncMock
 import pytest
 
 from rfnry_rag.common.errors import ConfigurationError
-from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk
-from rfnry_rag.retrieval.modules.evaluation import (
+from rfnry_rag.generation.models import QueryResult, SourceReference
+from rfnry_rag.observability import (
     BenchmarkCase,
     BenchmarkConfig,
     run_benchmark,
 )
-from rfnry_rag.retrieval.modules.evaluation.metrics import LLMJudgment
-from rfnry_rag.retrieval.modules.generation.models import QueryResult, SourceReference
+from rfnry_rag.observability.metrics import LLMJudgment
+from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk
 
 
 def _result(

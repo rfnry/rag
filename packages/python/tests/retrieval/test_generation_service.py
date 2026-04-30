@@ -3,11 +3,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from rfnry_rag.common.language_model import LanguageModelClient, LanguageModelProvider
+from rfnry_rag.generation.grounding import DEFAULT_ESCALATION
+from rfnry_rag.generation.models import RelevanceResult
+from rfnry_rag.generation.service import GenerationService
 from rfnry_rag.retrieval.common.errors import GenerationError
 from rfnry_rag.retrieval.common.models import RetrievedChunk
-from rfnry_rag.retrieval.modules.generation.grounding import DEFAULT_ESCALATION
-from rfnry_rag.retrieval.modules.generation.models import RelevanceResult
-from rfnry_rag.retrieval.modules.generation.service import GenerationService
 
 
 def _chunk(chunk_id: str = "c1", score: float = 0.9) -> RetrievedChunk:
@@ -46,9 +46,7 @@ def _make_service(
 
 
 def _patch_generate(answer="The MERV 13 filter is rated for fine particles."):
-    return patch(
-        "rfnry_rag.retrieval.modules.generation.service.b.GenerateAnswer", new_callable=AsyncMock, return_value=answer
-    )
+    return patch("rfnry_rag.generation.service.b.GenerateAnswer", new_callable=AsyncMock, return_value=answer)
 
 
 class _FakeStream:
@@ -63,7 +61,7 @@ class _FakeStream:
 
 
 def _patch_stream():
-    return patch("rfnry_rag.retrieval.modules.generation.service.b.stream.GenerateAnswer", return_value=_FakeStream())
+    return patch("rfnry_rag.generation.service.b.stream.GenerateAnswer", return_value=_FakeStream())
 
 
 class TestGenerationServiceGenerate:

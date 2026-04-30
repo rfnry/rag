@@ -16,10 +16,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from rfnry_rag.ingestion.chunk.expand import expand_chunks
+from rfnry_rag.ingestion.models import ChunkedContent
 from rfnry_rag.retrieval.common.errors import ConfigurationError, IngestionError
-from rfnry_rag.retrieval.modules.ingestion.chunk.expand import expand_chunks
-from rfnry_rag.retrieval.modules.ingestion.models import ChunkedContent
-from rfnry_rag.retrieval.server import DocumentExpansionConfig
+from rfnry_rag.server import DocumentExpansionConfig
 
 # ---------------------------------------------------------------------------
 # DocumentExpansionConfig — bounds + invariants
@@ -114,7 +114,7 @@ async def test_expand_chunks_calls_llm_per_chunk_with_concurrency_bound() -> Non
     chunks = [_make_chunk(i) for i in range(10)]
     registry = MagicMock()
 
-    with patch("rfnry_rag.retrieval.modules.ingestion.chunk.expand.b") as mock_b:
+    with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
         mock_b.GenerateSyntheticQueries = AsyncMock(side_effect=fake_generate)
         await expand_chunks(chunks, cfg, registry)
 
@@ -133,7 +133,7 @@ async def test_expand_chunks_attaches_queries_to_chunk_dataclass() -> None:
     chunks = [_make_chunk(0)]
     registry = MagicMock()
 
-    with patch("rfnry_rag.retrieval.modules.ingestion.chunk.expand.b") as mock_b:
+    with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
         mock_b.GenerateSyntheticQueries = AsyncMock(
             return_value=SimpleNamespace(queries=["a", "b", "c"]),
         )
@@ -152,7 +152,7 @@ async def test_expand_chunks_propagates_lm_failure_as_ingestion_error() -> None:
     chunks = [_make_chunk(7)]
     registry = MagicMock()
 
-    with patch("rfnry_rag.retrieval.modules.ingestion.chunk.expand.b") as mock_b:
+    with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
         mock_b.GenerateSyntheticQueries = AsyncMock(side_effect=RuntimeError("boom"))
         with pytest.raises(IngestionError, match="chunk_index=7"):
             await expand_chunks(chunks, cfg, registry)

@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from rfnry_rag.common.language_model import LanguageModelClient, LanguageModelProvider
+from rfnry_rag.generation.step import StepGenerationService
 from rfnry_rag.retrieval.common.errors import GenerationError
 from rfnry_rag.retrieval.common.models import RetrievedChunk
-from rfnry_rag.retrieval.modules.generation.step import StepGenerationService
 
 
 def _make_chunk(content: str) -> RetrievedChunk:
@@ -26,7 +26,7 @@ class TestStepGenerationService:
         mock_result.text = "The manual mentions SAE 30 oil but does not specify quantity."
         mock_result.is_final = False
 
-        with patch("rfnry_rag.retrieval.modules.generation.step.b.GenerateReasoningStep", return_value=mock_result):
+        with patch("rfnry_rag.generation.step.b.GenerateReasoningStep", return_value=mock_result):
             result = await service.generate_step(
                 query="How much oil does it need?",
                 chunks=[_make_chunk("Use SAE 30 oil for this model.")],
@@ -40,7 +40,7 @@ class TestStepGenerationService:
         mock_result.text = "The engine requires 2.5 quarts of SAE 30 oil."
         mock_result.is_final = True
 
-        with patch("rfnry_rag.retrieval.modules.generation.step.b.GenerateReasoningStep", return_value=mock_result):
+        with patch("rfnry_rag.generation.step.b.GenerateReasoningStep", return_value=mock_result):
             result = await service.generate_step(
                 query="How much oil does it need?",
                 chunks=[_make_chunk("Oil capacity: 2.5 quarts SAE 30.")],
@@ -57,7 +57,7 @@ class TestStepGenerationService:
     async def test_baml_failure_raises_generation_error(self, service):
         with (
             patch(
-                "rfnry_rag.retrieval.modules.generation.step.b.GenerateReasoningStep",
+                "rfnry_rag.generation.step.b.GenerateReasoningStep",
                 side_effect=Exception("LLM error"),
             ),
             pytest.raises(GenerationError, match="GenerateReasoningStep failed"),
@@ -69,9 +69,7 @@ class TestStepGenerationService:
         mock_result.text = "No relevant context was found."
         mock_result.is_final = True
 
-        with patch(
-            "rfnry_rag.retrieval.modules.generation.step.b.GenerateReasoningStep", return_value=mock_result
-        ) as mock_call:
+        with patch("rfnry_rag.generation.step.b.GenerateReasoningStep", return_value=mock_result) as mock_call:
             await service.generate_step(query="question", chunks=[])
 
         call_args = mock_call.call_args

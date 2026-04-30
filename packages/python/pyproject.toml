@@ -52,19 +52,17 @@ cli = [
 
 [project.scripts]
 rfnry-rag = "rfnry_rag.cli:main"
-rfnry-rag-retrieval = "rfnry_rag.retrieval.cli:main"
-rfnry-rag-reasoning = "rfnry_rag.reasoning.cli:main"
 
 [tool.mypy]
 python_version = "3.12"
 mypy_path = "src"
-exclude = ["src/rfnry_rag/retrieval/baml/baml_client", "src/rfnry_rag/reasoning/baml/baml_client"]
+exclude = ["src/rfnry_rag/baml/baml_client"]
 ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-exclude = ["src/rfnry_rag/retrieval/baml/baml_client", "src/rfnry_rag/reasoning/baml/baml_client"]
+exclude = ["src/rfnry_rag/baml/baml_client"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF022"]

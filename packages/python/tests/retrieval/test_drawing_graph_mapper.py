@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
-from rfnry_rag.retrieval.modules.ingestion.drawing.models import (
+from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
+from rfnry_rag.ingestion.drawing.models import (
     DetectedComponent,
     DetectedConnection,
     DrawingPageAnalysis,
     Port,
 )
-from rfnry_rag.retrieval.stores.graph.drawing_mapper import (
+from rfnry_rag.stores.graph.drawing_mapper import (
     component_to_graph_entity,
     connection_to_graph_relation,
     drawing_to_graph,
@@ -172,7 +172,7 @@ def test_missing_component_types_default_to_component() -> None:
 def test_drawing_to_graph_single_component_crossref_produces_relation_not_skipped() -> None:
     """The existing analyze-path drops cross-refs with <2 shared entities.
     The drawing mapper MUST NOT apply that filter."""
-    from rfnry_rag.retrieval.modules.ingestion.drawing.models import DetectedConnection as DC
+    from rfnry_rag.ingestion.drawing.models import DetectedConnection as DC
 
     p1 = _page([_component("R1")], page=1)
     p2 = _page([_component("C1", "capacitor")], page=2)

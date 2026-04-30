@@ -2,10 +2,10 @@ import pytest
 
 from rfnry_rag.common.errors import ConfigurationError
 from rfnry_rag.common.language_model import LanguageModelProvider
-from rfnry_rag.retrieval.modules.ingestion.vision.anthropic import _AnthropicVision
-from rfnry_rag.retrieval.modules.ingestion.vision.facade import Vision
-from rfnry_rag.retrieval.modules.ingestion.vision.gemini import _GeminiVision
-from rfnry_rag.retrieval.modules.ingestion.vision.openai import _OpenAIVision
+from rfnry_rag.ingestion.vision.anthropic import _AnthropicVision
+from rfnry_rag.ingestion.vision.facade import Vision
+from rfnry_rag.ingestion.vision.gemini import _GeminiVision
+from rfnry_rag.ingestion.vision.openai import _OpenAIVision
 
 
 def test_vision_dispatches_to_anthropic():

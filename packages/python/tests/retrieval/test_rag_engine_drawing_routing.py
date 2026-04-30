@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from rfnry_rag.common.errors import ConfigurationError
-from rfnry_rag.retrieval.server import SUPPORTED_DRAWING_EXTENSIONS
+from rfnry_rag.server import SUPPORTED_DRAWING_EXTENSIONS
 
 
 def test_drawing_extensions_allowlist_is_dxf_only() -> None:
@@ -17,7 +17,7 @@ def test_drawing_extensions_allowlist_is_dxf_only() -> None:
     assert ".dxf" in SUPPORTED_DRAWING_EXTENSIONS
     assert ".pdf" not in SUPPORTED_DRAWING_EXTENSIONS
     # Structured allowlist should also remain .xml + .l5x only (no .pdf regression)
-    from rfnry_rag.retrieval.server import SUPPORTED_STRUCTURED_EXTENSIONS
+    from rfnry_rag.server import SUPPORTED_STRUCTURED_EXTENSIONS
 
     assert {".xml", ".l5x"} == SUPPORTED_STRUCTURED_EXTENSIONS
 
@@ -34,7 +34,7 @@ class _StubIngestionService:
 
 def test_engine_exposes_stepped_drawing_methods() -> None:
     """Stepped API mirrors analyzed service: render/extract/link/complete_ingestion."""
-    from rfnry_rag.retrieval.server import RagEngine
+    from rfnry_rag.server import RagEngine
 
     assert hasattr(RagEngine, "render_drawing")
     assert hasattr(RagEngine, "extract_drawing")
@@ -45,7 +45,7 @@ def test_engine_exposes_stepped_drawing_methods() -> None:
 async def test_stepped_methods_raise_when_drawing_service_not_configured() -> None:
     """Each stepped method raises ConfigurationError with a useful message when
     DrawingIngestionConfig is not configured."""
-    from rfnry_rag.retrieval.server import RagEngine
+    from rfnry_rag.server import RagEngine
 
     engine = RagEngine.__new__(RagEngine)
     engine._drawing_ingestion = None  # type: ignore[attr-defined]
@@ -103,7 +103,7 @@ async def test_ingest_routes_pdf_to_drawing_only_with_source_type() -> None:
 
 async def test_ingest_dxf_raises_when_drawing_service_not_configured() -> None:
     """A .dxf file without a configured drawing service is a user error."""
-    from rfnry_rag.retrieval.server import RagEngine
+    from rfnry_rag.server import RagEngine
 
     engine = RagEngine.__new__(RagEngine)
     engine._drawing_ingestion = None  # type: ignore[attr-defined]
@@ -145,7 +145,7 @@ def _async_source_factory(*, status: str, source_id: str = "src-1", file_hash: s
 
 def _make_engine_stub_with_drawing(drawing_service: Any):
     """Bypass RagEngine.initialize() and wire just enough state for routing tests."""
-    from rfnry_rag.retrieval.server import RagEngine
+    from rfnry_rag.server import RagEngine
 
     engine = RagEngine.__new__(RagEngine)
     engine._drawing_ingestion = drawing_service  # type: ignore[attr-defined]

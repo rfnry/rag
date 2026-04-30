@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from rfnry_rag.common.language_model import LanguageModelClient, LanguageModelProvider
-from rfnry_rag.retrieval.modules.retrieval.judging import RetrievalJudgment
+from rfnry_rag.retrieval.judging import RetrievalJudgment
 
 
 def _make_lm_client():
@@ -24,7 +24,7 @@ class TestRetrievalJudgment:
         mock_result.confidence = 0.95
         mock_result.reasoning = "Query asks about specific filter specs"
 
-        with patch("rfnry_rag.retrieval.modules.retrieval.judging.b.JudgeRetrievalNecessity", return_value=mock_result):
+        with patch("rfnry_rag.retrieval.judging.b.JudgeRetrievalNecessity", return_value=mock_result):
             result = await judge.should_retrieve("What is the pressure drop for FBD-20254?")
 
         assert result.should_retrieve is True
@@ -36,14 +36,14 @@ class TestRetrievalJudgment:
         mock_result.confidence = 0.9
         mock_result.reasoning = "General knowledge question"
 
-        with patch("rfnry_rag.retrieval.modules.retrieval.judging.b.JudgeRetrievalNecessity", return_value=mock_result):
+        with patch("rfnry_rag.retrieval.judging.b.JudgeRetrievalNecessity", return_value=mock_result):
             result = await judge.should_retrieve("What is photosynthesis?")
 
         assert result.should_retrieve is False
 
     async def test_defaults_to_retrieve_on_failure(self, judge):
         with patch(
-            "rfnry_rag.retrieval.modules.retrieval.judging.b.JudgeRetrievalNecessity",
+            "rfnry_rag.retrieval.judging.b.JudgeRetrievalNecessity",
             side_effect=Exception("LLM error"),
         ):
             result = await judge.should_retrieve("Some query")
@@ -57,7 +57,7 @@ class TestRetrievalJudgment:
         mock_result.confidence = 1.5
         mock_result.reasoning = "High confidence"
 
-        with patch("rfnry_rag.retrieval.modules.retrieval.judging.b.JudgeRetrievalNecessity", return_value=mock_result):
+        with patch("rfnry_rag.retrieval.judging.b.JudgeRetrievalNecessity", return_value=mock_result):
             result = await judge.should_retrieve("Query")
 
         assert result.confidence == 1.0

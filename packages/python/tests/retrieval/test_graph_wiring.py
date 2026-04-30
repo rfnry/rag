@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock
 
-from rfnry_rag.retrieval.server import PersistenceConfig
+from rfnry_rag.server import PersistenceConfig
 
 
 def _mock_vector_store():
@@ -35,8 +35,8 @@ def test_persistence_config_graph_store_defaults_none():
 
 
 async def test_knowledge_manager_remove_calls_graph_store():
+    from rfnry_rag.knowledge.manager import KnowledgeManager
     from rfnry_rag.retrieval.common.models import Source
-    from rfnry_rag.retrieval.modules.knowledge.manager import KnowledgeManager
 
     vector_store = _mock_vector_store()
     vector_store.delete = AsyncMock(return_value=5)
@@ -59,8 +59,8 @@ async def test_knowledge_manager_remove_calls_graph_store():
 
 
 async def test_knowledge_manager_remove_without_graph_store():
+    from rfnry_rag.knowledge.manager import KnowledgeManager
     from rfnry_rag.retrieval.common.models import Source
-    from rfnry_rag.retrieval.modules.knowledge.manager import KnowledgeManager
 
     vector_store = _mock_vector_store()
     vector_store.delete = AsyncMock(return_value=3)

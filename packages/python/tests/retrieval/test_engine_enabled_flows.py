@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from rfnry_rag.retrieval.server import RagEngine
+from rfnry_rag.server import RagEngine
 
 
 def test_enabled_flows_uses_snake_case_only() -> None:

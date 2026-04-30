@@ -1,5 +1,5 @@
-from rfnry_rag.retrieval.modules.ingestion.chunk.context import build_context, contextualize_chunks
-from rfnry_rag.retrieval.modules.ingestion.models import ChunkedContent
+from rfnry_rag.ingestion.chunk.context import build_context, contextualize_chunks
+from rfnry_rag.ingestion.models import ChunkedContent
 
 
 def test_build_context_full():

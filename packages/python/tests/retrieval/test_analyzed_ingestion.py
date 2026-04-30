@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
+from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
 from rfnry_rag.retrieval.common.models import Source
-from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
 
 # Serialised page-analysis rows stored in rag_page_analyses (keyed by "data")
 _PAGE_ANALYSES_ROWS = [
@@ -159,7 +159,7 @@ async def test_analyzed_ingestion_writes_document_store_exactly_once(tmp_path) -
     """The ingest phase must be the single authoritative document write."""
     from unittest.mock import AsyncMock, MagicMock
 
-    from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
+    from rfnry_rag.ingestion.methods.document import DocumentIngestion
 
     doc_method = MagicMock(spec=DocumentIngestion)
     doc_method.name = "document"
@@ -234,11 +234,11 @@ async def test_analyze_pdf_runs_pages_concurrently(tmp_path) -> None:
 
     with (
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
             return_value=iter(fake_pages),
         ),
         patch(
-            "rfnry_rag.retrieval.baml.baml_client.async_client.b.AnalyzePage",
+            "rfnry_rag.baml.baml_client.async_client.b.AnalyzePage",
             new=slow_analyze_page,
         ),
     ):
@@ -257,7 +257,7 @@ async def test_analyze_pdf_runs_pages_concurrently(tmp_path) -> None:
 
 async def test_analyzed_ingestion_identifies_document_method_by_type_not_name() -> None:
     """If DocumentIngestion.name is renamed, document storage must still route correctly."""
-    from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
+    from rfnry_rag.ingestion.methods.document import DocumentIngestion
 
     # DocumentIngestion instance whose .name attr has drifted.
     doc_method = MagicMock(spec=DocumentIngestion)
@@ -279,8 +279,8 @@ async def test_analyzed_ingestion_identifies_document_method_by_type_not_name() 
 
 def test_synthesize_shared_entities_caps_cross_refs_per_entity() -> None:
     """Entity appearing on 50+ pages must not produce O(n^2) cross-refs."""
-    from rfnry_rag.retrieval.modules.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
-    from rfnry_rag.retrieval.modules.ingestion.analyze.service import _MAX_PAGES_PER_ENTITY, AnalyzedIngestionService
+    from rfnry_rag.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
+    from rfnry_rag.ingestion.analyze.service import _MAX_PAGES_PER_ENTITY, AnalyzedIngestionService
 
     # Build 50 pages all sharing one entity — uncapped this would produce
     # 50*49/2 = 1225 cross-refs; capped at _MAX_PAGES_PER_ENTITY it must be

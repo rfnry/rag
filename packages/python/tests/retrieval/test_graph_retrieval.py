@@ -3,9 +3,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from rfnry_rag.retrieval.common.models import RetrievedChunk
-from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval
-from rfnry_rag.retrieval.modules.retrieval.search.service import RetrievalService
-from rfnry_rag.retrieval.stores.graph.models import GraphEntity, GraphPath, GraphResult
+from rfnry_rag.retrieval.methods.graph import GraphRetrieval
+from rfnry_rag.retrieval.search.service import RetrievalService
+from rfnry_rag.stores.graph.models import GraphEntity, GraphPath, GraphResult
 
 
 def _make_graph_results():

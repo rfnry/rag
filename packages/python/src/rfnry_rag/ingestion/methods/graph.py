@@ -1,0 +1,119 @@
+from __future__ import annotations
+
+import time
+from typing import Any
+
+from rfnry_rag.common.language_model import LanguageModelClient, build_registry
+from rfnry_rag.common.logging import get_logger
+from rfnry_rag.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
+from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
+from rfnry_rag.ingestion.models import ChunkedContent, ParsedPage
+from rfnry_rag.stores.graph.base import BaseGraphStore
+from rfnry_rag.stores.graph.mapper import page_entities_to_graph
+
+logger = get_logger("ingestion.methods.graph")
+
+# Lazy import — avoid circular dependency and heavy BAML import at module level
+b: Any = None
+
+
+def _get_baml_client() -> Any:
+    global b
+    if b is None:
+        from rfnry_rag.baml.baml_client.async_client import b as _b
+
+        b = _b
+    return b
+
+
+class GraphIngestion:
+    """Extract entities from text via LLM and store in graph store.
+
+    Uses the ``ExtractEntitiesFromText`` BAML function to extract entities,
+    then maps them to ``GraphEntity`` via ``page_entities_to_graph()`` and
+    stores via ``graph_store.add_entities()``.
+    """
+
+    required: bool = False
+
+    def __init__(
+        self,
+        graph_store: BaseGraphStore,
+        lm_client: LanguageModelClient | None = None,
+        graph_config: GraphIngestionConfig | None = None,
+    ) -> None:
+        self._store = graph_store
+        self._registry = build_registry(lm_client) if lm_client else None
+        self._graph_config = graph_config if graph_config is not None else GraphIngestionConfig()
+
+    @property
+    def name(self) -> str:
+        return "graph"
+
+    async def ingest(
+        self,
+        source_id: str,
+        knowledge_id: str | None,
+        source_type: str | None,
+        source_weight: float,
+        title: str,
+        full_text: str,
+        chunks: list[ChunkedContent],
+        tags: list[str],
+        metadata: dict[str, Any],
+        hash_value: str | None = None,
+        pages: list[ParsedPage] | None = None,
+    ) -> None:
+        if not self._registry:
+            logger.warning("graph ingestion skipped — no lm_client provided")
+            return
+
+        start = time.perf_counter()
+        try:
+            client = _get_baml_client()
+            result = await client.ExtractEntitiesFromText(
+                full_text,
+                baml_options={"client_registry": self._registry},
+            )
+
+            if not result.entities:
+                elapsed = (time.perf_counter() - start) * 1000
+                logger.info("no entities found in %.1fms", elapsed)
+                return
+
+            # Convert BAML output to internal model
+            analysis = PageAnalysis(
+                page_number=1,
+                description=result.description,
+                entities=[
+                    DiscoveredEntity(
+                        name=e.name,
+                        category=e.category,
+                        value=e.value,
+                        context=e.context,
+                    )
+                    for e in result.entities
+                ],
+                tables=[],
+                annotations=result.annotations if result.annotations else [],
+                page_type=result.page_type or "text",
+            )
+
+            # Reuse existing mapper
+            graph_entities = page_entities_to_graph(analysis, source_id, self._graph_config)
+
+            await self._store.add_entities(
+                source_id=source_id,
+                knowledge_id=knowledge_id,
+                entities=graph_entities,
+            )
+
+            elapsed = (time.perf_counter() - start) * 1000
+            logger.info("%d entities extracted and stored in %.1fms", len(graph_entities), elapsed)
+
+        except Exception as exc:
+            elapsed = (time.perf_counter() - start) * 1000
+            logger.warning("failed in %.1fms — %s", elapsed, exc)
+
+    async def delete(self, source_id: str) -> None:
+        await self._store.delete_by_source(source_id)

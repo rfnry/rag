@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.retrieval.modules.retrieval.methods.vector import VectorRetrieval
+from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 
 
 def _result(point_id: str, content: str = "content") -> SimpleNamespace:
@@ -68,6 +68,6 @@ async def test_bm25_under_cap_reads_to_end() -> None:
 
 
 def test_retrieval_config_default_bm25_max_chunks() -> None:
-    from rfnry_rag.retrieval.server import RetrievalConfig
+    from rfnry_rag.server import RetrievalConfig
 
     assert RetrievalConfig().bm25_max_chunks == 50_000

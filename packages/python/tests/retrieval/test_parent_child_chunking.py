@@ -1,5 +1,5 @@
-from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker
-from rfnry_rag.retrieval.modules.ingestion.models import ParsedPage
+from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
+from rfnry_rag.ingestion.models import ParsedPage
 
 
 def test_parent_child_chunking_produces_both_levels():

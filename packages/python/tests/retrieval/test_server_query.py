@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from rfnry_rag.generation.models import QueryResult, StreamEvent
 from rfnry_rag.retrieval.common.models import RetrievedChunk
-from rfnry_rag.retrieval.modules.generation.models import QueryResult, StreamEvent
-from rfnry_rag.retrieval.server import RagEngine, RagServerConfig, RoutingConfig
+from rfnry_rag.server import RagEngine, RagServerConfig, RoutingConfig
 
 
 def _chunk(chunk_id: str, score: float = 0.9) -> RetrievedChunk:

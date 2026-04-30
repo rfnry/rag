@@ -6,12 +6,12 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 
-from rfnry_rag.retrieval.common.models import Source
-from rfnry_rag.retrieval.modules.ingestion.analyze.models import (
+from rfnry_rag.ingestion.analyze.models import (
     DiscoveredEntity,
     DiscoveredTable,
     PageAnalysis,
 )
+from rfnry_rag.retrieval.common.models import Source
 
 
 def _serialize_page_for_test(pa: PageAnalysis) -> dict:
@@ -38,8 +38,8 @@ async def fake_analyzed_service(tmp_path):
     Seeds 2 pages of PageAnalysis: page 1 has a table with 3 rows + raw_text
     "RAW_PAGE_1_CONTENT", page 2 has raw_text "RAW_PAGE_2_CONTENT".
     """
-    from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
-    from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
     captured: dict = {"upserts": [], "method_calls": []}
 

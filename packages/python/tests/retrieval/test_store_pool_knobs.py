@@ -4,8 +4,8 @@ and silently ignores pool_size/max_overflow."""
 
 import pytest
 
-from rfnry_rag.retrieval.stores.document.postgres import PostgresDocumentStore
-from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_rag.stores.document.postgres import PostgresDocumentStore
+from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 
 def test_sqlalchemy_store_accepts_pool_knobs(tmp_path) -> None:
@@ -51,7 +51,7 @@ def test_pool_size_applied_on_postgres_url(store_cls) -> None:
 
 
 def test_qdrant_store_exposes_per_op_timeouts() -> None:
-    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+    from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
     store = QdrantVectorStore(
         url="http://localhost:6333",
@@ -70,9 +70,9 @@ def test_qdrant_store_exposes_per_op_timeouts() -> None:
 def test_qdrant_store_warns_on_plaintext_no_auth(caplog) -> None:
     import logging
 
-    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+    from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
-    caplog.set_level(logging.WARNING, logger="rfnry_rag.rfnry_rag.retrieval.stores.vector.qdrant")
+    caplog.set_level(logging.WARNING, logger="rfnry_rag.rfnry_rag.stores.vector.qdrant")
 
     QdrantVectorStore(url="http://localhost:6333", api_key=None)
 
@@ -83,7 +83,7 @@ def test_qdrant_store_warns_on_plaintext_no_auth(caplog) -> None:
 def test_qdrant_store_does_not_warn_with_api_key(caplog) -> None:
     import logging
 
-    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+    from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
     caplog.set_level(logging.WARNING)
     QdrantVectorStore(url="http://localhost:6333", api_key="k")
@@ -95,7 +95,7 @@ def test_qdrant_store_does_not_warn_with_api_key(caplog) -> None:
 def test_qdrant_store_does_not_warn_with_https(caplog) -> None:
     import logging
 
-    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+    from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
     caplog.set_level(logging.WARNING)
     QdrantVectorStore(url="https://qdrant.example:6333", api_key=None)
@@ -107,7 +107,7 @@ def test_qdrant_store_does_not_warn_with_https(caplog) -> None:
 async def test_metadata_store_logs_effective_pool_knobs(caplog) -> None:
     import logging
 
-    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.retrieval.stores.metadata.sqlalchemy")
+    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.stores.metadata.sqlalchemy")
     store = SQLAlchemyMetadataStore(url="sqlite+aiosqlite:///:memory:", pool_size=7, max_overflow=14)
     await store.initialize()
     await store.shutdown()
@@ -118,7 +118,7 @@ async def test_metadata_store_logs_effective_pool_knobs(caplog) -> None:
 async def test_document_store_logs_effective_pool_knobs(caplog) -> None:
     import logging
 
-    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.retrieval.stores.document.postgres")
+    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.stores.document.postgres")
     store = PostgresDocumentStore(url="sqlite+aiosqlite:///:memory:", pool_size=5, max_overflow=10)
     await store.initialize()
     await store.shutdown()
@@ -144,7 +144,7 @@ def test_build_registry_logs_lm_policy(caplog) -> None:
 
 def test_qdrant_hybrid_prefetch_multiplier_defaults_and_validates() -> None:
     from rfnry_rag.retrieval.common.errors import ConfigurationError
-    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+    from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
     default = QdrantVectorStore(url="http://fake", api_key="k")
     assert default._hybrid_prefetch_multiplier == 4
@@ -201,7 +201,7 @@ def test_postgres_document_store_rejects_bad_pool_recycle() -> None:
 
 def test_qdrant_store_rejects_nonpositive_timeout() -> None:
     from rfnry_rag.retrieval.common.errors import ConfigurationError
-    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+    from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
     with pytest.raises(ConfigurationError, match="timeout"):
         QdrantVectorStore(url="http://fake", api_key="k", timeout=0)
@@ -209,7 +209,7 @@ def test_qdrant_store_rejects_nonpositive_timeout() -> None:
 
 def test_qdrant_store_rejects_nonpositive_scroll_timeout() -> None:
     from rfnry_rag.retrieval.common.errors import ConfigurationError
-    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+    from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
     with pytest.raises(ConfigurationError, match="scroll_timeout"):
         QdrantVectorStore(url="http://fake", api_key="k", scroll_timeout=0)
@@ -217,7 +217,7 @@ def test_qdrant_store_rejects_nonpositive_scroll_timeout() -> None:
 
 def test_qdrant_store_rejects_nonpositive_write_timeout() -> None:
     from rfnry_rag.retrieval.common.errors import ConfigurationError
-    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+    from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
     with pytest.raises(ConfigurationError, match="write_timeout"):
         QdrantVectorStore(url="http://fake", api_key="k", write_timeout=-1)
@@ -225,7 +225,7 @@ def test_qdrant_store_rejects_nonpositive_write_timeout() -> None:
 
 def test_neo4j_store_rejects_nonpositive_query_timeout() -> None:
     from rfnry_rag.retrieval.common.errors import ConfigurationError
-    from rfnry_rag.retrieval.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
 
     with pytest.raises(ConfigurationError, match="query_timeout"):
         Neo4jGraphStore(uri="bolt://localhost", password="secret", query_timeout=0)
@@ -233,7 +233,7 @@ def test_neo4j_store_rejects_nonpositive_query_timeout() -> None:
 
 def test_neo4j_store_rejects_nonpositive_connection_timeout() -> None:
     from rfnry_rag.retrieval.common.errors import ConfigurationError
-    from rfnry_rag.retrieval.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
 
     with pytest.raises(ConfigurationError, match="connection_timeout"):
         Neo4jGraphStore(uri="bolt://localhost", password="secret", connection_timeout=0.0)
@@ -241,7 +241,7 @@ def test_neo4j_store_rejects_nonpositive_connection_timeout() -> None:
 
 def test_neo4j_store_rejects_nonpositive_connection_acquisition_timeout() -> None:
     from rfnry_rag.retrieval.common.errors import ConfigurationError
-    from rfnry_rag.retrieval.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
 
     with pytest.raises(ConfigurationError, match="connection_acquisition_timeout"):
         Neo4jGraphStore(uri="bolt://localhost", password="secret", connection_acquisition_timeout=-1.0)
@@ -252,9 +252,9 @@ async def test_qdrant_store_logs_effective_knobs(caplog) -> None:
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
 
-    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+    from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
-    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.retrieval.stores.vector.qdrant")
+    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.stores.vector.qdrant")
     store = QdrantVectorStore(
         url="http://fake:6333",
         api_key="secret-key",
@@ -284,7 +284,7 @@ async def test_qdrant_set_payload_forwards_to_client() -> None:
     """
     from unittest.mock import AsyncMock
 
-    from rfnry_rag.retrieval.stores.vector.qdrant import (
+    from rfnry_rag.stores.vector.qdrant import (
         QdrantVectorStore,
         _CollectionState,
     )
@@ -317,7 +317,7 @@ async def test_qdrant_set_payload_no_op_on_empty_point_ids() -> None:
     """Empty ``point_ids`` short-circuits without dispatching to the client."""
     from unittest.mock import AsyncMock
 
-    from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore
+    from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
     store = QdrantVectorStore(
         url="http://fake:6333",
@@ -336,9 +336,9 @@ async def test_neo4j_store_logs_effective_knobs(caplog) -> None:
     import logging
     from unittest.mock import AsyncMock, MagicMock
 
-    from rfnry_rag.retrieval.stores.graph.neo4j import AsyncGraphDatabase, Neo4jGraphStore
+    from rfnry_rag.stores.graph.neo4j import AsyncGraphDatabase, Neo4jGraphStore
 
-    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.retrieval.stores.graph.neo4j")
+    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.stores.graph.neo4j")
     store = Neo4jGraphStore(
         uri="bolt://localhost:7687",
         password="secret",
@@ -378,9 +378,9 @@ async def test_neo4j_log_does_not_leak_uri_embedded_credentials(caplog) -> None:
     import logging
     from unittest.mock import AsyncMock, MagicMock
 
-    from rfnry_rag.retrieval.stores.graph.neo4j import AsyncGraphDatabase, Neo4jGraphStore
+    from rfnry_rag.stores.graph.neo4j import AsyncGraphDatabase, Neo4jGraphStore
 
-    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.retrieval.stores.graph.neo4j")
+    caplog.set_level(logging.INFO, logger="rfnry_rag.rfnry_rag.stores.graph.neo4j")
     store = Neo4jGraphStore(
         uri="bolt://user:secret-pw@neo4j:7687",
         username="user",
@@ -416,7 +416,7 @@ async def test_neo4j_log_does_not_leak_uri_embedded_credentials(caplog) -> None:
 
 
 def test_scrub_uri_credentials_strips_userinfo() -> None:
-    from rfnry_rag.retrieval.stores.graph.neo4j import _scrub_uri_credentials
+    from rfnry_rag.stores.graph.neo4j import _scrub_uri_credentials
 
     assert _scrub_uri_credentials("bolt://u:p@host:7687") == "bolt://host:7687"
     assert _scrub_uri_credentials("bolt://host:7687") == "bolt://host:7687"  # unchanged

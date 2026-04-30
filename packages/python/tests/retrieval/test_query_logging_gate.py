@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.retrieval.modules.retrieval.search.service import RetrievalService
+from rfnry_rag.retrieval.search.service import RetrievalService
 
 
 @pytest.fixture(autouse=True)
@@ -25,7 +25,7 @@ async def test_query_text_not_logged_without_opt_in(monkeypatch) -> None:
         captured.append(fmt % args if args else fmt)
 
     monkeypatch.setattr(
-        "rfnry_rag.retrieval.modules.retrieval.search.service.logger",
+        "rfnry_rag.retrieval.search.service.logger",
         SimpleNamespace(info=fake_info, exception=lambda *a, **k: None, warning=lambda *a, **k: None),
     )
 
@@ -48,7 +48,7 @@ async def test_query_text_logged_when_opted_in(monkeypatch) -> None:
         captured.append(fmt % args if args else fmt)
 
     monkeypatch.setattr(
-        "rfnry_rag.retrieval.modules.retrieval.search.service.logger",
+        "rfnry_rag.retrieval.search.service.logger",
         SimpleNamespace(info=fake_info, exception=lambda *a, **k: None, warning=lambda *a, **k: None),
     )
 

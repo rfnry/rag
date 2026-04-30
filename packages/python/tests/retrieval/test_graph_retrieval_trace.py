@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval
-from rfnry_rag.retrieval.stores.graph.models import GraphEntity, GraphPath, GraphResult
+from rfnry_rag.retrieval.methods.graph import GraphRetrieval
+from rfnry_rag.stores.graph.models import GraphEntity, GraphPath, GraphResult
 
 
 def _result(seed_name: str, paths: list[GraphPath]) -> GraphResult:

@@ -4,8 +4,8 @@ import pytest
 
 from rfnry_rag.common.language_model import LanguageModelClient, LanguageModelProvider
 from rfnry_rag.retrieval.common.models import RetrievedChunk
-from rfnry_rag.retrieval.modules.retrieval.refinement.abstractive import AbstractiveRefinement
-from rfnry_rag.retrieval.modules.retrieval.refinement.extractive import ExtractiveRefinement
+from rfnry_rag.retrieval.refinement.abstractive import AbstractiveRefinement
+from rfnry_rag.retrieval.refinement.extractive import ExtractiveRefinement
 
 
 def _make_chunk(content: str, chunk_id: str = "c1", page_number: int | None = 1) -> RetrievedChunk:
@@ -72,7 +72,7 @@ class TestAbstractiveRefinement:
         mock_result.compressed_text = "Pressure drop: 0.5 inches WC. MERV 13 rated."
 
         with patch(
-            "rfnry_rag.retrieval.modules.retrieval.refinement.abstractive.b.CompressRetrievedContext",
+            "rfnry_rag.retrieval.refinement.abstractive.b.CompressRetrievedContext",
             return_value=mock_result,
         ):
             refiner = AbstractiveRefinement(lm_client=_make_lm_client())
@@ -87,7 +87,7 @@ class TestAbstractiveRefinement:
         chunks = [_make_chunk("Original content.")]
 
         with patch(
-            "rfnry_rag.retrieval.modules.retrieval.refinement.abstractive.b.CompressRetrievedContext",
+            "rfnry_rag.retrieval.refinement.abstractive.b.CompressRetrievedContext",
             side_effect=Exception("LLM error"),
         ):
             refiner = AbstractiveRefinement(lm_client=_make_lm_client())
@@ -103,7 +103,7 @@ class TestAbstractiveRefinement:
         mock_result.compressed_text = ""
 
         with patch(
-            "rfnry_rag.retrieval.modules.retrieval.refinement.abstractive.b.CompressRetrievedContext",
+            "rfnry_rag.retrieval.refinement.abstractive.b.CompressRetrievedContext",
             return_value=mock_result,
         ):
             refiner = AbstractiveRefinement(lm_client=_make_lm_client())

@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from rfnry_rag.retrieval.common.models import Source
-from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 
 @pytest.mark.asyncio

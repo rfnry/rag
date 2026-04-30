@@ -7,9 +7,9 @@ from typing import Any
 
 import pytest
 
+from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
+from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
 from rfnry_rag.retrieval.common.models import VectorPoint
-from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
-from rfnry_rag.retrieval.modules.ingestion.drawing.service import DrawingIngestionService
 
 
 class _InMemoryMetadataStore:

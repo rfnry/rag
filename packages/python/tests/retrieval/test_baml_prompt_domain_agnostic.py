@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-_RETRIEVAL_BAML_ROOT = Path("src/rfnry_rag/retrieval/baml/baml_src")
+_RETRIEVAL_BAML_ROOT = Path("src/rfnry_rag/baml/baml_src")
 _REASONING_BAML_ROOT = Path("src/rfnry_rag/reasoning/baml/baml_src")
 _BAML_ROOTS: list[Path] = [_RETRIEVAL_BAML_ROOT, _REASONING_BAML_ROOT]
 

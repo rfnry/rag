@@ -9,7 +9,7 @@ def check_baml(sdk: str, baml_client_module: str) -> None:
     Args:
         sdk: SDK name for error messages (e.g. "retrieval", "reasoning").
         baml_client_module: Dotted module path to the BAML client package
-            (e.g. "rfnry_rag.retrieval.baml.baml_client").
+            (e.g. "rfnry_rag.baml.baml_client").
     """
     try:
         import importlib

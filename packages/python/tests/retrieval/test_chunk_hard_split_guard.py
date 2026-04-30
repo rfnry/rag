@@ -1,6 +1,6 @@
 """Hard-split guard: no chunk exceeds chunk_size * 1.2 even with no separators in text."""
 
-from rfnry_rag.retrieval.modules.ingestion.chunk.splitter import RecursiveTextSplitter
+from rfnry_rag.ingestion.chunk.splitter import RecursiveTextSplitter
 
 
 def test_long_token_with_no_separators_is_hard_split() -> None:
@@ -14,8 +14,8 @@ def test_long_token_with_no_separators_is_hard_split() -> None:
 
 
 def test_hard_split_metadata_flagged_on_chunked_content() -> None:
-    from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker
-    from rfnry_rag.retrieval.modules.ingestion.models import ParsedPage
+    from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
+    from rfnry_rag.ingestion.models import ParsedPage
 
     # Long blob → will require hard-splitting
     blob = "A" * 4_000
@@ -27,8 +27,8 @@ def test_hard_split_metadata_flagged_on_chunked_content() -> None:
 
 
 def test_normal_prose_does_not_trigger_hard_split() -> None:
-    from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker
-    from rfnry_rag.retrieval.modules.ingestion.models import ParsedPage
+    from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
+    from rfnry_rag.ingestion.models import ParsedPage
 
     prose = "This is a sentence. " * 50
     chunker = SemanticChunker(chunk_size=500, chunk_size_unit="chars", chunk_overlap=50)

@@ -1,8 +1,8 @@
 # src/rfnry-rag/retrieval/tests/test_vector_ingestion.py
 from unittest.mock import AsyncMock, MagicMock
 
+from rfnry_rag.ingestion.methods.vector import VectorIngestion
 from rfnry_rag.retrieval.common.models import SparseVector
-from rfnry_rag.retrieval.modules.ingestion.methods.vector import VectorIngestion
 
 
 def _make_chunks(n=1):

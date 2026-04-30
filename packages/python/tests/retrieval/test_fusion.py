@@ -1,5 +1,5 @@
 from rfnry_rag.retrieval.common.models import RetrievedChunk
-from rfnry_rag.retrieval.modules.retrieval.search.fusion import reciprocal_rank_fusion
+from rfnry_rag.retrieval.search.fusion import reciprocal_rank_fusion
 
 
 def _chunk(chunk_id: str, score: float = 0.0, source_weight: float = 1.0) -> RetrievedChunk:
@@ -80,7 +80,7 @@ class TestMergeRetrievalResults:
     unstructured result is at or near the top of merged output."""
 
     def test_rank1_unstructured_competes_with_rank1_structured(self):
-        from rfnry_rag.retrieval.server import RagEngine
+        from rfnry_rag.server import RagEngine
 
         # Unstructured top result has RRF score 0.04 (realistic value);
         # structured top has cosine 0.3. Raw-score sort would put structured first.
@@ -100,7 +100,7 @@ class TestMergeRetrievalResults:
         assert "struct_top" in top_two
 
     def test_dedup_by_chunk_id(self):
-        from rfnry_rag.retrieval.server import RagEngine
+        from rfnry_rag.server import RagEngine
 
         shared = _chunk("shared", score=0.05)
         unstructured = [shared, _chunk("only_u", score=0.02)]
@@ -111,14 +111,14 @@ class TestMergeRetrievalResults:
         assert ids.count("shared") == 1
 
     def test_empty_structured_returns_unstructured_as_is(self):
-        from rfnry_rag.retrieval.server import RagEngine
+        from rfnry_rag.server import RagEngine
 
         unstructured = [_chunk("a", score=0.04)]
         merged = RagEngine._merge_retrieval_results(unstructured, [])
         assert merged == unstructured
 
     def test_empty_unstructured_returns_structured_as_is(self):
-        from rfnry_rag.retrieval.server import RagEngine
+        from rfnry_rag.server import RagEngine
 
         structured = [_chunk("a", score=0.3)]
         merged = RagEngine._merge_retrieval_results([], structured)

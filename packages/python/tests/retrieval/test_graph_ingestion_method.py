@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from rfnry_rag.retrieval.modules.ingestion.methods.graph import GraphIngestion
+from rfnry_rag.ingestion.methods.graph import GraphIngestion
 
 
 async def test_ingest_extracts_entities_and_stores():
@@ -22,8 +22,8 @@ async def test_ingest_extracts_entities_and_stores():
     mock_result.page_type = "text"
 
     with (
-        patch("rfnry_rag.retrieval.modules.ingestion.methods.graph.b") as mock_b,
-        patch("rfnry_rag.retrieval.modules.ingestion.methods.graph.build_registry") as mock_registry,
+        patch("rfnry_rag.ingestion.methods.graph.b") as mock_b,
+        patch("rfnry_rag.ingestion.methods.graph.build_registry") as mock_registry,
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(return_value=mock_result)
         mock_registry.return_value = MagicMock()
@@ -64,8 +64,8 @@ async def test_ingest_skips_when_no_entities():
     mock_result.page_type = "text"
 
     with (
-        patch("rfnry_rag.retrieval.modules.ingestion.methods.graph.b") as mock_b,
-        patch("rfnry_rag.retrieval.modules.ingestion.methods.graph.build_registry") as mock_registry,
+        patch("rfnry_rag.ingestion.methods.graph.b") as mock_b,
+        patch("rfnry_rag.ingestion.methods.graph.build_registry") as mock_registry,
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(return_value=mock_result)
         mock_registry.return_value = MagicMock()
@@ -91,8 +91,8 @@ async def test_ingest_error_does_not_raise():
     lm_client = MagicMock()
 
     with (
-        patch("rfnry_rag.retrieval.modules.ingestion.methods.graph.b") as mock_b,
-        patch("rfnry_rag.retrieval.modules.ingestion.methods.graph.build_registry") as mock_registry,
+        patch("rfnry_rag.ingestion.methods.graph.b") as mock_b,
+        patch("rfnry_rag.ingestion.methods.graph.build_registry") as mock_registry,
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(side_effect=RuntimeError("LLM down"))
         mock_registry.return_value = MagicMock()
@@ -132,7 +132,7 @@ async def test_delete():
     store = AsyncMock()
     store.delete_by_source = AsyncMock()
 
-    with patch("rfnry_rag.retrieval.modules.ingestion.methods.graph.build_registry") as mock_registry:
+    with patch("rfnry_rag.ingestion.methods.graph.build_registry") as mock_registry:
         mock_registry.return_value = MagicMock()
         method = GraphIngestion(graph_store=store, lm_client=MagicMock())
 

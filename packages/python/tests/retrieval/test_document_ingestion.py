@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock
 
-from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
+from rfnry_rag.ingestion.methods.document import DocumentIngestion
 
 
 async def test_ingest_stores_content():

@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
+from rfnry_rag.ingestion.chunk.service import IngestionService
 
 
 def _mock_method(name: str, required: bool = True) -> SimpleNamespace:
@@ -210,7 +210,7 @@ async def test_ingest_without_methods(tmp_path):
 
 async def test_structured_ingestion_has_document_method():
     """AnalyzedIngestionService stores document method in ingestion_methods."""
-    from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
 
     doc_method = SimpleNamespace(name="document", ingest=AsyncMock(), delete=AsyncMock())
     metadata_store = AsyncMock()

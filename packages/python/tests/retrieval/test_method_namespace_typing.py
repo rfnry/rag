@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
-from rfnry_rag.retrieval.modules.namespace import MethodNamespace
-from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod
+from rfnry_rag.retrieval.base import BaseRetrievalMethod
+from rfnry_rag.retrieval.namespace import MethodNamespace
 
 
 def test_method_namespace_iter_returns_expected_elements() -> None:

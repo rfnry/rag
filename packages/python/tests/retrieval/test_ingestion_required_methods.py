@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
+from rfnry_rag.ingestion.chunk.service import IngestionService
 from rfnry_rag.retrieval.common.errors import IngestionError
-from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker
-from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
 
 
 def _make_method(name: str, *, required: bool, fails: bool) -> MagicMock:
@@ -116,7 +116,7 @@ async def test_required_methods_multiple_failures_surface_all_messages(tmp_path)
     include all failure messages, not just the first one picked from the ExceptionGroup."""
     from unittest.mock import AsyncMock
 
-    from rfnry_rag.retrieval.modules.ingestion.chunk.service import IngestionService
+    from rfnry_rag.ingestion.chunk.service import IngestionService
 
     def _mock_method(name: str, required: bool = True):
         from types import SimpleNamespace

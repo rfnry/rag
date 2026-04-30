@@ -7,14 +7,14 @@ import stat
 import pytest
 from click.testing import CliRunner
 
-from rfnry_rag.retrieval.cli.commands.init import init as init_cmd
+from rfnry_rag.cli.commands.init import init as init_cmd
 
 
 @pytest.fixture
 def isolated_config(tmp_path, monkeypatch):
-    monkeypatch.setattr("rfnry_rag.retrieval.cli.commands.init.CONFIG_DIR", tmp_path)
-    monkeypatch.setattr("rfnry_rag.retrieval.cli.commands.init.CONFIG_FILE", tmp_path / "config.toml")
-    monkeypatch.setattr("rfnry_rag.retrieval.cli.commands.init.ENV_FILE", tmp_path / ".env")
+    monkeypatch.setattr("rfnry_rag.cli.commands.init.CONFIG_DIR", tmp_path)
+    monkeypatch.setattr("rfnry_rag.cli.commands.init.CONFIG_FILE", tmp_path / "config.toml")
+    monkeypatch.setattr("rfnry_rag.cli.commands.init.ENV_FILE", tmp_path / ".env")
     return tmp_path
 
 

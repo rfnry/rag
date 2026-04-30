@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from rfnry_rag.retrieval.modules.ingestion.analyze.models import (
+from rfnry_rag.ingestion.analyze.models import (
     CrossReference,
     DiscoveredEntity,
     DocumentSynthesis,
     PageAnalysis,
 )
-from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
-from rfnry_rag.retrieval.stores.graph.mapper import (
+from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
+from rfnry_rag.stores.graph.mapper import (
     cross_refs_to_graph_relations,
     page_entities_to_graph,
 )

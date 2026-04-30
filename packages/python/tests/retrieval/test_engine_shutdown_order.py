@@ -6,7 +6,7 @@ Shutdown order (correct): vector → graph → document → metadata
 
 from unittest.mock import AsyncMock, MagicMock
 
-from rfnry_rag.retrieval.server import (
+from rfnry_rag.server import (
     IngestionConfig,
     PersistenceConfig,
     RagEngine,

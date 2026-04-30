@@ -10,9 +10,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from rfnry_rag.common.language_model import LanguageModelClient, LanguageModelProvider
+from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
+from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
 from rfnry_rag.retrieval.common.errors import IngestionError
-from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
-from rfnry_rag.retrieval.modules.ingestion.drawing.service import DrawingIngestionService
 
 
 class _InMemoryMetadataStore:
@@ -106,7 +106,7 @@ async def test_extract_calls_analyze_drawing_page_per_page(sample_pdf: Path) -> 
 
     mock_analyze = AsyncMock(side_effect=lambda *a, **kw: _fake_drawing_result())
     with patch(
-        "rfnry_rag.retrieval.modules.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
+        "rfnry_rag.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
         mock_analyze,
     ):
         src = await svc.extract(src.source_id)
@@ -122,7 +122,7 @@ async def test_extract_passes_consumer_symbol_library(sample_pdf: Path) -> None:
 
     mock_analyze = AsyncMock(side_effect=lambda *a, **kw: _fake_drawing_result())
     with patch(
-        "rfnry_rag.retrieval.modules.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
+        "rfnry_rag.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
         mock_analyze,
     ):
         await svc.extract(src.source_id)
@@ -146,7 +146,7 @@ async def test_extract_reuses_cached_analyses_on_re_entry(sample_pdf: Path) -> N
 
     mock_analyze = AsyncMock(side_effect=lambda *a, **kw: _fake_drawing_result())
     with patch(
-        "rfnry_rag.retrieval.modules.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
+        "rfnry_rag.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
         mock_analyze,
     ):
         src = await svc.extract(src.source_id)
@@ -217,7 +217,7 @@ async def test_extract_respects_analyze_concurrency() -> None:
 
     mock_analyze = AsyncMock(side_effect=track)
     with patch(
-        "rfnry_rag.retrieval.modules.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
+        "rfnry_rag.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
         mock_analyze,
     ):
         await svc.extract(src.source_id)

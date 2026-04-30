@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from rfnry_rag.retrieval.server import (
+from rfnry_rag.server import (
     IngestionConfig,
     PersistenceConfig,
     RagEngine,
@@ -268,9 +268,9 @@ async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
     # during _initialize_impl, which rejects MagicMock provider objects via
     # BAML's C extension.
     _patches = [
-        patch("rfnry_rag.retrieval.modules.ingestion.methods.graph.build_registry", return_value=MagicMock()),
-        patch("rfnry_rag.retrieval.modules.ingestion.analyze.service.build_registry", return_value=MagicMock()),
-        patch("rfnry_rag.retrieval.server.build_registry", return_value=MagicMock()),
+        patch("rfnry_rag.ingestion.methods.graph.build_registry", return_value=MagicMock()),
+        patch("rfnry_rag.ingestion.analyze.service.build_registry", return_value=MagicMock()),
+        patch("rfnry_rag.server.build_registry", return_value=MagicMock()),
     ]
     for p in _patches:
         p.start()

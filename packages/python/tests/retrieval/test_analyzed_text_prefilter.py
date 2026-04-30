@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -110,7 +110,7 @@ async def fake_analyzed_service_mixed_pdf(tmp_path):
     Default threshold is 300 chars (the service default). Vision should only
     fire on pages 1 and 3.
     """
-    from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
 
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
@@ -134,19 +134,19 @@ async def fake_analyzed_service_mixed_pdf(tmp_path):
 
     with (
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
             return_value=iter(pages),
         ),
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.compute_file_hash",
+            "rfnry_rag.ingestion.analyze.service.compute_file_hash",
             return_value="file_hash_mixed",
         ),
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
-        patch("rfnry_rag.retrieval.baml.baml_client.async_client.b", mock_b),
+        patch("rfnry_rag.baml.baml_client.async_client.b", mock_b),
     ):
         yield svc, mock_b
 
@@ -156,7 +156,7 @@ async def fake_analyzed_service_mixed_pdf(tmp_path):
 @pytest_asyncio.fixture
 async def fake_analyzed_service_mixed_pdf_thresh0(tmp_path):
     """Same 3-page PDF but with threshold=0 (pre-filter disabled)."""
-    from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
 
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
@@ -180,19 +180,19 @@ async def fake_analyzed_service_mixed_pdf_thresh0(tmp_path):
 
     with (
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
             return_value=iter(pages),
         ),
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.compute_file_hash",
+            "rfnry_rag.ingestion.analyze.service.compute_file_hash",
             return_value="file_hash_mixed_thresh0",
         ),
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
-        patch("rfnry_rag.retrieval.baml.baml_client.async_client.b", mock_b),
+        patch("rfnry_rag.baml.baml_client.async_client.b", mock_b),
     ):
         yield svc, mock_b
 
@@ -202,7 +202,7 @@ async def fake_analyzed_service_mixed_pdf_thresh0(tmp_path):
 @pytest_asyncio.fixture
 async def fake_analyzed_service_text_with_images(tmp_path):
     """1-page PDF: 500 chars of text but also embedded images — vision must still fire."""
-    from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
 
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
@@ -226,19 +226,19 @@ async def fake_analyzed_service_text_with_images(tmp_path):
 
     with (
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
             return_value=iter(pages),
         ),
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.compute_file_hash",
+            "rfnry_rag.ingestion.analyze.service.compute_file_hash",
             return_value="file_hash_text_img",
         ),
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
-        patch("rfnry_rag.retrieval.baml.baml_client.async_client.b", mock_b),
+        patch("rfnry_rag.baml.baml_client.async_client.b", mock_b),
     ):
         yield svc, mock_b
 
@@ -291,7 +291,7 @@ async def test_page_with_images_does_not_skip_vision(fake_analyzed_service_text_
 
 def test_config_bounds_rejected() -> None:
     from rfnry_rag.retrieval.common.errors import ConfigurationError
-    from rfnry_rag.retrieval.server import IngestionConfig
+    from rfnry_rag.server import IngestionConfig
 
     with pytest.raises(ConfigurationError):
         IngestionConfig(analyze_text_skip_threshold_chars=-1)

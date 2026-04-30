@@ -53,11 +53,8 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
 
 def _find_all_baml_functions() -> dict[str, tuple[Path, str]]:
     """Return {function_name: (file_path, body)} for every BAML function in the tree."""
-    baml_files: list[Path] = []
-    for root_name in ("retrieval", "reasoning"):
-        root = Path(f"src/rfnry_rag/{root_name}/baml/baml_src")
-        if root.exists():
-            baml_files.extend(root.rglob("*.baml"))
+    root = Path("src/rfnry_rag/baml/baml_src")
+    baml_files = list(root.rglob("*.baml")) if root.exists() else []
 
     fn_re = re.compile(r"function\s+(\w+)\s*\([^)]*\)\s*->[^{]*\{", re.DOTALL)
     out: dict[str, tuple[Path, str]] = {}

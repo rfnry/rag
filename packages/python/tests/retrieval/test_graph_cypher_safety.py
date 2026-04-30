@@ -1,6 +1,6 @@
 import pytest
 
-from rfnry_rag.retrieval.stores.graph.neo4j import ALLOWED_RELATION_TYPES, _validate_relation_type
+from rfnry_rag.stores.graph.neo4j import ALLOWED_RELATION_TYPES, _validate_relation_type
 
 
 @pytest.mark.parametrize(

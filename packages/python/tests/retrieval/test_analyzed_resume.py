@@ -10,11 +10,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
+from rfnry_rag.ingestion.analyze.models import PageAnalysis
+from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 from rfnry_rag.retrieval.common.models import Source
-from rfnry_rag.retrieval.modules.ingestion.analyze.models import PageAnalysis
-from rfnry_rag.retrieval.modules.ingestion.analyze.service import AnalyzedIngestionService
-from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 
 class _FakeEmbeddings:
@@ -85,7 +85,7 @@ class _MinimalEngine:
         **_kwargs: Any,
     ) -> Source:
         """Status-based resume across the 3-phase pipeline (mirrors server.py logic)."""
-        from rfnry_rag.retrieval.server import SUPPORTED_STRUCTURED_EXTENSIONS
+        from rfnry_rag.server import SUPPORTED_STRUCTURED_EXTENSIONS
 
         fp = Path(file_path)
         ext = fp.suffix.lower()
@@ -158,19 +158,19 @@ async def resume_rag_engine_pdf(tmp_path):
 
     with (
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.is_l5x",
+            "rfnry_rag.ingestion.analyze.service.is_l5x",
             return_value=False,
         ),
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.parse_xml",
+            "rfnry_rag.ingestion.analyze.service.parse_xml",
             return_value=_make_xml_page_analyses(),
         ),
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.compute_file_hash",
+            "rfnry_rag.ingestion.analyze.service.compute_file_hash",
             return_value=_FAKE_FILE_HASH,
         ),
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
@@ -183,7 +183,7 @@ async def resume_rag_engine_pdf(tmp_path):
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
-        patch("rfnry_rag.retrieval.baml.baml_client.async_client.b", mock_b),
+        patch("rfnry_rag.baml.baml_client.async_client.b", mock_b),
     ):
         yield engine, mock_b
 
@@ -217,19 +217,19 @@ async def resume_rag_engine_pdf_with_vector_capture(tmp_path):
 
     with (
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.is_l5x",
+            "rfnry_rag.ingestion.analyze.service.is_l5x",
             return_value=False,
         ),
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.parse_xml",
+            "rfnry_rag.ingestion.analyze.service.parse_xml",
             return_value=_make_xml_page_analyses(),
         ),
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.compute_file_hash",
+            "rfnry_rag.ingestion.analyze.service.compute_file_hash",
             return_value=_FAKE_FILE_HASH,
         ),
         patch(
-            "rfnry_rag.retrieval.modules.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
@@ -242,7 +242,7 @@ async def resume_rag_engine_pdf_with_vector_capture(tmp_path):
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
-        patch("rfnry_rag.retrieval.baml.baml_client.async_client.b", mock_b),
+        patch("rfnry_rag.baml.baml_client.async_client.b", mock_b),
     ):
         yield engine, mock_b, captured
 

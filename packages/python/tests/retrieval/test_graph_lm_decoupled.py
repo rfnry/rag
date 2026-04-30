@@ -3,7 +3,7 @@ pre-populated graph shouldn't be forced to configure an ingestion LLM."""
 
 from unittest.mock import MagicMock
 
-from rfnry_rag.retrieval.server import (
+from rfnry_rag.server import (
     IngestionConfig,
     PersistenceConfig,
     RagEngine,

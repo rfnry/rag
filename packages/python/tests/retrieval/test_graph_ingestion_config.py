@@ -3,7 +3,7 @@
 import pytest
 
 from rfnry_rag.common.errors import ConfigurationError
-from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
+from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
 
 
 def test_default_config_has_empty_vocabularies() -> None:
@@ -52,7 +52,7 @@ def test_entity_type_patterns_must_be_compilable_regex() -> None:
 
 
 def test_nested_into_ingestion_config() -> None:
-    from rfnry_rag.retrieval.server import IngestionConfig
+    from rfnry_rag.server import IngestionConfig
 
     cfg = IngestionConfig(
         graph=GraphIngestionConfig(
@@ -64,7 +64,7 @@ def test_nested_into_ingestion_config() -> None:
 
 
 def test_graph_none_by_default() -> None:
-    from rfnry_rag.retrieval.server import IngestionConfig
+    from rfnry_rag.server import IngestionConfig
 
     cfg = IngestionConfig()
     assert cfg.graph is None  # opt-in

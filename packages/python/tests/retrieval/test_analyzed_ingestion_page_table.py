@@ -6,16 +6,16 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 
-from rfnry_rag.retrieval.common.models import Source
-from rfnry_rag.retrieval.modules.ingestion.analyze.models import (
+from rfnry_rag.ingestion.analyze.models import (
     DiscoveredEntity,
     PageAnalysis,
 )
-from rfnry_rag.retrieval.modules.ingestion.analyze.service import (
+from rfnry_rag.ingestion.analyze.service import (
     AnalyzedIngestionService,
     _serialize_analysis,
 )
-from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_rag.retrieval.common.models import Source
+from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 # ---------------------------------------------------------------------------
 # Shared helpers

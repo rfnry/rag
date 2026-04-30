@@ -12,7 +12,7 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 from rfnry_rag.retrieval.common.models import RetrievalTrace
-from rfnry_rag.retrieval.server import (
+from rfnry_rag.server import (
     QueryMode,
     RoutingConfig,
 )

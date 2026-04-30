@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rfnry_rag.retrieval.server import RagEngine, RagServerConfig
+from rfnry_rag.server import RagEngine, RagServerConfig
 
 
 def test_vector_only_preset_yields_valid_config() -> None:

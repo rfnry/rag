@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rfnry_rag.retrieval.server import (
+from rfnry_rag.server import (
     IngestionConfig,
     PersistenceConfig,
     RagEngine,

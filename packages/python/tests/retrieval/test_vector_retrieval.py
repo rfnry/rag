@@ -3,7 +3,7 @@ import re
 from unittest.mock import AsyncMock
 
 from rfnry_rag.retrieval.common.models import SparseVector, VectorResult
-from rfnry_rag.retrieval.modules.retrieval.methods.vector import VectorRetrieval
+from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 
 
 async def test_dense_search():

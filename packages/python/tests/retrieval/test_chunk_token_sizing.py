@@ -1,7 +1,7 @@
 """Token-aware chunk sizing: chunk_size_unit controls whether length is counted in chars or tokens."""
 
-from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker
-from rfnry_rag.retrieval.modules.ingestion.models import ParsedPage
+from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
+from rfnry_rag.ingestion.models import ParsedPage
 
 
 def _page(content: str, page_number: int = 1) -> ParsedPage:
@@ -33,7 +33,7 @@ def test_default_chunk_size_unit_is_tokens() -> None:
 
 
 def test_token_mode_falls_back_to_word_count_when_tiktoken_unavailable(monkeypatch) -> None:
-    from rfnry_rag.retrieval.modules.ingestion.chunk import token_counter
+    from rfnry_rag.ingestion.chunk import token_counter
 
     monkeypatch.setattr(token_counter, "_TIKTOKEN_AVAILABLE", False)
     # word count ≈ tokens/1.3 for English

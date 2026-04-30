@@ -4,7 +4,7 @@ from sqlalchemy.dialects import sqlite
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.schema import ColumnDefault
 
-from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 
 def test_render_default_literal_quotes_single_quote_string() -> None:
@@ -88,7 +88,7 @@ def test_migrate_source_does_not_contain_unquoted_fstring_default() -> None:
     not contain that raw pattern anymore."""
     from pathlib import Path
 
-    src = Path("src/rfnry_rag/retrieval/stores/metadata/sqlalchemy.py").read_text()
+    src = Path("src/rfnry_rag/stores/metadata/sqlalchemy.py").read_text()
     # The old, unsafe pattern used bare interpolation inside literal quotes
     assert "f\" DEFAULT '{val}'\"" not in src
     assert "f\" DEFAULT '{val}'\"" not in src
@@ -97,7 +97,7 @@ def test_migrate_source_does_not_contain_unquoted_fstring_default() -> None:
 @pytest.mark.asyncio
 async def test_schema_version_table_populated_on_initialize(tmp_path) -> None:
     """After initialize, rag_schema_meta contains the current version."""
-    from rfnry_rag.retrieval.stores.metadata.sqlalchemy import _SCHEMA_VERSION
+    from rfnry_rag.stores.metadata.sqlalchemy import _SCHEMA_VERSION
 
     store = SQLAlchemyMetadataStore(f"sqlite:///{tmp_path}/m.db")
     await store.initialize()
@@ -114,7 +114,7 @@ async def test_schema_version_table_populated_on_initialize(tmp_path) -> None:
 @pytest.mark.asyncio
 async def test_schema_version_refuses_downgrade(tmp_path) -> None:
     """If the DB has a higher schema_version than code, initialize() must refuse."""
-    from rfnry_rag.retrieval.stores.metadata.sqlalchemy import _SCHEMA_VERSION
+    from rfnry_rag.stores.metadata.sqlalchemy import _SCHEMA_VERSION
 
     store = SQLAlchemyMetadataStore(f"sqlite:///{tmp_path}/m.db")
     await store.initialize()

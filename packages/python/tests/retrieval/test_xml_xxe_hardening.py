@@ -8,8 +8,8 @@ and assert the parsers are hardened."""
 import textwrap
 from pathlib import Path
 
-from rfnry_rag.retrieval.modules.ingestion.analyze.parsers.l5x.parser import parse_l5x
-from rfnry_rag.retrieval.modules.ingestion.analyze.parsers.xml import parse_xml
+from rfnry_rag.ingestion.analyze.parsers.l5x.parser import parse_l5x
+from rfnry_rag.ingestion.analyze.parsers.xml import parse_xml
 
 
 def _write_xxe_file(tmp_path: Path, root: str, secret: Path, suffix: str = ".xml") -> Path:

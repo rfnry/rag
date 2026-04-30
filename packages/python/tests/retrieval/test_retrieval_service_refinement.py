@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from rfnry_rag.retrieval.common.models import RetrievedChunk
-from rfnry_rag.retrieval.modules.retrieval.search.service import RetrievalService
+from rfnry_rag.retrieval.search.service import RetrievalService
 
 
 def _chunk(chunk_id: str, score: float = 0.9) -> RetrievedChunk:

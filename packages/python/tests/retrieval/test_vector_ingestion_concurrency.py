@@ -5,8 +5,8 @@ from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from rfnry_rag.retrieval.modules.ingestion.methods.vector import VectorIngestion
-from rfnry_rag.retrieval.modules.ingestion.models import ChunkedContent
+from rfnry_rag.ingestion.methods.vector import VectorIngestion
+from rfnry_rag.ingestion.models import ChunkedContent
 
 
 def _make_chunk(text: str = "hello world") -> MagicMock:
@@ -68,7 +68,7 @@ async def test_vector_ingestion_gathers_dense_and_sparse_embeddings() -> None:
     chunks = cast(list[ChunkedContent], [_make_chunk("chunk text")])
 
     with patch(
-        "rfnry_rag.retrieval.modules.ingestion.methods.vector.embed_batched",
+        "rfnry_rag.ingestion.methods.vector.embed_batched",
         new=dense_mock,
     ):
         await vi.ingest(
@@ -109,7 +109,7 @@ async def test_vector_ingestion_sparse_none_skips_gather() -> None:
     chunks = cast(list[ChunkedContent], [_make_chunk("chunk text")])
 
     with patch(
-        "rfnry_rag.retrieval.modules.ingestion.methods.vector.embed_batched",
+        "rfnry_rag.ingestion.methods.vector.embed_batched",
         new=dense_mock,
     ):
         await vi.ingest(
@@ -153,7 +153,7 @@ async def test_vector_ingestion_sparse_failure_preserved() -> None:
     chunks = cast(list[ChunkedContent], [_make_chunk("chunk text")])
 
     with patch(
-        "rfnry_rag.retrieval.modules.ingestion.methods.vector.embed_batched",
+        "rfnry_rag.ingestion.methods.vector.embed_batched",
         new=dense_mock,
     ):
         # Must not raise — _embed_sparse_safe already swallows the error.

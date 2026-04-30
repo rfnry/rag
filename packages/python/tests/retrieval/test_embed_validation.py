@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from rfnry_rag.retrieval.server import RagEngine, _validate_query_text
+from rfnry_rag.server import RagEngine, _validate_query_text
 
 
 async def test_embed_single_rejects_oversize_text() -> None:
