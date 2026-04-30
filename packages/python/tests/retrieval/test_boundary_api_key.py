@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from rfnry_rag.common.language_model import _apply_boundary_api_key
+from rfnry_rag.providers.registry import _apply_boundary_api_key
 
 
 @pytest.fixture(autouse=True)

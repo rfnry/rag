@@ -1,9 +1,8 @@
 import pytest
 
-from rfnry_rag.common.language_model import LanguageModelClient, LanguageModelProvider
 from rfnry_rag.exceptions import ConfigurationError
+from rfnry_rag.providers import LanguageModelClient, LanguageModelProvider, Reranking
 from rfnry_rag.retrieval.search.reranking.cohere import _CohereReranking
-from rfnry_rag.retrieval.search.reranking.facade import Reranking
 from rfnry_rag.retrieval.search.reranking.llm import _LLMReranking
 from rfnry_rag.retrieval.search.reranking.voyage import _VoyageReranking
 

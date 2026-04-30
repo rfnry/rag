@@ -23,7 +23,6 @@ from uuid import uuid4
 
 from baml_py import ClientRegistry
 
-from rfnry_rag.common.language_model import build_registry
 from rfnry_rag.common.logging import get_logger
 from rfnry_rag.exceptions import IngestionError
 from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
@@ -37,6 +36,7 @@ from rfnry_rag.ingestion.drawing.models import (
 from rfnry_rag.ingestion.drawing.render import render_dxf, render_pdf_pages
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.utils import embed_batched
+from rfnry_rag.providers import build_registry
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 from rfnry_rag.retrieval.common.models import Source, VectorPoint
 from rfnry_rag.stores.graph.base import BaseGraphStore

@@ -1,11 +1,10 @@
 import pytest
 
-from rfnry_rag.common.language_model import LanguageModelProvider
 from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.ingestion.embeddings.cohere import _CohereEmbeddings
-from rfnry_rag.ingestion.embeddings.facade import Embeddings
 from rfnry_rag.ingestion.embeddings.openai import _OpenAIEmbeddings
 from rfnry_rag.ingestion.embeddings.voyage import _VoyageEmbeddings
+from rfnry_rag.providers import Embeddings, LanguageModelProvider
 
 
 def test_embeddings_dispatches_to_openai():

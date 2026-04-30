@@ -1,6 +1,6 @@
 import cohere
 
-from rfnry_rag.common.language_model import LanguageModelProvider
+from rfnry_rag.providers.provider import LanguageModelProvider
 
 # Maximum texts per single API call. Callers should use embed_batched() from
 # rfnry_rag.common.embeddings when sending more than this many texts — that

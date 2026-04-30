@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from rfnry_rag.common.protocols import BaseEmbeddings
+from rfnry_rag.providers import BaseEmbeddings
 
 EMBED_BATCH_SIZE = 100
 

@@ -4,8 +4,6 @@ from rfnry_rag.common.startup import check_baml as _check_baml
 
 _check_baml("retrieval", "rfnry_rag.baml.baml_client")
 
-from rfnry_rag.common.language_model import LanguageModelClient as LanguageModelClient
-from rfnry_rag.common.language_model import LanguageModelProvider as LanguageModelProvider
 from rfnry_rag.exceptions import ConfigurationError as ConfigurationError
 from rfnry_rag.exceptions import DuplicateSourceError as DuplicateSourceError
 from rfnry_rag.exceptions import EmbeddingError as EmbeddingError
@@ -25,14 +23,12 @@ from rfnry_rag.generation.models import StreamEvent as StreamEvent
 from rfnry_rag.ingestion.base import BaseIngestionMethod as BaseIngestionMethod
 from rfnry_rag.ingestion.chunk.chunker import SemanticChunker as SemanticChunker
 from rfnry_rag.ingestion.chunk.service import IngestionService as IngestionService
-from rfnry_rag.ingestion.embeddings.facade import Embeddings as Embeddings
 from rfnry_rag.ingestion.embeddings.sparse.fastembed import (
     FastEmbedSparseEmbeddings as FastEmbedSparseEmbeddings,
 )
 from rfnry_rag.ingestion.methods.document import DocumentIngestion as DocumentIngestion
 from rfnry_rag.ingestion.methods.graph import GraphIngestion as GraphIngestion
 from rfnry_rag.ingestion.methods.vector import VectorIngestion as VectorIngestion
-from rfnry_rag.ingestion.vision.facade import Vision as Vision
 from rfnry_rag.observability import BenchmarkCase as BenchmarkCase
 from rfnry_rag.observability import BenchmarkCaseResult as BenchmarkCaseResult
 from rfnry_rag.observability import BenchmarkConfig as BenchmarkConfig
@@ -44,6 +40,11 @@ from rfnry_rag.observability.models import JudgmentResult as JudgmentResult
 from rfnry_rag.observability.models import MetricResult as MetricResult
 from rfnry_rag.observability.retrieval_metrics import RetrievalPrecision as RetrievalPrecision
 from rfnry_rag.observability.retrieval_metrics import RetrievalRecall as RetrievalRecall
+from rfnry_rag.providers import Embeddings as Embeddings
+from rfnry_rag.providers import LanguageModelClient as LanguageModelClient
+from rfnry_rag.providers import LanguageModelProvider as LanguageModelProvider
+from rfnry_rag.providers import Reranking as Reranking
+from rfnry_rag.providers import Vision as Vision
 from rfnry_rag.retrieval.base import BaseRetrievalMethod as BaseRetrievalMethod
 from rfnry_rag.retrieval.common.models import ContentMatch as ContentMatch
 from rfnry_rag.retrieval.common.models import RetrievalTrace as RetrievalTrace
@@ -59,7 +60,6 @@ from rfnry_rag.retrieval.methods.vector import VectorRetrieval as VectorRetrieva
 from rfnry_rag.retrieval.refinement.abstractive import AbstractiveRefinement as AbstractiveRefinement
 from rfnry_rag.retrieval.refinement.base import BaseChunkRefinement as BaseChunkRefinement
 from rfnry_rag.retrieval.refinement.extractive import ExtractiveRefinement as ExtractiveRefinement
-from rfnry_rag.retrieval.search.reranking.facade import Reranking as Reranking
 from rfnry_rag.retrieval.search.rewriting.multi_query import (
     MultiQueryRewriting as MultiQueryRewriting,
 )

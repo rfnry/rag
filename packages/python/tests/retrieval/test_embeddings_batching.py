@@ -7,7 +7,6 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from rfnry_rag.common.language_model import LanguageModelProvider
 from rfnry_rag.ingestion.embeddings.cohere import (
     _COHERE_MAX_BATCH,
     _CohereEmbeddings,
@@ -20,6 +19,7 @@ from rfnry_rag.ingestion.embeddings.voyage import (
     _VOYAGE_MAX_BATCH,
     _VoyageEmbeddings,
 )
+from rfnry_rag.providers import LanguageModelProvider
 
 # ---------------------------------------------------------------------------
 # OpenAI — single-call provider behaviour

@@ -9,11 +9,11 @@ import re
 from dataclasses import fields
 from typing import Any
 
-from rfnry_rag.common.language_model import LanguageModelClient
 from rfnry_rag.ingestion.chunk.batch import BatchConfig
 from rfnry_rag.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.observability.benchmark import BenchmarkConfig
+from rfnry_rag.providers import LanguageModelClient
 from rfnry_rag.retrieval.search.rewriting.multi_query import MultiQueryRewriting
 from rfnry_rag.server import (
     DocumentExpansionConfig,

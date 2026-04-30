@@ -3,11 +3,11 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from rfnry_rag.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.common.logging import get_logger
 from rfnry_rag.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
 from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.ingestion.models import ChunkedContent, ParsedPage
+from rfnry_rag.providers import LanguageModelClient, build_registry
 from rfnry_rag.stores.graph.base import BaseGraphStore
 from rfnry_rag.stores.graph.mapper import page_entities_to_graph
 

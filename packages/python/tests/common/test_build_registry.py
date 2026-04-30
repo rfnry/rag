@@ -1,9 +1,5 @@
-from rfnry_rag.common.language_model import (
-    LanguageModelClient,
-    LanguageModelProvider,
-    _build_client_options,
-    build_registry,
-)
+from rfnry_rag.providers import LanguageModelClient, LanguageModelProvider, build_registry
+from rfnry_rag.providers.registry import _build_client_options
 
 
 def test_build_client_options_includes_generation_params():
@@ -52,7 +48,7 @@ def test_build_registry_applies_same_generation_params_to_fallback(monkeypatch):
     """Fallback provider should receive the SAME max_tokens/temperature as primary."""
     captured_options = []
 
-    from rfnry_rag.common import language_model as lm_module
+    from rfnry_rag.providers import registry as lm_module
 
     original = lm_module._build_client_options
 

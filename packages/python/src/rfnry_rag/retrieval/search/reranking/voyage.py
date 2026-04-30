@@ -2,8 +2,8 @@ from dataclasses import replace
 
 import voyageai
 
-from rfnry_rag.common.language_model import LanguageModelProvider
 from rfnry_rag.common.logging import get_logger
+from rfnry_rag.providers.provider import LanguageModelProvider
 from rfnry_rag.retrieval.common.models import RetrievedChunk
 
 logger = get_logger(__name__)
