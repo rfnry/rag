@@ -289,11 +289,13 @@ async def test_page_with_images_does_not_skip_vision(fake_analyzed_service_text_
     assert mock_baml.AnalyzePage.call_count == 1  # vision still fires
 
 
-def test_config_bounds_rejected() -> None:
+def test_wrapper_bounds_rejected() -> None:
+    from unittest.mock import MagicMock
+
     from rfnry_rag.exceptions import ConfigurationError
-    from rfnry_rag.server import IngestionConfig
+    from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
 
     with pytest.raises(ConfigurationError):
-        IngestionConfig(analyze_text_skip_threshold_chars=-1)
+        AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock(), analyze_text_skip_threshold_chars=-1)
     with pytest.raises(ConfigurationError):
-        IngestionConfig(analyze_text_skip_threshold_chars=100_001)
+        AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock(), analyze_text_skip_threshold_chars=100_001)
