@@ -2,24 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from rfnry_rag.common.logging import query_logging_enabled
-from rfnry_rag.retrieval.common.language_model import LanguageModelClient
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk
 from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod
 from rfnry_rag.retrieval.modules.retrieval.refinement.base import BaseChunkRefinement
-from rfnry_rag.retrieval.modules.retrieval.search.classification import (
-    _compute_adaptive_params,
-    classify_query,
-)
 from rfnry_rag.retrieval.modules.retrieval.search.fusion import reciprocal_rank_fusion
 from rfnry_rag.retrieval.modules.retrieval.search.reranking.base import BaseReranking
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.base import BaseQueryRewriting
-
-if TYPE_CHECKING:
-    from rfnry_rag.retrieval.server import AdaptiveRetrievalConfig
 
 logger = get_logger("retrieval.search.service")
 
@@ -33,8 +25,6 @@ class RetrievalService:
         source_type_weights: dict[str, float] | None = None,
         query_rewriter: BaseQueryRewriting | None = None,
         chunk_refiner: BaseChunkRefinement | None = None,
-        adaptive_config: AdaptiveRetrievalConfig | None = None,
-        classifier_lm_client: LanguageModelClient | None = None,
     ) -> None:
         self._retrieval_methods = retrieval_methods
         self._reranking = reranking
@@ -42,8 +32,6 @@ class RetrievalService:
         self._source_type_weights = source_type_weights
         self._query_rewriter = query_rewriter
         self._chunk_refiner = chunk_refiner
-        self._adaptive_config = adaptive_config
-        self._classifier_lm_client = classifier_lm_client
 
     @property
     def methods(self) -> list[BaseRetrievalMethod]:
@@ -63,7 +51,6 @@ class RetrievalService:
         query: str,
         knowledge_id: str | None = None,
         top_k: int | None = None,
-        tree_chunks: list[RetrievedChunk] | None = None,
         trace: bool = False,
     ) -> tuple[list[RetrievedChunk], RetrievalTrace | None]:
         if not query or not query.strip():
@@ -73,38 +60,9 @@ class RetrievalService:
 
         trace_obj: RetrievalTrace | None = RetrievalTrace(query=query, knowledge_id=knowledge_id) if trace else None
 
-        base_top_k = top_k if top_k is not None else self._top_k
-
-        # Adaptive classification runs ONCE here, BEFORE query rewriting.
-        # Reasoning: the classifier operates on the original user query; the
-        # rewritten variants are LLM-generated and would skew classification
-        # toward COMPLEX / COMPARATIVE artificially (HyDE / multi-query expand
-        # one short factual question into several entity-rich paraphrases).
-        # Variants are still used for actual retrieval below; the classifier
-        # just doesn't see them.
-        method_multipliers: dict[str, float] = {}
-        if self._adaptive_config is not None and self._adaptive_config.enabled:
-            classification, effective_top_k, method_multipliers, classify_elapsed = await _compute_adaptive_params(
-                query,
-                base_top_k,
-                self._adaptive_config,
-                self._classifier_lm_client,
-                classify_query,
-            )
-            if trace_obj is not None:
-                trace_obj.adaptive = {
-                    "complexity": classification.complexity.name,
-                    "query_type": classification.query_type.name,
-                    "effective_top_k": effective_top_k,
-                    "applied_multipliers": dict(method_multipliers),
-                    "classification_source": classification.source,
-                }
-                trace_obj.timings["classification"] = classify_elapsed
-        else:
-            effective_top_k = base_top_k
-
+        effective_top_k = top_k if top_k is not None else self._top_k
+        fetch_k = effective_top_k * 4
         top_k = effective_top_k
-        fetch_k = top_k * 4
         filters = self._build_filters(knowledge_id)
 
         # User query text is PII-adjacent; log only when explicitly opted in
@@ -144,7 +102,6 @@ class RetrievalService:
                 filters,
                 knowledge_id,
                 collect_per_method=trace_obj is not None,
-                method_multipliers=method_multipliers,
             )
             for q in queries
         ]
@@ -171,29 +128,14 @@ class RetrievalService:
                 for method_name, results in by_method.items():
                     per_method.setdefault(method_name, []).extend(results)
 
-        # If every query variant errored, don't silently return [] — callers
-        # need to distinguish total failure from legitimately empty results.
-        if query_results and successes == 0 and not tree_chunks:
+        if query_results and successes == 0:
             from rfnry_rag.retrieval.common.errors import RetrievalError
 
             raise RetrievalError("all retrieval query variants failed")
 
         if trace_obj is not None:
-            if tree_chunks:
-                per_method["tree"] = list(tree_chunks)
             trace_obj.per_method_results = per_method
             trace_obj.timings["retrieval"] = time.perf_counter() - retrieval_start
-
-        if tree_chunks:
-            all_result_lists.append(tree_chunks)
-            # Tree search merges into the fusion pool here, bypassing
-            # `_search_single_query`'s per-method multiplier site. Apply
-            # the adaptive `tree` multiplier explicitly so the default
-            # profiles' tree entries (1.2 / 0.8) are actually reachable.
-            # Disabled-adaptive path: `method_multipliers` is empty →
-            # `.get("tree", 1.0)` returns 1.0 → behaviour unchanged.
-            all_weights.append(1.0 * method_multipliers.get("tree", 1.0))
-            logger.info("%d tree search candidates added to fusion", len(tree_chunks))
 
         fusion_start = time.perf_counter() if trace_obj is not None else 0.0
         if len(all_result_lists) > 1:
@@ -246,21 +188,7 @@ class RetrievalService:
         filters: dict[str, Any] | None,
         knowledge_id: str | None,
         collect_per_method: bool = False,
-        method_multipliers: dict[str, float] | None = None,
     ) -> tuple[list[list[RetrievedChunk]], list[float], dict[str, list[RetrievedChunk]] | None]:
-        """Run all retrieval methods in parallel for a single query.
-
-        When `collect_per_method=True`, also returns a method-name → results
-        map (including empty-result methods) for trace aggregation. The hot
-        fusion path still receives the same `(result_lists, weights)` shape
-        as before — empty-result methods are dropped from those arrays so
-        RRF/source-weight handling is byte-for-byte unchanged.
-
-        `method_multipliers` maps method-name -> float multiplier; the
-        per-method weight pushed into the parallel `weights` array is
-        `method.weight * multipliers.get(method.name, 1.0)`. An empty/None map
-        leaves the weights byte-for-byte unchanged.
-        """
         if not self._retrieval_methods:
             return [], [], ({} if collect_per_method else None)
 
@@ -284,8 +212,7 @@ class RetrievalService:
                 by_method[method.name] = list(results) if results else []
             if results:
                 result_lists.append(results)
-                multiplier = method_multipliers.get(method.name, 1.0) if method_multipliers else 1.0
-                weights.append(method.weight * multiplier)
+                weights.append(method.weight)
         return result_lists, weights, by_method
 
     def _apply_source_weights(self, results: list[RetrievedChunk]) -> list[RetrievedChunk]:

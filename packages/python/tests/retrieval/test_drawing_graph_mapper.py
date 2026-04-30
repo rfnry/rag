@@ -186,44 +186,9 @@ def test_drawing_to_graph_single_component_crossref_produces_relation_not_skippe
     entities, relations = drawing_to_graph(
         pages=[p1, p2],
         deterministic_pairings=[cross_pair],
-        llm_residue=[],
         source_id="src-1",
         config=cfg,
         knowledge_id="k1",
     )
-    # 2 entities, at least 1 relation (the single-component cross-sheet pair)
     assert len(entities) == 2
     assert any(r.from_entity == "R1" and r.to_entity == "C1" for r in relations)
-
-
-def test_drawing_to_graph_llm_residue_emits_mentions_edge() -> None:
-    p1 = _page([_component("v1", "valve_ball", label="V-101 Feed")], page=1)
-    p2 = _page([_component("v2", "valve_ball", label="V-101-A feeder")], page=2)
-    cfg = _cfg()
-    residue = [
-        {
-            "page_a": 1,
-            "component_a": "v1",
-            "page_b": 2,
-            "component_b": "v2",
-            "confidence": 0.85,
-            "rationale": "both labelled V-101",
-        }
-    ]
-    entities, relations = drawing_to_graph(
-        pages=[p1, p2],
-        deterministic_pairings=[],
-        llm_residue=residue,
-        source_id="src-1",
-        config=cfg,
-        knowledge_id="k1",
-    )
-    mentions_edges = [r for r in relations if r.relation_type == "MENTIONS"]
-    assert len(mentions_edges) == 1
-    edge = mentions_edges[0]
-    assert edge.from_entity == "v1"
-    assert edge.to_entity == "v2"
-    # Context carries the LLM confidence + rationale + llm_suggested flag
-    assert "llm_suggested=true" in edge.context.lower()
-    assert "confidence=0.85" in edge.context
-    assert "v-101" in edge.context.lower() or "label" in edge.context.lower() or "rationale" in edge.context.lower()

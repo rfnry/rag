@@ -121,8 +121,8 @@ async def test_benchmark_skips_retrieval_metrics_when_no_expected_ids() -> None:
 # 4. Failure classification ---------------------------------------------------
 
 
-async def test_benchmark_classifies_failures() -> None:
-    """Failed cases route through classify_failure; histogram keys on FailureType.name."""
+async def test_benchmark_counts_failures() -> None:
+    """Failed cases are counted in the report."""
     cases = [
         BenchmarkCase(query="q1", expected_answer="expected one"),
         BenchmarkCase(query="q2", expected_answer="expected two"),
@@ -130,38 +130,11 @@ async def test_benchmark_classifies_failures() -> None:
     ]
 
     async def query_fn(text: str, *, trace: bool) -> QueryResult:
-        if text == "q1":
-            # VOCABULARY_MISMATCH: empty document channel + low vector top score.
-            tr = RetrievalTrace(
-                query=text,
-                per_method_results={"document": [], "vector": [_chunk("c1", 0.21)]},
-            )
-            return _result("totally unrelated", trace=tr, grounded=False)
-        if text == "q2":
-            # CHUNK_BOUNDARY: high-score chunk but ungrounded.
-            tr = RetrievalTrace(
-                query=text,
-                per_method_results={"vector": [_chunk("c1", 0.85)]},
-                fused_results=[_chunk("c1", 0.85)],
-                final_results=[_chunk("c1", 0.85)],
-                grounding_decision="ungrounded",
-            )
-            return _result("partial", trace=tr, grounded=False)
-        # SCOPE_MISS: every method empty + knowledge_id set.
-        tr = RetrievalTrace(
-            query=text,
-            per_method_results={"document": [], "vector": []},
-            knowledge_id="kb-1",
-        )
-        return _result("nothing", trace=tr, grounded=False)
+        tr = RetrievalTrace(query=text, grounding_decision="ungrounded")
+        return _result("totally unrelated", trace=tr, grounded=False)
 
     report = await run_benchmark(cases, query_fn)
-
-    assert report.failure_distribution == {
-        "VOCABULARY_MISMATCH": 1,
-        "CHUNK_BOUNDARY": 1,
-        "SCOPE_MISS": 1,
-    }
+    assert report.failure_count == 3
 
 
 # 5. Config bounds -----------------------------------------------------------

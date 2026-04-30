@@ -84,20 +84,6 @@ async def test_failed_method_returns_empty_others_succeed():
     assert len(results) == 1
 
 
-async def test_tree_chunks_injected():
-    vector = _mock_method(
-        "vector",
-        [
-            RetrievedChunk(chunk_id="c1", source_id="s1", content="text", score=0.9),
-        ],
-    )
-    tree_chunk = RetrievedChunk(chunk_id="tree-1", source_id="s2", content="tree", score=0.7)
-    service = RetrievalService(retrieval_methods=[vector], top_k=5)
-    results, _ = await service.retrieve(query="test", tree_chunks=[tree_chunk])
-    ids = {r.chunk_id for r in results}
-    assert "tree-1" in ids
-
-
 async def test_reranker_applied():
     vector = _mock_method(
         "vector",

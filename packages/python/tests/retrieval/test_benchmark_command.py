@@ -37,7 +37,7 @@ def test_benchmark_command_invokes_engine_and_prints_summary(tmp_path: Path) -> 
         generation_em=0.5,
         generation_f1=0.75,
         llm_judge_score=None,
-        failure_distribution={"VOCABULARY_MISMATCH": 1},
+        failure_count=1,
         per_case_results=[],
     )
 
@@ -71,4 +71,4 @@ def test_benchmark_command_invokes_engine_and_prints_summary(tmp_path: Path) -> 
     assert "Benchmark report" in result.output
     assert "EM:" in result.output
     assert "F1:" in result.output
-    assert "VOCABULARY_MISMATCH" in result.output
+    assert "Failures: 1" in result.output

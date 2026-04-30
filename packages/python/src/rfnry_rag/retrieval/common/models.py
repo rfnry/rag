@@ -2,16 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal
-
-if TYPE_CHECKING:
-    from rfnry_rag.retrieval.modules.retrieval.iterative.trace import IterativeHopTrace
-
-_MAX_TREE_DEPTH = 100
-_MAX_TREE_NODES = 10_000
-# _MAX_PDF_PAGES is 5_000; 100k is 20× generous — still catches a pathological
-# tampered DB row that would OOM before TreeNode recursion guards trigger.
-_MAX_TREE_PAGES = 100_000
+from typing import Any, Literal
 
 
 @dataclass
@@ -29,10 +20,6 @@ class Source:
     source_type: str | None = None
     source_weight: float = 1.0
 
-    # Stored in `metadata["estimated_tokens"]` rather than a dedicated column —
-    # avoids a schema migration; legacy rows return None and are
-    # lazy-computed by `KnowledgeManager.get_corpus_tokens`. Promote to a column
-    # only if a real consumer needs to query/sort by token count.
     @property
     def estimated_tokens(self) -> int | None:
         value = self.metadata.get("estimated_tokens")
@@ -58,30 +45,20 @@ class SparseVector:
     indices: list[int]
     values: list[float]
 
-    def __repr__(self) -> str:
-        return f"SparseVector({len(self.indices)} non-zero entries)"
-
 
 @dataclass
 class VectorPoint:
     point_id: str
     vector: list[float]
-    payload: dict[str, Any]
+    payload: dict[str, Any] = field(default_factory=dict)
     sparse_vector: SparseVector | None = None
-
-    def __repr__(self) -> str:
-        sparse = f", sparse={len(self.sparse_vector.indices)} entries" if self.sparse_vector else ""
-        return f"VectorPoint(point_id={self.point_id!r}, vector=[{len(self.vector)} dims]{sparse}, payload=...)"
 
 
 @dataclass
 class VectorResult:
     point_id: str
     score: float
-    payload: dict[str, Any]
-
-    def __repr__(self) -> str:
-        return f"VectorResult(point_id={self.point_id!r}, score={self.score:.4f}, payload=...)"
+    payload: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -100,78 +77,18 @@ class RetrievedChunk:
 
 @dataclass
 class RetrievalTrace:
-    """Full per-query pipeline state for observability of vector retrieval.
+    """Full per-query pipeline state for observability.
 
-    Without this, AUTO routing and adaptive weights are unobservable — tuning
-    either blind wastes effort. Constructible with just `query=...`; every
-    other field has a safe default so a partial trace can be filled
-    progressively as stages run.
+    `None` vs `[]` distinction is load-bearing: `None` means "stage did not
+    run" (e.g. reranker disabled), `[]` means "stage ran and produced no
+    results". Conflating them would erase signal.
 
-    `None` vs `[]` distinction matters and is load-bearing for downstream
-    failure classification: `None` means "stage did not run" (e.g.
-    reranker disabled), while `[]` means "stage ran and produced no results".
-    Conflating them would erase the signal the SCOPE_MISS / DRIFT
-    failure-classifiers depend on.
+    `per_method_results` is keyed by `BaseRetrievalMethod.name`. Across
+    multiple query variants (multi-query rewriter), each method's per-variant
+    results are concatenated — not deduplicated; fusion handles dedupe at
+    the `fused_results` stage.
 
-    `per_method_results` is keyed by `BaseRetrievalMethod.name` for configured
-    methods, plus a synthetic `"tree"` key when tree-search results were
-    merged in at the service layer (tree search is not a registered
-    `BaseRetrievalMethod`). Across multiple query variants
-    (HyDE / multi-query / step-back), each method's per-variant results are
-    concatenated — not deduplicated; fusion handles dedupe at the
-    `fused_results` stage.
-
-    `adaptive` is `None` when the adaptive pipeline did not run (the
-    default — `AdaptiveRetrievalConfig.enabled=False`); otherwise carries
-    `complexity`, `query_type`, `effective_top_k`, `applied_multipliers`,
-    `classification_source`. Asserting via `trace.adaptive["applied_multipliers"]`
-    is the supported way for consumers / tests to inspect per-method weights
-    without reaching into service internals. Three more keys are added when
-    confidence expansion runs: `expansion_attempts: int`,
-    `expansion_outcome: "succeeded" | "exhausted_proceeded" | "exhausted_escalated_to_lc"`,
-    and `final_top_k: int`. These keys are absent (not zero/None) when
-    `confidence_expansion=False` — keeping "didn't run" distinct from
-    "ran with 0 retries".
-
-    `routing_decision` enumerates seven values:
-    `"retrieval" | "direct" | "hybrid_rag" | "hybrid_lc"`,
-    `"retrieval_then_direct" | "iterative" | "iterative_then_direct"`.
-    `"retrieval_then_direct"` flags the long-context escalation case where
-    RETRIEVAL ran, confidence expansion exhausted with weak chunks, and
-    the engine fell back to `_query_via_direct_context`. Distinct from
-    plain `"direct"` (AUTO chose DIRECT directly) because the cost shape
-    differs (RAG-then-LC vs LC-only) and debugging consumers need to
-    attribute escalations. `"iterative"` flags a multi-hop run.
-    `"iterative_then_direct"` flags the post-loop DIRECT escalation case
-    — multi-hop ran, accumulated chunks were still weak, corpus fit the
-    direct-context window, engine fell back to
-    `_query_via_direct_context`. Distinct from `"retrieval_then_direct"`
-    (the trigger arm differs) and from `"direct"` (the cost shape
-    differs).
-
-    `iterative_hops` has three distinct states:
-
-    - `None`: iterative was not enabled / not consulted (the default —
-      `IterativeRetrievalConfig.enabled=False`, or the engine arm
-      decided iterative was not the right path).
-    - `[]`: iterative was consulted but the type-mode gate failed at
-      entry (no decompose calls were made). Distinct from `None` so a
-      consumer can attribute "iterative was on but rejected this query"
-      vs "iterative was off entirely".
-    - non-empty list: iterative ran N hops; each entry is one hop's
-      trace including its decompose verdict, sub-question, per-method
-      results, and timings.
-
-    `iterative_termination_reason` carries the loop's exit condition
-    (`"done" | "max_hops" | "error" | "low_confidence_escalated" |
-    "low_confidence_no_escalation"`). The two low-confidence reasons:
-    `"low_confidence_escalated"` flags a completed run whose accumulated
-    chunks were weak and that escalated to DIRECT;
-    `"low_confidence_no_escalation"` flags a completed run whose
-    accumulated chunks were weak but escalation was either disabled
-    (`escalate_to_direct=False`), unreachable (`RoutingConfig`
-    unconfigured), or ineligible (corpus too large to fit the
-    direct-context window).
+    `routing_decision` enumerates `"indexed" | "full_context" | "auto_indexed" | "auto_full_context"`.
     """
 
     query: str
@@ -184,9 +101,6 @@ class RetrievalTrace:
     grounding_decision: str | None = None
     confidence: float | None = None
     routing_decision: str | None = None
-    adaptive: dict[str, Any] | None = None
-    iterative_hops: list[IterativeHopTrace] | None = None
-    iterative_termination_reason: str | None = None
     timings: dict[str, float] = field(default_factory=dict)
     knowledge_id: str | None = None
 
@@ -214,114 +128,3 @@ class SourceStats:
     total_hits: int = 0
     grounded_hits: int = 0
     ungrounded_hits: int = 0
-
-
-@dataclass
-class TreeNode:
-    """A node in the document tree index."""
-
-    node_id: str
-    title: str
-    start_index: int
-    end_index: int
-    summary: str | None = None
-    children: list[TreeNode] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "node_id": self.node_id,
-            "title": self.title,
-            "start_index": self.start_index,
-            "end_index": self.end_index,
-            "summary": self.summary,
-            "children": [c.to_dict() for c in self.children],
-        }
-
-    @classmethod
-    def from_dict(
-        cls,
-        data: dict[str, Any],
-        _depth: int = 0,
-        _node_count: list[int] | None = None,
-    ) -> TreeNode:
-        if _depth > _MAX_TREE_DEPTH:
-            raise ValueError(f"tree index depth exceeds {_MAX_TREE_DEPTH}")
-        if _node_count is None:
-            _node_count = [0]
-        _node_count[0] += 1
-        if _node_count[0] > _MAX_TREE_NODES:
-            raise ValueError(f"tree index node count exceeds {_MAX_TREE_NODES}")
-        return cls(
-            node_id=data["node_id"],
-            title=data["title"],
-            start_index=data["start_index"],
-            end_index=data["end_index"],
-            summary=data.get("summary"),
-            children=[cls.from_dict(c, _depth + 1, _node_count) for c in data.get("children", [])],
-        )
-
-
-@dataclass
-class TreePage:
-    """A page stored alongside the tree index for query-time retrieval."""
-
-    index: int
-    text: str
-    token_count: int
-
-    def to_dict(self) -> dict[str, Any]:
-        return {"index": self.index, "text": self.text, "token_count": self.token_count}
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> TreePage:
-        return cls(index=data["index"], text=data["text"], token_count=data["token_count"])
-
-
-@dataclass
-class TreeIndex:
-    """Complete tree index for a document."""
-
-    source_id: str
-    doc_name: str
-    doc_description: str | None
-    structure: list[TreeNode]
-    page_count: int
-    created_at: datetime
-    pages: list[TreePage] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "source_id": self.source_id,
-            "doc_name": self.doc_name,
-            "doc_description": self.doc_description,
-            "structure": [n.to_dict() for n in self.structure],
-            "page_count": self.page_count,
-            "created_at": self.created_at.isoformat(),
-            "pages": [p.to_dict() for p in self.pages],
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> TreeIndex:
-        pages_raw = data.get("pages", [])
-        if len(pages_raw) > _MAX_TREE_PAGES:
-            raise ValueError(f"tree index pages count {len(pages_raw)} exceeds {_MAX_TREE_PAGES}")
-        return cls(
-            source_id=data["source_id"],
-            doc_name=data["doc_name"],
-            doc_description=data.get("doc_description"),
-            structure=[TreeNode.from_dict(n) for n in data["structure"]],
-            page_count=data["page_count"],
-            created_at=datetime.fromisoformat(data["created_at"]),
-            pages=[TreePage.from_dict(p) for p in pages_raw],
-        )
-
-
-@dataclass
-class TreeSearchResult:
-    """Result from tree-based search."""
-
-    node_id: str
-    title: str
-    pages: str
-    content: str
-    reasoning: str

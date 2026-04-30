@@ -3,20 +3,15 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
-from rfnry_rag.retrieval.baml.baml_client.async_client import b
 from rfnry_rag.retrieval.common.errors import ConfigurationError, InputError
-from rfnry_rag.retrieval.common.formatting import ChunkOrdering, chunks_to_context
-from rfnry_rag.retrieval.common.grounding import is_weak_chunk_signal, max_chunk_score
+from rfnry_rag.retrieval.common.formatting import ChunkOrdering
+from rfnry_rag.retrieval.common.grounding import max_chunk_score
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
-
-if TYPE_CHECKING:
-    from rfnry_rag.retrieval.modules.ingestion.tree.service import TreeIndexingService
-    from rfnry_rag.retrieval.modules.retrieval.tree.service import TreeSearchService
 from rfnry_rag.retrieval.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk, Source
@@ -41,11 +36,6 @@ from rfnry_rag.retrieval.modules.ingestion.embeddings.sparse.base import BaseSpa
 from rfnry_rag.retrieval.modules.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.graph import GraphIngestion
-from rfnry_rag.retrieval.modules.ingestion.methods.raptor.builder import RaptorTreeBuilder
-from rfnry_rag.retrieval.modules.ingestion.methods.raptor.config import RaptorConfig
-from rfnry_rag.retrieval.modules.ingestion.methods.raptor.registry import RaptorTreeRegistry
-from rfnry_rag.retrieval.modules.ingestion.methods.raptor.report import RaptorBuildReport
-from rfnry_rag.retrieval.modules.ingestion.methods.tree import TreeIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.vector import VectorIngestion
 from rfnry_rag.retrieval.modules.ingestion.vision.base import BaseVision
 from rfnry_rag.retrieval.modules.knowledge.manager import KnowledgeManager
@@ -53,27 +43,16 @@ from rfnry_rag.retrieval.modules.knowledge.migration import check_embedding_migr
 from rfnry_rag.retrieval.modules.namespace import MethodNamespace
 from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod
 from rfnry_rag.retrieval.modules.retrieval.enrich.service import StructuredRetrievalService
-from rfnry_rag.retrieval.modules.retrieval.iterative.config import IterativeRetrievalConfig
-from rfnry_rag.retrieval.modules.retrieval.iterative.service import (
-    IterativeRetrievalService,
-    gate_passes_type,
-)
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval
-from rfnry_rag.retrieval.modules.retrieval.methods.raptor import RaptorRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.retrieval.modules.retrieval.refinement.base import BaseChunkRefinement
-from rfnry_rag.retrieval.modules.retrieval.search.classification import (
-    QueryClassification,
-    classify_query,
-)
 from rfnry_rag.retrieval.modules.retrieval.search.reranking.base import BaseReranking
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.base import BaseQueryRewriting
 from rfnry_rag.retrieval.modules.retrieval.search.service import RetrievalService
 from rfnry_rag.retrieval.stores.document.base import BaseDocumentStore
 from rfnry_rag.retrieval.stores.graph.base import BaseGraphStore
 from rfnry_rag.retrieval.stores.metadata.base import BaseMetadataStore
-from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 from rfnry_rag.retrieval.stores.vector.base import BaseVectorStore
 
 logger = get_logger("server")
@@ -216,10 +195,6 @@ class IngestionConfig:
     # ``DocumentExpansionConfig`` defaults to disabled; consumers must set
     # ``enabled=True`` AND provide ``lm_client`` to activate.
     document_expansion: DocumentExpansionConfig = field(default_factory=lambda: DocumentExpansionConfig())
-    # Opt-in RAPTOR-style hierarchical summarisation. Default-off.
-    # ``RaptorConfig.__post_init__`` handles its own validation including the
-    # ``enabled`` ⇒ ``summary_model`` cross-field rule.
-    raptor: RaptorConfig = field(default_factory=RaptorConfig)
 
     def __post_init__(self) -> None:
         if self.chunk_size_unit not in ("chars", "tokens"):
@@ -275,58 +250,6 @@ class IngestionConfig:
 
 
 @dataclass
-class AdaptiveRetrievalConfig:
-    """Adaptive retrieval — query-aware top_k, weights, and expansion.
-
-    `enabled=False` is the default. When enabled, `top_k_min`/`top_k_max`
-    and `task_weight_profiles` drive per-query adaptation, and
-    `confidence_expansion` + `max_expansion_retries` drive confidence-based
-    re-retrieval.
-
-    The cross-config rule "`enabled=True AND use_llm_classification=True`
-    requires `RetrievalConfig.enrich_lm_client`" lives in
-    `RagEngine._validate_config` (cross-config invariants live there by
-    convention — see `tree_indexing.max_tokens_per_node`).
-    """
-
-    enabled: bool = False
-    top_k_min: int = 3
-    top_k_max: int = 15
-    use_llm_classification: bool = False
-    # unbounded: per-method weights are consumer overrides; the fusion stage
-    # normalises them at consume time, so no upper bound is meaningful here.
-    task_weight_profiles: dict[str, dict[str, float]] | None = None  # unbounded: see comment above
-    confidence_expansion: bool = False
-    max_expansion_retries: int = 2
-
-    def __post_init__(self) -> None:
-        if not (1 <= self.top_k_min <= 50):
-            raise ConfigurationError(f"AdaptiveRetrievalConfig.top_k_min={self.top_k_min} out of range [1, 50]")
-        if not (1 <= self.top_k_max <= 200):
-            raise ConfigurationError(f"AdaptiveRetrievalConfig.top_k_max={self.top_k_max} out of range [1, 200]")
-        if self.top_k_min > self.top_k_max:
-            raise ConfigurationError(
-                f"AdaptiveRetrievalConfig.top_k_min={self.top_k_min} cannot exceed top_k_max={self.top_k_max}"
-            )
-        if not (0 <= self.max_expansion_retries <= 5):
-            raise ConfigurationError(
-                f"AdaptiveRetrievalConfig.max_expansion_retries={self.max_expansion_retries} out of range [0, 5]"
-            )
-        # Single-config invariant: confidence_expansion is gated by `enabled`
-        # in `_query_via_retrieval` (both flags must be True before the retry
-        # loop fires). `enabled=False, confidence_expansion=True` is therefore
-        # a silent no-op — surface it as a config error so consumers don't
-        # ship the misconfig and wonder why expansion never runs. Mirrors the
-        # `use_llm_classification` cross-config guard, but lives here (not in
-        # `_validate_config`) because both fields are on this dataclass.
-        if self.confidence_expansion and not self.enabled:
-            raise ConfigurationError(
-                "AdaptiveRetrievalConfig.confidence_expansion=True requires enabled=True; "
-                "confidence expansion is gated by adaptive retrieval being enabled."
-            )
-
-
-@dataclass
 class RetrievalConfig:
     top_k: int = 5
     reranker: BaseReranking | None = None
@@ -341,8 +264,6 @@ class RetrievalConfig:
     parent_expansion: bool = True
     chunk_refiner: BaseChunkRefinement | None = None
     history_window: int = 3
-    adaptive: AdaptiveRetrievalConfig = field(default_factory=AdaptiveRetrievalConfig)
-    iterative: IterativeRetrievalConfig = field(default_factory=IterativeRetrievalConfig)
 
     def __post_init__(self) -> None:
         if self.top_k < 1:
@@ -396,84 +317,27 @@ class GenerationConfig:
             raise ConfigurationError("grounding_enabled requires lm_client")
 
 
-@dataclass
-class TreeIndexingConfig:
-    """Configuration for tree-based document indexing."""
-
-    enabled: bool = False
-    model: LanguageModelClient | None = None
-    toc_scan_pages: int = 20
-    max_pages_per_node: int = 10
-    max_tokens_per_node: int = 20_000
-    generate_summaries: bool = True
-    generate_description: bool = True
-
-    def __post_init__(self) -> None:
-        if self.toc_scan_pages < 1:
-            raise ConfigurationError("toc_scan_pages must be positive")
-        if self.toc_scan_pages > 500:
-            raise ConfigurationError(f"toc_scan_pages must be <= 500, got {self.toc_scan_pages}")
-        if self.max_pages_per_node < 1:
-            raise ConfigurationError("max_pages_per_node must be positive")
-        if self.max_pages_per_node > 200:
-            raise ConfigurationError(f"max_pages_per_node must be <= 200, got {self.max_pages_per_node}")
-        if self.max_tokens_per_node < 1:
-            raise ConfigurationError("max_tokens_per_node must be positive")
-        if self.max_tokens_per_node > 200_000:
-            raise ConfigurationError(f"max_tokens_per_node must be <= 200_000, got {self.max_tokens_per_node}")
-
-
-@dataclass
-class TreeSearchConfig:
-    """Configuration for tree-based search."""
-
-    enabled: bool = False
-    model: LanguageModelClient | None = None
-    max_steps: int = 5
-    max_context_tokens: int = 50_000
-    max_sources_per_query: int = 50
-
-    def __post_init__(self) -> None:
-        if self.max_steps < 1:
-            raise ConfigurationError("max_steps must be positive")
-        if self.max_steps > 50:
-            raise ConfigurationError(f"max_steps must be <= 50, got {self.max_steps}")
-        if self.max_context_tokens < 1:
-            raise ConfigurationError("max_context_tokens must be positive")
-        if self.max_context_tokens > 500_000:
-            raise ConfigurationError(f"max_context_tokens must be <= 500_000, got {self.max_context_tokens}")
-        if not (1 <= self.max_sources_per_query <= 1000):
-            raise ConfigurationError(f"max_sources_per_query must be 1-1000, got {self.max_sources_per_query}")
-
-
 class QueryMode(Enum):
-    """User-facing routing strategy chosen per `RagEngine` instance.
+    """Per-query routing strategy.
 
-    All four modes — `RETRIEVAL` (default), `DIRECT`, `HYBRID`, and
-    `AUTO` — are live. The string values match the
-    `RetrievalTrace.routing_decision` enumeration.
+    `RETRIEVAL` runs the standard indexed pipeline. `DIRECT` skips retrieval
+    and loads the full corpus into a prompt-cached prefix. `AUTO` dispatches
+    between the two based on `direct_context_threshold` versus corpus tokens.
     """
 
     RETRIEVAL = "retrieval"
     DIRECT = "direct"
-    HYBRID = "hybrid"
     AUTO = "auto"
 
 
 @dataclass
 class RoutingConfig:
-    """Top-level routing strategy.
-
-    Dispatches between RETRIEVAL (the standard pipeline), DIRECT (full
-    corpus into the prompt; no retrieval), HYBRID (RAG-then-answerability-
-    check / SELF-ROUTE — requires `hybrid_answerability_model`), and AUTO
-    (per-query routing between RETRIEVAL and DIRECT based on
-    `direct_context_threshold` versus the corpus token count).
-    """
+    """Top-level routing strategy. AUTO is the recommended mode: as context
+    windows grow, more corpora cross the threshold and shift to DIRECT
+    transparently."""
 
     mode: QueryMode = QueryMode.RETRIEVAL
     direct_context_threshold: int = 150_000
-    hybrid_answerability_model: LanguageModelClient | None = None
 
     def __post_init__(self) -> None:
         if not (1_000 <= self.direct_context_threshold <= 2_000_000):
@@ -481,8 +345,6 @@ class RoutingConfig:
                 f"RoutingConfig.direct_context_threshold={self.direct_context_threshold} "
                 "out of range [1_000, 2_000_000]"
             )
-        if self.mode == QueryMode.HYBRID and self.hybrid_answerability_model is None:
-            raise ConfigurationError("RoutingConfig.mode=HYBRID requires hybrid_answerability_model")
 
 
 @dataclass
@@ -491,8 +353,6 @@ class RagServerConfig:
     ingestion: IngestionConfig
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     generation: GenerationConfig = field(default_factory=GenerationConfig)
-    tree_indexing: TreeIndexingConfig = field(default_factory=TreeIndexingConfig)
-    tree_search: TreeSearchConfig = field(default_factory=TreeSearchConfig)
     routing: RoutingConfig = field(default_factory=RoutingConfig)
 
 
@@ -570,15 +430,9 @@ class RagEngine:
         self._drawing_ingestion: DrawingIngestionService | None = None
         self._retrieval_service: RetrievalService | None = None
         self._structured_retrieval: StructuredRetrievalService | None = None
-        # Only built when `RetrievalConfig.iterative.enabled=True`. Stays
-        # None otherwise so the existing dispatch path is byte-for-byte
-        # unchanged for consumers who don't opt in.
-        self._iterative_service: IterativeRetrievalService | None = None
         self._generation_service: GenerationService | None = None
         self._knowledge_manager: KnowledgeManager | None = None
         self._step_service: StepGenerationService | None = None
-        self._tree_indexing_service: TreeIndexingService | None = None
-        self._tree_search_service: TreeSearchService | None = None
 
         self._retrieval_namespace: MethodNamespace[BaseRetrievalMethod] | None = None
         self._ingestion_namespace: MethodNamespace[BaseIngestionMethod] | None = None
@@ -588,13 +442,7 @@ class RagEngine:
 
         self._chunker: SemanticChunker | None = None
         self._embedding_model_name: str = ""
-        self._expansion_registry: Any = None  # Built in _initialize_impl when document_expansion is enabled
-        self._answerability_registry: Any = None  # Built in _initialize_impl when mode=HYBRID
-        # Lazily constructed on the first ``build_raptor_index`` call when
-        # ``RaptorConfig.enabled=True``. Stays ``None`` otherwise so the
-        # default-off path doesn't pay any RAPTOR-related construction cost.
-        self._raptor_builder: RaptorTreeBuilder | None = None
-        self._raptor_registry: RaptorTreeRegistry | None = None
+        self._expansion_registry: Any = None
 
     @property
     def knowledge(self) -> KnowledgeManager:
@@ -657,77 +505,10 @@ class RagEngine:
                 "still works if the graph is pre-populated."
             )
 
-        if cfg.tree_indexing.enabled and not p.metadata_store:
-            raise ConfigurationError("tree_indexing requires metadata_store")
-        if cfg.tree_search.enabled and not p.metadata_store:
-            raise ConfigurationError("tree_search requires metadata_store")
-        if cfg.tree_indexing.enabled and cfg.tree_indexing.model is None:
-            raise ConfigurationError("tree_indexing.enabled requires tree_indexing.model")
-        if cfg.tree_search.enabled and cfg.tree_search.model is None:
-            raise ConfigurationError("tree_search.enabled requires tree_search.model")
-        if (
-            cfg.tree_indexing.enabled
-            and cfg.tree_search.enabled
-            and cfg.tree_indexing.max_tokens_per_node > cfg.tree_search.max_context_tokens
-        ):
-            raise ConfigurationError(
-                "tree_indexing.max_tokens_per_node cannot exceed tree_search.max_context_tokens "
-                "(a single indexed node would not fit in the search context window)"
-            )
-
         if cfg.retrieval.bm25_enabled and i.sparse_embeddings:
             raise ConfigurationError(
                 "bm25_enabled cannot be used together with sparse_embeddings — "
                 "sparse embeddings supersede BM25. Disable one."
-            )
-
-        if (
-            cfg.retrieval.adaptive.enabled
-            and cfg.retrieval.adaptive.use_llm_classification
-            and cfg.retrieval.enrich_lm_client is None
-        ):
-            raise ConfigurationError(
-                "AdaptiveRetrievalConfig.use_llm_classification=True requires "
-                "RetrievalConfig.enrich_lm_client — provide a LanguageModelClient "
-                "(no opinionated default model; consumer chooses)."
-            )
-
-        # Iterative retrieval needs SOME LLM client to call DecomposeQuery.
-        # The dataclass-level invariant catches `gate_mode="llm"` without a
-        # `decomposition_model`; this cross-config rule covers the remaining
-        # gap (`gate_mode="type"` AND `decomposition_model is None` AND
-        # `enrich_lm_client is None`) — without it, the loop would silently
-        # no-op at query-time on the first decompose call. Failing here
-        # surfaces the misconfig at engine init, not on first query.
-        if (
-            cfg.retrieval.iterative.enabled
-            and cfg.retrieval.iterative.decomposition_model is None
-            and cfg.retrieval.enrich_lm_client is None
-        ):
-            raise ConfigurationError(
-                "IterativeRetrievalConfig.enabled=True requires either "
-                "iterative.decomposition_model or RetrievalConfig.enrich_lm_client "
-                "to be set — the decomposer needs an LLM client. Set one to "
-                "the same LanguageModelClient you'd use for query rewriting."
-            )
-
-        # Warn (don't raise) when post-loop DIRECT escalation is opted in
-        # but `RoutingConfig.direct_context_threshold` is unconfigured —
-        # the escalation will be a no-op. Don't raise:
-        # consumers might intentionally run iterative without DIRECT
-        # fallback (e.g. corpus is always too large to fit the
-        # direct-context window anyway), and demoting this to a runtime
-        # exception would force them to suppress the config check. The
-        # warning fires once at engine init, not per-query.
-        if (
-            cfg.retrieval.iterative.enabled
-            and cfg.retrieval.iterative.escalate_to_direct
-            and (cfg.routing is None or getattr(cfg.routing, "direct_context_threshold", None) is None)
-        ):
-            logger.warning(
-                "iterative.escalate_to_direct=True but RoutingConfig.direct_context_threshold "
-                "is not configured; escalation will be a no-op. Set RoutingConfig "
-                "to enable post-loop DIRECT escalation."
             )
 
     async def initialize(self) -> None:
@@ -819,64 +600,6 @@ class RagEngine:
                 )
             retrieval_methods.append(GraphRetrieval(graph_store=persistence.graph_store, weight=0.7))
 
-        # RAPTOR retrieval path — opt-in via ``IngestionConfig.raptor.enabled``.
-        # Registry is constructed eagerly here (NOT lazily on first build) so the
-        # retrieval method can hold a stable reference; the builder stays lazy
-        # because builds are explicit consumer actions, not engine-init work.
-        # The default-off path leaves ``_raptor_registry`` ``None`` and registers
-        # no RAPTOR retrieval method, so existing pipelines stay byte-for-byte
-        # unchanged. Eligibility splits two ways:
-        #   1. Missing dep (vector_store / embeddings) → soft-skip + WARNING.
-        #      Consumers may declare ``raptor.enabled=True`` and defer wiring;
-        #      ``build_raptor_index`` raises at the API boundary if they try
-        #      to use it without the deps.
-        #   2. Wrong metadata-store type (not ``SQLAlchemyMetadataStore``) →
-        #      raise ``ConfigurationError`` at init. RAPTOR's registry schema
-        #      lives in SQLAlchemy; a non-SQLA metadata store is actively-
-        #      wrong wiring, not a missing-dep "defer wiring" pattern.
-        if ingestion.raptor.enabled:
-            missing: list[str] = []
-            if persistence.vector_store is None:
-                missing.append("vector_store is not configured")
-            if ingestion.embeddings is None:
-                missing.append("embeddings is not configured")
-
-            if persistence.metadata_store is not None and not isinstance(
-                persistence.metadata_store, SQLAlchemyMetadataStore
-            ):
-                # Actively-wrong wiring: surface immediately so consumers can't
-                # silently lose RAPTOR retrieval. ``build_raptor_index`` keeps
-                # its own isinstance check as defence-in-depth for paths that
-                # bypass ``initialize()``.
-                raise ConfigurationError(
-                    "raptor.enabled=True requires metadata_store to be "
-                    "SQLAlchemyMetadataStore "
-                    f"(got {type(persistence.metadata_store).__name__})"
-                )
-            if persistence.metadata_store is None:
-                missing.append("metadata_store is not configured")
-
-            if not missing:
-                # Type narrowed by the missing-deps and isinstance checks above.
-                assert isinstance(persistence.metadata_store, SQLAlchemyMetadataStore)
-                assert persistence.vector_store is not None
-                assert ingestion.embeddings is not None
-                self._raptor_registry = RaptorTreeRegistry(persistence.metadata_store)
-                retrieval_methods.append(
-                    RaptorRetrieval(
-                        vector_store=persistence.vector_store,
-                        embeddings=ingestion.embeddings,
-                        registry=self._raptor_registry,
-                        weight=1.0,
-                    )
-                )
-                logger.info("raptor retrieval: enabled")
-            else:
-                logger.warning(
-                    "raptor.enabled=True but %s; RAPTOR retrieval and build_raptor_index will be unavailable.",
-                    ", ".join(missing),
-                )
-
         # Chunker
         self._chunker = SemanticChunker(
             chunk_size=ingestion.chunk_size,
@@ -885,32 +608,6 @@ class RagEngine:
             parent_chunk_overlap=ingestion.parent_chunk_overlap,
             chunk_size_unit=ingestion.chunk_size_unit,
         )
-
-        # Tree indexing service
-        self._tree_indexing_service = None
-        if cfg.tree_indexing.enabled and persistence.metadata_store:
-            from rfnry_rag.retrieval.modules.ingestion.tree.service import TreeIndexingService
-
-            tree_idx_registry = build_registry(cfg.tree_indexing.model) if cfg.tree_indexing.model else None
-            self._tree_indexing_service = TreeIndexingService(
-                config=cfg.tree_indexing,
-                metadata_store=persistence.metadata_store,
-                registry=tree_idx_registry,
-            )
-            ingestion_methods.append(TreeIngestion(tree_service=self._tree_indexing_service))
-            logger.info("tree indexing: enabled")
-
-        # Tree search service (requires metadata store for loading tree indexes)
-        self._tree_search_service = None
-        if cfg.tree_search.enabled and persistence.metadata_store:
-            from rfnry_rag.retrieval.modules.retrieval.tree.service import TreeSearchService
-
-            tree_search_registry = build_registry(cfg.tree_search.model) if cfg.tree_search.model else None
-            self._tree_search_service = TreeSearchService(
-                config=cfg.tree_search,
-                registry=tree_search_registry,
-            )
-            logger.info("tree search: enabled")
 
         # Build namespaces (public API)
         self._retrieval_namespace = MethodNamespace(retrieval_methods)
@@ -923,9 +620,6 @@ class RagEngine:
             if ingestion.document_expansion.enabled and ingestion.document_expansion.lm_client
             else None
         )
-
-        if cfg.routing.mode == QueryMode.HYBRID and cfg.routing.hybrid_answerability_model is not None:
-            self._answerability_registry = build_registry(cfg.routing.hybrid_answerability_model)
 
         # Build services
         self._ingestion_service = IngestionService(
@@ -994,19 +688,7 @@ class RagEngine:
             source_type_weights=retrieval.source_type_weights,
             query_rewriter=retrieval.query_rewriter,
             chunk_refiner=retrieval.chunk_refiner,
-            adaptive_config=retrieval.adaptive,
-            classifier_lm_client=retrieval.enrich_lm_client,
         )
-
-        # Only construct when iterative is opted-in. Lazy construction
-        # keeps `iterative.enabled=False` byte-for-byte unchanged (no service
-        # built, no decomposer registry warmed, no extra fields populated).
-        if retrieval.iterative.enabled:
-            self._iterative_service = IterativeRetrievalService(
-                retrieval_service=self._retrieval_service,
-                fallback_decomposition_lm=retrieval.enrich_lm_client,
-            )
-            logger.info("iterative retrieval: enabled (gate_mode=%s)", retrieval.iterative.gate_mode)
 
         # Structured retrieval (unchanged)
         if persistence.vector_store and ingestion.embeddings:
@@ -1126,14 +808,9 @@ class RagEngine:
         self._drawing_ingestion = None
         self._retrieval_service = None
         self._structured_retrieval = None
-        self._iterative_service = None
         self._generation_service = None
         self._knowledge_manager = None
         self._step_service = None
-        self._tree_indexing_service = None
-        self._tree_search_service = None
-        self._raptor_builder = None
-        self._raptor_registry = None
         self._retrieval_namespace = None
         self._ingestion_namespace = None
         self._retrieval_by_collection.clear()
@@ -1158,7 +835,6 @@ class RagEngine:
         resume_from_chunk: int = 0,
         on_progress: Callable[[int, int], Awaitable[None]] | None = None,
         collection: str | None = None,
-        tree_index: bool = False,
     ) -> Source:
         """Ingest a file. Routes to unstructured or structured based on extension."""
         self._check_initialized()
@@ -1253,35 +929,6 @@ class RagEngine:
             resume_from_chunk=resume_from_chunk,
             on_progress=on_progress,
         )
-
-        # Tree indexing: build and persist tree index after ingestion
-        if tree_index and self._tree_indexing_service:
-            from rfnry_rag.retrieval.modules.ingestion.chunk.parsers.pdf import PDFParser
-            from rfnry_rag.retrieval.modules.ingestion.tree.toc import PageContent
-
-            # Re-parse the document to get page-level text for tree indexing.
-            # Only PDF files support page-level tree indexing currently.
-            if ext == ".pdf":
-                parser = PDFParser()
-                parsed_pages = parser.parse(str(file_path))
-                pages = [
-                    PageContent(
-                        index=p.page_number,
-                        text=p.content,
-                        token_count=len(p.content) // 4,
-                    )
-                    for p in parsed_pages
-                ]
-                doc_name = (metadata or {}).get("name", file_path.name)
-                tree_idx = await self._tree_indexing_service.build_tree_index(
-                    source_id=source.source_id,
-                    doc_name=doc_name,
-                    pages=pages,
-                )
-                await self._tree_indexing_service.save_tree_index(tree_idx)
-                logger.info("tree index built for source %s (%d pages)", source.source_id, len(pages))
-            else:
-                logger.warning("tree_index=True but file type %s does not support tree indexing", ext)
 
         return source
 
@@ -1396,11 +1043,9 @@ class RagEngine:
     ) -> QueryResult:
         """Full pipeline: dispatches on `RoutingConfig.mode`.
 
-        RETRIEVAL (default) runs the existing retrieve-then-generate path.
-        DIRECT loads the entire corpus into the prompt and skips retrieval.
-        HYBRID runs RAG first, then asks the LLM whether the chunks suffice;
-        on "no", escalates to a DIRECT-style full-corpus generation.
-        AUTO picks DIRECT or RETRIEVAL per query based on corpus size
+        RETRIEVAL (default) runs retrieve-then-generate. DIRECT loads the
+        entire corpus into the prompt and skips retrieval. AUTO picks
+        DIRECT or RETRIEVAL per query based on corpus size
         (`RoutingConfig.direct_context_threshold`).
         """
         self._check_initialized()
@@ -1415,38 +1060,11 @@ class RagEngine:
             )
         if mode == QueryMode.DIRECT:
             return await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
-        if mode == QueryMode.HYBRID:
-            return await self._query_via_hybrid(
-                text, knowledge_id, history, min_score, collection, system_prompt, trace
-            )
         return await self._query_via_auto(text, knowledge_id, history, min_score, collection, system_prompt, trace)
 
     @staticmethod
     def _max_chunk_score(chunks: list[RetrievedChunk]) -> float | None:
-        """Max `score` across chunks; `None` for empty input.
-
-        Thin wrapper over `common.grounding.max_chunk_score`. The
-        implementation lives in a shared module so the iterative-arm
-        escalation reuses the exact same boundary semantics as the
-        retrieval-arm escalation — divergence here would be a real-world
-        correctness bug.
-        """
         return max_chunk_score(chunks)
-
-    @classmethod
-    def _should_expand(cls, chunks: list[RetrievedChunk], threshold: float) -> bool:
-        """True when retrieval signal is weak — empty OR strict-below threshold.
-
-        Thin wrapper over `common.grounding.is_weak_chunk_signal`. The
-        implementation lives in a shared module so the iterative arm
-        reuses the same check at a different trigger site (post-loop
-        instead of post-retrieve). Boundary is `<` not `<=`: a query at
-        exactly the threshold is NOT considered weak. Matches
-        `GenerationConfig.grounding_threshold`'s existing semantics —
-        `grounding_threshold` gates "is this answer grounded?", and a
-        chunk score equal to the threshold is grounded.
-        """
-        return is_weak_chunk_signal(chunks, threshold)
 
     async def _query_via_retrieval(
         self,
@@ -1458,193 +1076,9 @@ class RagEngine:
         system_prompt: str | None,
         trace: bool,
     ) -> QueryResult:
-        """Existing retrieve-then-generate pipeline (RETRIEVAL mode).
-
-        The confidence-expansion retry loop is wrapped here (NOT in
-        `RetrievalService`): the engine has access to
-        `KnowledgeManager.get_corpus_tokens` for the long-context
-        escalation decision and `_query_via_direct_context` for the actual
-        escalation — service-level concerns shouldn't know about
-        cross-strategy escalation. HYBRID's RAG branch calls
-        `_retrieve_chunks` directly (not `_query_via_retrieval`), so
-        HYBRID is naturally excluded from expansion (HYBRID has its own
-        answerability check; expansion would double up).
-
-        This method also dispatches at the top to `_query_via_iterative`
-        when iterative is enabled and the gate passes. AUTO mode reaches
-        this method when it routes to RETRIEVAL, so iterative is consulted
-        on both RETRIEVAL and AUTO->RETRIEVAL paths transparently. HYBRID
-        and DIRECT are NOT affected — HYBRID has its own answerability
-        check (double-decomposing burns LLM calls without benefit), and
-        DIRECT loads the whole corpus already.
-        """
+        """Retrieve-then-generate pipeline (RETRIEVAL mode)."""
         assert self._generation_service is not None
-
-        # Iterative dispatch: classify once, decide whether to iterate. We
-        # classify here (not inside `_query_via_iterative`) so the verdict can
-        # be passed to BOTH the iterative service (for the type-mode gate) AND
-        # the inner `RetrievalService.retrieve` (when adaptive is enabled,
-        # `_compute_adaptive_params` reuses this verdict — pre-classification
-        # avoids the double LLM call). Today we don't yet thread the
-        # classification down into `RetrievalService.retrieve`; that's a
-        # follow-up. The gate is fast enough that running the heuristic twice
-        # (once here, once inside `RetrievalService` if adaptive is on) is not
-        # a hotspot in practice.
-        # Defensive `getattr`: tests construct minimally-wired engines via
-        # `SimpleNamespace`, which may omit `iterative`. Production
-        # `RagServerConfig` always provides it; treating missing as
-        # "disabled" preserves the existing test ergonomics (mirrors the
-        # `adaptive` lookup pattern earlier in this method).
-        iterative_cfg = getattr(self._config.retrieval, "iterative", None)
-        if iterative_cfg is not None and iterative_cfg.enabled and self._iterative_service is not None:
-            if iterative_cfg.gate_mode == "type":
-                # Type-mode gate uses the classifier verdict; default to the
-                # free heuristic. LLM-backed classification is opted in via
-                # `AdaptiveRetrievalConfig.use_llm_classification` — when set,
-                # the same classifier client is shared with the gate to avoid
-                # diverging verdicts.
-                classifier_lm = (
-                    self._config.retrieval.enrich_lm_client
-                    if self._config.retrieval.adaptive.use_llm_classification
-                    else None
-                )
-                classification = await classify_query(text, classifier_lm)
-                if gate_passes_type(classification):
-                    return await self._query_via_iterative(
-                        text,
-                        knowledge_id,
-                        history,
-                        min_score,
-                        collection,
-                        system_prompt,
-                        trace,
-                        classification=classification,
-                    )
-                # Gate rejected: fall through to plain `_query_via_retrieval`.
-            else:
-                # LLM-mode: the decomposer is the gate. Hand off without
-                # pre-classifying — the first `DecomposeQuery` call decides.
-                return await self._query_via_iterative(
-                    text,
-                    knowledge_id,
-                    history,
-                    min_score,
-                    collection,
-                    system_prompt,
-                    trace,
-                    classification=None,
-                )
-
-        # Defensive lookups: tests construct minimally-wired engines via
-        # `SimpleNamespace`, which may omit `adaptive` / `generation`.
-        # Production `RagServerConfig` always provides both; treating
-        # missing fields as "disabled" preserves the test ergonomics.
-        adaptive = getattr(self._config.retrieval, "adaptive", None)
-        expansion_enabled = adaptive is not None and adaptive.enabled and adaptive.confidence_expansion
-        generation_cfg = getattr(self._config, "generation", None)
-        grounding_threshold = generation_cfg.grounding_threshold if generation_cfg is not None else 0.5
-        base_top_k = getattr(self._config.retrieval, "top_k", 5)
-
         chunks, trace_obj = await self._retrieve_chunks(text, knowledge_id, history, min_score, collection, trace=trace)
-
-        attempts = 0
-        final_top_k = base_top_k
-        outcome: str | None = None
-        if expansion_enabled:
-            assert adaptive is not None  # narrowed by `expansion_enabled` truth
-            expanded_top_k = base_top_k
-            while attempts < adaptive.max_expansion_retries and self._should_expand(chunks, grounding_threshold):
-                attempts += 1
-                if attempts == 1:
-                    expanded_top_k = min(expanded_top_k * 2, adaptive.top_k_max)
-                # Step 2 (attempts == 2): rewriter swap. Currently a no-op
-                # placeholder — only one rewriter is configured today.
-                # TODO: future enhancement could add
-                # `AdaptiveRetrievalConfig.expansion_rewriters: list[BaseQueryRewriting]`
-                # and rotate through them here.
-                logger.info(
-                    "confidence expansion retry %d/%d (top_k=%d, grounding_threshold=%.2f)",
-                    attempts,
-                    adaptive.max_expansion_retries,
-                    expanded_top_k,
-                    grounding_threshold,
-                )
-                chunks, trace_obj = await self._retrieve_chunks(
-                    text,
-                    knowledge_id,
-                    history,
-                    min_score,
-                    collection,
-                    trace=trace,
-                    top_k=expanded_top_k,
-                )
-            final_top_k = expanded_top_k
-
-            if self._should_expand(chunks, grounding_threshold):
-                # Retries exhausted with chunks still weak. Try LC escalation
-                # if the corpus fits the direct-context threshold.
-                assert self._knowledge_manager is not None
-                tokens = await self._knowledge_manager.get_corpus_tokens(knowledge_id)
-                threshold = self._config.routing.direct_context_threshold
-                if tokens <= threshold:
-                    logger.info(
-                        "expansion exhausted; escalating to DIRECT mode (tokens=%d ≤ threshold=%d)",
-                        tokens,
-                        threshold,
-                    )
-                    direct_result = await self._query_via_direct_context(
-                        text, knowledge_id, history, system_prompt, trace
-                    )
-                    if direct_result.trace is not None:
-                        # `retrieval_then_direct` distinguishes "RETRIEVAL ran,
-                        # expansion failed, escalated" from plain `"direct"`
-                        # ("AUTO chose DIRECT directly"). Different cost shape
-                        # (RAG-then-LC vs LC-only), different debugging signal.
-                        direct_result.trace.routing_decision = "retrieval_then_direct"
-                        # Merge order: start with whatever the DIRECT trace
-                        # carries (likely None — DIRECT didn't run adaptive),
-                        # layer the pre-escalation classifier verdict
-                        # (`complexity`, `query_type`, `effective_top_k`,
-                        # `applied_multipliers`, `classification_source`) on top
-                        # so a consumer debugging "why did this escalate?" can
-                        # see the verdict that drove the failed retrieval, then
-                        # layer the expansion keys on top of THAT. Without this
-                        # merge the classifier verdict would be silently
-                        # dropped at the escalation boundary.
-                        merged: dict[str, Any] = {}
-                        if direct_result.trace.adaptive is not None:
-                            merged.update(direct_result.trace.adaptive)
-                        if trace_obj is not None and trace_obj.adaptive is not None:
-                            merged.update(trace_obj.adaptive)
-                        merged["expansion_attempts"] = attempts
-                        merged["expansion_outcome"] = "exhausted_escalated_to_lc"
-                        merged["final_top_k"] = final_top_k
-                        direct_result.trace.adaptive = merged
-                        # Merge pre-escalation RAG timings onto the DIRECT trace
-                        # so consumers can attribute the full RAG-then-LC cost
-                        # shape (the whole point of `routing_decision="retrieval_then_direct"`).
-                        # Without this, the RAG-stage timings (rewriting, retrieval,
-                        # fusion, reranking, classification, retry overhead) would
-                        # be silently dropped — only DIRECT-stage timings
-                        # (`direct_context_load`, `generation`) would survive.
-                        # DIRECT timings take precedence on key collision (none
-                        # expected — RAG and DIRECT stage names are distinct).
-                        if trace_obj is not None and trace_obj.timings:
-                            merged_timings = {
-                                **trace_obj.timings,
-                                **direct_result.trace.timings,
-                            }
-                            direct_result.trace.timings = merged_timings
-                    return direct_result
-                logger.info(
-                    "expansion exhausted; corpus too large for DIRECT escalation "
-                    "(tokens=%d > threshold=%d); proceeding with best-effort RAG",
-                    tokens,
-                    threshold,
-                )
-                outcome = "exhausted_proceeded"
-            else:
-                outcome = "succeeded"
 
         grounding_start = time.perf_counter() if trace_obj is not None else 0.0
         result = await self._generation_service.generate(
@@ -1653,233 +1087,6 @@ class RagEngine:
         if trace_obj is not None:
             trace_obj.timings["grounding"] = time.perf_counter() - grounding_start
             trace_obj.routing_decision = "retrieval"
-            trace_obj.confidence = result.confidence
-            if result.clarification is not None:
-                trace_obj.grounding_decision = "clarification"
-            elif result.grounded:
-                trace_obj.grounding_decision = "grounded"
-            else:
-                trace_obj.grounding_decision = "ungrounded"
-            if expansion_enabled and outcome is not None:
-                if trace_obj.adaptive is None:
-                    trace_obj.adaptive = {}
-                trace_obj.adaptive["expansion_attempts"] = attempts
-                trace_obj.adaptive["expansion_outcome"] = outcome
-                trace_obj.adaptive["final_top_k"] = final_top_k
-            result.trace = trace_obj
-        return result
-
-    async def _query_via_iterative(
-        self,
-        text: str,
-        knowledge_id: str | None,
-        history: list[tuple[str, str]] | None,
-        min_score: float | None,
-        collection: str | None,
-        system_prompt: str | None,
-        trace: bool,
-        classification: QueryClassification | None,
-    ) -> QueryResult:
-        """Multi-hop iterative retrieve-then-generate.
-
-        Mirrors `_query_via_hybrid` structurally: delegate to a sibling
-        service that owns the loop, then route the accumulated chunks
-        through `GenerationService.generate` unchanged. The trace
-        surfaces every hop's per-method results, decompose verdict, and
-        timings via `RetrievalTrace.iterative_hops`.
-
-        Post-loop DIRECT escalation tail (mirroring the retrieval-arm
-        escalation): when the multi-hop run finishes with accumulated
-        chunks still weak (max score below threshold) AND the corpus
-        fits the direct-context window, the engine routes to
-        `_query_via_direct_context` and stamps `routing_decision=
-        "iterative_then_direct"` plus the iterative hop list onto the
-        DIRECT result. Opt-in via
-        `IterativeRetrievalConfig.escalate_to_direct=True`.
-        """
-        assert self._generation_service is not None
-        assert self._iterative_service is not None
-        iterative_cfg = self._config.retrieval.iterative
-
-        # Per-collection retrieval pipelines require a per-collection
-        # iterative service too — otherwise a query against collection B
-        # would call the default RetrievalService for hops. Build a
-        # collection-scoped service on demand; production latency hit is
-        # negligible (object allocation only — no I/O).
-        iterative_service = self._iterative_service
-        if collection is not None:
-            scoped_retrieval, _scoped_struct = self._get_retrieval(collection)
-            if scoped_retrieval is not self._retrieval_service:
-                iterative_service = IterativeRetrievalService(
-                    retrieval_service=scoped_retrieval,
-                    fallback_decomposition_lm=self._config.retrieval.enrich_lm_client,
-                )
-
-        iterative_t0 = time.perf_counter() if trace else 0.0
-        accumulated_chunks, outcome = await iterative_service.retrieve(
-            query=text,
-            knowledge_id=knowledge_id,
-            history=history,
-            min_score=min_score,
-            collection=collection,
-            trace=trace,
-            iterative=iterative_cfg,
-            classification=classification,
-        )
-        iterative_elapsed = time.perf_counter() - iterative_t0 if trace else 0.0
-
-        # Post-loop DIRECT escalation. Mirrors the retrieval-arm tail but
-        # invoked from the iterative arm: when accumulated chunks are
-        # weak (max score < threshold) AND the corpus fits the direct-context
-        # window, escalate to `_query_via_direct_context` and stamp the
-        # iterative trace fields onto the DIRECT result.
-        #
-        # Threshold sourcing: `iterative.grounding_threshold` overrides
-        # `generation.grounding_threshold` when set; `None` (default)
-        # inherits — there is intentionally no hardcoded magic-number
-        # fallback.
-        #
-        # `error` outcomes from the loop (decomposer contract violation /
-        # mid-loop exception) bypass escalation entirely: the failure
-        # signal matters more than the chunk-strength signal, and
-        # relabeling `error` → `low_confidence_no_escalation` would erase
-        # an already-actionable diagnostic.
-        gen_threshold = self._config.generation.grounding_threshold
-        iter_threshold = (
-            iterative_cfg.grounding_threshold if iterative_cfg.grounding_threshold is not None else gen_threshold
-        )
-        # `error` outcomes preserve the loop's failure signal (relabeling
-        # would erase an already-actionable diagnostic). `done` with zero
-        # retrieve calls is the decomposer's "answer is in findings, no
-        # retrieval needed" short circuit; treating that as "weak chunks"
-        # would mislabel a legitimate decomposer verdict — empty chunks
-        # there means "no retrieval ran", not "retrieval ran and was
-        # weak". Only relabel when the loop actually retrieved at least
-        # one hop's worth of chunks.
-        eligible_for_escalation = (
-            outcome.termination_reason in {"done", "max_hops"} and outcome.total_retrieve_calls > 0
-        )
-        if (
-            eligible_for_escalation
-            and iterative_cfg.escalate_to_direct
-            and is_weak_chunk_signal(accumulated_chunks, iter_threshold)
-        ):
-            routing_threshold = (
-                self._config.routing.direct_context_threshold if self._config.routing is not None else None
-            )
-            tokens: int | None = None
-            if routing_threshold is not None:
-                try:
-                    assert self._knowledge_manager is not None
-                    tokens = await self._knowledge_manager.get_corpus_tokens(knowledge_id)
-                except Exception as exc:
-                    # Degrade gracefully: a transient `get_corpus_tokens`
-                    # failure (DB hiccup) shouldn't block the answer — fall
-                    # through to chunk synthesis with the best-effort weak
-                    # chunks we already have. Mirrors HYBRID's "degrade to
-                    # RAG on answerability check failure" pattern.
-                    logger.warning(
-                        "iterative escalation skipped: get_corpus_tokens failed (%s)",
-                        exc,
-                    )
-                    tokens = None
-            if routing_threshold is not None and tokens is not None and tokens <= routing_threshold:
-                logger.info(
-                    "iterative escalation: hops=%d max_score=%s threshold=%s tokens=%d ≤ %d",
-                    len(outcome.hops),
-                    max_chunk_score(accumulated_chunks),
-                    iter_threshold,
-                    tokens,
-                    routing_threshold,
-                )
-                direct_result = await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
-                if trace and direct_result.trace is not None:
-                    # Boundary-preservation pattern: stamp the iterative
-                    # trace data onto the DIRECT result so a consumer
-                    # debugging "why did this escalate?" can see
-                    # both halves of the run. Without this merge the
-                    # iterative hops + termination reason would be
-                    # silently dropped at the escalation boundary because
-                    # `_query_via_direct_context` builds a fresh trace.
-                    direct_result.trace.routing_decision = "iterative_then_direct"
-                    direct_result.trace.iterative_hops = list(outcome.hops)
-                    direct_result.trace.iterative_termination_reason = "low_confidence_escalated"
-                    if classification is not None:
-                        # Adaptive merge: layer the pre-escalation
-                        # classifier verdict onto the
-                        # DIRECT trace so consumers can attribute the
-                        # gate verdict that drove the failed iterative
-                        # run. DIRECT-side keys (none expected — DIRECT
-                        # didn't run adaptive) take precedence on
-                        # collision.
-                        merged: dict[str, Any] = {}
-                        if direct_result.trace.adaptive is not None:
-                            merged.update(direct_result.trace.adaptive)
-                        merged.setdefault("complexity", classification.complexity.name)
-                        merged.setdefault("query_type", classification.query_type.name)
-                        merged.setdefault("classification_source", classification.source)
-                        merged.setdefault("iterative_gate", "type_passed")
-                        direct_result.trace.adaptive = merged
-                    direct_result.trace.timings["iterative_total"] = iterative_elapsed
-                return direct_result
-            # Eligible by config but skipped (corpus too large OR routing
-            # not configured OR token-count read failed). Tag the outcome
-            # so consumers can distinguish "weak result, escalation
-            # disabled" from "weak result, escalation enabled but
-            # ineligible".
-            logger.info(
-                "iterative escalation skipped: routing_threshold=%s tokens=%s",
-                routing_threshold,
-                tokens,
-            )
-            outcome = replace(outcome, termination_reason="low_confidence_no_escalation")
-        elif iterative_cfg.escalate_to_direct:
-            # Escalation enabled but chunks not weak — no-op, keep the
-            # original termination reason ("done" / "max_hops" / "error").
-            pass
-        # If `escalate_to_direct=False`, we tag weak outcomes with
-        # `low_confidence_no_escalation` too — the caller asked us not
-        # to escalate, so the loop's own termination reason ("max_hops"
-        # etc.) doesn't capture the weak-result observation. `error`
-        # outcomes are preserved (see eligibility check above).
-        if (
-            eligible_for_escalation
-            and not iterative_cfg.escalate_to_direct
-            and is_weak_chunk_signal(accumulated_chunks, iter_threshold)
-        ):
-            outcome = replace(outcome, termination_reason="low_confidence_no_escalation")
-
-        trace_obj: RetrievalTrace | None = None
-        if trace:
-            trace_obj = RetrievalTrace(
-                query=text,
-                knowledge_id=knowledge_id,
-                routing_decision="iterative",
-                iterative_hops=outcome.hops,
-                iterative_termination_reason=outcome.termination_reason,
-                final_results=list(accumulated_chunks),
-            )
-            trace_obj.timings["iterative_total"] = iterative_elapsed
-            # Keep classification visible at the top-level trace (not just per-hop)
-            # so consumers can attribute "why did iterative kick in?" without
-            # walking the hop list. Mirrors the adaptive surface.
-            if classification is not None:
-                trace_obj.adaptive = {
-                    "complexity": classification.complexity.name,
-                    "query_type": classification.query_type.name,
-                    "classification_source": classification.source,
-                    "iterative_gate": "type_passed",
-                }
-
-        gen_start = time.perf_counter() if trace_obj is not None else 0.0
-        result = await self._generation_service.generate(
-            query=text,
-            chunks=accumulated_chunks,
-            history=history,
-            system_prompt=system_prompt,
-        )
-        if trace_obj is not None:
-            trace_obj.timings["generation"] = time.perf_counter() - gen_start
             trace_obj.confidence = result.confidence
             if result.clarification is not None:
                 trace_obj.grounding_decision = "clarification"
@@ -1932,70 +1139,6 @@ class RagEngine:
             result.trace = trace_obj
         return result
 
-    async def _query_via_hybrid(
-        self,
-        text: str,
-        knowledge_id: str | None,
-        history: list[tuple[str, str]] | None,
-        min_score: float | None,
-        collection: str | None,
-        system_prompt: str | None,
-        trace: bool,
-    ) -> QueryResult:
-        """HYBRID (SELF-ROUTE): RAG first, then ask the LLM if chunks suffice.
-
-        Step 1 retrieves chunks via the existing pipeline. Step 2 calls
-        `b.CheckAnswerability` with the chunks-as-context. On `answerable=True`
-        we generate from chunks (`routing_decision="hybrid_rag"`); on
-        `answerable=False` we load the full corpus and generate from it
-        (`routing_decision="hybrid_lc"`).
-        """
-        assert self._generation_service is not None
-        chunks, trace_obj = await self._retrieve_chunks(text, knowledge_id, history, min_score, collection, trace=trace)
-        context = chunks_to_context(chunks, ordering=self._config.generation.chunk_ordering)
-
-        answerable, _reasoning = await self._check_answerability(text, context, trace_obj)
-
-        if answerable:
-            gen_start = time.perf_counter() if trace_obj is not None else 0.0
-            result = await self._generation_service.generate(
-                query=text, chunks=chunks, history=history, system_prompt=system_prompt
-            )
-            if trace_obj is not None:
-                trace_obj.timings["generation"] = time.perf_counter() - gen_start
-                # `hybrid_rag` distinguishes "RAG path under HYBRID" from plain
-                # `retrieval` so consumers can attribute SELF-ROUTE wins (chunks
-                # were sufficient) vs escalations (`hybrid_lc`) downstream.
-                trace_obj.routing_decision = "hybrid_rag"
-                trace_obj.confidence = result.confidence
-                if result.clarification is not None:
-                    trace_obj.grounding_decision = "clarification"
-                elif result.grounded:
-                    trace_obj.grounding_decision = "grounded"
-                else:
-                    trace_obj.grounding_decision = "ungrounded"
-                result.trace = trace_obj
-            return result
-
-        load_start = time.perf_counter() if trace_obj is not None else 0.0
-        corpus = await self._load_full_corpus(knowledge_id)
-        if trace_obj is not None:
-            trace_obj.timings["direct_context_load"] = time.perf_counter() - load_start
-
-        gen_start = time.perf_counter() if trace_obj is not None else 0.0
-        result = await self._generation_service.generate_from_corpus(
-            query=text, corpus=corpus, history=history, system_prompt=system_prompt
-        )
-        if trace_obj is not None:
-            trace_obj.timings["generation"] = time.perf_counter() - gen_start
-            # `hybrid_lc` flags an LC escalation (chunks judged insufficient);
-            # downstream cost analysis subtracts these from `hybrid_rag` to
-            # quantify SELF-ROUTE's expensive-path hit rate.
-            trace_obj.routing_decision = "hybrid_lc"
-            trace_obj.confidence = result.confidence
-            result.trace = trace_obj
-        return result
-
     async def _query_via_auto(
         self,
         text: str,
@@ -2006,71 +1149,17 @@ class RagEngine:
         system_prompt: str | None,
         trace: bool,
     ) -> QueryResult:
-        """AUTO: pick DIRECT or RETRIEVAL per query based on corpus token count.
-
-        Reads `KnowledgeManager.get_corpus_tokens` and compares against
-        `RoutingConfig.direct_context_threshold`. Below-or-equal routes to
-        DIRECT (cheaper-and-better at small sizes); above routes to RETRIEVAL.
-        Both delegated paths populate `routing_decision` themselves — AUTO
-        adds no new enum value (AUTO is the chosen mode, not the chosen route).
-        """
+        """AUTO: pick DIRECT or RETRIEVAL per query based on corpus token count."""
         assert self._knowledge_manager is not None
         tokens = await self._knowledge_manager.get_corpus_tokens(knowledge_id)
         threshold = self._config.routing.direct_context_threshold
 
-        # `tokens <= threshold` (not `<`) so corpora exactly at the threshold
-        # take the DIRECT path — DIRECT is the cheaper-and-better strategy
-        # for small corpora, and the LLM provider's context window is the
-        # actual hard limit, not this routing knob.
         if tokens <= threshold:
-            # AUTO does NOT route to HYBRID. HYBRID adds an answerability LLM
-            # call to every query; AUTO's job is to pick the cheapest correct
-            # strategy. Consumers who want SELF-ROUTE behaviour opt in with
-            # `mode="hybrid"` explicitly. See plan §"Why AUTO doesn't route
-            # to HYBRID" for the cost-shape argument.
-            logger.info(
-                "auto routing: tokens=%d threshold=%d → DIRECT",
-                tokens,
-                threshold,
-            )
+            logger.info("auto routing: tokens=%d threshold=%d → DIRECT", tokens, threshold)
             return await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
 
-        logger.info(
-            "auto routing: tokens=%d threshold=%d → RETRIEVAL",
-            tokens,
-            threshold,
-        )
+        logger.info("auto routing: tokens=%d threshold=%d → RETRIEVAL", tokens, threshold)
         return await self._query_via_retrieval(text, knowledge_id, history, min_score, collection, system_prompt, trace)
-
-    async def _check_answerability(
-        self,
-        query: str,
-        context: str,
-        trace_obj: RetrievalTrace | None,
-    ) -> tuple[bool, str]:
-        """Run `b.CheckAnswerability` and record timing on the trace.
-
-        Returns `(answerable, reasoning)`. On exception, returns
-        `(True, "check_failed: <exc>")` and logs a warning. We treat a
-        failed check as answerable=True to degrade to the cheaper RAG path
-        rather than silently escalating to LC on a transient error
-        (rate limit, timeout, malformed JSON).
-        """
-        start = time.perf_counter()
-        try:
-            verdict = await b.CheckAnswerability(
-                query=query,
-                context=context,
-                baml_options={"client_registry": self._answerability_registry},
-            )
-            if trace_obj is not None:
-                trace_obj.timings["answerability_check"] = time.perf_counter() - start
-            return bool(verdict.answerable), str(verdict.reasoning)
-        except Exception as exc:
-            if trace_obj is not None:
-                trace_obj.timings["answerability_check"] = time.perf_counter() - start
-            logger.warning("answerability check failed; degrading to RAG: %s", exc)
-            return True, f"check_failed: {exc}"
 
     async def query_stream(
         self,
@@ -2186,66 +1275,6 @@ class RagEngine:
         _validate_query_text(text)
         vectors = await self._config.ingestion.embeddings.embed([text])
         return vectors[0]
-
-    async def build_raptor_index(self, knowledge_id: str) -> RaptorBuildReport:
-        """Build a RAPTOR summary tree for ``knowledge_id`` and swap it active.
-
-        Lazy-constructs ``RaptorTreeBuilder`` on first call so the default
-        ``RaptorConfig.enabled=False`` path is byte-for-byte unchanged
-        (no service wired, no registry constructed). Validates eligibility
-        at the engine layer (config, dependencies); the builder itself
-        re-validates defensively. Returns the populated build report so
-        callers can inspect ``level_counts``, ``timings``, and the
-        ``tree_id`` without parsing logs.
-
-        Raises ``ConfigurationError`` when:
-          - ``RaptorConfig.enabled=False`` (opt-in only),
-          - ``RaptorConfig.summary_model`` is unset,
-          - the engine lacks a ``vector_store``, ``embeddings``, or
-            ``metadata_store`` (RAPTOR needs all three).
-        """
-        self._check_initialized()
-        cfg = self._config.ingestion.raptor
-        if not cfg.enabled:
-            raise ConfigurationError("build_raptor_index() requires IngestionConfig.raptor.enabled=True")
-        if cfg.summary_model is None:
-            # Defensive: ``RaptorConfig.__post_init__`` already enforces this
-            # cross-field rule, but a consumer could mutate the field after
-            # construction. Re-checking here surfaces the misconfig at the
-            # API boundary rather than as a confusing builder error.
-            raise ConfigurationError("build_raptor_index() requires RaptorConfig.summary_model to be set")
-        persistence = self._config.persistence
-        if persistence.vector_store is None:
-            raise ConfigurationError("build_raptor_index() requires a vector_store")
-        if self._config.ingestion.embeddings is None:
-            raise ConfigurationError("build_raptor_index() requires embeddings")
-        if persistence.metadata_store is None:
-            raise ConfigurationError("build_raptor_index() requires a metadata_store (for RaptorTreeRegistry)")
-        assert self._knowledge_manager is not None
-
-        # SQLAlchemyMetadataStore is required (RAPTOR schema lives there).
-        # Validate every call so a consumer who bypasses ``initialize()``
-        # (e.g. via ``__new__``) still trips the guard.
-        if not isinstance(persistence.metadata_store, SQLAlchemyMetadataStore):
-            raise ConfigurationError(
-                "build_raptor_index() requires SQLAlchemyMetadataStore "
-                f"(got {type(persistence.metadata_store).__name__})"
-            )
-        # Registry may have been eagerly constructed at engine init when
-        # ``raptor.enabled=True`` so ``RaptorRetrieval`` could hold a
-        # reference; if absent (e.g. retrieval-only path skipped), build it
-        # lazily here. Builder stays lazy regardless — builds are explicit.
-        if self._raptor_registry is None:
-            self._raptor_registry = RaptorTreeRegistry(persistence.metadata_store)
-        if self._raptor_builder is None:
-            self._raptor_builder = RaptorTreeBuilder(
-                config=cfg,
-                vector_store=persistence.vector_store,
-                embeddings=self._config.ingestion.embeddings,
-                registry=self._raptor_registry,
-                knowledge_manager=self._knowledge_manager,
-            )
-        return await self._raptor_builder.build(knowledge_id)
 
     async def _load_full_corpus(self, knowledge_id: str | None) -> str:
         """Concatenate every source's text under ``knowledge_id`` into one string.
@@ -2418,8 +1447,6 @@ class RagEngine:
             source_type_weights=retrieval.source_type_weights,
             query_rewriter=retrieval.query_rewriter,
             chunk_refiner=retrieval.chunk_refiner,
-            adaptive_config=retrieval.adaptive,
-            classifier_lm_client=retrieval.enrich_lm_client,
         )
         structured: StructuredRetrievalService | None = None
         if ingestion.embeddings:
@@ -2457,8 +1484,6 @@ class RagEngine:
                     graph_config=cfg.ingestion.graph,
                 )
             )
-        if self._tree_indexing_service is not None:
-            methods.append(TreeIngestion(tree_service=self._tree_indexing_service))
 
         return IngestionService(
             chunker=self._chunker,
@@ -2497,24 +1522,14 @@ class RagEngine:
         unstructured, structured = self._get_retrieval(collection)
         retrieval_query = self._build_retrieval_query(text, history)
 
-        tree_chunks: list[RetrievedChunk] = []
-        if self._tree_search_service and self._config.persistence.metadata_store:
-            tree_chunks = await self._run_tree_search(
-                query=retrieval_query,
-                knowledge_id=knowledge_id,
-            )
-
-        tree_kwargs: dict[str, Any] = {"tree_chunks": tree_chunks} if tree_chunks else {}
+        extra_kwargs: dict[str, Any] = {}
         if top_k is not None:
-            tree_kwargs["top_k"] = top_k
+            extra_kwargs["top_k"] = top_k
 
         trace_obj: RetrievalTrace | None = None
         if structured:
-            # return_exceptions so one path failing doesn't kill the query.
-            # The inner search service already degrades per-variant; this makes
-            # the structured-vs-unstructured merge consistent.
             results = await asyncio.gather(
-                unstructured.retrieve(query=retrieval_query, knowledge_id=knowledge_id, trace=trace, **tree_kwargs),
+                unstructured.retrieve(query=retrieval_query, knowledge_id=knowledge_id, trace=trace, **extra_kwargs),
                 structured.retrieve(query=retrieval_query, knowledge_id=knowledge_id),
                 return_exceptions=True,
             )
@@ -2529,7 +1544,7 @@ class RagEngine:
             chunks = self._merge_retrieval_results(unstructured_chunks, structured_chunks)  # type: ignore[arg-type]
         else:
             chunks, trace_obj = await unstructured.retrieve(
-                query=retrieval_query, knowledge_id=knowledge_id, trace=trace, **tree_kwargs
+                query=retrieval_query, knowledge_id=knowledge_id, trace=trace, **extra_kwargs
             )
 
         if min_score is not None:
@@ -2539,67 +1554,6 @@ class RagEngine:
             trace_obj.final_results = list(chunks)
 
         return chunks, trace_obj
-
-    async def _run_tree_search(
-        self,
-        query: str,
-        knowledge_id: str | None,
-    ) -> list[RetrievedChunk]:
-        """Load tree indexes for relevant sources and run tree search concurrently across sources."""
-        import json
-
-        from rfnry_rag.retrieval.common.models import TreeIndex
-        from rfnry_rag.retrieval.modules.ingestion.tree.toc import PageContent
-
-        assert self._tree_search_service is not None
-        tree_service = self._tree_search_service
-        metadata_store = self._config.persistence.metadata_store
-        assert metadata_store is not None
-
-        source_ids_full = await metadata_store.list_source_ids(knowledge_id=knowledge_id)
-
-        max_sources = self._config.tree_search.max_sources_per_query
-        if len(source_ids_full) > max_sources:
-            logger.warning(
-                "tree search limited to %d of %d sources (max_sources_per_query)",
-                max_sources,
-                len(source_ids_full),
-            )
-            source_ids_full = source_ids_full[:max_sources]
-
-        tree_jsons = await metadata_store.get_tree_indexes(source_ids_full)
-
-        async def search_one(source_id: str) -> list[RetrievedChunk]:
-            tree_json = tree_jsons.get(source_id)
-            if not tree_json:
-                return []
-            tree_index = TreeIndex.from_dict(json.loads(tree_json))
-            if not tree_index.pages:
-                logger.warning("tree index for %s has no stored pages, skipping tree search", source_id)
-                return []
-            # Convert stored TreePage back to PageContent for the search service
-            pages = [PageContent(index=p.index, text=p.text, token_count=p.token_count) for p in tree_index.pages]
-            results = await tree_service.search(
-                query=query,
-                tree_index=tree_index,
-                pages=pages,
-            )
-            if not results:
-                return []
-            return tree_service.to_retrieved_chunks(results, tree_index)
-
-        per_source = await asyncio.gather(
-            *(search_one(sid) for sid in source_ids_full),
-            return_exceptions=True,
-        )
-
-        all_tree_chunks: list[RetrievedChunk] = []
-        for source_id, outcome in zip(source_ids_full, per_source, strict=True):
-            if isinstance(outcome, BaseException):
-                logger.warning("tree search for %s failed: %s — skipping", source_id, outcome)
-                continue
-            all_tree_chunks.extend(outcome)
-        return all_tree_chunks
 
     def _get_retrieval(self, collection: str | None) -> tuple[RetrievalService, StructuredRetrievalService | None]:
         """Return retrieval pipeline for *collection* (default if None).
@@ -2646,8 +1600,6 @@ class RagEngine:
             flows.append("structured")
         if self._generation_service:
             flows.append("generation")
-        if self._tree_search_service:
-            flows.append("tree_search")
         return flows
 
     @staticmethod

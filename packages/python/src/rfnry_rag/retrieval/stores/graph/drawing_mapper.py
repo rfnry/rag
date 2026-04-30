@@ -119,7 +119,6 @@ def connection_to_graph_relation(
 def drawing_to_graph(
     pages: list[DrawingPageAnalysis],
     deterministic_pairings: list[DetectedConnection],
-    llm_residue: list[dict[str, Any]],
     source_id: str,
     config: DrawingIngestionConfig,
     knowledge_id: str | None = None,
@@ -130,7 +129,6 @@ def drawing_to_graph(
     Relations:
       - Same-page wires from DrawingPageAnalysis.connections
       - Cross-sheet pairings from deterministic_pairings (linker output)
-      - MENTIONS edges for each LLM-suggested merge in llm_residue
 
     Symbol-class lookup is built once from the entities so cross-page relations
     can fill from_type / to_type without re-scanning.
@@ -172,27 +170,6 @@ def drawing_to_graph(
                 config,
                 component_type_lookup,
                 knowledge_id,
-            )
-        )
-    # LLM-suggested merges -> MENTIONS (safe allowlisted type).
-    for merge in llm_residue:
-        context_fields: dict[str, Any] = {
-            "llm_suggested": True,
-            "confidence": merge.get("confidence"),
-            "page_a": merge.get("page_a"),
-            "page_b": merge.get("page_b"),
-            "rationale": merge.get("rationale"),
-            "source_id": source_id,
-        }
-        relations.append(
-            GraphRelation(
-                from_entity=merge["component_a"],
-                from_type=component_type_lookup.get(merge["component_a"], "component"),
-                to_entity=merge["component_b"],
-                to_type=component_type_lookup.get(merge["component_b"], "component"),
-                relation_type="MENTIONS",
-                knowledge_id=knowledge_id,
-                context=_context_string(context_fields),
             )
         )
     return entities, relations

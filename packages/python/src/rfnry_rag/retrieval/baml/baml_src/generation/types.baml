@@ -6,11 +6,6 @@ class RelevanceJudgment {
   clarifying_options string[]?
 }
 
-class AnswerabilityVerdict {
-  answerable bool
-  reasoning string
-}
-
 class DocumentSynthesis {
   cross_references SynthesisCrossReference[]
   page_clusters SynthesisPageCluster[]

@@ -97,7 +97,7 @@ def _make_service(metadata, *, vector_store=None, graph_store=None, config=None)
     )
 
 
-async def _seed_linked(metadata, pages, pairings=None, residue=None):
+async def _seed_linked(metadata, pages, pairings=None):
     src = Source(
         source_id="src-1",
         status="linked",
@@ -108,8 +108,6 @@ async def _seed_linked(metadata, pages, pairings=None, residue=None):
             "file_name": "simple.pdf",
             "drawing_linking": {
                 "deterministic_pairings": [p.to_dict() for p in (pairings or [])],
-                "fuzzy_merges": [],
-                "llm_residue": residue or [],
             },
         },
     )
@@ -244,29 +242,3 @@ async def test_ingest_sets_chunk_count_to_component_count() -> None:
     src = await _seed_linked(metadata, [p1])
     src = await svc.ingest(src.source_id)
     assert src.chunk_count == 3
-
-
-async def test_ingest_passes_llm_residue_to_graph_mapper() -> None:
-    p1 = _dp(1, [_dc("v1", "valve_ball")])
-    p2 = _dp(2, [_dc("v2", "valve_ball")])
-    residue = [
-        {
-            "page_a": 1,
-            "component_a": "v1",
-            "page_b": 2,
-            "component_b": "v2",
-            "confidence": 0.85,
-            "rationale": "both labelled V-101",
-        }
-    ]
-    metadata = _InMemoryMetadataStore()
-    gstore = _RecordingGraphStore()
-    svc = _make_service(metadata, graph_store=gstore)
-    src = await _seed_linked(metadata, [p1, p2], residue=residue)
-    await svc.ingest(src.source_id)
-    # At least one MENTIONS relation from the LLM residue
-    all_relations = [r for _, rels in gstore.relations_calls for r in rels]
-    mentions = [r for r in all_relations if r.relation_type == "MENTIONS"]
-    assert len(mentions) == 1
-    assert mentions[0].from_entity == "v1"
-    assert mentions[0].to_entity == "v2"

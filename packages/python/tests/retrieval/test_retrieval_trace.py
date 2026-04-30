@@ -59,8 +59,6 @@ def _make_engine_for_query(retrieve_return: tuple[list[RetrievedChunk], Any]) ->
     server._structured_ingestion = None
     server._retrieval_namespace = None
     server._ingestion_namespace = None
-    server._tree_indexing_service = None
-    server._tree_search_service = None
     return server
 
 

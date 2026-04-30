@@ -31,57 +31,23 @@ from pathlib import Path
 USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     # ---- retrieval / generation ----
     "GenerateAnswer": ["context", "query"],
-    "CheckAnswerability": ["query", "context"],
     "CheckRelevance": ["query", "passage"],
-    "SynthesizeDocument": [],  # page_analyses is pipeline-generated
-    "GenerateReasoningStep": ["query", "context"],  # prior_reasoning is pipeline-generated
+    "SynthesizeDocument": [],
+    "GenerateReasoningStep": ["query", "context"],
     # ---- retrieval / rewriting ----
-    "GenerateHypotheticalDocument": ["query"],
-    "GenerateQueryVariants": ["query"],  # num_variants is an int (operator)
-    "GenerateStepBackQuery": ["query"],
+    "GenerateQueryVariants": ["query"],
     # ---- retrieval / retrieval ----
     "AnalyzeQuery": ["query"],
-    "ClassifyQueryComplexity": ["query"],
-    "DecomposeQuery": ["original_query", "accumulated_findings"],
     "RerankChunks": ["query", "passages"],
-    "SummarizeCluster": ["cluster_texts"],
-    "JudgeRetrievalNecessity": ["query"],  # knowledge_description is operator config
+    "JudgeRetrievalNecessity": ["query"],
     "CompressRetrievedContext": ["query", "passages"],
     # ---- retrieval / evaluation ----
     "JudgeAnswerQuality": ["query", "prediction", "reference"],
     # ---- retrieval / ingestion ----
-    "AnalyzePage": [],  # image type — no text injection risk
+    "AnalyzePage": [],
     "ExtractEntitiesFromText": ["text"],
     "GenerateSyntheticQueries": ["passage", "num_queries"],
     "AnalyzeDrawingPage": ["symbol_library", "off_page_patterns"],
-    # page_image is image type; symbol_library + off_page_patterns are fenced;
-    # domain_hint is operator config (from DrawingIngestionConfig.default_domain)
-    # per_page_digest and already_linked are pipeline-generated but include
-    # document-extracted text (potentially tainted); fence both
-    "SynthesizeDrawingSet": ["per_page_digest", "already_linked"],
-    # ---- retrieval / tree_indexing ----
-    "DetectTableOfContents": ["page_text"],
-    "ParseTableOfContents": ["toc_text"],
-    "FindSectionStart": ["section_title", "pages_text"],
-    "VerifySectionPosition": ["title", "page_text"],
-    "ExtractDocumentStructure": ["pages_text"],
-    "ContinueDocumentStructure": ["pages_text"],  # existing_structure is pipeline-generated
-    "GenerateNodeSummary": ["section_text"],  # title is document-extracted metadata
-    "GenerateDocDescription": [],  # tree_structure is pipeline-generated
-    # ---- retrieval / tree_search ----
-    "TreeRetrievalStep": ["query"],  # tree_structure and accumulated_context are pipeline-generated
-    # ---- reasoning / analysis ----
-    "AnalyzeText": ["text"],  # instructions is operator-controlled
-    "AnalyzeContext": ["messages", "roles"],  # instructions is operator-controlled
-    # ---- reasoning / classification ----
-    "ClassifyText": ["text"],  # categories is operator config
-    "ClassifyTextSets": ["text"],  # category_sets is operator config
-    # ---- reasoning / clustering ----
-    "LabelCluster": ["samples"],
-    # ---- reasoning / compliance ----
-    "CheckCompliance": ["text", "reference"],  # dimensions is operator config
-    # ---- reasoning / evaluation ----
-    "JudgeOutput": ["generated", "reference", "context"],  # dimensions is operator config
 }
 
 

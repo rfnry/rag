@@ -66,15 +66,6 @@ def test_dpi_bounds() -> None:
         DrawingIngestionConfig(enabled=True, dpi=700)  # above 600
 
 
-def test_fuzzy_threshold_bounds() -> None:
-    from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
-
-    with pytest.raises(ConfigurationError):
-        DrawingIngestionConfig(enabled=True, fuzzy_label_threshold=1.5)
-    with pytest.raises(ConfigurationError):
-        DrawingIngestionConfig(enabled=True, fuzzy_label_threshold=-0.1)
-
-
 def test_analyze_concurrency_bounds() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
 

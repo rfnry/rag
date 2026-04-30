@@ -44,7 +44,6 @@ post-processing.
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -52,10 +51,6 @@ from typing import TYPE_CHECKING
 from rfnry_rag.common.concurrency import run_concurrent
 from rfnry_rag.common.errors import ConfigurationError
 from rfnry_rag.retrieval.common.logging import get_logger
-from rfnry_rag.retrieval.modules.evaluation.failure_analysis import (
-    FailureClassification,
-    classify_failure,
-)
 from rfnry_rag.retrieval.modules.evaluation.metrics import ExactMatch, F1Score, LLMJudgment
 
 if TYPE_CHECKING:
@@ -108,18 +103,11 @@ class BenchmarkConfig:
 
 @dataclass
 class BenchmarkCaseResult:
-    """Per-case outcome carrying the full `QueryResult` (with `trace`) plus metrics.
-
-    `failure` is `None` when the case passed; populated via
-    `classify_failure` when the case is judged a failure. The
-    raw `QueryResult` is retained so consumers writing benchmarks can
-    drill into the trace for any case (the CLI's `--output` JSON
-    flag round-trips this entire structure for offline inspection).
-    """
+    """Per-case outcome carrying the full `QueryResult` (with `trace`) plus metrics."""
 
     case: BenchmarkCase
     result: QueryResult
-    failure: FailureClassification | None
+    failed: bool
     metrics: dict[str, float] = field(default_factory=dict)
 
 
@@ -127,10 +115,9 @@ class BenchmarkCaseResult:
 class BenchmarkReport:
     """Aggregate report for a benchmark run.
 
-    `retrieval_recall` and `retrieval_precision` are `None` when at
-    least one case lacks `expected_source_ids` — N/A is distinct from
-    0.0. `llm_judge_score` is `None` when the engine has no LLM judge
-    configured (judging is opt-in; we do not silently spend tokens).
+    `retrieval_recall` and `retrieval_precision` are `None` when at least one
+    case lacks `expected_source_ids` — N/A is distinct from 0.0.
+    `llm_judge_score` is `None` when no LLM judge was configured.
     """
 
     total_cases: int
@@ -139,7 +126,7 @@ class BenchmarkReport:
     generation_em: float
     generation_f1: float
     llm_judge_score: float | None
-    failure_distribution: dict[str, int]
+    failure_count: int
     per_case_results: list[BenchmarkCaseResult]
 
 
@@ -213,11 +200,8 @@ async def run_benchmark(
             judge_score = await llm_judge.score(result.answer or "", [case.expected_answer], query=case.query)
             per_case["llm_judge"] = judge_score
 
-        failure: FailureClassification | None = None
-        if _is_failure(case, result, cfg.failure_threshold) and result.trace is not None:
-            failure = classify_failure(case.query, result.trace)
-
-        return BenchmarkCaseResult(case=case, result=result, failure=failure, metrics=per_case)
+        failed = _is_failure(case, result, cfg.failure_threshold)
+        return BenchmarkCaseResult(case=case, result=result, failed=failed, metrics=per_case)
 
     per_case_results = await run_concurrent(cases, _run_one, concurrency=cfg.concurrency)
 
@@ -243,17 +227,14 @@ async def run_benchmark(
     else:
         llm_judge_score = None
 
-    distribution: Counter[str] = Counter()
-    for r in per_case_results:
-        if r.failure is not None:
-            distribution[r.failure.type.name] += 1
+    failure_count = sum(1 for r in per_case_results if r.failed)
 
     logger.info(
         "benchmark complete: total=%d em=%.3f f1=%.3f failures=%d",
         n,
         generation_em,
         generation_f1,
-        sum(distribution.values()),
+        failure_count,
     )
 
     return BenchmarkReport(
@@ -263,6 +244,6 @@ async def run_benchmark(
         generation_em=generation_em,
         generation_f1=generation_f1,
         llm_judge_score=llm_judge_score,
-        failure_distribution=dict(distribution),
+        failure_count=failure_count,
         per_case_results=list(per_case_results),
     )

@@ -14,7 +14,6 @@ from rfnry_rag.retrieval.server import (
     PersistenceConfig,
     RagEngine,
     RagServerConfig,
-    TreeIndexingConfig,
 )
 
 
@@ -261,7 +260,6 @@ async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
                 embeddings=embeddings,
                 lm_client=lm_client,
             ),
-            tree_indexing=TreeIndexingConfig(enabled=True, model=MagicMock()),
         )
     )
     # Patch build_registry in every module that calls it at construction time
@@ -284,13 +282,12 @@ async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
     return engine
 
 
-async def test_scoped_ingestion_pipeline_includes_graph_and_tree(tmp_path) -> None:
-    """Non-default collection must get GraphIngestion + TreeIngestion when configured."""
+async def test_scoped_ingestion_pipeline_includes_graph(tmp_path) -> None:
+    """Non-default collection must get GraphIngestion when configured."""
     rag = await _build_engine_with_all_methods(collections=["primary", "secondary"])
     secondary_svc = rag._ingestion_by_collection["secondary"]
     method_types = {type(m).__name__ for m in secondary_svc._ingestion_methods}
     assert "VectorIngestion" in method_types
     assert "DocumentIngestion" in method_types
     assert "GraphIngestion" in method_types
-    assert "TreeIngestion" in method_types
     await rag.shutdown()

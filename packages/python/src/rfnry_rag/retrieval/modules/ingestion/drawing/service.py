@@ -23,7 +23,6 @@ from uuid import uuid4
 
 from baml_py import ClientRegistry
 
-from rfnry_rag.retrieval.baml.baml_client.async_client import b
 from rfnry_rag.retrieval.common.errors import IngestionError
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 from rfnry_rag.retrieval.common.language_model import build_registry
@@ -31,14 +30,7 @@ from rfnry_rag.retrieval.common.logging import get_logger
 from rfnry_rag.retrieval.common.models import Source, VectorPoint
 from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
 from rfnry_rag.retrieval.modules.ingestion.drawing.extract_dxf import extract_dxf_analysis
-from rfnry_rag.retrieval.modules.ingestion.drawing.linker import (
-    build_digest,
-    find_unresolved_candidates,
-    format_already_linked,
-    merge_fuzzy_labels,
-    pair_off_page_connectors,
-    parse_target_hints,
-)
+from rfnry_rag.retrieval.modules.ingestion.drawing.linker import pair_off_page_connectors
 from rfnry_rag.retrieval.modules.ingestion.drawing.models import (
     DetectedComponent,
     DetectedConnection,
@@ -223,46 +215,9 @@ class DrawingIngestionService:
                 continue
             pages.append(DrawingPageAnalysis.from_dict(analysis_dict))
 
-        deterministic_pairings = pair_off_page_connectors(pages) + parse_target_hints(pages, self._config)
-        fuzzy_merges = merge_fuzzy_labels(pages, self._config)
+        deterministic_pairings = pair_off_page_connectors(pages)
 
-        llm_residue: list[dict] = []
-        unresolved = find_unresolved_candidates(pages, deterministic_pairings, fuzzy_merges)
-        if unresolved and self._registry is not None and self._config.multi_page_linking:
-            per_page_digest = build_digest(pages)
-            already_linked = format_already_linked(deterministic_pairings, fuzzy_merges)
-            try:
-                synthesis = await b.SynthesizeDrawingSet(
-                    per_page_digest,
-                    already_linked,
-                    baml_options={"client_registry": self._registry},
-                )
-            except Exception as exc:
-                logger.warning(
-                    "[drawing/link] SynthesizeDrawingSet failed; continuing with deterministic pairings only: %s",
-                    exc,
-                )
-                synthesis = None
-            if synthesis is not None:
-                for merge in getattr(synthesis, "ambiguous_component_merges", []) or []:
-                    if merge.confidence < 0.5:
-                        continue
-                    llm_residue.append(
-                        {
-                            "page_a": merge.page_a,
-                            "component_a": merge.component_a,
-                            "page_b": merge.page_b,
-                            "component_b": merge.component_b,
-                            "confidence": merge.confidence,
-                            "rationale": merge.rationale,
-                        }
-                    )
-
-        link_payload = {
-            "deterministic_pairings": [p.to_dict() for p in deterministic_pairings],
-            "fuzzy_merges": fuzzy_merges,
-            "llm_residue": llm_residue,
-        }
+        link_payload = {"deterministic_pairings": [p.to_dict() for p in deterministic_pairings]}
         new_metadata = {**source.metadata, "drawing_linking": link_payload}
         await self._metadata_store.update_source(
             source_id,
@@ -272,11 +227,9 @@ class DrawingIngestionService:
         source.status = "linked"
         source.metadata = new_metadata
         logger.info(
-            "[drawing/link] source_id=%s deterministic=%d fuzzy=%d llm_residue=%d",
+            "[drawing/link] source_id=%s deterministic=%d",
             source_id,
             len(deterministic_pairings),
-            len(fuzzy_merges),
-            len(llm_residue),
         )
         return source
 
@@ -300,7 +253,6 @@ class DrawingIngestionService:
 
         linking = source.metadata.get("drawing_linking", {}) or {}
         deterministic_pairings = [DetectedConnection.from_dict(d) for d in linking.get("deterministic_pairings", [])]
-        llm_residue = list(linking.get("llm_residue", []) or [])
 
         # Embed one vector per component (type + label + page-local neighbours + domain).
         component_texts: list[str] = []
@@ -341,7 +293,6 @@ class DrawingIngestionService:
             entities, relations = drawing_to_graph(
                 pages=pages,
                 deterministic_pairings=deterministic_pairings,
-                llm_residue=llm_residue,
                 source_id=source.source_id,
                 config=self._config,
                 knowledge_id=source.knowledge_id,

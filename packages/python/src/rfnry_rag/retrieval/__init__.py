@@ -17,8 +17,6 @@ from rfnry_rag.retrieval.common.errors import RagError as RagError
 from rfnry_rag.retrieval.common.errors import RetrievalError as RetrievalError
 from rfnry_rag.retrieval.common.errors import SourceNotFoundError as SourceNotFoundError
 from rfnry_rag.retrieval.common.errors import StoreError as StoreError
-from rfnry_rag.retrieval.common.errors import TreeIndexingError as TreeIndexingError
-from rfnry_rag.retrieval.common.errors import TreeSearchError as TreeSearchError
 from rfnry_rag.retrieval.common.language_model import LanguageModelClient as LanguageModelClient
 from rfnry_rag.retrieval.common.language_model import LanguageModelProvider as LanguageModelProvider
 from rfnry_rag.retrieval.common.models import ContentMatch as ContentMatch
@@ -26,17 +24,10 @@ from rfnry_rag.retrieval.common.models import RetrievalTrace as RetrievalTrace
 from rfnry_rag.retrieval.common.models import RetrievedChunk as RetrievedChunk
 from rfnry_rag.retrieval.common.models import Source as Source
 from rfnry_rag.retrieval.common.models import SparseVector as SparseVector
-from rfnry_rag.retrieval.common.models import TreeIndex as TreeIndex
-from rfnry_rag.retrieval.common.models import TreeNode as TreeNode
-from rfnry_rag.retrieval.common.models import TreePage as TreePage
-from rfnry_rag.retrieval.common.models import TreeSearchResult as TreeSearchResult
 from rfnry_rag.retrieval.modules.evaluation import BenchmarkCase as BenchmarkCase
 from rfnry_rag.retrieval.modules.evaluation import BenchmarkCaseResult as BenchmarkCaseResult
 from rfnry_rag.retrieval.modules.evaluation import BenchmarkConfig as BenchmarkConfig
 from rfnry_rag.retrieval.modules.evaluation import BenchmarkReport as BenchmarkReport
-from rfnry_rag.retrieval.modules.evaluation import FailureClassification as FailureClassification
-from rfnry_rag.retrieval.modules.evaluation import FailureType as FailureType
-from rfnry_rag.retrieval.modules.evaluation import classify_failure as classify_failure
 from rfnry_rag.retrieval.modules.evaluation.metrics import ExactMatch as ExactMatch
 from rfnry_rag.retrieval.modules.evaluation.metrics import F1Score as F1Score
 from rfnry_rag.retrieval.modules.evaluation.metrics import LLMJudgment as LLMJudgment
@@ -56,46 +47,23 @@ from rfnry_rag.retrieval.modules.ingestion.embeddings.sparse.fastembed import (
 )
 from rfnry_rag.retrieval.modules.ingestion.methods.document import DocumentIngestion as DocumentIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.graph import GraphIngestion as GraphIngestion
-from rfnry_rag.retrieval.modules.ingestion.methods.raptor import RaptorBuildReport as RaptorBuildReport
-from rfnry_rag.retrieval.modules.ingestion.methods.raptor import RaptorConfig as RaptorConfig
-from rfnry_rag.retrieval.modules.ingestion.methods.raptor import RaptorTreeRegistry as RaptorTreeRegistry
-from rfnry_rag.retrieval.modules.ingestion.methods.tree import TreeIngestion as TreeIngestion
 from rfnry_rag.retrieval.modules.ingestion.methods.vector import VectorIngestion as VectorIngestion
 from rfnry_rag.retrieval.modules.ingestion.vision.facade import Vision as Vision
 from rfnry_rag.retrieval.modules.retrieval.base import BaseRetrievalMethod as BaseRetrievalMethod
-from rfnry_rag.retrieval.modules.retrieval.iterative import (
-    IterativeHopTrace as IterativeHopTrace,
-)
-from rfnry_rag.retrieval.modules.retrieval.iterative import (
-    IterativeOutcome as IterativeOutcome,
-)
-from rfnry_rag.retrieval.modules.retrieval.iterative import (
-    IterativeRetrievalConfig as IterativeRetrievalConfig,
-)
 from rfnry_rag.retrieval.modules.retrieval.judging import BaseRetrievalJudgment as BaseRetrievalJudgment
 from rfnry_rag.retrieval.modules.retrieval.judging import RetrievalJudgment as RetrievalJudgment
 from rfnry_rag.retrieval.modules.retrieval.methods.document import DocumentRetrieval as DocumentRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.enrich import StructuredRetrieval as StructuredRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.graph import GraphRetrieval as GraphRetrieval
-from rfnry_rag.retrieval.modules.retrieval.methods.raptor import RaptorRetrieval as RaptorRetrieval
 from rfnry_rag.retrieval.modules.retrieval.methods.vector import VectorRetrieval as VectorRetrieval
 from rfnry_rag.retrieval.modules.retrieval.refinement.abstractive import AbstractiveRefinement as AbstractiveRefinement
 from rfnry_rag.retrieval.modules.retrieval.refinement.base import BaseChunkRefinement as BaseChunkRefinement
 from rfnry_rag.retrieval.modules.retrieval.refinement.extractive import ExtractiveRefinement as ExtractiveRefinement
-from rfnry_rag.retrieval.modules.retrieval.search.classification import (
-    QueryClassification as QueryClassification,
-)
-from rfnry_rag.retrieval.modules.retrieval.search.classification import QueryComplexity as QueryComplexity
-from rfnry_rag.retrieval.modules.retrieval.search.classification import QueryType as QueryType
-from rfnry_rag.retrieval.modules.retrieval.search.classification import classify_query as classify_query
 from rfnry_rag.retrieval.modules.retrieval.search.reranking.facade import Reranking as Reranking
-from rfnry_rag.retrieval.modules.retrieval.search.rewriting.hyde import HyDeRewriting as HyDeRewriting
 from rfnry_rag.retrieval.modules.retrieval.search.rewriting.multi_query import (
     MultiQueryRewriting as MultiQueryRewriting,
 )
-from rfnry_rag.retrieval.modules.retrieval.search.rewriting.step_back import StepBackRewriting as StepBackRewriting
 from rfnry_rag.retrieval.modules.retrieval.search.service import RetrievalService as RetrievalService
-from rfnry_rag.retrieval.server import AdaptiveRetrievalConfig as AdaptiveRetrievalConfig
 from rfnry_rag.retrieval.server import GenerationConfig as GenerationConfig
 from rfnry_rag.retrieval.server import IngestionConfig as IngestionConfig
 from rfnry_rag.retrieval.server import PersistenceConfig as PersistenceConfig
@@ -104,8 +72,6 @@ from rfnry_rag.retrieval.server import RagEngine as RagEngine
 from rfnry_rag.retrieval.server import RagServerConfig as RagServerConfig
 from rfnry_rag.retrieval.server import RetrievalConfig as RetrievalConfig
 from rfnry_rag.retrieval.server import RoutingConfig as RoutingConfig
-from rfnry_rag.retrieval.server import TreeIndexingConfig as TreeIndexingConfig
-from rfnry_rag.retrieval.server import TreeSearchConfig as TreeSearchConfig
 from rfnry_rag.retrieval.stores.document.filesystem import FilesystemDocumentStore as FilesystemDocumentStore
 from rfnry_rag.retrieval.stores.document.postgres import PostgresDocumentStore as PostgresDocumentStore
 from rfnry_rag.retrieval.stores.graph.models import GraphEntity as GraphEntity
@@ -118,7 +84,6 @@ from rfnry_rag.retrieval.stores.vector.qdrant import QdrantVectorStore as Qdrant
 
 __all__ = [
     "AbstractiveRefinement",
-    "AdaptiveRetrievalConfig",
     "BaseChunkRefinement",
     "BaseIngestionMethod",
     "BaseRetrievalJudgment",
@@ -138,8 +103,6 @@ __all__ = [
     "ExactMatch",
     "ExtractiveRefinement",
     "F1Score",
-    "FailureClassification",
-    "FailureType",
     "FastEmbedSparseEmbeddings",
     "FilesystemDocumentStore",
     "GenerationConfig",
@@ -150,15 +113,11 @@ __all__ = [
     "GraphRelation",
     "GraphResult",
     "GraphRetrieval",
-    "HyDeRewriting",
     "IngestionConfig",
     "IngestionError",
     "IngestionInterruptedError",
     "IngestionService",
     "InputError",
-    "IterativeHopTrace",
-    "IterativeOutcome",
-    "IterativeRetrievalConfig",
     "JudgmentResult",
     "LLMJudgment",
     "LanguageModelClient",
@@ -170,18 +129,11 @@ __all__ = [
     "PersistenceConfig",
     "PostgresDocumentStore",
     "QdrantVectorStore",
-    "QueryClassification",
-    "QueryComplexity",
     "QueryMode",
     "QueryResult",
-    "QueryType",
     "RagEngine",
     "RagError",
     "RagServerConfig",
-    "RaptorBuildReport",
-    "RaptorConfig",
-    "RaptorRetrieval",
-    "RaptorTreeRegistry",
     "Reranking",
     "RetrievalConfig",
     "RetrievalError",
@@ -197,23 +149,11 @@ __all__ = [
     "Source",
     "SourceNotFoundError",
     "SparseVector",
-    "StepBackRewriting",
     "StepResult",
     "StoreError",
     "StreamEvent",
     "StructuredRetrieval",
-    "TreeIndex",
-    "TreeIndexingConfig",
-    "TreeIndexingError",
-    "TreeIngestion",
-    "TreeNode",
-    "TreePage",
-    "TreeSearchConfig",
-    "TreeSearchError",
-    "TreeSearchResult",
     "VectorIngestion",
     "VectorRetrieval",
     "Vision",
-    "classify_failure",
-    "classify_query",
 ]

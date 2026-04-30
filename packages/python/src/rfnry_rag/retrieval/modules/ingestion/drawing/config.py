@@ -49,9 +49,7 @@ class DrawingIngestionConfig:
     symbol_library: dict[str, list[str]] | None = None
     symbol_library_extensions: dict[str, list[str]] | None = None
     analyze_concurrency: int = 5
-    multi_page_linking: bool = True
     off_page_connector_patterns: list[str] | None = None
-    fuzzy_label_threshold: float = 0.92
     sheet_set_grouping: Literal["all", "none", "by_title_block", "explicit"] = "all"
     # unbounded: list of page-number lists sized by consumer's PDF; not a scalar threshold.
     explicit_sheet_groups: list[list[int]] = field(default_factory=list)  # unbounded: see above
@@ -88,10 +86,6 @@ class DrawingIngestionConfig:
         if not (1 <= self.analyze_concurrency <= 100):
             raise ConfigurationError(
                 f"DrawingIngestionConfig.analyze_concurrency={self.analyze_concurrency} out of range [1, 100]"
-            )
-        if not (0.0 <= self.fuzzy_label_threshold <= 1.0):
-            raise ConfigurationError(
-                f"DrawingIngestionConfig.fuzzy_label_threshold={self.fuzzy_label_threshold} out of range [0.0, 1.0]"
             )
         if not (1 <= self.graph_write_batch_size <= 10_000):
             raise ConfigurationError(
