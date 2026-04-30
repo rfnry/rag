@@ -1,15 +1,13 @@
 from collections.abc import AsyncIterator
 
-from baml_py import errors as baml_errors
-
-from rfnry_rag.baml.baml_client.async_client import b
 from rfnry_rag.exceptions import GenerationError
 from rfnry_rag.generation.formatting import ChunkOrdering, chunks_to_context
 from rfnry_rag.generation.grounding import DEFAULT_ESCALATION, RelevanceGate, ScoreGate
 from rfnry_rag.generation.models import Clarification, QueryResult, SourceReference, StreamEvent
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.providers import LanguageModelClient, build_registry
+from rfnry_rag.providers import LanguageModelClient
+from rfnry_rag.providers.text_generation import assemble_user_message
 
 logger = get_logger("generation")
 
@@ -37,8 +35,6 @@ class GenerationService:
         self._relevance_gate: RelevanceGate | None = None
         if relevance_gate_enabled and relevance_gate_lm_client and self._score_gate:
             self._relevance_gate = RelevanceGate(lm_client=relevance_gate_lm_client, fallback_gate=self._score_gate)
-
-        self._registry = build_registry(self._lm_client)
 
     @staticmethod
     def _format_history(history: list[tuple[str, str]] | None) -> str:
@@ -114,7 +110,7 @@ class GenerationService:
         history: list[tuple[str, str]] | None = None,
         system_prompt: str | None = None,
     ) -> QueryResult:
-        """Run grounding gates then generate a response via BAML GenerateAnswer."""
+        """Run grounding gates then generate a response via the native LLM call."""
         if not query or not query.strip():
             raise GenerationError("Query must not be empty")
 
@@ -135,15 +131,11 @@ class GenerationService:
 
         logger.info("LLM generation: %d context chunks", len(relevant_chunks))
         try:
-            answer = await b.GenerateAnswer(
+            answer = await self._lm_client.generate_text(
                 system_prompt=active_system_prompt,
-                context=context,
-                query=query,
                 history=formatted_history,
-                baml_options={"client_registry": self._registry},
+                user=assemble_user_message(query=query, context=context),
             )
-        except baml_errors.BamlValidationError as exc:
-            raise GenerationError(f"GenerateAnswer returned unparseable response: {exc}") from exc
         except Exception as exc:
             raise GenerationError(f"LLM generation failed: {exc}") from exc
         logger.info("LLM response: %d chars", len(answer))
@@ -179,15 +171,11 @@ class GenerationService:
 
         logger.info("LLM generation (direct corpus): %d chars", len(corpus))
         try:
-            answer = await b.GenerateAnswer(
+            answer = await self._lm_client.generate_text(
                 system_prompt=active_system_prompt,
-                context=corpus,
-                query=query,
                 history=formatted_history,
-                baml_options={"client_registry": self._registry},
+                user=assemble_user_message(query=query, context=corpus),
             )
-        except baml_errors.BamlValidationError as exc:
-            raise GenerationError(f"GenerateAnswer returned unparseable response: {exc}") from exc
         except Exception as exc:
             raise GenerationError(f"LLM generation failed: {exc}") from exc
         logger.info("LLM response: %d chars", len(answer))
@@ -206,7 +194,7 @@ class GenerationService:
         history: list[tuple[str, str]] | None = None,
         system_prompt: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
-        """Run grounding gates then stream a response via BAML GenerateAnswer."""
+        """Run grounding gates then stream a response via the native LLM call."""
         if not query or not query.strip():
             raise GenerationError("Query must not be empty")
 
@@ -235,19 +223,14 @@ class GenerationService:
 
         logger.info("LLM streaming: %d context chunks", len(relevant_chunks))
         try:
-            stream = b.stream.GenerateAnswer(
+            stream = self._lm_client.generate_text_stream(
                 system_prompt=active_system_prompt,
-                context=context,
-                query=query,
                 history=formatted_history,
-                baml_options={"client_registry": self._registry},
+                user=assemble_user_message(query=query, context=context),
             )
-            prev = ""
-            async for partial in stream:
-                if partial and len(partial) > len(prev):
-                    delta = partial[len(prev) :]
+            async for delta in stream:
+                if delta:
                     yield StreamEvent(type="chunk", content=delta)
-                    prev = partial
         except Exception as exc:
             # Emit a terminal event before raising so consumers iterating the
             # async generator always see a structured error marker, not just

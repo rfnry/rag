@@ -30,7 +30,6 @@ from pathlib import Path
 # payloads — classify as user-controlled and fence them.
 USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     # ---- retrieval / generation ----
-    "GenerateAnswer": ["context", "query"],
     "CheckRelevance": ["query", "passage"],
     "SynthesizeDocument": [],
     # ---- retrieval / evaluation ----

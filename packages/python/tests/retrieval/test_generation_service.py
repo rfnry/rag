@@ -46,22 +46,27 @@ def _make_service(
 
 
 def _patch_generate(answer="The MERV 13 filter is rated for fine particles."):
-    return patch("rfnry_rag.generation.service.b.GenerateAnswer", new_callable=AsyncMock, return_value=answer)
+    return patch.object(LanguageModelClient, "generate_text", new_callable=AsyncMock, return_value=answer)
 
 
 class _FakeStream:
-    def __aiter__(self):
-        return self._stream()
+    def __init__(self, deltas: list[str]) -> None:
+        self._deltas = deltas
 
-    async def _stream(self):
-        accumulated = ""
-        for token in ["The ", "answer ", "is ", "42."]:
-            accumulated += token
-            yield accumulated
+    def __aiter__(self):
+        return self._iter()
+
+    async def _iter(self):
+        for delta in self._deltas:
+            yield delta
 
 
 def _patch_stream():
-    return patch("rfnry_rag.generation.service.b.stream.GenerateAnswer", return_value=_FakeStream())
+    return patch.object(
+        LanguageModelClient,
+        "generate_text_stream",
+        return_value=_FakeStream(["The ", "answer ", "is ", "42."]),
+    )
 
 
 class TestGenerationServiceGenerate:
