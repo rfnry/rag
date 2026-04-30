@@ -28,8 +28,13 @@ from rfnry_rag.retrieval.modules.evaluation.metrics import LLMJudgment
 from rfnry_rag.retrieval.modules.generation.models import QueryResult, SourceReference
 
 
-def _result(answer: str, *, sources: list[SourceReference] | None = None,
-            trace: RetrievalTrace | None = None, grounded: bool = True) -> QueryResult:
+def _result(
+    answer: str,
+    *,
+    sources: list[SourceReference] | None = None,
+    trace: RetrievalTrace | None = None,
+    grounded: bool = True,
+) -> QueryResult:
     return QueryResult(
         answer=answer,
         sources=sources or [],
@@ -52,10 +57,7 @@ def _chunk(chunk_id: str, score: float = 0.9) -> RetrievedChunk:
 
 async def test_benchmark_runs_all_cases_and_aggregates_em_f1() -> None:
     """5 cases, deterministic stub answers — EM/F1 are correctly averaged."""
-    cases = [
-        BenchmarkCase(query=f"q{i}", expected_answer=f"answer {i}")
-        for i in range(5)
-    ]
+    cases = [BenchmarkCase(query=f"q{i}", expected_answer=f"answer {i}") for i in range(5)]
 
     async def query_fn(text: str, *, trace: bool) -> QueryResult:
         idx = int(text[1:])
@@ -214,10 +216,7 @@ async def test_benchmark_concurrency_bounds_in_flight_calls() -> None:
 
 async def test_benchmark_runs_llm_judge_when_configured() -> None:
     """When `llm_judge=` is passed, judge runs once per case and `llm_judge_score` averages them."""
-    cases = [
-        BenchmarkCase(query=f"q{i}", expected_answer=f"answer {i}")
-        for i in range(3)
-    ]
+    cases = [BenchmarkCase(query=f"q{i}", expected_answer=f"answer {i}") for i in range(3)]
 
     async def query_fn(text: str, *, trace: bool) -> QueryResult:
         idx = int(text[1:])

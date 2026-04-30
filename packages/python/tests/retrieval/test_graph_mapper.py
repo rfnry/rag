@@ -1,4 +1,5 @@
 """Graph mapper: page_entities_to_graph + cross_refs_to_graph_relations, config-driven."""
+
 from __future__ import annotations
 
 from rfnry_rag.retrieval.modules.ingestion.analyze.models import (
@@ -101,15 +102,21 @@ def _two_entity_pages() -> list[PageAnalysis]:
 
 
 def test_cross_refs_classifies_via_keyword_map() -> None:
-    synthesis = DocumentSynthesis(cross_references=[
-        CrossReference(
-            source_page=1, target_page=2,
-            relationship="power feed from breaker to motor",
-            shared_entities=["Motor M1", "Breaker CB-3"],
-        ),
-    ])
+    synthesis = DocumentSynthesis(
+        cross_references=[
+            CrossReference(
+                source_page=1,
+                target_page=2,
+                relationship="power feed from breaker to motor",
+                shared_entities=["Motor M1", "Breaker CB-3"],
+            ),
+        ]
+    )
     relations = cross_refs_to_graph_relations(
-        synthesis, _two_entity_pages(), knowledge_id="k", config=_ELECTRICAL_CONFIG,
+        synthesis,
+        _two_entity_pages(),
+        knowledge_id="k",
+        config=_ELECTRICAL_CONFIG,
     )
     assert len(relations) == 1
     assert relations[0].relation_type == "POWERED_BY"
@@ -119,15 +126,21 @@ def test_cross_refs_classifies_via_keyword_map() -> None:
 def test_cross_refs_unclassifiable_uses_default_mentions_when_set() -> None:
     """New Phase-D behavior: unknown relationship becomes MENTIONS edge."""
     cfg = GraphIngestionConfig()  # default unclassified_relation_default="MENTIONS"
-    synthesis = DocumentSynthesis(cross_references=[
-        CrossReference(
-            source_page=1, target_page=2,
-            relationship="foobarbaz-no-keywords",
-            shared_entities=["Motor M1", "Breaker CB-3"],
-        ),
-    ])
+    synthesis = DocumentSynthesis(
+        cross_references=[
+            CrossReference(
+                source_page=1,
+                target_page=2,
+                relationship="foobarbaz-no-keywords",
+                shared_entities=["Motor M1", "Breaker CB-3"],
+            ),
+        ]
+    )
     relations = cross_refs_to_graph_relations(
-        synthesis, _two_entity_pages(), knowledge_id="k", config=cfg,
+        synthesis,
+        _two_entity_pages(),
+        knowledge_id="k",
+        config=cfg,
     )
     assert len(relations) == 1
     assert relations[0].relation_type == "MENTIONS"
@@ -136,37 +149,53 @@ def test_cross_refs_unclassifiable_uses_default_mentions_when_set() -> None:
 def test_cross_refs_unclassifiable_dropped_when_default_is_none() -> None:
     """Opt-in strict mode: consumer sets unclassified_relation_default=None."""
     cfg = GraphIngestionConfig(unclassified_relation_default=None)
-    synthesis = DocumentSynthesis(cross_references=[
-        CrossReference(
-            source_page=1, target_page=2,
-            relationship="foobarbaz-no-keywords",
-            shared_entities=["Motor M1", "Breaker CB-3"],
-        ),
-    ])
+    synthesis = DocumentSynthesis(
+        cross_references=[
+            CrossReference(
+                source_page=1,
+                target_page=2,
+                relationship="foobarbaz-no-keywords",
+                shared_entities=["Motor M1", "Breaker CB-3"],
+            ),
+        ]
+    )
     relations = cross_refs_to_graph_relations(
-        synthesis, _two_entity_pages(), knowledge_id="k", config=cfg,
+        synthesis,
+        _two_entity_pages(),
+        knowledge_id="k",
+        config=cfg,
     )
     assert relations == []
 
 
 def test_cross_refs_skips_single_entity() -> None:
-    synthesis = DocumentSynthesis(cross_references=[
-        CrossReference(source_page=1, target_page=2, relationship="x",
-                       shared_entities=["Motor M1"]),
-    ])
+    synthesis = DocumentSynthesis(
+        cross_references=[
+            CrossReference(source_page=1, target_page=2, relationship="x", shared_entities=["Motor M1"]),
+        ]
+    )
     relations = cross_refs_to_graph_relations(
-        synthesis, _two_entity_pages(), knowledge_id="k", config=_ELECTRICAL_CONFIG,
+        synthesis,
+        _two_entity_pages(),
+        knowledge_id="k",
+        config=_ELECTRICAL_CONFIG,
     )
     assert relations == []
 
 
 def test_cross_refs_skips_unknown_entities() -> None:
-    synthesis = DocumentSynthesis(cross_references=[
-        CrossReference(source_page=1, target_page=2, relationship="connection",
-                       shared_entities=["Motor M1", "NotInAnyPage"]),
-    ])
+    synthesis = DocumentSynthesis(
+        cross_references=[
+            CrossReference(
+                source_page=1, target_page=2, relationship="connection", shared_entities=["Motor M1", "NotInAnyPage"]
+            ),
+        ]
+    )
     relations = cross_refs_to_graph_relations(
-        synthesis, _two_entity_pages(), knowledge_id="k", config=_ELECTRICAL_CONFIG,
+        synthesis,
+        _two_entity_pages(),
+        knowledge_id="k",
+        config=_ELECTRICAL_CONFIG,
     )
     assert relations == []
 
@@ -183,14 +212,20 @@ def test_cross_refs_pairwise_with_three_entities() -> None:
             ],
         ),
     ]
-    synthesis = DocumentSynthesis(cross_references=[
-        CrossReference(
-            source_page=1, target_page=2,
-            relationship="power connection",
-            shared_entities=["Motor M1", "Breaker CB-3", "Panel MCC-1"],
-        ),
-    ])
+    synthesis = DocumentSynthesis(
+        cross_references=[
+            CrossReference(
+                source_page=1,
+                target_page=2,
+                relationship="power connection",
+                shared_entities=["Motor M1", "Breaker CB-3", "Panel MCC-1"],
+            ),
+        ]
+    )
     relations = cross_refs_to_graph_relations(
-        synthesis, pages, knowledge_id="k", config=_ELECTRICAL_CONFIG,
+        synthesis,
+        pages,
+        knowledge_id="k",
+        config=_ELECTRICAL_CONFIG,
     )
     assert len(relations) == 3

@@ -1,4 +1,5 @@
 """End-to-end DrawingIngestion: real ezdxf, real mapper, stubbed stores, zero LLM."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -33,9 +34,7 @@ class _InMemoryMetadataStore:
     async def upsert_page_analyses(self, source_id, analyses):
         existing = {r["page_number"]: r for r in self._pages.get(source_id, [])}
         for r in analyses:
-            prior = existing.get(
-                r["page_number"], {"page_number": r["page_number"], "data": {}}
-            )
+            prior = existing.get(r["page_number"], {"page_number": r["page_number"], "data": {}})
             merged = {**prior.get("data", {}), **r.get("data", {})}
             existing[r["page_number"]] = {
                 "page_number": r["page_number"],
@@ -95,6 +94,7 @@ def simple_rlc_dxf(tmp_path: Path) -> Path:
     inside each block's bbox (within the 2-unit tolerance).
     """
     import ezdxf
+
     path = tmp_path / "simple_rlc.dxf"
     doc = ezdxf.new()
 
@@ -120,6 +120,7 @@ def simple_rlc_dxf(tmp_path: Path) -> Path:
 def two_blocks_with_off_page_text_dxf(tmp_path: Path) -> Path:
     """A DXF with two INSERTs and a TEXT '/A2' anchored over the first block."""
     import ezdxf
+
     path = tmp_path / "two_blocks_opc.dxf"
     doc = ezdxf.new()
 
@@ -189,14 +190,13 @@ async def test_dxf_end_to_end_emits_three_components_and_two_connections(
     assert gstore.entities_calls == 1
     assert len(gstore.entities) == 3
     # 2 same-page connections (R1-C1, C1-L1)
-    assert any(
-        r.from_entity and r.to_entity for r in gstore.relations
-    ), "expected at least one relation"
+    assert any(r.from_entity and r.to_entity for r in gstore.relations), "expected at least one relation"
 
 
 async def test_dxf_end_to_end_consumer_symbol_library_override(tmp_path: Path) -> None:
     """Consumer can replace the symbol library with in-house vocabulary."""
     import ezdxf
+
     path = tmp_path / "custom.dxf"
     doc = ezdxf.new()
     blk = doc.blocks.new(name="widget_alpha")

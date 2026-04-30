@@ -164,12 +164,8 @@ def _summarize_result(summary: str = "synthesised summary", reasoning: str = "ok
     return SimpleNamespace(summary=summary, reasoning=reasoning)
 
 
-_SUMMARIZE_PATH = (
-    "rfnry_rag.retrieval.modules.ingestion.methods.raptor.builder.b.SummarizeCluster"
-)
-_RUN_CLUSTERING_PATH = (
-    "rfnry_rag.retrieval.modules.ingestion.methods.raptor.builder.run_clustering"
-)
+_SUMMARIZE_PATH = "rfnry_rag.retrieval.modules.ingestion.methods.raptor.builder.b.SummarizeCluster"
+_RUN_CLUSTERING_PATH = "rfnry_rag.retrieval.modules.ingestion.methods.raptor.builder.run_clustering"
 
 
 def _kmeans_labels(member_count: int, k: int) -> Any:
@@ -435,9 +431,7 @@ async def test_build_uses_passthrough_for_cluster_of_one() -> None:
     def _make_one_singleton(matrix: Any, cluster_cfg: Any) -> Any:
         # 1 cluster of size 1, 1 cluster of size 5.
         labels = np.array([0, 1, 1, 1, 1, 1], dtype=np.int32)
-        centroids = np.array(
-            [matrix[0], matrix[1:].mean(axis=0)], dtype=np.float32
-        )
+        centroids = np.array([matrix[0], matrix[1:].mean(axis=0)], dtype=np.float32)
         return labels, centroids
 
     summarize = AsyncMock(return_value=_summarize_result())
@@ -524,10 +518,7 @@ async def test_build_sets_parent_id_back_references() -> None:
     assert store.set_payload.await_count > 0
     # At least one back-reference write set ``raptor_parent_id`` to a
     # level-2 summary's id (not None).
-    parent_ids_written = [
-        call.kwargs["payload"]["raptor_parent_id"]
-        for call in store.set_payload.await_args_list
-    ]
+    parent_ids_written = [call.kwargs["payload"]["raptor_parent_id"] for call in store.set_payload.await_args_list]
     assert any(pid is not None for pid in parent_ids_written)
     # Multi-level build: level_counts should have at least 3 entries
     # (leaves + level-1 summaries + level-2 summaries).
@@ -635,9 +626,7 @@ async def test_build_summarize_cluster_called_concurrently() -> None:
         patch(_RUN_CLUSTERING_PATH, side_effect=_five),
         patch(
             "rfnry_rag.retrieval.modules.ingestion.methods.raptor.builder.run_concurrent",
-            wraps=__import__(
-                "rfnry_rag.common.concurrency", fromlist=["run_concurrent"]
-            ).run_concurrent,
+            wraps=__import__("rfnry_rag.common.concurrency", fromlist=["run_concurrent"]).run_concurrent,
         ) as concurrent_spy,
         patch(_SUMMARIZE_PATH, new=summarize),
     ):
@@ -735,9 +724,7 @@ async def test_build_uses_summary_text_for_higher_levels() -> None:
 
     # First level's summaries must feed the second level's cluster texts.
     # Find the call where every text matches "summary-N" pattern.
-    assert any(
-        all(t.startswith("summary-") for t in seen) for seen in summarize_texts_seen
-    )
+    assert any(all(t.startswith("summary-") for t in seen) for seen in summarize_texts_seen)
 
 
 # ---------------------------------------------------------------------------

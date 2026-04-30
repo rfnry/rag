@@ -46,9 +46,7 @@ async def test_classify_query_factual_simple_default() -> None:
 
 async def test_classify_query_comparative_complex() -> None:
     """`compare ... and ...` -> COMPARATIVE; comparative auto-promotes to COMPLEX."""
-    result = await classify_query(
-        "Compare procedure A and procedure B for the controller reset workflow."
-    )
+    result = await classify_query("Compare procedure A and procedure B for the controller reset workflow.")
 
     assert result.query_type is QueryType.COMPARATIVE
     assert result.complexity is QueryComplexity.COMPLEX
@@ -134,9 +132,7 @@ async def test_classify_query_llm_path_falls_back_to_heuristic_on_exception(
     import logging
 
     fake_client = MagicMock()
-    caplog.set_level(
-        logging.WARNING, logger="rfnry_rag.retrieval.search.classification"
-    )
+    caplog.set_level(logging.WARNING, logger="rfnry_rag.retrieval.search.classification")
 
     with (
         patch(
@@ -207,9 +203,7 @@ def test_adaptive_confidence_expansion_requires_enabled() -> None:
     cross-config.
     """
     # confidence_expansion=True without enabled=True -> ConfigurationError.
-    with pytest.raises(
-        ConfigurationError, match="confidence_expansion.*enabled"
-    ):
+    with pytest.raises(ConfigurationError, match="confidence_expansion.*enabled"):
         AdaptiveRetrievalConfig(enabled=False, confidence_expansion=True)
 
     # enabled=True + confidence_expansion=True succeeds (the live path).

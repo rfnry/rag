@@ -139,9 +139,7 @@ def _engine(
     rs: Any = AsyncMock()
     gs: Any = AsyncMock()
     cast(Any, gs).generate = AsyncMock(return_value=_query_result())
-    cast(Any, gs).generate_from_corpus = AsyncMock(
-        return_value=_query_result(answer="lc answer")
-    )
+    cast(Any, gs).generate_from_corpus = AsyncMock(return_value=_query_result(answer="lc answer"))
     km = MagicMock()
     cast(Any, km).get_corpus_tokens = AsyncMock(return_value=corpus_tokens)
 
@@ -171,9 +169,7 @@ def _engine(
 
 
 _DECOMPOSE_PATH = "rfnry_rag.retrieval.modules.retrieval.iterative.service.b.DecomposeQuery"
-_BUILD_REGISTRY_PATH = (
-    "rfnry_rag.retrieval.modules.retrieval.iterative.service.build_registry"
-)
+_BUILD_REGISTRY_PATH = "rfnry_rag.retrieval.modules.retrieval.iterative.service.build_registry"
 _CLASSIFY_PATH = "rfnry_rag.retrieval.server.classify_query"
 
 
@@ -214,11 +210,7 @@ async def test_iterative_type_gate_fails_falls_through_to_retrieval(
 
     with patch(
         _CLASSIFY_PATH,
-        new=AsyncMock(
-            return_value=_classification(
-                complexity=QueryComplexity.SIMPLE, query_type=QueryType.FACTUAL
-            )
-        ),
+        new=AsyncMock(return_value=_classification(complexity=QueryComplexity.SIMPLE, query_type=QueryType.FACTUAL)),
     ):
         result = await engine.query("q1", knowledge_id="kb-1", trace=True)
 
@@ -265,11 +257,7 @@ async def test_iterative_type_gate_passes_on_complex(make_engine: Any) -> None:
 
     with patch(
         _CLASSIFY_PATH,
-        new=AsyncMock(
-            return_value=_classification(
-                complexity=QueryComplexity.COMPLEX, query_type=QueryType.FACTUAL
-            )
-        ),
+        new=AsyncMock(return_value=_classification(complexity=QueryComplexity.COMPLEX, query_type=QueryType.FACTUAL)),
     ):
         await engine.query("q1", knowledge_id="kb-1", trace=False)
 
@@ -286,9 +274,7 @@ async def test_iterative_llm_gate_first_decompose_says_done_short_circuits(
 ) -> None:
     """LLM-mode: `done=true` on hop 0 -> 1 decompose, 0 retrieves."""
     engine = _engine(make_engine, gate_mode="llm")
-    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
-        return_value=([_chunk()], RetrievalTrace(query="x"))
-    )
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(return_value=([_chunk()], RetrievalTrace(query="x")))
 
     with (
         patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
@@ -323,9 +309,7 @@ async def test_iterative_llm_gate_first_decompose_proceeds(make_engine: Any) -> 
 
     decompose_mock = AsyncMock(
         side_effect=[
-            _decompose_result(
-                done=False, next_sub_question="topic_a sub-question", findings="hop0 findings"
-            ),
+            _decompose_result(done=False, next_sub_question="topic_a sub-question", findings="hop0 findings"),
             _decompose_result(done=True, findings="hop1 findings"),
         ]
     )
@@ -359,9 +343,7 @@ async def test_iterative_max_hops_termination(make_engine: Any) -> None:
     )
 
     decompose_mock = AsyncMock(
-        return_value=_decompose_result(
-            done=False, next_sub_question="next sub-q", findings="findings"
-        )
+        return_value=_decompose_result(done=False, next_sub_question="next sub-q", findings="findings")
     )
 
     with (
@@ -414,16 +396,12 @@ async def test_iterative_findings_passed_to_next_decompose_call(
 ) -> None:
     """Hop 1's `accumulated_findings` arg == hop 0's returned `findings_from_last_hop`."""
     engine = _engine(make_engine, gate_mode="llm")
-    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
-        return_value=([_chunk()], RetrievalTrace(query="x"))
-    )
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(return_value=([_chunk()], RetrievalTrace(query="x")))
 
     hop0_findings = "hop 0 produced findings about topic_a"
     decompose_mock = AsyncMock(
         side_effect=[
-            _decompose_result(
-                done=False, next_sub_question="next sub-q", findings=hop0_findings
-            ),
+            _decompose_result(done=False, next_sub_question="next sub-q", findings=hop0_findings),
             _decompose_result(done=True, findings="final summary"),
         ]
     )
@@ -462,18 +440,12 @@ async def test_iterative_trace_populates_hop_list(make_engine: Any) -> None:
             "classification_source": "heuristic",
         },
     )
-    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
-        return_value=([_chunk("chunk_a", 0.9)], inner_trace)
-    )
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(return_value=([_chunk("chunk_a", 0.9)], inner_trace))
 
     decompose_mock = AsyncMock(
         side_effect=[
-            _decompose_result(
-                done=False, next_sub_question="sub-q-1", findings="f1"
-            ),
-            _decompose_result(
-                done=False, next_sub_question="sub-q-2", findings="f2"
-            ),
+            _decompose_result(done=False, next_sub_question="sub-q-1", findings="f1"),
+            _decompose_result(done=False, next_sub_question="sub-q-2", findings="f2"),
             _decompose_result(done=True, findings="f3"),
         ]
     )
@@ -505,9 +477,7 @@ async def test_iterative_trace_populates_hop_list(make_engine: Any) -> None:
 async def test_iterative_routing_decision_is_iterative(make_engine: Any) -> None:
     """A run that takes the iterative arm carries `routing_decision="iterative"`."""
     engine = _engine(make_engine, gate_mode="llm")
-    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
-        return_value=([_chunk()], RetrievalTrace(query="x"))
-    )
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(return_value=([_chunk()], RetrievalTrace(query="x")))
 
     with (
         patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
@@ -538,11 +508,7 @@ async def test_iterative_decomposer_contract_violation_terminates_with_error(
         patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
         patch(
             _DECOMPOSE_PATH,
-            new=AsyncMock(
-                return_value=_decompose_result(
-                    done=False, next_sub_question=None, findings="partial"
-                )
-            ),
+            new=AsyncMock(return_value=_decompose_result(done=False, next_sub_question=None, findings="partial")),
         ),
     ):
         result = await engine.query("q1", knowledge_id="kb-1", trace=True)
@@ -599,9 +565,7 @@ def _escalation_decompose_sequence() -> AsyncMock:
     """Two-decompose sequence: one sub-question, then done."""
     return AsyncMock(
         side_effect=[
-            _decompose_result(
-                done=False, next_sub_question="topic_a sub-question", findings="hop0 findings"
-            ),
+            _decompose_result(done=False, next_sub_question="topic_a sub-question", findings="hop0 findings"),
             _decompose_result(done=True, findings="hop1 findings"),
         ]
     )
@@ -623,9 +587,7 @@ async def test_iterative_no_escalation_when_disabled(make_engine: Any) -> None:
         direct_context_threshold=150_000,
     )
     weak = [_chunk(score=0.1)]
-    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
-        return_value=(weak, RetrievalTrace(query="x"))
-    )
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(return_value=(weak, RetrievalTrace(query="x")))
     engine._query_via_direct_context = AsyncMock()  # type: ignore[method-assign]
 
     with (
@@ -648,9 +610,7 @@ async def test_iterative_no_escalation_when_disabled(make_engine: Any) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_iterative_no_escalation_when_routing_unconfigured(
-    make_engine: Any, caplog: Any
-) -> None:
+async def test_iterative_no_escalation_when_routing_unconfigured(make_engine: Any, caplog: Any) -> None:
     """`escalate_to_direct=True` + `RoutingConfig=None` -> no escalation
     at runtime; engine init logs a warning.
 
@@ -678,9 +638,7 @@ async def test_iterative_no_escalation_when_routing_unconfigured(
     # but is the cleanest way to model the missing-config state.
     engine._config.routing.direct_context_threshold = None
     weak = [_chunk(score=0.1)]
-    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
-        return_value=(weak, RetrievalTrace(query="x"))
-    )
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(return_value=(weak, RetrievalTrace(query="x")))
     engine._query_via_direct_context = AsyncMock()  # type: ignore[method-assign]
 
     with (
@@ -708,7 +666,9 @@ async def test_iterative_no_escalation_when_routing_unconfigured(
         top_k=5,
         adaptive=AdaptiveRetrievalConfig(enabled=False),
         iterative=IterativeRetrievalConfig(
-            enabled=True, gate_mode="llm", decomposition_model=_lm_client(),
+            enabled=True,
+            gate_mode="llm",
+            decomposition_model=_lm_client(),
             escalate_to_direct=True,
         ),
         enrich_lm_client=_lm_client(),
@@ -725,9 +685,9 @@ async def test_iterative_no_escalation_when_routing_unconfigured(
     with caplog.at_level(logging.WARNING, logger="rfnry_rag.server"):
         engine2._validate_config()
     matched = [
-        r for r in caplog.records
-        if "iterative.escalate_to_direct" in r.getMessage()
-        and "RoutingConfig" in r.getMessage()
+        r
+        for r in caplog.records
+        if "iterative.escalate_to_direct" in r.getMessage() and "RoutingConfig" in r.getMessage()
     ]
     assert len(matched) == 1
 
@@ -747,9 +707,7 @@ async def test_iterative_no_escalation_when_corpus_too_large(make_engine: Any) -
         direct_context_threshold=150_000,
     )
     weak = [_chunk(score=0.1)]
-    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
-        return_value=(weak, RetrievalTrace(query="x"))
-    )
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(return_value=(weak, RetrievalTrace(query="x")))
     engine._query_via_direct_context = AsyncMock()  # type: ignore[method-assign]
 
     with (
@@ -780,9 +738,7 @@ async def test_iterative_escalation_fires_when_corpus_fits(make_engine: Any) -> 
         direct_context_threshold=150_000,
     )
     weak = [_chunk(score=0.1)]
-    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
-        return_value=(weak, RetrievalTrace(query="x"))
-    )
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(return_value=(weak, RetrievalTrace(query="x")))
 
     with (
         patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),
@@ -827,9 +783,7 @@ async def test_iterative_escalation_preserves_hop_trace_on_outer_result(
     # survives the boundary instead of being trivially `[]`.
     inner_trace = RetrievalTrace(query="x", adaptive={"complexity": "COMPLEX"})
     weak = [_chunk(score=0.1)]
-    cast(Any, engine._retrieval_service).retrieve = AsyncMock(
-        return_value=(weak, inner_trace)
-    )
+    cast(Any, engine._retrieval_service).retrieve = AsyncMock(return_value=(weak, inner_trace))
 
     with (
         patch(_BUILD_REGISTRY_PATH, return_value=MagicMock()),

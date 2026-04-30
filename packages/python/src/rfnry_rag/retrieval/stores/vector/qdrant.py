@@ -366,9 +366,7 @@ class QdrantVectorStore:
             return
         resolved = await self._ensure_and_resolve(collection)
         if not resolved:
-            raise ConfigurationError(
-                f"Collection does not exist: {collection or self._collections[0]}"
-            )
+            raise ConfigurationError(f"Collection does not exist: {collection or self._collections[0]}")
         name, _ = resolved
         await self._client.set_payload(
             collection_name=name,

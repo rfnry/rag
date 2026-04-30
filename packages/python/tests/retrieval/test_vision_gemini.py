@@ -32,9 +32,7 @@ async def test_gemini_vision_parse_minimal_image(tmp_path: Path) -> None:
     vision = _make_vision()
     vision._client = SimpleNamespace(  # type: ignore[assignment]
         aio=SimpleNamespace(
-            models=SimpleNamespace(
-                generate_content=AsyncMock(return_value=SimpleNamespace(text="extracted content"))
-            )
+            models=SimpleNamespace(generate_content=AsyncMock(return_value=SimpleNamespace(text="extracted content")))
         )
     )
 
@@ -78,11 +76,7 @@ async def test_gemini_vision_handles_empty_response(tmp_path: Path) -> None:
 
     vision = _make_vision()
     vision._client = SimpleNamespace(  # type: ignore[assignment]
-        aio=SimpleNamespace(
-            models=SimpleNamespace(
-                generate_content=AsyncMock(return_value=SimpleNamespace(text=""))
-            )
-        )
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=AsyncMock(return_value=SimpleNamespace(text=""))))
     )
 
     with pytest.raises(ValueError, match="empty content"):
@@ -95,11 +89,7 @@ async def test_gemini_vision_metadata_includes_provider_tag(tmp_path: Path) -> N
 
     vision = _make_vision()
     vision._client = SimpleNamespace(  # type: ignore[assignment]
-        aio=SimpleNamespace(
-            models=SimpleNamespace(
-                generate_content=AsyncMock(return_value=SimpleNamespace(text="ok"))
-            )
-        )
+        aio=SimpleNamespace(models=SimpleNamespace(generate_content=AsyncMock(return_value=SimpleNamespace(text="ok"))))
     )
 
     pages = await vision.parse(str(img))

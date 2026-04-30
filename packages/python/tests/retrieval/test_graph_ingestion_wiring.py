@@ -1,4 +1,5 @@
 """Wiring: IngestionConfig.graph flows through to the mapper via both services."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace

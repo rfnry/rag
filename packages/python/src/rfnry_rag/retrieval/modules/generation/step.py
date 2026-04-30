@@ -33,9 +33,7 @@ class StepGenerationService:
         if not query or not query.strip():
             raise GenerationError("Query must not be empty")
 
-        chunk_context = (
-            chunks_to_context(chunks, ordering=self._chunk_ordering) if chunks else "(No context retrieved)"
-        )
+        chunk_context = chunks_to_context(chunks, ordering=self._chunk_ordering) if chunks else "(No context retrieved)"
         prior_reasoning = context or ""
 
         try:

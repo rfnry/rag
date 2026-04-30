@@ -21,15 +21,9 @@ def test_no_bare_value_error_raised_in_reasoning_configs() -> None:
         for node in ast.walk(tree):
             if isinstance(node, ast.Raise) and node.exc is not None:
                 call = node.exc if isinstance(node.exc, ast.Call) else None
-                name = (
-                    call.func.id
-                    if call and isinstance(call.func, ast.Name)
-                    else None
-                )
+                name = call.func.id if call and isinstance(call.func, ast.Name) else None
                 if name == "ValueError":
-                    violations.append(
-                        f"{p}:{node.lineno} — bare ValueError raised"
-                    )
+                    violations.append(f"{p}:{node.lineno} — bare ValueError raised")
     assert not violations, (
         "reasoning config raises bare ValueError:\n  "
         + "\n  ".join(violations)

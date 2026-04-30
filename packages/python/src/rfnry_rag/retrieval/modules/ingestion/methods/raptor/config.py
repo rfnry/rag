@@ -40,9 +40,7 @@ class RaptorConfig:
 
     def __post_init__(self) -> None:
         if not (1 <= self.max_levels <= 10):
-            raise ConfigurationError(
-                f"RaptorConfig.max_levels must be in [1, 10], got {self.max_levels}"
-            )
+            raise ConfigurationError(f"RaptorConfig.max_levels must be in [1, 10], got {self.max_levels}")
         # Allowlist over an open string field: prevents typos becoming silent
         # fall-throughs at build time. Mirrors the iterative ``gate_mode``
         # allowlist pattern.
@@ -56,9 +54,7 @@ class RaptorConfig:
                 f"RaptorConfig.clusters_per_level must be in [2, 100], got {self.clusters_per_level}"
             )
         if not (2 <= self.min_cluster_size <= 100):
-            raise ConfigurationError(
-                f"RaptorConfig.min_cluster_size must be in [2, 100], got {self.min_cluster_size}"
-            )
+            raise ConfigurationError(f"RaptorConfig.min_cluster_size must be in [2, 100], got {self.min_cluster_size}")
         if not (50 <= self.summary_max_tokens <= 2000):
             raise ConfigurationError(
                 f"RaptorConfig.summary_max_tokens must be in [50, 2000], got {self.summary_max_tokens}"
@@ -67,6 +63,4 @@ class RaptorConfig:
         # silently no-op at first ``SummarizeCluster`` call. Reject at
         # construction so the misconfig surfaces at engine init.
         if self.enabled and self.summary_model is None:
-            raise ConfigurationError(
-                "RaptorConfig.enabled=True requires summary_model"
-            )
+            raise ConfigurationError("RaptorConfig.enabled=True requires summary_model")

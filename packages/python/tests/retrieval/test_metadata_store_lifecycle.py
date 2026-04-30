@@ -91,7 +91,7 @@ async def test_initialization_is_idempotent(tmp_path) -> None:
     """initialize() called twice on the same store must not error."""
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path / 'db.sqlite'}")
     await store.initialize()
-    await store.initialize()   # must not raise (would be "duplicate column" today)
+    await store.initialize()  # must not raise (would be "duplicate column" today)
     await store.shutdown()
 
 
@@ -150,9 +150,7 @@ async def test_file_hash_column_has_index(tmp_path) -> None:
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path / 'db.sqlite'}")
     await store.initialize()
     async with store._engine.begin() as conn:
-        result = await conn.run_sync(
-            lambda sync_conn: sa.inspect(sync_conn).get_indexes("rag_sources")
-        )
+        result = await conn.run_sync(lambda sync_conn: sa.inspect(sync_conn).get_indexes("rag_sources"))
     names = {idx["name"] for idx in result if idx["name"] is not None}
     assert any("file_hash" in n for n in names), f"no index on file_hash, got indexes: {names}"
     await store.shutdown()

@@ -230,7 +230,7 @@ class FilesystemDocumentStore:
             sep_idx = rest.find("\n---\n")
             if sep_idx != -1:
                 frontmatter = rest[:sep_idx]
-                content = rest[sep_idx + 5:]
+                content = rest[sep_idx + 5 :]
                 for line in frontmatter.splitlines():
                     if ": " in line:
                         key, value = line.split(": ", 1)

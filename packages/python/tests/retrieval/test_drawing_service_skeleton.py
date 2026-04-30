@@ -1,4 +1,5 @@
 """DrawingIngestionService: 4-phase stubs + async method contract."""
+
 import inspect
 
 from rfnry_rag.retrieval.modules.ingestion.drawing.service import DrawingIngestionService
@@ -15,6 +16,7 @@ def test_service_module_exports_supported_extensions() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.service import (
         SUPPORTED_DRAWING_EXTENSIONS,
     )
+
     assert ".dxf" in SUPPORTED_DRAWING_EXTENSIONS
     assert ".pdf" in SUPPORTED_DRAWING_EXTENSIONS
 
@@ -67,6 +69,7 @@ def test_models_roundtrip_handles_optional_fields() -> None:
         DrawingPageAnalysis,
         Port,
     )
+
     analysis = DrawingPageAnalysis(
         page_number=3,
         components=[

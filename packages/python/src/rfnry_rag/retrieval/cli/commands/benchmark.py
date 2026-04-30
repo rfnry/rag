@@ -87,9 +87,7 @@ async def _benchmark(
             defaults = BenchmarkConfig()
             bench_config = BenchmarkConfig(
                 concurrency=concurrency if concurrency is not None else defaults.concurrency,
-                failure_threshold=failure_threshold
-                if failure_threshold is not None
-                else defaults.failure_threshold,
+                failure_threshold=failure_threshold if failure_threshold is not None else defaults.failure_threshold,
             )
         else:
             bench_config = None

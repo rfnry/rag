@@ -1,4 +1,5 @@
 """Drawing linker: deterministic exact-tag + regex-target-hint + fuzzy-label merges."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -102,10 +103,7 @@ def test_target_hint_sheet_reference_pairs_across_pages() -> None:
     pairings = parse_target_hints([p1, p3], cfg)
     assert len(pairings) >= 1
     # At least one pairing connects R1 <-> C5
-    matched = any(
-        (pp.from_component, pp.to_component) in (("R1", "C5"), ("C5", "R1"))
-        for pp in pairings
-    )
+    matched = any((pp.from_component, pp.to_component) in (("R1", "C5"), ("C5", "R1")) for pp in pairings)
     assert matched
 
 
@@ -193,9 +191,7 @@ def _make_service(metadata: _InMemoryMetadataStore) -> DrawingIngestionService:
     )
 
 
-async def _seed_extracted_source(
-    metadata: _InMemoryMetadataStore, pages: list[DrawingPageAnalysis]
-) -> Source:
+async def _seed_extracted_source(metadata: _InMemoryMetadataStore, pages: list[DrawingPageAnalysis]) -> Source:
     src = Source(
         source_id="src-1",
         status="extracted",
@@ -241,9 +237,7 @@ async def test_link_populates_drawing_linking_metadata() -> None:
     assert "llm_residue" in link_payload  # filled by C8
     assert link_payload["llm_residue"] == []
     # The /A2 tag pairing is present
-    assert any(
-        d["net_label"] == "/A2" for d in link_payload["deterministic_pairings"]
-    )
+    assert any(d["net_label"] == "/A2" for d in link_payload["deterministic_pairings"])
 
 
 async def test_link_idempotent_on_already_linked_source() -> None:

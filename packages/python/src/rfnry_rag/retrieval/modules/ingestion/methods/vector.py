@@ -57,17 +57,11 @@ class VectorIngestion:
     ) -> None:
         start = time.perf_counter()
         try:
-            texts = [
-                c.text_for_embedding(include_synthetic=self._include_synthetic_in_embeddings)
-                for c in chunks
-            ]
+            texts = [c.text_for_embedding(include_synthetic=self._include_synthetic_in_embeddings) for c in chunks]
             if self._sparse is not None:
                 # Sparse path is BM25-style: gate on include_synthetic_in_bm25 separately
                 # so consumers can route synthetic queries to dense-only or sparse-only.
-                sparse_texts = [
-                    c.text_for_bm25(include_synthetic=self._include_synthetic_in_bm25)
-                    for c in chunks
-                ]
+                sparse_texts = [c.text_for_bm25(include_synthetic=self._include_synthetic_in_bm25) for c in chunks]
                 vectors, sparse_vectors = await asyncio.gather(
                     embed_batched(self._embeddings, texts),
                     self._embed_sparse_safe(sparse_texts),

@@ -1,4 +1,5 @@
 """Text-density pre-filter: text-heavy + image-free pages skip the vision LLM call."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataSto
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_fake_baml_result(page_num: int) -> SimpleNamespace:
     return SimpleNamespace(
@@ -51,13 +53,14 @@ class _FakeVision:
 # Page lists used by fixtures
 # ---------------------------------------------------------------------------
 
+
 def _make_mixed_pages() -> list[dict]:
     """3-page PDF: pages 1 and 3 are image-heavy; page 2 is text-only (500 chars, no images)."""
     return [
         {
             "page_number": 1,
             "image_base64": "aW1nMQ==",
-            "raw_text": "short",          # 5 chars — below 300 threshold
+            "raw_text": "short",  # 5 chars — below 300 threshold
             "raw_text_char_count": 5,
             "has_images": False,
             "page_hash": "hash_p1",
@@ -65,7 +68,7 @@ def _make_mixed_pages() -> list[dict]:
         {
             "page_number": 2,
             "image_base64": "aW1nMg==",
-            "raw_text": "x" * 500,        # 500 chars — above threshold, no images
+            "raw_text": "x" * 500,  # 500 chars — above threshold, no images
             "raw_text_char_count": 500,
             "has_images": False,
             "page_hash": "hash_p2",
@@ -73,7 +76,7 @@ def _make_mixed_pages() -> list[dict]:
         {
             "page_number": 3,
             "image_base64": "aW1nMw==",
-            "raw_text": "short",          # 5 chars — below threshold
+            "raw_text": "short",  # 5 chars — below threshold
             "raw_text_char_count": 5,
             "has_images": False,
             "page_hash": "hash_p3",
@@ -87,9 +90,9 @@ def _make_text_with_images_pages() -> list[dict]:
         {
             "page_number": 1,
             "image_base64": "aW1nMQ==",
-            "raw_text": "x" * 500,        # 500 chars — above threshold
+            "raw_text": "x" * 500,  # 500 chars — above threshold
             "raw_text_char_count": 500,
-            "has_images": True,            # but has embedded images → must NOT skip vision
+            "has_images": True,  # but has embedded images → must NOT skip vision
             "page_hash": "hash_img1",
         },
     ]
@@ -98,6 +101,7 @@ def _make_text_with_images_pages() -> list[dict]:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest_asyncio.fixture
 async def fake_analyzed_service_mixed_pdf(tmp_path):
@@ -245,6 +249,7 @@ async def fake_analyzed_service_text_with_images(tmp_path):
 # Tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_text_heavy_page_skips_vision(fake_analyzed_service_mixed_pdf) -> None:
     """Fixture: 3-page PDF where page 2 is text-only (no images). Vision only fires on pages 1 and 3."""
@@ -287,6 +292,7 @@ async def test_page_with_images_does_not_skip_vision(fake_analyzed_service_text_
 def test_config_bounds_rejected() -> None:
     from rfnry_rag.retrieval.common.errors import ConfigurationError
     from rfnry_rag.retrieval.server import IngestionConfig
+
     with pytest.raises(ConfigurationError):
         IngestionConfig(analyze_text_skip_threshold_chars=-1)
     with pytest.raises(ConfigurationError):

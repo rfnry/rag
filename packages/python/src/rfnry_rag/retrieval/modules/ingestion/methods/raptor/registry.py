@@ -109,9 +109,7 @@ class RaptorTreeRegistry:
                     },
                 )
             else:
-                raise NotImplementedError(
-                    f"RaptorTreeRegistry.set_active not implemented for dialect {dialect!r}"
-                )
+                raise NotImplementedError(f"RaptorTreeRegistry.set_active not implemented for dialect {dialect!r}")
             await session.execute(upsert_stmt)
             await session.commit()
 
@@ -122,9 +120,7 @@ class RaptorTreeRegistry:
         cleanup tooling.
         """
         async with self._session_factory() as session:
-            await session.execute(
-                delete(_RaptorTreeRow).where(_RaptorTreeRow.knowledge_id == knowledge_id)
-            )
+            await session.execute(delete(_RaptorTreeRow).where(_RaptorTreeRow.knowledge_id == knowledge_id))
             await session.commit()
 
     async def get_stale_trees(self, active_knowledge_ids: set[str]) -> list[str]:

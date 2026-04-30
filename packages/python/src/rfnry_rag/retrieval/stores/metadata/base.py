@@ -31,17 +31,23 @@ class BaseMetadataStore(Protocol):
     async def get_tree_indexes(self, source_ids: list[str]) -> dict[str, str | None]: ...
 
     async def upsert_page_analyses(
-        self, source_id: str, analyses: list[dict],
+        self,
+        source_id: str,
+        analyses: list[dict],
     ) -> None: ...
 
     async def get_page_analyses(self, source_id: str) -> list[dict]: ...
 
     async def get_page_analyses_by_hash(
-        self, page_hashes: list[str], knowledge_id: str | None,
+        self,
+        page_hashes: list[str],
+        knowledge_id: str | None,
     ) -> dict[str, dict]: ...
 
     async def get_page_analysis(
-        self, source_id: str, page_number: int,
+        self,
+        source_id: str,
+        page_number: int,
     ) -> dict | None: ...
 
     async def shutdown(self) -> None: ...

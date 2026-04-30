@@ -1,4 +1,5 @@
 """AnalyzedIngestionService now stores page_analyses in the dedicated rag_page_analyses table."""
+
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -19,6 +20,7 @@ from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataSto
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_page_analyses() -> list[PageAnalysis]:
     return [
@@ -69,6 +71,7 @@ class FakeVectorStore:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest_asyncio.fixture
 async def fake_analyzed_service_from_multi_vector(tmp_path):
@@ -191,6 +194,7 @@ async def fake_analyzed_service_ingestable(tmp_path):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_analyze_writes_to_page_analyses_table(fake_analyzed_service_from_multi_vector) -> None:

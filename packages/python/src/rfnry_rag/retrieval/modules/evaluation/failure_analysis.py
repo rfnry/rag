@@ -148,16 +148,10 @@ def classify_failure(query: str, trace: RetrievalTrace) -> FailureClassification
             f"vocabulary gap between query and corpus."
         )
         logger.debug("failure=vocabulary_mismatch %s", signals)
-        return FailureClassification(
-            type=FailureType.VOCABULARY_MISMATCH, reasoning=reasoning, signals=signals
-        )
+        return FailureClassification(type=FailureType.VOCABULARY_MISMATCH, reasoning=reasoning, signals=signals)
 
     top_score = _top_score_from_trace(trace)
-    if (
-        top_score is not None
-        and top_score >= _HIGH_RELEVANCE_THRESHOLD
-        and trace.grounding_decision == "ungrounded"
-    ):
+    if top_score is not None and top_score >= _HIGH_RELEVANCE_THRESHOLD and trace.grounding_decision == "ungrounded":
         signals = {
             "top_score": top_score,
             "high_relevance_threshold": _HIGH_RELEVANCE_THRESHOLD,
@@ -169,9 +163,7 @@ def classify_failure(query: str, trace: RetrievalTrace) -> FailureClassification
             f"and an adjacent one that did not rank."
         )
         logger.debug("failure=chunk_boundary %s", signals)
-        return FailureClassification(
-            type=FailureType.CHUNK_BOUNDARY, reasoning=reasoning, signals=signals
-        )
+        return FailureClassification(type=FailureType.CHUNK_BOUNDARY, reasoning=reasoning, signals=signals)
 
     # SCOPE_MISS requires per_method to be populated AND every list empty.
     # An entirely-absent per_method dict (no methods configured) falls
@@ -186,9 +178,7 @@ def classify_failure(query: str, trace: RetrievalTrace) -> FailureClassification
             f"— either the wrong scope or no relevant content in this scope."
         )
         logger.debug("failure=scope_miss %s", signals)
-        return FailureClassification(
-            type=FailureType.SCOPE_MISS, reasoning=reasoning, signals=signals
-        )
+        return FailureClassification(type=FailureType.SCOPE_MISS, reasoning=reasoning, signals=signals)
 
     if "graph" in per_method and not graph_results:
         match = _ENTITY_TOKEN_PATTERN.search(query)
@@ -202,9 +192,7 @@ def classify_failure(query: str, trace: RetrievalTrace) -> FailureClassification
                 f"channel returned [] — entity may not be indexed."
             )
             logger.debug("failure=entity_not_indexed %s", signals)
-            return FailureClassification(
-                type=FailureType.ENTITY_NOT_INDEXED, reasoning=reasoning, signals=signals
-            )
+            return FailureClassification(type=FailureType.ENTITY_NOT_INDEXED, reasoning=reasoning, signals=signals)
 
     max_observed: float | None = None
     for chunks in per_method.values():
@@ -222,9 +210,7 @@ def classify_failure(query: str, trace: RetrievalTrace) -> FailureClassification
             f"below {_LOW_RELEVANCE_THRESHOLD} — retrieved content is likely noise."
         )
         logger.debug("failure=low_relevance %s", signals)
-        return FailureClassification(
-            type=FailureType.LOW_RELEVANCE, reasoning=reasoning, signals=signals
-        )
+        return FailureClassification(type=FailureType.LOW_RELEVANCE, reasoning=reasoning, signals=signals)
 
     if trace.final_results and trace.grounding_decision == "ungrounded":
         signals = {
@@ -236,9 +222,7 @@ def classify_failure(query: str, trace: RetrievalTrace) -> FailureClassification
             f"still failed — chunks were on-topic but did not carry enough information."
         )
         logger.debug("failure=insufficient_context %s", signals)
-        return FailureClassification(
-            type=FailureType.INSUFFICIENT_CONTEXT, reasoning=reasoning, signals=signals
-        )
+        return FailureClassification(type=FailureType.INSUFFICIENT_CONTEXT, reasoning=reasoning, signals=signals)
 
     signals = {"reason": "no heuristic matched"}
     logger.debug("failure=unknown %s", signals)

@@ -46,9 +46,7 @@ class IterativeRetrievalConfig:
 
     def __post_init__(self) -> None:
         if not (1 <= self.max_hops <= 10):
-            raise ConfigurationError(
-                f"IterativeRetrievalConfig.max_hops must be in [1, 10], got {self.max_hops}"
-            )
+            raise ConfigurationError(f"IterativeRetrievalConfig.max_hops must be in [1, 10], got {self.max_hops}")
         if self.gate_mode not in _VALID_GATE_MODES:
             raise ConfigurationError(
                 f"IterativeRetrievalConfig.gate_mode must be one of {sorted(_VALID_GATE_MODES)}, got {self.gate_mode!r}"

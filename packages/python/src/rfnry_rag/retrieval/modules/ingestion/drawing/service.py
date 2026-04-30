@@ -12,6 +12,7 @@ C4-C10. The service intentionally lives outside ``MethodNamespace`` so it can
 own the 4-phase lifecycle the way ``AnalyzedIngestionService`` owns its 3
 phases.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -74,9 +75,7 @@ class DrawingIngestionService:
         self._embedding_model_name = embedding_model_name
         self._graph_store = graph_store
         self._ingestion_methods = ingestion_methods or []
-        self._registry: ClientRegistry | None = (
-            build_registry(config.lm_client) if config.lm_client else None
-        )
+        self._registry: ClientRegistry | None = build_registry(config.lm_client) if config.lm_client else None
 
     async def render(
         self,
@@ -92,8 +91,7 @@ class DrawingIngestionService:
         ext = path.suffix.lower()
         if ext not in SUPPORTED_DRAWING_EXTENSIONS:
             raise IngestionError(
-                f"unsupported drawing extension: {ext!r}. "
-                f"Supported: {sorted(SUPPORTED_DRAWING_EXTENSIONS)}"
+                f"unsupported drawing extension: {ext!r}. Supported: {sorted(SUPPORTED_DRAWING_EXTENSIONS)}"
             )
 
         file_hash_value = await asyncio.to_thread(compute_file_hash, path)
@@ -103,9 +101,7 @@ class DrawingIngestionService:
             return existing
 
         if ext == ".pdf":
-            pages = await asyncio.to_thread(
-                lambda: list(render_pdf_pages(path, dpi=self._config.dpi))
-            )
+            pages = await asyncio.to_thread(lambda: list(render_pdf_pages(path, dpi=self._config.dpi)))
             source_format = "pdf"
         else:  # .dxf
             pages = await asyncio.to_thread(render_dxf, path, self._config.dpi)
@@ -164,30 +160,25 @@ class DrawingIngestionService:
         if source.status in {"extracted", "linked", "completed"}:
             return source  # idempotent
         if source.status != "rendered":
-            raise IngestionError(
-                f"extract requires status='rendered', got {source.status!r}"
-            )
+            raise IngestionError(f"extract requires status='rendered', got {source.status!r}")
 
         page_rows = await self._metadata_store.get_page_analyses(source_id)
         source_format = source.metadata.get("source_format")
 
         if source_format == "pdf":
             if self._registry is None:
-                raise IngestionError(
-                    "DrawingIngestionConfig.lm_client is required for PDF extract phase"
-                )
+                raise IngestionError("DrawingIngestionConfig.lm_client is required for PDF extract phase")
             analyses = await extract_pdf_analyses(
-                page_rows, self._config, self._registry, source.metadata,
+                page_rows,
+                self._config,
+                self._registry,
+                source.metadata,
             )
         elif source_format == "dxf":
             file_path = Path(source.metadata["file_path"])
-            analyses = await asyncio.to_thread(
-                extract_dxf_analysis, file_path, self._config
-            )
+            analyses = await asyncio.to_thread(extract_dxf_analysis, file_path, self._config)
         else:
-            raise IngestionError(
-                f"unsupported source_format for extract: {source_format!r}"
-            )
+            raise IngestionError(f"unsupported source_format for extract: {source_format!r}")
 
         # Production upsert_page_analyses REPLACES data_json wholesale. Merge at
         # the service layer so render-produced fields (page_image_b64, page_hash,
@@ -222,9 +213,7 @@ class DrawingIngestionService:
         if source.status in {"linked", "completed"}:
             return source  # idempotent
         if source.status != "extracted":
-            raise IngestionError(
-                f"link requires status='extracted', got {source.status!r}"
-            )
+            raise IngestionError(f"link requires status='extracted', got {source.status!r}")
 
         rows = await self._metadata_store.get_page_analyses(source_id)
         pages: list[DrawingPageAnalysis] = []
@@ -234,20 +223,12 @@ class DrawingIngestionService:
                 continue
             pages.append(DrawingPageAnalysis.from_dict(analysis_dict))
 
-        deterministic_pairings = (
-            pair_off_page_connectors(pages) + parse_target_hints(pages, self._config)
-        )
+        deterministic_pairings = pair_off_page_connectors(pages) + parse_target_hints(pages, self._config)
         fuzzy_merges = merge_fuzzy_labels(pages, self._config)
 
         llm_residue: list[dict] = []
-        unresolved = find_unresolved_candidates(
-            pages, deterministic_pairings, fuzzy_merges
-        )
-        if (
-            unresolved
-            and self._registry is not None
-            and self._config.multi_page_linking
-        ):
+        unresolved = find_unresolved_candidates(pages, deterministic_pairings, fuzzy_merges)
+        if unresolved and self._registry is not None and self._config.multi_page_linking:
             per_page_digest = build_digest(pages)
             already_linked = format_already_linked(deterministic_pairings, fuzzy_merges)
             try:
@@ -258,8 +239,7 @@ class DrawingIngestionService:
                 )
             except Exception as exc:
                 logger.warning(
-                    "[drawing/link] SynthesizeDrawingSet failed; "
-                    "continuing with deterministic pairings only: %s",
+                    "[drawing/link] SynthesizeDrawingSet failed; continuing with deterministic pairings only: %s",
                     exc,
                 )
                 synthesis = None
@@ -285,7 +265,9 @@ class DrawingIngestionService:
         }
         new_metadata = {**source.metadata, "drawing_linking": link_payload}
         await self._metadata_store.update_source(
-            source_id, status="linked", metadata=new_metadata,
+            source_id,
+            status="linked",
+            metadata=new_metadata,
         )
         source.status = "linked"
         source.metadata = new_metadata
@@ -306,9 +288,7 @@ class DrawingIngestionService:
         if source.status == "completed":
             return source
         if source.status != "linked":
-            raise IngestionError(
-                f"ingest requires status='linked', got {source.status!r}"
-            )
+            raise IngestionError(f"ingest requires status='linked', got {source.status!r}")
 
         rows = await self._metadata_store.get_page_analyses(source_id)
         pages: list[DrawingPageAnalysis] = []
@@ -319,10 +299,7 @@ class DrawingIngestionService:
             pages.append(DrawingPageAnalysis.from_dict(analysis))
 
         linking = source.metadata.get("drawing_linking", {}) or {}
-        deterministic_pairings = [
-            DetectedConnection.from_dict(d)
-            for d in linking.get("deterministic_pairings", [])
-        ]
+        deterministic_pairings = [DetectedConnection.from_dict(d) for d in linking.get("deterministic_pairings", [])]
         llm_residue = list(linking.get("llm_residue", []) or [])
 
         # Embed one vector per component (type + label + page-local neighbours + domain).
@@ -391,11 +368,7 @@ class DrawingIngestionService:
         source.status = "completed"
         source.chunk_count = len(component_texts)
         batch_size = self._config.graph_write_batch_size
-        relations_batches = (
-            0
-            if self._graph_store is None
-            else (relations_count + batch_size - 1) // batch_size
-        )
+        relations_batches = 0 if self._graph_store is None else (relations_count + batch_size - 1) // batch_size
         logger.info(
             "[drawing/ingest] source_id=%s components=%d relations_batches=%d",
             source.source_id,

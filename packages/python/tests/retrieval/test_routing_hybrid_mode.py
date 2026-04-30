@@ -228,9 +228,7 @@ async def test_query_mode_hybrid_trace_includes_answerability_timing(
 
 
 @pytest.mark.parametrize("mode", [QueryMode.DIRECT, QueryMode.HYBRID, QueryMode.AUTO])
-async def test_query_stream_refuses_non_retrieval_modes(
-    make_engine: Any, mode: QueryMode
-) -> None:
+async def test_query_stream_refuses_non_retrieval_modes(make_engine: Any, mode: QueryMode) -> None:
     """`query_stream()` raises `ConfigurationError` for any non-RETRIEVAL mode.
 
     A consumer who configures `mode=DIRECT` / `mode=HYBRID` / `mode=AUTO`

@@ -1,4 +1,5 @@
 """Hard-split guard: no chunk exceeds chunk_size * 1.2 even with no separators in text."""
+
 from rfnry_rag.retrieval.modules.ingestion.chunk.splitter import RecursiveTextSplitter
 
 

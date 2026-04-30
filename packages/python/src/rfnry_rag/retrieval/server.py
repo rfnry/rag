@@ -164,13 +164,9 @@ class DocumentExpansionConfig:
 
     def __post_init__(self) -> None:
         if not (1 <= self.num_queries <= 20):
-            raise ConfigurationError(
-                f"DocumentExpansionConfig.num_queries={self.num_queries} out of range [1, 20]"
-            )
+            raise ConfigurationError(f"DocumentExpansionConfig.num_queries={self.num_queries} out of range [1, 20]")
         if not (1 <= self.concurrency <= 100):
-            raise ConfigurationError(
-                f"DocumentExpansionConfig.concurrency={self.concurrency} out of range [1, 100]"
-            )
+            raise ConfigurationError(f"DocumentExpansionConfig.concurrency={self.concurrency} out of range [1, 100]")
         if self.enabled and self.lm_client is None:
             raise ConfigurationError(
                 "DocumentExpansionConfig.enabled=True requires lm_client — provide a LanguageModelClient "
@@ -259,8 +255,7 @@ class IngestionConfig:
             raise ConfigurationError(f"dpi must be between 72 and 600, got {self.dpi}")
         if not (0 <= self.analyze_text_skip_threshold_chars <= 100_000):
             raise ConfigurationError(
-                f"analyze_text_skip_threshold_chars={self.analyze_text_skip_threshold_chars} "
-                "out of range [0, 100_000]"
+                f"analyze_text_skip_threshold_chars={self.analyze_text_skip_threshold_chars} out of range [0, 100_000]"
             )
         if not (1 <= self.analyze_concurrency <= 100):
             raise ConfigurationError(
@@ -306,22 +301,16 @@ class AdaptiveRetrievalConfig:
 
     def __post_init__(self) -> None:
         if not (1 <= self.top_k_min <= 50):
-            raise ConfigurationError(
-                f"AdaptiveRetrievalConfig.top_k_min={self.top_k_min} out of range [1, 50]"
-            )
+            raise ConfigurationError(f"AdaptiveRetrievalConfig.top_k_min={self.top_k_min} out of range [1, 50]")
         if not (1 <= self.top_k_max <= 200):
-            raise ConfigurationError(
-                f"AdaptiveRetrievalConfig.top_k_max={self.top_k_max} out of range [1, 200]"
-            )
+            raise ConfigurationError(f"AdaptiveRetrievalConfig.top_k_max={self.top_k_max} out of range [1, 200]")
         if self.top_k_min > self.top_k_max:
             raise ConfigurationError(
-                f"AdaptiveRetrievalConfig.top_k_min={self.top_k_min} cannot exceed "
-                f"top_k_max={self.top_k_max}"
+                f"AdaptiveRetrievalConfig.top_k_min={self.top_k_min} cannot exceed top_k_max={self.top_k_max}"
             )
         if not (0 <= self.max_expansion_retries <= 5):
             raise ConfigurationError(
-                f"AdaptiveRetrievalConfig.max_expansion_retries={self.max_expansion_retries} "
-                "out of range [0, 5]"
+                f"AdaptiveRetrievalConfig.max_expansion_retries={self.max_expansion_retries} out of range [0, 5]"
             )
         # Single-config invariant: confidence_expansion is gated by `enabled`
         # in `_query_via_retrieval` (both flags must be True before the retry
@@ -368,17 +357,13 @@ class RetrievalConfig:
                 "in-memory BM25 index at that size risks OOM; use sparse_embeddings instead"
             )
         if not (1 <= self.bm25_max_indexes <= 1000):
-            raise ConfigurationError(
-                f"bm25_max_indexes must be 1-1000, got {self.bm25_max_indexes}"
-            )
+            raise ConfigurationError(f"bm25_max_indexes must be 1-1000, got {self.bm25_max_indexes}")
         if not (1 <= self.history_window <= 20):
             raise ConfigurationError(f"history_window must be 1-20, got {self.history_window}")
         if self.source_type_weights is not None:
             for key, weight in self.source_type_weights.items():
                 if not 0 < weight <= 10.0:
-                    raise ConfigurationError(
-                        f"source_type_weights[{key!r}]={weight} — weight must be in (0, 10]"
-                    )
+                    raise ConfigurationError(f"source_type_weights[{key!r}]={weight} — weight must be in (0, 10]")
 
 
 @dataclass
@@ -458,9 +443,7 @@ class TreeSearchConfig:
         if self.max_context_tokens > 500_000:
             raise ConfigurationError(f"max_context_tokens must be <= 500_000, got {self.max_context_tokens}")
         if not (1 <= self.max_sources_per_query <= 1000):
-            raise ConfigurationError(
-                f"max_sources_per_query must be 1-1000, got {self.max_sources_per_query}"
-            )
+            raise ConfigurationError(f"max_sources_per_query must be 1-1000, got {self.max_sources_per_query}")
 
 
 class QueryMode(Enum):
@@ -499,9 +482,7 @@ class RoutingConfig:
                 "out of range [1_000, 2_000_000]"
             )
         if self.mode == QueryMode.HYBRID and self.hybrid_answerability_model is None:
-            raise ConfigurationError(
-                "RoutingConfig.mode=HYBRID requires hybrid_answerability_model"
-            )
+            raise ConfigurationError("RoutingConfig.mode=HYBRID requires hybrid_answerability_model")
 
 
 @dataclass
@@ -741,10 +722,7 @@ class RagEngine:
         if (
             cfg.retrieval.iterative.enabled
             and cfg.retrieval.iterative.escalate_to_direct
-            and (
-                cfg.routing is None
-                or getattr(cfg.routing, "direct_context_threshold", None) is None
-            )
+            and (cfg.routing is None or getattr(cfg.routing, "direct_context_threshold", None) is None)
         ):
             logger.warning(
                 "iterative.escalate_to_direct=True but RoutingConfig.direct_context_threshold "
@@ -863,9 +841,8 @@ class RagEngine:
             if ingestion.embeddings is None:
                 missing.append("embeddings is not configured")
 
-            if (
-                persistence.metadata_store is not None
-                and not isinstance(persistence.metadata_store, SQLAlchemyMetadataStore)
+            if persistence.metadata_store is not None and not isinstance(
+                persistence.metadata_store, SQLAlchemyMetadataStore
             ):
                 # Actively-wrong wiring: surface immediately so consumers can't
                 # silently lose RAPTOR retrieval. ``build_raptor_index`` keeps
@@ -896,8 +873,7 @@ class RagEngine:
                 logger.info("raptor retrieval: enabled")
             else:
                 logger.warning(
-                    "raptor.enabled=True but %s; RAPTOR retrieval and "
-                    "build_raptor_index will be unavailable.",
+                    "raptor.enabled=True but %s; RAPTOR retrieval and build_raptor_index will be unavailable.",
                     ", ".join(missing),
                 )
 
@@ -997,13 +973,9 @@ class RagEngine:
         # explicitly configures IngestionConfig.drawings (opt-in).
         if ingestion.drawings is not None and ingestion.drawings.enabled:
             if persistence.metadata_store is None or persistence.vector_store is None:
-                raise ConfigurationError(
-                    "DrawingIngestionConfig.enabled=True requires metadata_store and vector_store"
-                )
+                raise ConfigurationError("DrawingIngestionConfig.enabled=True requires metadata_store and vector_store")
             if ingestion.embeddings is None:
-                raise ConfigurationError(
-                    "DrawingIngestionConfig.enabled=True requires IngestionConfig.embeddings"
-                )
+                raise ConfigurationError("DrawingIngestionConfig.enabled=True requires IngestionConfig.embeddings")
             self._drawing_ingestion = DrawingIngestionService(
                 config=ingestion.drawings,
                 embeddings=ingestion.embeddings,
@@ -1195,10 +1167,7 @@ class RagEngine:
         ext = file_path.suffix.lower()
 
         # Drawing route: .dxf always; .pdf only when source_type='drawing'.
-        drawing_route = (
-            ext in SUPPORTED_DRAWING_EXTENSIONS
-            or (ext == ".pdf" and source_type == "drawing")
-        )
+        drawing_route = ext in SUPPORTED_DRAWING_EXTENSIONS or (ext == ".pdf" and source_type == "drawing")
         if drawing_route:
             if self._drawing_ingestion is None:
                 raise ValueError(
@@ -1206,9 +1175,7 @@ class RagEngine:
                     "Pass IngestionConfig(drawings=DrawingIngestionConfig(enabled=True, ...))."
                 )
             if collection is not None:
-                raise ValueError(
-                    "collection routing is not supported with drawing ingestion"
-                )
+                raise ValueError("collection routing is not supported with drawing ingestion")
 
             # Status-based resume
             metadata_store = self._config.persistence.metadata_store
@@ -1388,9 +1355,7 @@ class RagEngine:
         """Drawing phase 1: render page images."""
         self._check_initialized()
         if self._drawing_ingestion is None:
-            raise ConfigurationError(
-                "DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...)."
-            )
+            raise ConfigurationError("DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...).")
         return await self._drawing_ingestion.render(
             file_path=file_path,
             knowledge_id=knowledge_id,
@@ -1402,27 +1367,21 @@ class RagEngine:
         """Drawing phase 2: per-page DrawingPageAnalysis."""
         self._check_initialized()
         if self._drawing_ingestion is None:
-            raise ConfigurationError(
-                "DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...)."
-            )
+            raise ConfigurationError("DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...).")
         return await self._drawing_ingestion.extract(source_id)
 
     async def link_drawing(self, source_id: str) -> Source:
         """Drawing phase 3: cross-sheet linking (deterministic + LLM residue)."""
         self._check_initialized()
         if self._drawing_ingestion is None:
-            raise ConfigurationError(
-                "DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...)."
-            )
+            raise ConfigurationError("DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...).")
         return await self._drawing_ingestion.link(source_id)
 
     async def complete_drawing_ingestion(self, source_id: str) -> Source:
         """Drawing phase 4: embed + graph write."""
         self._check_initialized()
         if self._drawing_ingestion is None:
-            raise ConfigurationError(
-                "DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...)."
-            )
+            raise ConfigurationError("DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...).")
         return await self._drawing_ingestion.ingest(source_id)
 
     async def query(
@@ -1455,16 +1414,12 @@ class RagEngine:
                 text, knowledge_id, history, min_score, collection, system_prompt, trace
             )
         if mode == QueryMode.DIRECT:
-            return await self._query_via_direct_context(
-                text, knowledge_id, history, system_prompt, trace
-            )
+            return await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
         if mode == QueryMode.HYBRID:
             return await self._query_via_hybrid(
                 text, knowledge_id, history, min_score, collection, system_prompt, trace
             )
-        return await self._query_via_auto(
-            text, knowledge_id, history, min_score, collection, system_prompt, trace
-        )
+        return await self._query_via_auto(text, knowledge_id, history, min_score, collection, system_prompt, trace)
 
     @staticmethod
     def _max_chunk_score(chunks: list[RetrievedChunk]) -> float | None:
@@ -1479,9 +1434,7 @@ class RagEngine:
         return max_chunk_score(chunks)
 
     @classmethod
-    def _should_expand(
-        cls, chunks: list[RetrievedChunk], threshold: float
-    ) -> bool:
+    def _should_expand(cls, chunks: list[RetrievedChunk], threshold: float) -> bool:
         """True when retrieval signal is weak — empty OR strict-below threshold.
 
         Thin wrapper over `common.grounding.is_weak_chunk_signal`. The
@@ -1587,20 +1540,12 @@ class RagEngine:
         # Production `RagServerConfig` always provides both; treating
         # missing fields as "disabled" preserves the test ergonomics.
         adaptive = getattr(self._config.retrieval, "adaptive", None)
-        expansion_enabled = (
-            adaptive is not None
-            and adaptive.enabled
-            and adaptive.confidence_expansion
-        )
+        expansion_enabled = adaptive is not None and adaptive.enabled and adaptive.confidence_expansion
         generation_cfg = getattr(self._config, "generation", None)
-        grounding_threshold = (
-            generation_cfg.grounding_threshold if generation_cfg is not None else 0.5
-        )
+        grounding_threshold = generation_cfg.grounding_threshold if generation_cfg is not None else 0.5
         base_top_k = getattr(self._config.retrieval, "top_k", 5)
 
-        chunks, trace_obj = await self._retrieve_chunks(
-            text, knowledge_id, history, min_score, collection, trace=trace
-        )
+        chunks, trace_obj = await self._retrieve_chunks(text, knowledge_id, history, min_score, collection, trace=trace)
 
         attempts = 0
         final_top_k = base_top_k
@@ -1608,9 +1553,7 @@ class RagEngine:
         if expansion_enabled:
             assert adaptive is not None  # narrowed by `expansion_enabled` truth
             expanded_top_k = base_top_k
-            while attempts < adaptive.max_expansion_retries and self._should_expand(
-                chunks, grounding_threshold
-            ):
+            while attempts < adaptive.max_expansion_retries and self._should_expand(chunks, grounding_threshold):
                 attempts += 1
                 if attempts == 1:
                     expanded_top_k = min(expanded_top_k * 2, adaptive.top_k_max)
@@ -1803,9 +1746,7 @@ class RagEngine:
         # an already-actionable diagnostic.
         gen_threshold = self._config.generation.grounding_threshold
         iter_threshold = (
-            iterative_cfg.grounding_threshold
-            if iterative_cfg.grounding_threshold is not None
-            else gen_threshold
+            iterative_cfg.grounding_threshold if iterative_cfg.grounding_threshold is not None else gen_threshold
         )
         # `error` outcomes preserve the loop's failure signal (relabeling
         # would erase an already-actionable diagnostic). `done` with zero
@@ -1816,8 +1757,7 @@ class RagEngine:
         # weak". Only relabel when the loop actually retrieved at least
         # one hop's worth of chunks.
         eligible_for_escalation = (
-            outcome.termination_reason in {"done", "max_hops"}
-            and outcome.total_retrieve_calls > 0
+            outcome.termination_reason in {"done", "max_hops"} and outcome.total_retrieve_calls > 0
         )
         if (
             eligible_for_escalation
@@ -1825,9 +1765,7 @@ class RagEngine:
             and is_weak_chunk_signal(accumulated_chunks, iter_threshold)
         ):
             routing_threshold = (
-                self._config.routing.direct_context_threshold
-                if self._config.routing is not None
-                else None
+                self._config.routing.direct_context_threshold if self._config.routing is not None else None
             )
             tokens: int | None = None
             if routing_threshold is not None:
@@ -1845,11 +1783,7 @@ class RagEngine:
                         exc,
                     )
                     tokens = None
-            if (
-                routing_threshold is not None
-                and tokens is not None
-                and tokens <= routing_threshold
-            ):
+            if routing_threshold is not None and tokens is not None and tokens <= routing_threshold:
                 logger.info(
                     "iterative escalation: hops=%d max_score=%s threshold=%s tokens=%d ≤ %d",
                     len(outcome.hops),
@@ -1858,9 +1792,7 @@ class RagEngine:
                     tokens,
                     routing_threshold,
                 )
-                direct_result = await self._query_via_direct_context(
-                    text, knowledge_id, history, system_prompt, trace
-                )
+                direct_result = await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
                 if trace and direct_result.trace is not None:
                     # Boundary-preservation pattern: stamp the iterative
                     # trace data onto the DIRECT result so a consumer
@@ -1871,9 +1803,7 @@ class RagEngine:
                     # `_query_via_direct_context` builds a fresh trace.
                     direct_result.trace.routing_decision = "iterative_then_direct"
                     direct_result.trace.iterative_hops = list(outcome.hops)
-                    direct_result.trace.iterative_termination_reason = (
-                        "low_confidence_escalated"
-                    )
+                    direct_result.trace.iterative_termination_reason = "low_confidence_escalated"
                     if classification is not None:
                         # Adaptive merge: layer the pre-escalation
                         # classifier verdict onto the
@@ -1887,9 +1817,7 @@ class RagEngine:
                             merged.update(direct_result.trace.adaptive)
                         merged.setdefault("complexity", classification.complexity.name)
                         merged.setdefault("query_type", classification.query_type.name)
-                        merged.setdefault(
-                            "classification_source", classification.source
-                        )
+                        merged.setdefault("classification_source", classification.source)
                         merged.setdefault("iterative_gate", "type_passed")
                         direct_result.trace.adaptive = merged
                     direct_result.trace.timings["iterative_total"] = iterative_elapsed
@@ -2023,9 +1951,7 @@ class RagEngine:
         (`routing_decision="hybrid_lc"`).
         """
         assert self._generation_service is not None
-        chunks, trace_obj = await self._retrieve_chunks(
-            text, knowledge_id, history, min_score, collection, trace=trace
-        )
+        chunks, trace_obj = await self._retrieve_chunks(text, knowledge_id, history, min_score, collection, trace=trace)
         context = chunks_to_context(chunks, ordering=self._config.generation.chunk_ordering)
 
         answerable, _reasoning = await self._check_answerability(text, context, trace_obj)
@@ -2107,18 +2033,14 @@ class RagEngine:
                 tokens,
                 threshold,
             )
-            return await self._query_via_direct_context(
-                text, knowledge_id, history, system_prompt, trace
-            )
+            return await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
 
         logger.info(
             "auto routing: tokens=%d threshold=%d → RETRIEVAL",
             tokens,
             threshold,
         )
-        return await self._query_via_retrieval(
-            text, knowledge_id, history, min_score, collection, system_prompt, trace
-        )
+        return await self._query_via_retrieval(text, knowledge_id, history, min_score, collection, system_prompt, trace)
 
     async def _check_answerability(
         self,
@@ -2198,9 +2120,7 @@ class RagEngine:
         """
         self._check_initialized()
         _validate_query_text(text)
-        chunks, trace_obj = await self._retrieve_chunks(
-            text, knowledge_id, None, min_score, collection, trace=trace
-        )
+        chunks, trace_obj = await self._retrieve_chunks(text, knowledge_id, None, min_score, collection, trace=trace)
         return chunks, trace_obj
 
     async def generate_step(
@@ -2287,26 +2207,20 @@ class RagEngine:
         self._check_initialized()
         cfg = self._config.ingestion.raptor
         if not cfg.enabled:
-            raise ConfigurationError(
-                "build_raptor_index() requires IngestionConfig.raptor.enabled=True"
-            )
+            raise ConfigurationError("build_raptor_index() requires IngestionConfig.raptor.enabled=True")
         if cfg.summary_model is None:
             # Defensive: ``RaptorConfig.__post_init__`` already enforces this
             # cross-field rule, but a consumer could mutate the field after
             # construction. Re-checking here surfaces the misconfig at the
             # API boundary rather than as a confusing builder error.
-            raise ConfigurationError(
-                "build_raptor_index() requires RaptorConfig.summary_model to be set"
-            )
+            raise ConfigurationError("build_raptor_index() requires RaptorConfig.summary_model to be set")
         persistence = self._config.persistence
         if persistence.vector_store is None:
             raise ConfigurationError("build_raptor_index() requires a vector_store")
         if self._config.ingestion.embeddings is None:
             raise ConfigurationError("build_raptor_index() requires embeddings")
         if persistence.metadata_store is None:
-            raise ConfigurationError(
-                "build_raptor_index() requires a metadata_store (for RaptorTreeRegistry)"
-            )
+            raise ConfigurationError("build_raptor_index() requires a metadata_store (for RaptorTreeRegistry)")
         assert self._knowledge_manager is not None
 
         # SQLAlchemyMetadataStore is required (RAPTOR schema lives there).
@@ -2600,9 +2514,7 @@ class RagEngine:
             # The inner search service already degrades per-variant; this makes
             # the structured-vs-unstructured merge consistent.
             results = await asyncio.gather(
-                unstructured.retrieve(
-                    query=retrieval_query, knowledge_id=knowledge_id, trace=trace, **tree_kwargs
-                ),
+                unstructured.retrieve(query=retrieval_query, knowledge_id=knowledge_id, trace=trace, **tree_kwargs),
                 structured.retrieve(query=retrieval_query, knowledge_id=knowledge_id),
                 return_exceptions=True,
             )

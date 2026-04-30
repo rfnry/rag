@@ -1,4 +1,5 @@
 """BAML drawing functions: prompt-fencing contract + shape."""
+
 from pathlib import Path
 
 _BAML_SRC = Path("src/rfnry_rag/retrieval/baml/baml_src/ingestion/drawing.baml")
@@ -12,9 +13,16 @@ def test_drawing_page_analysis_class_declares_required_fields() -> None:
     text = _BAML_SRC.read_text()
     # Required field names must appear in class DrawingPageAnalysis
     for field in [
-        "page_number", "sheet_number", "zone_grid", "domain",
-        "components", "connections", "off_page_connectors",
-        "title_block", "notes", "page_type",
+        "page_number",
+        "sheet_number",
+        "zone_grid",
+        "domain",
+        "components",
+        "connections",
+        "off_page_connectors",
+        "title_block",
+        "notes",
+        "page_type",
     ]:
         assert field in text, f"DrawingPageAnalysis missing field: {field}"
 

@@ -7,6 +7,7 @@ from rfnry_rag.common.errors import ConfigurationError
 
 def test_default_symbol_library_covers_iec_and_isa() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+
     cfg = DrawingIngestionConfig(enabled=True)
     lib = cfg.symbol_library
     assert lib is not None
@@ -16,6 +17,7 @@ def test_default_symbol_library_covers_iec_and_isa() -> None:
 
 def test_consumer_can_fully_replace_symbol_library() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+
     cfg = DrawingIngestionConfig(
         enabled=True,
         symbol_library={"custom": ["widget_a", "widget_b"]},
@@ -27,6 +29,7 @@ def test_consumer_can_fully_replace_symbol_library() -> None:
 
 def test_consumer_can_extend_default_symbol_library() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+
     cfg = DrawingIngestionConfig(
         enabled=True,
         symbol_library_extensions={"electrical": ["custom_ic_pack"]},
@@ -39,6 +42,7 @@ def test_consumer_can_extend_default_symbol_library() -> None:
 
 def test_off_page_patterns_default_non_empty() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+
     cfg = DrawingIngestionConfig(enabled=True)
     assert cfg.off_page_connector_patterns is not None
     assert len(cfg.off_page_connector_patterns) >= 3
@@ -46,6 +50,7 @@ def test_off_page_patterns_default_non_empty() -> None:
 
 def test_relation_vocabulary_default_maps_standard_wire_styles() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+
     cfg = DrawingIngestionConfig(enabled=True)
     assert cfg.relation_vocabulary is not None
     assert cfg.relation_vocabulary["pneumatic"] == "FLOWS_TO"
@@ -54,14 +59,16 @@ def test_relation_vocabulary_default_maps_standard_wire_styles() -> None:
 
 def test_dpi_bounds() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+
     with pytest.raises(ConfigurationError):
-        DrawingIngestionConfig(enabled=True, dpi=100)   # below 150
+        DrawingIngestionConfig(enabled=True, dpi=100)  # below 150
     with pytest.raises(ConfigurationError):
-        DrawingIngestionConfig(enabled=True, dpi=700)   # above 600
+        DrawingIngestionConfig(enabled=True, dpi=700)  # above 600
 
 
 def test_fuzzy_threshold_bounds() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+
     with pytest.raises(ConfigurationError):
         DrawingIngestionConfig(enabled=True, fuzzy_label_threshold=1.5)
     with pytest.raises(ConfigurationError):
@@ -70,6 +77,7 @@ def test_fuzzy_threshold_bounds() -> None:
 
 def test_analyze_concurrency_bounds() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+
     with pytest.raises(ConfigurationError):
         DrawingIngestionConfig(enabled=True, analyze_concurrency=0)
     with pytest.raises(ConfigurationError):
@@ -78,6 +86,7 @@ def test_analyze_concurrency_bounds() -> None:
 
 def test_graph_write_batch_size_bounds() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+
     with pytest.raises(ConfigurationError):
         DrawingIngestionConfig(enabled=True, graph_write_batch_size=0)
     with pytest.raises(ConfigurationError):
@@ -86,6 +95,7 @@ def test_graph_write_batch_size_bounds() -> None:
 
 def test_default_domain_enum_validation() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+
     with pytest.raises(ConfigurationError):
         DrawingIngestionConfig(enabled=True, default_domain="bogus")  # type: ignore[arg-type]
 
@@ -102,6 +112,7 @@ def test_relation_vocabulary_only_allows_graph_store_allowlisted_types() -> None
 
 def test_relation_vocabulary_rejects_invalid_relation_type() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+
     with pytest.raises(ConfigurationError):
         DrawingIngestionConfig(
             enabled=True,
@@ -112,6 +123,7 @@ def test_relation_vocabulary_rejects_invalid_relation_type() -> None:
 def test_disabled_config_skips_validation() -> None:
     """enabled=False should skip bounds checks; defaults-only is always safe."""
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
+
     # enabled=False with a pathological value should not raise (config is inert)
     cfg = DrawingIngestionConfig(enabled=False, dpi=9999)
     assert cfg.enabled is False
@@ -120,6 +132,7 @@ def test_disabled_config_skips_validation() -> None:
 def test_nested_into_ingestion_config() -> None:
     from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
     from rfnry_rag.retrieval.server import IngestionConfig
+
     cfg = IngestionConfig(drawings=DrawingIngestionConfig(enabled=True))
     assert cfg.drawings is not None
     assert cfg.drawings.enabled is True
@@ -128,5 +141,6 @@ def test_nested_into_ingestion_config() -> None:
 
 def test_drawings_none_by_default() -> None:
     from rfnry_rag.retrieval.server import IngestionConfig
+
     cfg = IngestionConfig()
     assert cfg.drawings is None

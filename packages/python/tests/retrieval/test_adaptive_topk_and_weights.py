@@ -74,9 +74,7 @@ async def test_adaptive_dynamic_topk_simple_uses_top_k_min() -> None:
     """SIMPLE complexity -> effective top_k = `top_k_min` (default 3)."""
     method_a = _mock_method("vector", [_chunk("chunk_a")])
     adaptive = AdaptiveRetrievalConfig(enabled=True, top_k_min=3, top_k_max=15)
-    service = RetrievalService(
-        retrieval_methods=[method_a], top_k=5, adaptive_config=adaptive
-    )
+    service = RetrievalService(retrieval_methods=[method_a], top_k=5, adaptive_config=adaptive)
 
     with patch(
         _CLASSIFY_PATH,
@@ -93,9 +91,7 @@ async def test_adaptive_dynamic_topk_moderate_uses_base_top_k() -> None:
     """MODERATE complexity -> effective top_k = base `RetrievalConfig.top_k` (5)."""
     method_a = _mock_method("vector", [_chunk("chunk_a")])
     adaptive = AdaptiveRetrievalConfig(enabled=True, top_k_min=3, top_k_max=15)
-    service = RetrievalService(
-        retrieval_methods=[method_a], top_k=5, adaptive_config=adaptive
-    )
+    service = RetrievalService(retrieval_methods=[method_a], top_k=5, adaptive_config=adaptive)
 
     with patch(
         _CLASSIFY_PATH,
@@ -112,9 +108,7 @@ async def test_adaptive_dynamic_topk_complex_uses_top_k_max() -> None:
     """COMPLEX complexity -> effective top_k = `top_k_max` (15)."""
     method_a = _mock_method("vector", [_chunk("chunk_a")])
     adaptive = AdaptiveRetrievalConfig(enabled=True, top_k_min=3, top_k_max=15)
-    service = RetrievalService(
-        retrieval_methods=[method_a], top_k=5, adaptive_config=adaptive
-    )
+    service = RetrievalService(retrieval_methods=[method_a], top_k=5, adaptive_config=adaptive)
 
     with patch(
         _CLASSIFY_PATH,
@@ -133,15 +127,11 @@ async def test_adaptive_task_weights_entity_relationship_boosts_graph_method() -
     method_d = _mock_method("document", [_chunk("chunk_d")])
     method_g = _mock_method("graph", [_chunk("chunk_g")])
     adaptive = AdaptiveRetrievalConfig(enabled=True)
-    service = RetrievalService(
-        retrieval_methods=[method_v, method_d, method_g], top_k=5, adaptive_config=adaptive
-    )
+    service = RetrievalService(retrieval_methods=[method_v, method_d, method_g], top_k=5, adaptive_config=adaptive)
 
     with patch(
         _CLASSIFY_PATH,
-        new=AsyncMock(
-            return_value=_classification(query_type=QueryType.ENTITY_RELATIONSHIP)
-        ),
+        new=AsyncMock(return_value=_classification(query_type=QueryType.ENTITY_RELATIONSHIP)),
     ):
         _chunks, trace = await service.retrieve(query="q1", trace=True)
 
@@ -159,9 +149,7 @@ async def test_adaptive_task_weights_factual_boosts_vector_dominant() -> None:
     method_d = _mock_method("document", [_chunk("chunk_d")])
     method_g = _mock_method("graph", [_chunk("chunk_g")])
     adaptive = AdaptiveRetrievalConfig(enabled=True)
-    service = RetrievalService(
-        retrieval_methods=[method_v, method_d, method_g], top_k=5, adaptive_config=adaptive
-    )
+    service = RetrievalService(retrieval_methods=[method_v, method_d, method_g], top_k=5, adaptive_config=adaptive)
 
     with patch(
         _CLASSIFY_PATH,
@@ -196,9 +184,7 @@ async def test_adaptive_partial_override_falls_back_to_defaults_for_other_query_
         enabled=True,
         task_weight_profiles={"FACTUAL": {"vector": 9.0}},
     )
-    service = RetrievalService(
-        retrieval_methods=[method_v, method_d, method_g], top_k=5, adaptive_config=adaptive
-    )
+    service = RetrievalService(retrieval_methods=[method_v, method_d, method_g], top_k=5, adaptive_config=adaptive)
 
     # Classify as COMPARATIVE — the consumer DID NOT override this profile,
     # so the default COMPARATIVE multipliers must be applied.
@@ -245,9 +231,7 @@ async def test_adaptive_tree_multiplier_applied_when_tree_chunks_present() -> No
     """
     method_v = _mock_method("vector", [_chunk("chunk_v")])
     adaptive = AdaptiveRetrievalConfig(enabled=True)
-    service = RetrievalService(
-        retrieval_methods=[method_v], top_k=5, adaptive_config=adaptive
-    )
+    service = RetrievalService(retrieval_methods=[method_v], top_k=5, adaptive_config=adaptive)
 
     # COMPARATIVE has tree=1.2 in the default profile.
     classify_patch = patch(
@@ -281,17 +265,11 @@ async def test_adaptive_trace_records_classification_and_effective_topk() -> Non
     """`trace.adaptive` carries complexity, query_type, top_k, multipliers, source."""
     method_v = _mock_method("vector", [_chunk("chunk_v")])
     adaptive = AdaptiveRetrievalConfig(enabled=True, top_k_min=3, top_k_max=15)
-    service = RetrievalService(
-        retrieval_methods=[method_v], top_k=5, adaptive_config=adaptive
-    )
+    service = RetrievalService(retrieval_methods=[method_v], top_k=5, adaptive_config=adaptive)
 
     with patch(
         _CLASSIFY_PATH,
-        new=AsyncMock(
-            return_value=_classification(
-                complexity=QueryComplexity.MODERATE, query_type=QueryType.FACTUAL
-            )
-        ),
+        new=AsyncMock(return_value=_classification(complexity=QueryComplexity.MODERATE, query_type=QueryType.FACTUAL)),
     ):
         _chunks, trace = await service.retrieve(query="q1", trace=True)
 

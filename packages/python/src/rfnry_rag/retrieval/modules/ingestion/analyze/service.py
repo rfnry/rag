@@ -93,7 +93,8 @@ class AnalyzedIngestionService:
         if existing is not None and existing.status in ("analyzed", "synthesized", "completed"):
             logger.info(
                 "[analyze] file-hash cache hit source=%s status=%s",
-                existing.source_id, existing.status,
+                existing.source_id,
+                existing.status,
             )
             return existing
 
@@ -132,10 +133,7 @@ class AnalyzedIngestionService:
         await self._metadata_store.create_source(source)
         await self._metadata_store.upsert_page_analyses(
             source_id,
-            [
-                {"page_number": pa.page_number, "data": _serialize_analysis(pa)}
-                for pa in page_analyses
-            ],
+            [{"page_number": pa.page_number, "data": _serialize_analysis(pa)} for pa in page_analyses],
         )
 
         logger.info(
@@ -255,8 +253,7 @@ class AnalyzedIngestionService:
             await self._vector_store.initialize(len(vectors[0]))
 
         points: list[VectorPoint] = [
-            VectorPoint(point_id=str(uuid4()), vector=v, payload=p)
-            for v, p in zip(vectors, payloads, strict=True)
+            VectorPoint(point_id=str(uuid4()), vector=v, payload=p) for v, p in zip(vectors, payloads, strict=True)
         ]
         await self._vector_store.upsert(points)
 
@@ -267,7 +264,10 @@ class AnalyzedIngestionService:
                 for pa in page_analyses:
                     all_entities.extend(page_entities_to_graph(pa, source.source_id, self._graph_config))
                 relations = cross_refs_to_graph_relations(
-                    synthesis, page_analyses, source.knowledge_id, self._graph_config,
+                    synthesis,
+                    page_analyses,
+                    source.knowledge_id,
+                    self._graph_config,
                 )
                 if all_entities:
                     await self._graph_store.add_entities(
@@ -329,7 +329,10 @@ class AnalyzedIngestionService:
         return list(await asyncio.gather(*(self._analyze_one(p, sem) for p in pages)))
 
     async def _analyze_pdf_with_cache(
-        self, file_path: Path, page_filter: set[int] | None, knowledge_id: str | None,
+        self,
+        file_path: Path,
+        page_filter: set[int] | None,
+        knowledge_id: str | None,
     ) -> list[PageAnalysis]:
         """PDF analysis with per-page image-hash caching and text-density pre-filter.
 
@@ -358,7 +361,8 @@ class AnalyzedIngestionService:
         # knowledge-scoped; per-page hash is content-addressed so cross-knowledge
         # reuse is safe.
         cached = await self._metadata_store.get_page_analyses_by_hash(
-            page_hashes=page_hashes, knowledge_id=None,
+            page_hashes=page_hashes,
+            knowledge_id=None,
         )
 
         # Classify cache-miss pages into text-only (no vision needed) and vision targets.
@@ -368,11 +372,7 @@ class AnalyzedIngestionService:
             ph = p.get("page_hash", "")
             if ph and ph in cached:
                 continue  # cache hit — handled below
-            if (
-                threshold > 0
-                and p.get("raw_text_char_count", 0) >= threshold
-                and not p.get("has_images", False)
-            ):
+            if threshold > 0 and p.get("raw_text_char_count", 0) >= threshold and not p.get("has_images", False):
                 text_only_pages.append(p)
             else:
                 vision_pages.append(p)

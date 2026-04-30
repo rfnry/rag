@@ -1,4 +1,5 @@
 """Drawing extract phase (PDF): AnalyzeDrawingPage per page, idempotent re-entry."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -71,11 +72,12 @@ def _make_service(metadata, config=None) -> DrawingIngestionService:
 @pytest.fixture
 def sample_pdf(tmp_path: Path) -> Path:
     import pymupdf
+
     path = tmp_path / "two_page.pdf"
     doc = pymupdf.open()
     for i in range(2):
         page = doc.new_page(width=595, height=842)
-        page.insert_text((72, 72), f"Page {i+1}")
+        page.insert_text((72, 72), f"Page {i + 1}")
     doc.save(path)
     doc.close()
     return path
@@ -159,6 +161,7 @@ async def test_extract_reuses_cached_analyses_on_re_entry(sample_pdf: Path) -> N
 async def test_extract_requires_rendered_status(sample_pdf: Path) -> None:
     """Calling extract on a Source that hasn't been rendered yet is a hard error."""
     from rfnry_rag.retrieval.common.models import Source
+
     metadata = _InMemoryMetadataStore()
     svc = _make_service(metadata)
     # Hand-craft a Source with an unexpected status
@@ -189,7 +192,7 @@ async def test_extract_respects_analyze_concurrency() -> None:
     doc = pymupdf.open()
     for i in range(4):
         page = doc.new_page(width=595, height=842)
-        page.insert_text((72, 72), f"P{i+1}")
+        page.insert_text((72, 72), f"P{i + 1}")
     doc.save(pdf)
     doc.close()
 

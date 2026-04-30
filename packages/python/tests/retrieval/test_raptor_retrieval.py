@@ -104,9 +104,7 @@ async def test_raptor_retrieval_filters_by_active_tree_id() -> None:
     store = _make_vector_store([_summary_result(0, tree_id="kb-1__abcd1234", level=1, cluster_size=5)])
     registry = _make_registry(active_tree_id="kb-1__abcd1234")
 
-    method = RaptorRetrieval(
-        vector_store=store, embeddings=_make_embeddings(), registry=registry
-    )
+    method = RaptorRetrieval(vector_store=store, embeddings=_make_embeddings(), registry=registry)
     await method.search(query="q", top_k=5, knowledge_id="kb-1")
 
     call = store.search.await_args
@@ -123,9 +121,7 @@ async def test_raptor_retrieval_filters_by_summary_role() -> None:
     store = _make_vector_store()
     registry = _make_registry(active_tree_id="kb-1__t1")
 
-    method = RaptorRetrieval(
-        vector_store=store, embeddings=_make_embeddings(), registry=registry
-    )
+    method = RaptorRetrieval(vector_store=store, embeddings=_make_embeddings(), registry=registry)
     await method.search(query="q", top_k=5, knowledge_id="kb-1")
 
     call = store.search.await_args
@@ -142,9 +138,7 @@ async def test_raptor_retrieval_filters_by_knowledge_id() -> None:
     store = _make_vector_store()
     registry = _make_registry(active_tree_id="kb-2__t1")
 
-    method = RaptorRetrieval(
-        vector_store=store, embeddings=_make_embeddings(), registry=registry
-    )
+    method = RaptorRetrieval(vector_store=store, embeddings=_make_embeddings(), registry=registry)
     await method.search(query="q", top_k=5, knowledge_id="kb-2")
 
     call = store.search.await_args
@@ -162,9 +156,7 @@ async def test_raptor_retrieval_returns_retrieved_chunks_with_payload() -> None:
     store = _make_vector_store([raw])
     registry = _make_registry(active_tree_id="kb-1__t1")
 
-    method = RaptorRetrieval(
-        vector_store=store, embeddings=_make_embeddings(), registry=registry
-    )
+    method = RaptorRetrieval(vector_store=store, embeddings=_make_embeddings(), registry=registry)
     chunks = await method.search(query="q", top_k=5, knowledge_id="kb-1")
 
     assert len(chunks) == 1
@@ -191,9 +183,7 @@ async def test_raptor_retrieval_top_k_passed_through() -> None:
     store = _make_vector_store()
     registry = _make_registry(active_tree_id="kb-1__t1")
 
-    method = RaptorRetrieval(
-        vector_store=store, embeddings=_make_embeddings(), registry=registry
-    )
+    method = RaptorRetrieval(vector_store=store, embeddings=_make_embeddings(), registry=registry)
     await method.search(query="q", top_k=42, knowledge_id="kb-1")
 
     assert store.search.await_args.kwargs["top_k"] == 42

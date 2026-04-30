@@ -7,6 +7,7 @@ Tests pinning the public contract of ``DocumentExpansionConfig``,
 Identifier hygiene: tests use abstract names (``chunk_a``, ``passage_1``,
 ``q1``) so the fixtures themselves do not seed bias-listed terms.
 """
+
 from __future__ import annotations
 
 import asyncio

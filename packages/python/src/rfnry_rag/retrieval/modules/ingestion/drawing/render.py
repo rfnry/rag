@@ -1,4 +1,5 @@
 """Render page images from PDF (PyMuPDF) or DXF (ezdxf)."""
+
 from __future__ import annotations
 
 import base64

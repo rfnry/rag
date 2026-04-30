@@ -73,13 +73,15 @@ class SemanticChunker:
                 chunk_offset + max(0, len(chunk_text) - 1),
                 max(0, len(page.content) - 1),
             )
-            chunks.append(ChunkedContent(
-                content=chunk_text,
-                page_number=page.page_number,
-                section=section_path_at(lookup_offset, heading_spans),
-                chunk_index=global_index,
-                was_hard_split=was_hard,
-            ))
+            chunks.append(
+                ChunkedContent(
+                    content=chunk_text,
+                    page_number=page.page_number,
+                    section=section_path_at(lookup_offset, heading_spans),
+                    chunk_index=global_index,
+                    was_hard_split=was_hard,
+                )
+            )
             global_index += 1
         return global_index
 
@@ -94,40 +96,42 @@ class SemanticChunker:
             for region in atomic_regions:
                 # Free text before this atomic region
                 if cursor < region.start:
-                    free_text = page.content[cursor:region.start]
+                    free_text = page.content[cursor : region.start]
                     global_index = self._emit_free_text_chunks(
                         free_text, cursor, page, heading_spans, chunks, global_index
                     )
 
                 # Atomic region: emit as one chunk if it fits, else fall back to splitter
                 if self._child_splitter._length_function(region.content) <= self._child_splitter._chunk_size:
-                    chunks.append(ChunkedContent(
-                        content=region.content,
-                        page_number=page.page_number,
-                        section=section_path_at(region.start, heading_spans),
-                        chunk_index=global_index,
-                        was_hard_split=False,
-                    ))
+                    chunks.append(
+                        ChunkedContent(
+                            content=region.content,
+                            page_number=page.page_number,
+                            section=section_path_at(region.start, heading_spans),
+                            chunk_index=global_index,
+                            was_hard_split=False,
+                        )
+                    )
                     global_index += 1
                 else:
                     region_section = section_path_at(region.start, heading_spans)
                     for chunk_text, was_hard in self._child_splitter.split_text_with_flags(region.content):
-                        chunks.append(ChunkedContent(
-                            content=chunk_text,
-                            page_number=page.page_number,
-                            section=region_section,
-                            chunk_index=global_index,
-                            was_hard_split=was_hard,
-                        ))
+                        chunks.append(
+                            ChunkedContent(
+                                content=chunk_text,
+                                page_number=page.page_number,
+                                section=region_section,
+                                chunk_index=global_index,
+                                was_hard_split=was_hard,
+                            )
+                        )
                         global_index += 1
                 cursor = region.end
 
             # Trailing free text after the last atomic region
             if cursor < len(page.content):
                 tail = page.content[cursor:]
-                global_index = self._emit_free_text_chunks(
-                    tail, cursor, page, heading_spans, chunks, global_index
-                )
+                global_index = self._emit_free_text_chunks(tail, cursor, page, heading_spans, chunks, global_index)
         return chunks
 
     def _emit_parent_child_from_text(
@@ -157,27 +161,31 @@ class SemanticChunker:
             )
             parent_cursor = parent_offset + len(parent_text)
 
-            chunks.append(ChunkedContent(
-                content=parent_text,
-                page_number=page.page_number,
-                section=parent_section,
-                chunk_index=global_index,
-                chunk_type="parent",
-                parent_id=parent_id,
-                was_hard_split=p_hard or parent_hard_split,
-            ))
-            global_index += 1
-
-            for child_text, child_hard in self._child_splitter.split_text_with_flags(parent_text):
-                chunks.append(ChunkedContent(
-                    content=child_text,
+            chunks.append(
+                ChunkedContent(
+                    content=parent_text,
                     page_number=page.page_number,
                     section=parent_section,
                     chunk_index=global_index,
-                    chunk_type="child",
+                    chunk_type="parent",
                     parent_id=parent_id,
-                    was_hard_split=child_hard,
-                ))
+                    was_hard_split=p_hard or parent_hard_split,
+                )
+            )
+            global_index += 1
+
+            for child_text, child_hard in self._child_splitter.split_text_with_flags(parent_text):
+                chunks.append(
+                    ChunkedContent(
+                        content=child_text,
+                        page_number=page.page_number,
+                        section=parent_section,
+                        chunk_index=global_index,
+                        chunk_type="child",
+                        parent_id=parent_id,
+                        was_hard_split=child_hard,
+                    )
+                )
                 global_index += 1
 
         return global_index
@@ -195,7 +203,7 @@ class SemanticChunker:
             for region in atomic_regions:
                 # Free text before this atomic region
                 if cursor < region.start:
-                    free_text = page.content[cursor:region.start]
+                    free_text = page.content[cursor : region.start]
                     global_index = self._emit_parent_child_from_text(
                         free_text, cursor, page, heading_spans, chunks, global_index
                     )
@@ -205,43 +213,54 @@ class SemanticChunker:
                 region_section = section_path_at(region.start, heading_spans)
                 if self._parent_splitter._length_function(region.content) <= self._parent_splitter._chunk_size:
                     parent_id = str(uuid4())
-                    chunks.append(ChunkedContent(
-                        content=region.content,
-                        page_number=page.page_number,
-                        section=region_section,
-                        chunk_index=global_index,
-                        chunk_type="parent",
-                        parent_id=parent_id,
-                        was_hard_split=False,
-                    ))
-                    global_index += 1
-                    # Emit children: atomic as one child if fits, else split.
-                    if self._child_splitter._length_function(region.content) <= self._child_splitter._chunk_size:
-                        chunks.append(ChunkedContent(
+                    chunks.append(
+                        ChunkedContent(
                             content=region.content,
                             page_number=page.page_number,
                             section=region_section,
                             chunk_index=global_index,
-                            chunk_type="child",
+                            chunk_type="parent",
                             parent_id=parent_id,
                             was_hard_split=False,
-                        ))
-                        global_index += 1
-                    else:
-                        for child_text, child_hard in self._child_splitter.split_text_with_flags(region.content):
-                            chunks.append(ChunkedContent(
-                                content=child_text,
+                        )
+                    )
+                    global_index += 1
+                    # Emit children: atomic as one child if fits, else split.
+                    if self._child_splitter._length_function(region.content) <= self._child_splitter._chunk_size:
+                        chunks.append(
+                            ChunkedContent(
+                                content=region.content,
                                 page_number=page.page_number,
                                 section=region_section,
                                 chunk_index=global_index,
                                 chunk_type="child",
                                 parent_id=parent_id,
-                                was_hard_split=child_hard,
-                            ))
+                                was_hard_split=False,
+                            )
+                        )
+                        global_index += 1
+                    else:
+                        for child_text, child_hard in self._child_splitter.split_text_with_flags(region.content):
+                            chunks.append(
+                                ChunkedContent(
+                                    content=child_text,
+                                    page_number=page.page_number,
+                                    section=region_section,
+                                    chunk_index=global_index,
+                                    chunk_type="child",
+                                    parent_id=parent_id,
+                                    was_hard_split=child_hard,
+                                )
+                            )
                             global_index += 1
                 else:
                     global_index = self._emit_parent_child_from_text(
-                        region.content, region.start, page, heading_spans, chunks, global_index,
+                        region.content,
+                        region.start,
+                        page,
+                        heading_spans,
+                        chunks,
+                        global_index,
                         force_section=region_section,
                     )
                 cursor = region.end

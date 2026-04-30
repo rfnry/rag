@@ -213,9 +213,7 @@ class TestMinScore:
 
     async def test_query_filters_by_min_score(self):
         server = _make_server()
-        server._retrieval_service.retrieve = AsyncMock(
-            return_value=([_chunk("high", 0.9), _chunk("low", 0.2)], None)
-        )
+        server._retrieval_service.retrieve = AsyncMock(return_value=([_chunk("high", 0.9), _chunk("low", 0.2)], None))
         await server.query("test", min_score=0.5)
 
         gen_call = server._generation_service.generate.call_args

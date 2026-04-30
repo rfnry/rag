@@ -55,9 +55,7 @@ def _engine(
         embeddings=embeddings if embeddings != "stub" else MagicMock(),
     )
     persistence = SimpleNamespace(
-        vector_store=(
-            None if vector_store is None else (vector_store if vector_store != "stub" else MagicMock())
-        ),
+        vector_store=(None if vector_store is None else (vector_store if vector_store != "stub" else MagicMock())),
         metadata_store=(
             None
             if metadata_store is None

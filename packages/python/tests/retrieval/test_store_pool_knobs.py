@@ -412,12 +412,12 @@ async def test_neo4j_log_does_not_leak_uri_embedded_credentials(caplog) -> None:
     messages = "\n".join(r.message for r in caplog.records)
     assert "secret-pw" not in messages
     assert "user:" not in messages
-    assert "bolt://neo4j:7687" in messages   # still readable, just scrubbed
+    assert "bolt://neo4j:7687" in messages  # still readable, just scrubbed
 
 
 def test_scrub_uri_credentials_strips_userinfo() -> None:
     from rfnry_rag.retrieval.stores.graph.neo4j import _scrub_uri_credentials
 
     assert _scrub_uri_credentials("bolt://u:p@host:7687") == "bolt://host:7687"
-    assert _scrub_uri_credentials("bolt://host:7687") == "bolt://host:7687"   # unchanged
+    assert _scrub_uri_credentials("bolt://host:7687") == "bolt://host:7687"  # unchanged
     assert _scrub_uri_credentials("neo4j+s://user@host") == "neo4j+s://host"

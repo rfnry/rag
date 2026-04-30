@@ -12,6 +12,7 @@ ensures that even when no keyword matches, edges still reach the graph as
 generic references rather than silently disappearing; consumers who prefer
 strict drop can pass `None`.
 """
+
 from __future__ import annotations
 
 import re

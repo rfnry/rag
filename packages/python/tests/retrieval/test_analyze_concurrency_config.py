@@ -1,4 +1,5 @@
 """IngestionConfig.analyze_concurrency feeds AnalyzedIngestionService's semaphore."""
+
 import pytest
 
 from rfnry_rag.common.errors import ConfigurationError
@@ -6,12 +7,14 @@ from rfnry_rag.common.errors import ConfigurationError
 
 def test_config_default_is_5() -> None:
     from rfnry_rag.retrieval.server import IngestionConfig
+
     cfg = IngestionConfig()
     assert cfg.analyze_concurrency == 5
 
 
 def test_config_bounds_out_of_range_raises() -> None:
     from rfnry_rag.retrieval.server import IngestionConfig
+
     with pytest.raises(ConfigurationError, match="analyze_concurrency"):
         IngestionConfig(analyze_concurrency=0)
     with pytest.raises(ConfigurationError, match="analyze_concurrency"):
@@ -22,6 +25,7 @@ def test_config_bounds_out_of_range_raises() -> None:
 
 def test_config_accepts_boundary_values() -> None:
     from rfnry_rag.retrieval.server import IngestionConfig
+
     assert IngestionConfig(analyze_concurrency=1).analyze_concurrency == 1
     assert IngestionConfig(analyze_concurrency=100).analyze_concurrency == 100
 

@@ -304,9 +304,7 @@ class TreeIndex:
     def from_dict(cls, data: dict[str, Any]) -> TreeIndex:
         pages_raw = data.get("pages", [])
         if len(pages_raw) > _MAX_TREE_PAGES:
-            raise ValueError(
-                f"tree index pages count {len(pages_raw)} exceeds {_MAX_TREE_PAGES}"
-            )
+            raise ValueError(f"tree index pages count {len(pages_raw)} exceeds {_MAX_TREE_PAGES}")
         return cls(
             source_id=data["source_id"],
             doc_name=data["doc_name"],

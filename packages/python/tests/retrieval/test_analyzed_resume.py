@@ -1,4 +1,5 @@
 """Status-based resume: RagEngine.ingest routes to the first unfinished phase."""
+
 from __future__ import annotations
 
 import asyncio
@@ -110,7 +111,8 @@ class _MinimalEngine:
 
         # Fresh run
         source = await self._structured_ingestion.analyze(
-            file_path=fp, knowledge_id=knowledge_id,
+            file_path=fp,
+            knowledge_id=knowledge_id,
         )
         source = await self._structured_ingestion.synthesize(source.source_id)
         source = await self._structured_ingestion.ingest(source.source_id)

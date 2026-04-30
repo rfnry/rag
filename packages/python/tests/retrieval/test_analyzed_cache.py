@@ -1,4 +1,5 @@
 """Analyzed ingest caching: file-hash short-circuit + per-page-hash reuse."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -14,6 +15,7 @@ from rfnry_rag.retrieval.stores.metadata.sqlalchemy import SQLAlchemyMetadataSto
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_fake_baml_result(page_num: int) -> SimpleNamespace:
     """Minimal BAML AnalyzePage result shaped like the generated type."""
@@ -73,6 +75,7 @@ class _FakeVision:
 # Three-page mock page list (shared across fixtures)
 # ---------------------------------------------------------------------------
 
+
 def _make_pages() -> list[dict]:
     return [
         {"page_number": 1, "image_base64": "aW1nMQ==", "raw_text": "text1", "page_hash": "hash_1"},
@@ -84,6 +87,7 @@ def _make_pages() -> list[dict]:
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest_asyncio.fixture
 async def fake_analyzed_service_pdf(tmp_path):
@@ -183,6 +187,7 @@ async def fake_analyzed_service_pdf_mutable(tmp_path):
         ),
         patch("rfnry_rag.retrieval.baml.baml_client.async_client.b", mock_b),
     ):
+
         def change_file_hash():
             file_hash_state[0] = "file_hash_different"
 
@@ -223,15 +228,45 @@ async def fake_analyzed_service_pdf_partial(tmp_path):
     await store.upsert_page_analyses(
         "src_partial",
         [
-            {"page_number": 1, "data": {"description": "p1", "page_hash": "hash_1", "entities": [],
-                                        "tables": [], "annotations": [], "page_type": "text",
-                                        "metadata": {}, "raw_text": "text1"}},
-            {"page_number": 2, "data": {"description": "p2", "page_hash": "hash_2", "entities": [],
-                                        "tables": [], "annotations": [], "page_type": "text",
-                                        "metadata": {}, "raw_text": "text2"}},
-            {"page_number": 3, "data": {"description": "p3", "page_hash": "hash_3", "entities": [],
-                                        "tables": [], "annotations": [], "page_type": "text",
-                                        "metadata": {}, "raw_text": "text3"}},
+            {
+                "page_number": 1,
+                "data": {
+                    "description": "p1",
+                    "page_hash": "hash_1",
+                    "entities": [],
+                    "tables": [],
+                    "annotations": [],
+                    "page_type": "text",
+                    "metadata": {},
+                    "raw_text": "text1",
+                },
+            },
+            {
+                "page_number": 2,
+                "data": {
+                    "description": "p2",
+                    "page_hash": "hash_2",
+                    "entities": [],
+                    "tables": [],
+                    "annotations": [],
+                    "page_type": "text",
+                    "metadata": {},
+                    "raw_text": "text2",
+                },
+            },
+            {
+                "page_number": 3,
+                "data": {
+                    "description": "p3",
+                    "page_hash": "hash_3",
+                    "entities": [],
+                    "tables": [],
+                    "annotations": [],
+                    "page_type": "text",
+                    "metadata": {},
+                    "raw_text": "text3",
+                },
+            },
         ],
     )
 
@@ -258,6 +293,7 @@ async def fake_analyzed_service_pdf_partial(tmp_path):
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_reingesting_same_file_short_circuits_via_file_hash(

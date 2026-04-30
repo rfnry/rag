@@ -1,4 +1,5 @@
 """Parent-child retrieval: sum child scores per parent; parent-child on by default."""
+
 import pytest
 
 from rfnry_rag.retrieval.common.models import VectorResult

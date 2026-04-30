@@ -1,4 +1,5 @@
 """GraphRetrieval.trace: N-hop traversal returning GraphPath objects."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -28,9 +29,7 @@ async def test_trace_returns_paths_from_seed() -> None:
         relationships=["CONNECTS_TO", "FLOWS_TO"],
         description="2-hop",
     )
-    mock_store = SimpleNamespace(
-        query_graph=AsyncMock(return_value=[_result("V-101", [p1, p2])])
-    )
+    mock_store = SimpleNamespace(query_graph=AsyncMock(return_value=[_result("V-101", [p1, p2])]))
     gr = GraphRetrieval(graph_store=mock_store)
     paths = await gr.trace(entity_name="V-101", max_hops=3)
     assert len(paths) == 2
@@ -42,9 +41,7 @@ async def test_trace_filters_by_relation_types() -> None:
     p1 = GraphPath(entities=["V-101", "P-201"], relationships=["CONNECTS_TO"])
     p2 = GraphPath(entities=["V-101", "T-301"], relationships=["FLOWS_TO"])
     p3 = GraphPath(entities=["V-101", "P-201", "T-301"], relationships=["CONNECTS_TO", "FLOWS_TO"])
-    mock_store = SimpleNamespace(
-        query_graph=AsyncMock(return_value=[_result("V-101", [p1, p2, p3])])
-    )
+    mock_store = SimpleNamespace(query_graph=AsyncMock(return_value=[_result("V-101", [p1, p2, p3])]))
     gr = GraphRetrieval(graph_store=mock_store)
     paths = await gr.trace(entity_name="V-101", max_hops=3, relation_types=["FLOWS_TO"])
     # Only paths where EVERY edge is FLOWS_TO survive — p2.
@@ -96,10 +93,14 @@ async def test_trace_aggregates_paths_across_multiple_seeds() -> None:
     """If the seed lookup returns multiple results, all paths are aggregated."""
     p1 = GraphPath(entities=["V-101", "P-201"], relationships=["CONNECTS_TO"])
     p2 = GraphPath(entities=["V-102", "T-301"], relationships=["FLOWS_TO"])
-    mock_store = SimpleNamespace(query_graph=AsyncMock(return_value=[
-        _result("V-101", [p1]),
-        _result("V-102", [p2]),
-    ]))
+    mock_store = SimpleNamespace(
+        query_graph=AsyncMock(
+            return_value=[
+                _result("V-101", [p1]),
+                _result("V-102", [p2]),
+            ]
+        )
+    )
     gr = GraphRetrieval(graph_store=mock_store)
     paths = await gr.trace(entity_name="V", max_hops=2)
     assert len(paths) == 2

@@ -87,13 +87,17 @@ class _PageAnalysisRow(_Base):
     page_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     data_json: Mapped[str] = mapped_column(Text, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC),
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
     )
 
     __table_args__ = (
         Index("ix_page_analyses_source", "source_id"),
         ForeignKeyConstraint(
-            ["source_id"], ["rag_sources.id"], ondelete="CASCADE",
+            ["source_id"],
+            ["rag_sources.id"],
+            ondelete="CASCADE",
         ),
     )
 
@@ -245,13 +249,15 @@ class SQLAlchemyMetadataStore:
         # Create rag_page_analyses if it doesn't exist yet.
         if not insp.has_table("rag_page_analyses"):
             _Base.metadata.create_all(
-                bind=conn, tables=[_PageAnalysisRow.__table__],  # type: ignore[list-item]
+                bind=conn,
+                tables=[_PageAnalysisRow.__table__],  # type: ignore[list-item]
             )
             logger.info("migrated table: rag_page_analyses")
         # Create rag_raptor_trees if it doesn't exist yet.
         if not insp.has_table("rag_raptor_trees"):
             _Base.metadata.create_all(
-                bind=conn, tables=[_RaptorTreeRow.__table__],  # type: ignore[list-item]
+                bind=conn,
+                tables=[_RaptorTreeRow.__table__],  # type: ignore[list-item]
             )
             logger.info("migrated table: rag_raptor_trees")
         preparer = conn.dialect.identifier_preparer
@@ -281,12 +287,7 @@ class SQLAlchemyMetadataStore:
         Uses CREATE INDEX IF NOT EXISTS so the statement is idempotent on both
         SQLite and PostgreSQL — safe to call on every boot."""
         # Schema version 2: index on rag_sources.file_hash for find_by_hash performance.
-        conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS ix_rag_sources_file_hash"
-                " ON rag_sources (file_hash)"
-            )
-        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_rag_sources_file_hash ON rag_sources (file_hash)"))
         logger.info("ensured index: rag_sources.file_hash")
 
     async def create_source(self, source: Source) -> None:
@@ -458,9 +459,7 @@ class SQLAlchemyMetadataStore:
     async def get_tree_indexes(self, source_ids: list[str]) -> dict[str, str | None]:
         if not source_ids:
             return {}
-        stmt = select(_SourceRow.id, _SourceRow.tree_index_json).where(
-            _SourceRow.id.in_(source_ids)
-        )
+        stmt = select(_SourceRow.id, _SourceRow.tree_index_json).where(_SourceRow.id.in_(source_ids))
         async with self._session_factory() as session:
             rows = (await session.execute(stmt)).all()
         found = {row.id: row.tree_index_json for row in rows}
@@ -468,7 +467,9 @@ class SQLAlchemyMetadataStore:
         return {sid: found.get(sid) for sid in source_ids}
 
     async def upsert_page_analyses(
-        self, source_id: str, analyses: list[dict],
+        self,
+        source_id: str,
+        analyses: list[dict],
     ) -> None:
         """Upsert per-page analyses keyed by (source_id, page_number).
 
@@ -515,9 +516,7 @@ class SQLAlchemyMetadataStore:
                         },
                     )
                 else:
-                    raise NotImplementedError(
-                        f"upsert_page_analyses not implemented for dialect {dialect!r}"
-                    )
+                    raise NotImplementedError(f"upsert_page_analyses not implemented for dialect {dialect!r}")
                 await session.execute(upsert_stmt)
             await session.commit()
 
@@ -543,7 +542,9 @@ class SQLAlchemyMetadataStore:
         ]
 
     async def get_page_analyses_by_hash(
-        self, page_hashes: list[str], knowledge_id: str | None,
+        self,
+        page_hashes: list[str],
+        knowledge_id: str | None,
     ) -> dict[str, dict]:
         """Return {page_hash: data_dict} for any previously-analyzed page whose hash matches.
 
@@ -559,9 +560,7 @@ class SQLAlchemyMetadataStore:
 
         from sqlalchemy import and_
 
-        stmt = select(_PageAnalysisRow).where(
-            _PageAnalysisRow.page_hash.in_(non_empty)
-        )
+        stmt = select(_PageAnalysisRow).where(_PageAnalysisRow.page_hash.in_(non_empty))
         if knowledge_id is not None:
             stmt = stmt.join(
                 _SourceRow,
@@ -578,7 +577,9 @@ class SQLAlchemyMetadataStore:
         return {r.page_hash: json.loads(r.data_json) for r in rows if r.page_hash}
 
     async def get_page_analysis(
-        self, source_id: str, page_number: int,
+        self,
+        source_id: str,
+        page_number: int,
     ) -> dict | None:
         """Return the single page analysis's data dict for (source_id, page_number), or None."""
         async with self._session_factory() as session:

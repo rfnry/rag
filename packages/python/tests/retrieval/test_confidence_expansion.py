@@ -73,9 +73,7 @@ def _engine(
     cast(Any, km).get_corpus_tokens = AsyncMock(return_value=corpus_tokens)
     gs: Any = AsyncMock()
     cast(Any, gs).generate = AsyncMock(return_value=_query_result())
-    cast(Any, gs).generate_from_corpus = AsyncMock(
-        return_value=_query_result(answer="lc answer")
-    )
+    cast(Any, gs).generate_from_corpus = AsyncMock(return_value=_query_result(answer="lc answer"))
     return make_engine(
         retrieval=SimpleNamespace(
             history_window=3,
@@ -134,9 +132,7 @@ async def test_expansion_succeeds_on_first_attempt_when_above_threshold(
     (as `base_top_k`) — "didn't need to retry" is distinct from "didn't run
     expansion at all", and consumers can rely on the key being present.
     """
-    engine = _engine(
-        make_engine, confidence_expansion=True, base_top_k=5, grounding_threshold=0.5
-    )
+    engine = _engine(make_engine, confidence_expansion=True, base_top_k=5, grounding_threshold=0.5)
     strong = [_chunk(score=0.8)]
     trace = RetrievalTrace(query="q1", knowledge_id="kb-1", adaptive={})
     engine._retrieve_chunks = AsyncMock(return_value=(strong, trace))  # type: ignore[method-assign]

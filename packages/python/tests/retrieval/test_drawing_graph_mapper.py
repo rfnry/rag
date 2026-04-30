@@ -1,4 +1,5 @@
 """Drawing graph mapper: no shared_entities>=2 filter, threads bbox/ports, uses relation_vocabulary."""
+
 from __future__ import annotations
 
 from rfnry_rag.retrieval.modules.ingestion.drawing.config import DrawingIngestionConfig
@@ -153,9 +154,7 @@ def test_connection_context_encodes_drawing_metadata() -> None:
 
 def test_missing_component_types_default_to_component() -> None:
     cfg = _cfg()
-    conn = DetectedConnection(
-        from_component="UNKNOWN_A", to_component="UNKNOWN_B", wire_style="signal"
-    )
+    conn = DetectedConnection(from_component="UNKNOWN_A", to_component="UNKNOWN_B", wire_style="signal")
     rel = connection_to_graph_relation(
         conn,
         source_id="s1",
@@ -227,8 +226,4 @@ def test_drawing_to_graph_llm_residue_emits_mentions_edge() -> None:
     # Context carries the LLM confidence + rationale + llm_suggested flag
     assert "llm_suggested=true" in edge.context.lower()
     assert "confidence=0.85" in edge.context
-    assert (
-        "v-101" in edge.context.lower()
-        or "label" in edge.context.lower()
-        or "rationale" in edge.context.lower()
-    )
+    assert "v-101" in edge.context.lower() or "label" in edge.context.lower() or "rationale" in edge.context.lower()

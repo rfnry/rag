@@ -1,4 +1,5 @@
 """Drawing extract (DXF): direct entity parse — zero LLM calls."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -62,6 +63,7 @@ def _make_service(metadata) -> DrawingIngestionService:
 def dxf_with_two_resistors(tmp_path: Path) -> Path:
     """Create a DXF with two INSERT entities pointing to a 'resistor' block."""
     import ezdxf
+
     path = tmp_path / "two_resistors.dxf"
     doc = ezdxf.new()
     # Define a 'resistor' block
@@ -84,6 +86,7 @@ def dxf_with_wire_between_two_pins(tmp_path: Path) -> Path:
     a couple of modelspace units of each bbox (within _CONNECTION_TOL).
     """
     import ezdxf
+
     path = tmp_path / "wire.dxf"
     doc = ezdxf.new()
     blk = doc.blocks.new(name="resistor")
@@ -161,6 +164,7 @@ async def test_extract_dxf_idempotent_on_reentry(dxf_with_two_resistors: Path) -
 async def test_extract_dxf_classifies_by_symbol_library(tmp_path: Path) -> None:
     """A block named 'valve_gate' should classify as 'p_and_id' domain per default library."""
     import ezdxf
+
     path = tmp_path / "valve.dxf"
     doc = ezdxf.new()
     b = doc.blocks.new(name="valve_gate")
@@ -187,6 +191,7 @@ async def test_extract_dxf_classifies_by_symbol_library(tmp_path: Path) -> None:
 async def test_extract_dxf_emits_off_page_connectors_from_text(tmp_path: Path) -> None:
     """A TEXT entity reading '/A2' inside an INSERT bbox is emitted as bound OffPageConnector."""
     import ezdxf
+
     path = tmp_path / "opc_text.dxf"
     doc = ezdxf.new()
     blk = doc.blocks.new(name="resistor")
@@ -216,6 +221,7 @@ async def test_extract_dxf_emits_off_page_connectors_from_text(tmp_path: Path) -
 async def test_extract_dxf_emits_off_page_connectors_from_mtext(tmp_path: Path) -> None:
     """An MTEXT carrying formatting codes is stripped to plain text before regex match."""
     import ezdxf
+
     path = tmp_path / "opc_mtext.dxf"
     doc = ezdxf.new()
     blk = doc.blocks.new(name="resistor")
@@ -244,6 +250,7 @@ async def test_extract_dxf_emits_off_page_connectors_from_mtext(tmp_path: Path) 
 async def test_extract_dxf_unbound_off_page_connector(tmp_path: Path) -> None:
     """A TEXT outside any component bbox emits an OffPageConnector with bound_component=None."""
     import ezdxf
+
     path = tmp_path / "opc_unbound.dxf"
     doc = ezdxf.new()
     blk = doc.blocks.new(name="resistor")
@@ -271,6 +278,7 @@ async def test_extract_dxf_unbound_off_page_connector(tmp_path: Path) -> None:
 async def test_extract_dxf_ignores_non_matching_text(tmp_path: Path) -> None:
     """A TEXT carrying a label (not an off-page tag) must NOT produce a connector."""
     import ezdxf
+
     path = tmp_path / "label_only.dxf"
     doc = ezdxf.new()
     blk = doc.blocks.new(name="resistor")
@@ -374,9 +382,7 @@ async def test_extract_dxf_emits_off_page_connectors_per_layout(tmp_path: Path) 
     assert ps1_opcs[0]["bound_component"] in ps1_component_ids
 
 
-async def test_extract_dxf_corrupt_mtext_does_not_fail(
-    tmp_path: Path, monkeypatch
-) -> None:
+async def test_extract_dxf_corrupt_mtext_does_not_fail(tmp_path: Path, monkeypatch) -> None:
     """If MText.plain_text() raises, parse continues and the entity is skipped."""
     import ezdxf
     from ezdxf.entities import MText

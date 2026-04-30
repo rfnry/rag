@@ -1,4 +1,5 @@
 """Token-aware chunk sizing: chunk_size_unit controls whether length is counted in chars or tokens."""
+
 from rfnry_rag.retrieval.modules.ingestion.chunk.chunker import SemanticChunker
 from rfnry_rag.retrieval.modules.ingestion.models import ParsedPage
 
@@ -10,7 +11,7 @@ def _page(content: str, page_number: int = 1) -> ParsedPage:
 def test_token_mode_produces_larger_chars_than_char_mode_for_same_numeric_size() -> None:
     # 2000 chars of English prose. At chunk_size=300, char mode chunks at ~300 chars;
     # token mode at ~300 tokens ≈ 1200 chars per chunk (~4x larger).
-    text = ("The quick brown fox jumps over the lazy dog. " * 60)
+    text = "The quick brown fox jumps over the lazy dog. " * 60
 
     char_chunker = SemanticChunker(chunk_size=300, chunk_size_unit="chars", chunk_overlap=30)
     tok_chunker = SemanticChunker(chunk_size=300, chunk_size_unit="tokens", chunk_overlap=30)
@@ -33,6 +34,7 @@ def test_default_chunk_size_unit_is_tokens() -> None:
 
 def test_token_mode_falls_back_to_word_count_when_tiktoken_unavailable(monkeypatch) -> None:
     from rfnry_rag.retrieval.modules.ingestion.chunk import token_counter
+
     monkeypatch.setattr(token_counter, "_TIKTOKEN_AVAILABLE", False)
     # word count ≈ tokens/1.3 for English
     assert token_counter.count_tokens("hello world foo") == 3
@@ -40,5 +42,6 @@ def test_token_mode_falls_back_to_word_count_when_tiktoken_unavailable(monkeypat
 
 def test_invalid_chunk_size_unit_raises() -> None:
     import pytest
+
     with pytest.raises(ValueError, match="chunk_size_unit"):
         SemanticChunker(chunk_size_unit="bogus")  # type: ignore[arg-type]

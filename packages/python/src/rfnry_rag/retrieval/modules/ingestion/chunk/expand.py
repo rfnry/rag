@@ -3,6 +3,7 @@
 Sibling to ``chunk/context.py``. Kept separate because expansion is async +
 LLM-driven; contextualisation is pure string templating.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -47,9 +48,7 @@ async def expand_chunks(
                 baml_options={"client_registry": registry},
             )
         except Exception as exc:
-            raise IngestionError(
-                f"document expansion failed for chunk_index={chunk.chunk_index}: {exc}"
-            ) from exc
+            raise IngestionError(f"document expansion failed for chunk_index={chunk.chunk_index}: {exc}") from exc
         chunk.synthetic_queries = list(result.queries)
 
     await run_concurrent(chunks, _expand_one, concurrency=config.concurrency)

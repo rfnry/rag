@@ -1,4 +1,5 @@
 """Extract DrawingPageAnalysis from PDF pages via BAML AnalyzeDrawingPage."""
+
 from __future__ import annotations
 
 import asyncio
@@ -66,13 +67,10 @@ async def analyze_drawing_page(
         )
     except baml_errors.BamlValidationError as exc:
         raise IngestionError(
-            f"AnalyzeDrawingPage failed on page {page_number}: "
-            f"LLM returned an unparseable response. Detail: {exc}"
+            f"AnalyzeDrawingPage failed on page {page_number}: LLM returned an unparseable response. Detail: {exc}"
         ) from exc
     except Exception as exc:
-        raise IngestionError(
-            f"AnalyzeDrawingPage failed on page {page_number}: {exc}"
-        ) from exc
+        raise IngestionError(f"AnalyzeDrawingPage failed on page {page_number}: {exc}") from exc
     return _baml_to_dataclass(result, page_number)
 
 

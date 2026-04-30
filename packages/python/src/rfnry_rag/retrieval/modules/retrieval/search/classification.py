@@ -47,15 +47,9 @@ logger = get_logger("retrieval.search.classification")
 _ENTITY_TOKEN_PATTERN = re.compile(r"\b[A-Z][A-Z0-9_-]{2,}\b")
 
 # Module-level compiled regexes — compiled once at import, not per call.
-_COMPARATIVE_PATTERN = re.compile(
-    r"\b(compare|contrast|versus|vs\.?|differ|difference between)\b", re.IGNORECASE
-)
-_PROCEDURAL_PATTERN = re.compile(
-    r"\b(how (do|to|does)|steps to|procedure for|process for)\b", re.IGNORECASE
-)
-_RELATIONAL_VERB_PATTERN = re.compile(
-    r"\b(relate|connect|link|between|with)\b", re.IGNORECASE
-)
+_COMPARATIVE_PATTERN = re.compile(r"\b(compare|contrast|versus|vs\.?|differ|difference between)\b", re.IGNORECASE)
+_PROCEDURAL_PATTERN = re.compile(r"\b(how (do|to|does)|steps to|procedure for|process for)\b", re.IGNORECASE)
+_RELATIONAL_VERB_PATTERN = re.compile(r"\b(relate|connect|link|between|with)\b", re.IGNORECASE)
 
 
 class QueryComplexity(Enum):
@@ -107,11 +101,7 @@ def _heuristic_classify(text: str) -> QueryClassification:
     else:
         query_type = QueryType.FACTUAL
 
-    if (
-        length >= 200
-        or entity_count >= 3
-        or query_type in {QueryType.COMPARATIVE, QueryType.ENTITY_RELATIONSHIP}
-    ):
+    if length >= 200 or entity_count >= 3 or query_type in {QueryType.COMPARATIVE, QueryType.ENTITY_RELATIONSHIP}:
         complexity = QueryComplexity.COMPLEX
     elif length <= 60 and entity_count <= 1 and query_type is QueryType.FACTUAL:
         complexity = QueryComplexity.SIMPLE
@@ -151,9 +141,7 @@ async def _llm_classify(text: str, lm_client: LanguageModelClient) -> QueryClass
             source="llm",
         )
     except Exception as exc:
-        logger.warning(
-            "query classification LLM call failed; falling back to heuristic: %s", exc
-        )
+        logger.warning("query classification LLM call failed; falling back to heuristic: %s", exc)
         return _heuristic_classify(text)
 
 
@@ -182,10 +170,10 @@ async def classify_query(
 # methods absent from a profile fall back to multiplier 1.0 in the lookup
 # helper.
 _DEFAULT_TASK_WEIGHT_PROFILES: dict[str, dict[str, float]] = {
-    "FACTUAL":             {"vector": 1.2, "document": 0.8, "graph": 0.8, "tree": 0.8},
-    "COMPARATIVE":         {"vector": 0.8, "document": 1.2, "graph": 0.8, "tree": 1.2},
+    "FACTUAL": {"vector": 1.2, "document": 0.8, "graph": 0.8, "tree": 0.8},
+    "COMPARATIVE": {"vector": 0.8, "document": 1.2, "graph": 0.8, "tree": 1.2},
     "ENTITY_RELATIONSHIP": {"vector": 0.8, "document": 0.8, "graph": 1.5, "tree": 0.8},
-    "PROCEDURAL":          {"vector": 1.0, "document": 1.2, "graph": 0.8, "tree": 1.2},
+    "PROCEDURAL": {"vector": 1.0, "document": 1.2, "graph": 0.8, "tree": 1.2},
 }
 
 
@@ -243,9 +231,8 @@ async def _compute_adaptive_params(
     # COMPARATIVE returns {} (no boost), contradicting the documented
     # contract — see the `multipliers` paragraph in this docstring.
     overrides = config.task_weight_profiles or {}
-    profile = (
-        overrides.get(classification.query_type.name)
-        or _DEFAULT_TASK_WEIGHT_PROFILES.get(classification.query_type.name, {})
+    profile = overrides.get(classification.query_type.name) or _DEFAULT_TASK_WEIGHT_PROFILES.get(
+        classification.query_type.name, {}
     )
     multipliers = dict(profile)
 

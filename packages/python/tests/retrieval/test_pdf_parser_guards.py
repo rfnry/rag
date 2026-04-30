@@ -14,8 +14,9 @@ def test_pdf_parser_rejects_files_above_size_limit(tmp_path: Path) -> None:
     big = tmp_path / "big.pdf"
     # Avoid writing 500 MiB; stub the stat() size instead.
     big.write_bytes(b"%PDF-1.4\ntiny content")
-    with patch.object(Path, "stat", return_value=MagicMock(st_size=_MAX_PDF_BYTES + 1)), pytest.raises(
-        ValueError, match="exceeds cap"
+    with (
+        patch.object(Path, "stat", return_value=MagicMock(st_size=_MAX_PDF_BYTES + 1)),
+        pytest.raises(ValueError, match="exceeds cap"),
     ):
         PDFParser().parse(str(big))
 
@@ -30,8 +31,11 @@ def test_pdf_parser_rejects_too_many_pages(tmp_path: Path) -> None:
     fake_doc.__enter__ = MagicMock(return_value=fake_doc)
     fake_doc.__exit__ = MagicMock(return_value=None)
 
-    with patch(
-        "rfnry_rag.retrieval.modules.ingestion.chunk.parsers.pdf.pymupdf.open",
-        return_value=fake_doc,
-    ), pytest.raises(ValueError, match="exceeds cap"):
+    with (
+        patch(
+            "rfnry_rag.retrieval.modules.ingestion.chunk.parsers.pdf.pymupdf.open",
+            return_value=fake_doc,
+        ),
+        pytest.raises(ValueError, match="exceeds cap"),
+    ):
         PDFParser().parse(str(small))

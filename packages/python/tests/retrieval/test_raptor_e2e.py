@@ -50,12 +50,8 @@ def _lm_client() -> LanguageModelClient:
     )
 
 
-_SUMMARIZE_PATH = (
-    "rfnry_rag.retrieval.modules.ingestion.methods.raptor.builder.b.SummarizeCluster"
-)
-_RUN_CLUSTERING_PATH = (
-    "rfnry_rag.retrieval.modules.ingestion.methods.raptor.builder.run_clustering"
-)
+_SUMMARIZE_PATH = "rfnry_rag.retrieval.modules.ingestion.methods.raptor.builder.b.SummarizeCluster"
+_RUN_CLUSTERING_PATH = "rfnry_rag.retrieval.modules.ingestion.methods.raptor.builder.run_clustering"
 
 
 class _FakeVectorStore:
@@ -362,9 +358,7 @@ async def test_e2e_raptor_chunks_participate_in_rrf_fusion() -> None:
     )
 
     service = RetrievalService(retrieval_methods=[vector_method, raptor], top_k=5)
-    fused, trace = await service.retrieve(
-        query="topic_a", knowledge_id=knowledge_id, trace=True
-    )
+    fused, trace = await service.retrieve(query="topic_a", knowledge_id=knowledge_id, trace=True)
 
     assert trace is not None
     assert "raptor" in trace.per_method_results, (
@@ -488,19 +482,15 @@ async def test_engine_init_warns_when_raptor_enabled_but_deps_missing(
         assert "raptor" not in engine.retrieval
 
         # WARNING fired and names the specific missing dep.
-        warnings = [
-            rec for rec in caplog.records if rec.levelno == logging.WARNING
-        ]
-        raptor_warnings = [
-            rec for rec in warnings if "raptor.enabled=True" in rec.getMessage()
-        ]
+        warnings = [rec for rec in caplog.records if rec.levelno == logging.WARNING]
+        raptor_warnings = [rec for rec in warnings if "raptor.enabled=True" in rec.getMessage()]
         assert raptor_warnings, (
             "expected a WARNING about raptor.enabled=True but missing deps; "
             f"got records: {[rec.getMessage() for rec in caplog.records]}"
         )
-        assert any(
-            "vector_store" in rec.getMessage() for rec in raptor_warnings
-        ), "WARNING must name the specific missing dep (vector_store)"
+        assert any("vector_store" in rec.getMessage() for rec in raptor_warnings), (
+            "WARNING must name the specific missing dep (vector_store)"
+        )
     finally:
         await engine.shutdown()
 
@@ -596,9 +586,7 @@ async def test_e2e_drawing_corpus_skipped_at_build_then_normal_retrieval() -> No
     # Drawings remain reachable via their normal leaf path. Confirmed by
     # scroll: their vector_role stays "drawing_component" — RAPTOR never
     # rewrote them.
-    drawing_results, _ = await store.scroll(
-        filters={"knowledge_id": knowledge_id, "vector_role": "drawing_component"}
-    )
+    drawing_results, _ = await store.scroll(filters={"knowledge_id": knowledge_id, "vector_role": "drawing_component"})
     assert len(drawing_results) == 4
 
 
@@ -666,26 +654,14 @@ async def test_e2e_method_weight_for_raptor_respected() -> None:
         )
 
     # Run 1: weight=1.0
-    raptor_low = RaptorRetrieval(
-        vector_store=store, embeddings=embeddings, registry=registry, weight=1.0
-    )
-    service_low = RetrievalService(
-        retrieval_methods=[_vector_mock(), raptor_low], top_k=5
-    )
-    fused_low, _ = await service_low.retrieve(
-        query="topic_a", knowledge_id=knowledge_id
-    )
+    raptor_low = RaptorRetrieval(vector_store=store, embeddings=embeddings, registry=registry, weight=1.0)
+    service_low = RetrievalService(retrieval_methods=[_vector_mock(), raptor_low], top_k=5)
+    fused_low, _ = await service_low.retrieve(query="topic_a", knowledge_id=knowledge_id)
 
     # Run 2: weight=10.0 — same inputs, dramatically higher RAPTOR weight.
-    raptor_high = RaptorRetrieval(
-        vector_store=store, embeddings=embeddings, registry=registry, weight=10.0
-    )
-    service_high = RetrievalService(
-        retrieval_methods=[_vector_mock(), raptor_high], top_k=5
-    )
-    fused_high, _ = await service_high.retrieve(
-        query="topic_a", knowledge_id=knowledge_id
-    )
+    raptor_high = RaptorRetrieval(vector_store=store, embeddings=embeddings, registry=registry, weight=10.0)
+    service_high = RetrievalService(retrieval_methods=[_vector_mock(), raptor_high], top_k=5)
+    fused_high, _ = await service_high.retrieve(query="topic_a", knowledge_id=knowledge_id)
 
     # Look up the first RAPTOR chunk's score in each run.
     def _first_raptor_score(chunks: list[RetrievedChunk]) -> float | None:
@@ -702,9 +678,7 @@ async def test_e2e_method_weight_for_raptor_respected() -> None:
     assert score_low is not None
     assert score_high is not None
     # Higher weight → higher fused score for the RAPTOR chunk.
-    assert score_high > score_low, (
-        f"raptor weight not honoured: low={score_low} high={score_high}"
-    )
+    assert score_high > score_low, f"raptor weight not honoured: low={score_low} high={score_high}"
 
 
 # ---------------------------------------------------------------------------

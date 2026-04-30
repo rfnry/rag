@@ -1,4 +1,5 @@
 """AnalyzedIngestionService: multi-vector per page + raw OCR reaches BM25."""
+
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -19,8 +20,7 @@ def _serialize_page_for_test(pa: PageAnalysis) -> dict:
         "page_number": pa.page_number,
         "description": pa.description,
         "entities": [
-            {"name": e.name, "category": e.category, "context": e.context, "value": e.value}
-            for e in pa.entities
+            {"name": e.name, "category": e.category, "context": e.context, "value": e.value} for e in pa.entities
         ],
         "tables": [{"title": t.title, "columns": t.columns, "rows": t.rows} for t in pa.tables],
         "annotations": pa.annotations,

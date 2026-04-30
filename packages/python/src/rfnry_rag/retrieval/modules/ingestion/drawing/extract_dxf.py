@@ -1,4 +1,5 @@
 """Parse DXF entities into DrawingPageAnalysis without any vision LLM."""
+
 from __future__ import annotations
 
 import re
@@ -53,9 +54,7 @@ def _bbox_of_block_insert(insert: Any) -> list[int]:
     return [int(ox + xmin), int(oy + ymin), int(xmax - xmin), int(ymax - ymin)]
 
 
-def _classify_block_name(
-    block_name: str, symbol_library: dict[str, list[str]]
-) -> tuple[str, str]:
+def _classify_block_name(block_name: str, symbol_library: dict[str, list[str]]) -> tuple[str, str]:
     """Return (domain, symbol_class).
 
     Matching order (exact > substring either direction). Falls back to
@@ -75,9 +74,7 @@ def _classify_block_name(
     return "mixed", lower
 
 
-def _find_component_at(
-    x: float, y: float, components: list[DetectedComponent]
-) -> DetectedComponent | None:
+def _find_component_at(x: float, y: float, components: list[DetectedComponent]) -> DetectedComponent | None:
     """Locate the component whose bbox contains (x, y).
 
     Uses a small absolute tolerance (`_CONNECTION_TOL`) so wire endpoints
@@ -86,8 +83,9 @@ def _find_component_at(
     """
     for c in components:
         bx, by, bw, bh = c.bbox
-        if (bx - _CONNECTION_TOL) <= x <= (bx + bw + _CONNECTION_TOL) and \
-           (by - _CONNECTION_TOL) <= y <= (by + bh + _CONNECTION_TOL):
+        if (bx - _CONNECTION_TOL) <= x <= (bx + bw + _CONNECTION_TOL) and (by - _CONNECTION_TOL) <= y <= (
+            by + bh + _CONNECTION_TOL
+        ):
             return c
     return None
 
@@ -150,9 +148,7 @@ def _extract_off_page_connectors(
     return out
 
 
-def _analyse_layout(
-    layout: Any, page_number: int, config: DrawingIngestionConfig
-) -> DrawingPageAnalysis:
+def _analyse_layout(layout: Any, page_number: int, config: DrawingIngestionConfig) -> DrawingPageAnalysis:
     """Walk one layout's INSERT/LINE/TEXT/MTEXT entities into a DrawingPageAnalysis."""
     symbol_library = config.symbol_library or {}
 
@@ -190,9 +186,7 @@ def _analyse_layout(
                 )
             )
 
-    off_page_connectors = _extract_off_page_connectors(
-        layout, components, config.off_page_connector_patterns or []
-    )
+    off_page_connectors = _extract_off_page_connectors(layout, components, config.off_page_connector_patterns or [])
 
     return DrawingPageAnalysis(
         page_number=page_number,
@@ -205,9 +199,7 @@ def _analyse_layout(
     )
 
 
-def extract_dxf_analysis(
-    file_path: Path, config: DrawingIngestionConfig
-) -> list[DrawingPageAnalysis]:
+def extract_dxf_analysis(file_path: Path, config: DrawingIngestionConfig) -> list[DrawingPageAnalysis]:
     """Parse every layout in a DXF into a list of DrawingPageAnalysis (one per page).
 
     Mirrors render_dxf's page split: modelspace is page 1, then paperspace
@@ -224,8 +216,7 @@ def extract_dxf_analysis(
     # merge by page_number. Drift here would silently misalign analysis with
     # the rendered image.
     analyses: list[DrawingPageAnalysis] = [
-        _analyse_layout(layout, idx, config)
-        for idx, layout in enumerate(_iter_renderable_layouts(doc), start=1)
+        _analyse_layout(layout, idx, config) for idx, layout in enumerate(_iter_renderable_layouts(doc), start=1)
     ]
 
     logger.info(

@@ -137,51 +137,29 @@ def make_engine() -> Any:
         else:
             engine._retrieval_service = retrieval_service
 
-        engine._structured_retrieval = (
-            None if structured_retrieval is _UNSET else structured_retrieval
-        )
+        engine._structured_retrieval = None if structured_retrieval is _UNSET else structured_retrieval
 
         # Generation service — default is an AsyncMock with both `generate`
         # and `generate_from_corpus` returning a default QueryResult.
         if generation_service is _UNSET:
             gs: Any = AsyncMock()
             cast(Any, gs).generate = AsyncMock(return_value=_default_query_result())
-            cast(Any, gs).generate_from_corpus = AsyncMock(
-                return_value=_default_query_result()
-            )
+            cast(Any, gs).generate_from_corpus = AsyncMock(return_value=_default_query_result())
             engine._generation_service = gs
         else:
             engine._generation_service = generation_service
 
         engine._step_service = None if step_service is _UNSET else step_service
-        engine._knowledge_manager = (
-            None if knowledge_manager is _UNSET else knowledge_manager
-        )
-        engine._iterative_service = (
-            None if iterative_service is _UNSET else iterative_service
-        )
-        engine._ingestion_service = (
-            None if ingestion_service is _UNSET else ingestion_service
-        )
-        engine._structured_ingestion = (
-            None if structured_ingestion is _UNSET else structured_ingestion
-        )
-        engine._retrieval_namespace = (
-            None if retrieval_namespace is _UNSET else retrieval_namespace
-        )
-        engine._ingestion_namespace = (
-            None if ingestion_namespace is _UNSET else ingestion_namespace
-        )
-        engine._tree_indexing_service = (
-            None if tree_indexing_service is _UNSET else tree_indexing_service
-        )
-        engine._tree_search_service = (
-            None if tree_search_service is _UNSET else tree_search_service
-        )
+        engine._knowledge_manager = None if knowledge_manager is _UNSET else knowledge_manager
+        engine._iterative_service = None if iterative_service is _UNSET else iterative_service
+        engine._ingestion_service = None if ingestion_service is _UNSET else ingestion_service
+        engine._structured_ingestion = None if structured_ingestion is _UNSET else structured_ingestion
+        engine._retrieval_namespace = None if retrieval_namespace is _UNSET else retrieval_namespace
+        engine._ingestion_namespace = None if ingestion_namespace is _UNSET else ingestion_namespace
+        engine._tree_indexing_service = None if tree_indexing_service is _UNSET else tree_indexing_service
+        engine._tree_search_service = None if tree_search_service is _UNSET else tree_search_service
         engine._raptor_builder = None if raptor_builder is _UNSET else raptor_builder
-        engine._raptor_registry = (
-            None if raptor_registry is _UNSET else raptor_registry
-        )
+        engine._raptor_registry = None if raptor_registry is _UNSET else raptor_registry
         if answerability_registry is not _UNSET:
             engine._answerability_registry = answerability_registry
 

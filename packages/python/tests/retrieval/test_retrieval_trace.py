@@ -187,5 +187,3 @@ async def test_rag_engine_retrieve_with_trace_returns_trace_alongside_chunks() -
     assert trace.confidence is None
     assert trace.final_results  # populated with the post-refinement chunks
     assert trace.final_results[0].chunk_id == "c1"
-
-

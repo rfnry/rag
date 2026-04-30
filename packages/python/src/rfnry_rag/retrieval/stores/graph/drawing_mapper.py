@@ -13,6 +13,7 @@ LLM-suggested merges (residue from C8) become MENTIONS edges with
 llm_suggested=true in the context string; the edge carries the
 confidence + rationale so human review after ingest is possible.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -65,10 +66,7 @@ def component_to_graph_entity(
         "domain": domain,
         "label": component.label or "",
         "bbox": component.bbox,
-        "ports": [
-            {"port_id": p.port_id, "position": p.position}
-            for p in component.ports
-        ],
+        "ports": [{"port_id": p.port_id, "position": p.position} for p in component.ports],
     }
     if component.properties:
         # Our fields above win on conflict; anything else the consumer sent
@@ -141,9 +139,7 @@ def drawing_to_graph(
     component_type_lookup: dict[str, str] = {}
     for pa in pages:
         for c in pa.components:
-            entities.append(
-                component_to_graph_entity(c, source_id, pa.page_number, pa.domain)
-            )
+            entities.append(component_to_graph_entity(c, source_id, pa.page_number, pa.domain))
             component_type_lookup[c.component_id] = c.symbol_class
 
     relations: list[GraphRelation] = []

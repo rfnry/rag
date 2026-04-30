@@ -88,6 +88,4 @@ async def test_run_tree_search_caps_source_count() -> None:
 
     await rag._run_tree_search(query="q", knowledge_id=None)
 
-    assert search_call_count <= 5, (
-        f"tree search fanned out to {search_call_count} sources; expected at most 5"
-    )
+    assert search_call_count <= 5, f"tree search fanned out to {search_call_count} sources; expected at most 5"

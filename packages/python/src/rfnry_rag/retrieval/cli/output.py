@@ -142,9 +142,7 @@ def print_benchmark_report(report: BenchmarkReport) -> None:
         print(f"  LLM judge: {report.llm_judge_score:.3f}")
     if report.failure_distribution:
         print("\nFailure distribution:")
-        for failure_type, count in sorted(
-            report.failure_distribution.items(), key=lambda kv: (-kv[1], kv[0])
-        ):
+        for failure_type, count in sorted(report.failure_distribution.items(), key=lambda kv: (-kv[1], kv[0])):
             print(f"  {failure_type}: {count}")
     else:
         print("\nNo failures classified.")

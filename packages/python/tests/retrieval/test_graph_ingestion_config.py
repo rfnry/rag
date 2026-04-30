@@ -1,4 +1,5 @@
 """GraphIngestionConfig: bounds, defaults, consumer overrides, allowlist validation."""
+
 import pytest
 
 from rfnry_rag.common.errors import ConfigurationError
@@ -52,23 +53,28 @@ def test_entity_type_patterns_must_be_compilable_regex() -> None:
 
 def test_nested_into_ingestion_config() -> None:
     from rfnry_rag.retrieval.server import IngestionConfig
-    cfg = IngestionConfig(graph=GraphIngestionConfig(
-        entity_type_patterns=[(r"\bmotor\b", "motor")],
-    ))
+
+    cfg = IngestionConfig(
+        graph=GraphIngestionConfig(
+            entity_type_patterns=[(r"\bmotor\b", "motor")],
+        )
+    )
     assert cfg.graph is not None
     assert len(cfg.graph.entity_type_patterns) == 1
 
 
 def test_graph_none_by_default() -> None:
     from rfnry_rag.retrieval.server import IngestionConfig
+
     cfg = IngestionConfig()
-    assert cfg.graph is None   # opt-in
+    assert cfg.graph is None  # opt-in
 
 
 def test_registered_in_config_bounds_contract() -> None:
     """If the config has any int/float field we add later, the contract must catch it."""
     import importlib.util
     from pathlib import Path
+
     spec = importlib.util.spec_from_file_location(
         "_retrieval_config_bounds_contract",
         Path(__file__).parent / "test_config_bounds_contract.py",

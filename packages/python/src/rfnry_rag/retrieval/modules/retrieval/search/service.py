@@ -84,14 +84,12 @@ class RetrievalService:
         # just doesn't see them.
         method_multipliers: dict[str, float] = {}
         if self._adaptive_config is not None and self._adaptive_config.enabled:
-            classification, effective_top_k, method_multipliers, classify_elapsed = (
-                await _compute_adaptive_params(
-                    query,
-                    base_top_k,
-                    self._adaptive_config,
-                    self._classifier_lm_client,
-                    classify_query,
-                )
+            classification, effective_top_k, method_multipliers, classify_elapsed = await _compute_adaptive_params(
+                query,
+                base_top_k,
+                self._adaptive_config,
+                self._classifier_lm_client,
+                classify_query,
             )
             if trace_obj is not None:
                 trace_obj.adaptive = {
@@ -286,11 +284,7 @@ class RetrievalService:
                 by_method[method.name] = list(results) if results else []
             if results:
                 result_lists.append(results)
-                multiplier = (
-                    method_multipliers.get(method.name, 1.0)
-                    if method_multipliers
-                    else 1.0
-                )
+                multiplier = method_multipliers.get(method.name, 1.0) if method_multipliers else 1.0
                 weights.append(method.weight * multiplier)
         return result_lists, weights, by_method
 

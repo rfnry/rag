@@ -353,8 +353,7 @@ class VectorRetrieval:
 
         if capped:
             logger.warning(
-                "bm25 index capped at %d chunks for knowledge_id=%s — "
-                "consider sparse_embeddings for larger corpora",
+                "bm25 index capped at %d chunks for knowledge_id=%s — consider sparse_embeddings for larger corpora",
                 self._bm25_max_chunks,
                 knowledge_id,
             )

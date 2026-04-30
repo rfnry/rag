@@ -99,9 +99,7 @@ class BenchmarkConfig:
 
     def __post_init__(self) -> None:
         if not (1 <= self.concurrency <= 20):
-            raise ConfigurationError(
-                f"BenchmarkConfig.concurrency={self.concurrency} out of range [1, 20]"
-            )
+            raise ConfigurationError(f"BenchmarkConfig.concurrency={self.concurrency} out of range [1, 20]")
         if not (0.0 <= self.failure_threshold <= 1.0):
             raise ConfigurationError(
                 f"BenchmarkConfig.failure_threshold={self.failure_threshold} out of range [0.0, 1.0]"
@@ -157,9 +155,7 @@ def _is_failure(case: BenchmarkCase, result: QueryResult, threshold: float) -> b
     return result.trace is not None and result.trace.grounding_decision == "ungrounded"
 
 
-def _retrieval_metrics(
-    case: BenchmarkCase, result: QueryResult
-) -> tuple[float | None, float | None]:
+def _retrieval_metrics(case: BenchmarkCase, result: QueryResult) -> tuple[float | None, float | None]:
     """Per-case retrieval recall+precision against `expected_source_ids`.
 
     Returns `(None, None)` when the case omits expected IDs. Recall is
@@ -199,9 +195,7 @@ async def run_benchmark(
     """
     cfg = config or BenchmarkConfig()
 
-    logger.info(
-        "benchmark starting: %d cases, concurrency=%d", len(cases), cfg.concurrency
-    )
+    logger.info("benchmark starting: %d cases, concurrency=%d", len(cases), cfg.concurrency)
 
     em_metric = ExactMatch()
     f1_metric = F1Score()
@@ -216,9 +210,7 @@ async def run_benchmark(
             per_case["retrieval_recall"] = recall
             per_case["retrieval_precision"] = precision
         if llm_judge is not None:
-            judge_score = await llm_judge.score(
-                result.answer or "", [case.expected_answer], query=case.query
-            )
+            judge_score = await llm_judge.score(result.answer or "", [case.expected_answer], query=case.query)
             per_case["llm_judge"] = judge_score
 
         failure: FailureClassification | None = None
@@ -274,5 +266,3 @@ async def run_benchmark(
         failure_distribution=dict(distribution),
         per_case_results=list(per_case_results),
     )
-
-

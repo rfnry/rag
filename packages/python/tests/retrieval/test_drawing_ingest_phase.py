@@ -1,4 +1,5 @@
 """Drawing ingest phase: component vectors + graph writes, idempotent on completed."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -29,7 +30,8 @@ class _InMemoryMetadataStore:
         for k, v in fields.items():
             setattr(src, k, v)
 
-    async def find_by_hash(self, *a, **k): return None
+    async def find_by_hash(self, *a, **k):
+        return None
 
     async def upsert_page_analyses(self, source_id, analyses):
         existing = {r["page_number"]: r for r in self._pages.get(source_id, [])}
@@ -39,8 +41,11 @@ class _InMemoryMetadataStore:
             existing[r["page_number"]] = {"page_number": r["page_number"], "data": merged_data}
         self._pages[source_id] = list(existing.values())
 
-    async def get_page_analyses(self, source_id): return list(self._pages.get(source_id, []))
-    async def get_source(self, source_id): return self._sources.get(source_id)
+    async def get_page_analyses(self, source_id):
+        return list(self._pages.get(source_id, []))
+
+    async def get_source(self, source_id):
+        return self._sources.get(source_id)
 
 
 class _RecordingVectorStore:
@@ -57,6 +62,7 @@ class _RecordingVectorStore:
 
 class _FakeEmbeddings:
     """Deterministic fake: each text becomes a 4-dim vector of its character count ratios."""
+
     async def embed(self, texts):  # BaseEmbeddings protocol (used by embed_batched)
         return [[float(len(t)) / 10.0, 1.0, 0.0, 0.0] for t in texts]
 
@@ -115,15 +121,24 @@ async def _seed_linked(metadata, pages, pairings=None, residue=None):
 
 def _dc(cid: str, klass: str = "resistor") -> DetectedComponent:
     return DetectedComponent(
-        component_id=cid, symbol_class=klass, label=cid,
-        bbox=[0, 0, 10, 10], ports=[], properties=None,
+        component_id=cid,
+        symbol_class=klass,
+        label=cid,
+        bbox=[0, 0, 10, 10],
+        ports=[],
+        properties=None,
     )
 
 
 def _dp(page: int, components) -> DrawingPageAnalysis:
     return DrawingPageAnalysis(
-        page_number=page, components=components, connections=[], off_page_connectors=[],
-        domain="electrical", page_type="drawing", notes=[],
+        page_number=page,
+        components=components,
+        connections=[],
+        off_page_connectors=[],
+        domain="electrical",
+        page_type="drawing",
+        notes=[],
     )
 
 
@@ -177,12 +192,16 @@ async def test_ingest_batches_graph_relations() -> None:
     """graph_write_batch_size=2 with 5 same-page connections → 3 batched add_relations calls."""
     components = [_dc(f"R{i}") for i in range(6)]
     connections = [
-        DetectedConnection(from_component=f"R{i}", to_component=f"R{i+1}", wire_style="signal")
-        for i in range(5)
+        DetectedConnection(from_component=f"R{i}", to_component=f"R{i + 1}", wire_style="signal") for i in range(5)
     ]
     p1 = DrawingPageAnalysis(
-        page_number=1, components=components, connections=connections, off_page_connectors=[],
-        domain="electrical", page_type="drawing", notes=[],
+        page_number=1,
+        components=components,
+        connections=connections,
+        off_page_connectors=[],
+        domain="electrical",
+        page_type="drawing",
+        notes=[],
     )
     metadata = _InMemoryMetadataStore()
     gstore = _RecordingGraphStore()
@@ -230,11 +249,16 @@ async def test_ingest_sets_chunk_count_to_component_count() -> None:
 async def test_ingest_passes_llm_residue_to_graph_mapper() -> None:
     p1 = _dp(1, [_dc("v1", "valve_ball")])
     p2 = _dp(2, [_dc("v2", "valve_ball")])
-    residue = [{
-        "page_a": 1, "component_a": "v1",
-        "page_b": 2, "component_b": "v2",
-        "confidence": 0.85, "rationale": "both labelled V-101",
-    }]
+    residue = [
+        {
+            "page_a": 1,
+            "component_a": "v1",
+            "page_b": 2,
+            "component_b": "v2",
+            "confidence": 0.85,
+            "rationale": "both labelled V-101",
+        }
+    ]
     metadata = _InMemoryMetadataStore()
     gstore = _RecordingGraphStore()
     svc = _make_service(metadata, graph_store=gstore)

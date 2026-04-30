@@ -53,5 +53,3 @@ async def test_structured_retrieval_isolates_errors() -> None:
     adapter = StructuredRetrieval(service=cast(object, service))  # type: ignore[arg-type]
     result = await adapter.search("q", top_k=5)
     assert result == []
-
-

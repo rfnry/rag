@@ -67,8 +67,7 @@ class DrawingIngestionConfig:
         # --- Enum-ish literal validation (dataclass can't enforce at runtime) ---
         if self.page_image_format not in ("png", "jpeg"):
             raise ConfigurationError(
-                f"DrawingIngestionConfig.page_image_format must be 'png' or 'jpeg', "
-                f"got {self.page_image_format!r}"
+                f"DrawingIngestionConfig.page_image_format must be 'png' or 'jpeg', got {self.page_image_format!r}"
             )
         if self.default_domain not in ("auto", "electrical", "p_and_id", "mechanical", "mixed"):
             raise ConfigurationError(
@@ -85,23 +84,18 @@ class DrawingIngestionConfig:
         # dpi: lower bound 150 keeps symbols legible for vision LLMs; upper bound
         # 600 caps per-page buffer growth (each page can exceed 100MB beyond that).
         if not (150 <= self.dpi <= 600):
-            raise ConfigurationError(
-                f"DrawingIngestionConfig.dpi={self.dpi} out of range [150, 600]"
-            )
+            raise ConfigurationError(f"DrawingIngestionConfig.dpi={self.dpi} out of range [150, 600]")
         if not (1 <= self.analyze_concurrency <= 100):
             raise ConfigurationError(
-                f"DrawingIngestionConfig.analyze_concurrency={self.analyze_concurrency} "
-                "out of range [1, 100]"
+                f"DrawingIngestionConfig.analyze_concurrency={self.analyze_concurrency} out of range [1, 100]"
             )
         if not (0.0 <= self.fuzzy_label_threshold <= 1.0):
             raise ConfigurationError(
-                f"DrawingIngestionConfig.fuzzy_label_threshold={self.fuzzy_label_threshold} "
-                "out of range [0.0, 1.0]"
+                f"DrawingIngestionConfig.fuzzy_label_threshold={self.fuzzy_label_threshold} out of range [0.0, 1.0]"
             )
         if not (1 <= self.graph_write_batch_size <= 10_000):
             raise ConfigurationError(
-                f"DrawingIngestionConfig.graph_write_batch_size={self.graph_write_batch_size} "
-                "out of range [1, 10_000]"
+                f"DrawingIngestionConfig.graph_write_batch_size={self.graph_write_batch_size} out of range [1, 10_000]"
             )
 
         # --- Materialize resolved views onto the fields ---

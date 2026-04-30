@@ -265,8 +265,7 @@ class IterativeRetrievalService:
                         sub_question=None,
                         findings_from_last_hop=result.findings_from_last_hop,
                         decompose_reasoning=(
-                            f"contract violation: done=false with empty sub_question. "
-                            f"{result.reasoning}"
+                            f"contract violation: done=false with empty sub_question. {result.reasoning}"
                         ),
                         timings={"decompose": decompose},
                     )
@@ -312,9 +311,7 @@ class IterativeRetrievalService:
             adaptive_snapshot: dict[str, object] | None = None
             if hop_trace_data is not None and hop_trace_data.adaptive is not None:
                 adaptive_snapshot = dict(hop_trace_data.adaptive)
-                expansion_applied = bool(
-                    adaptive_snapshot.get("expansion_attempts", 0)
-                )
+                expansion_applied = bool(adaptive_snapshot.get("expansion_attempts", 0))
 
             hop_timings: dict[str, float] = {
                 "decompose": decompose,
@@ -329,12 +326,8 @@ class IterativeRetrievalService:
                     sub_question=sub_question,
                     findings_from_last_hop=result.findings_from_last_hop,
                     decompose_reasoning=result.reasoning,
-                    per_method_results=(
-                        dict(hop_trace_data.per_method_results) if hop_trace_data else {}
-                    ),
-                    fused_results=(
-                        list(hop_trace_data.fused_results) if hop_trace_data else []
-                    ),
+                    per_method_results=(dict(hop_trace_data.per_method_results) if hop_trace_data else {}),
+                    fused_results=(list(hop_trace_data.fused_results) if hop_trace_data else []),
                     reranked_results=(
                         list(hop_trace_data.reranked_results)
                         if hop_trace_data and hop_trace_data.reranked_results is not None

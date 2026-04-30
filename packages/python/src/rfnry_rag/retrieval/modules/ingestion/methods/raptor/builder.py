@@ -143,9 +143,7 @@ class RaptorTreeBuilder:
         # Build the BAML registry once per builder; ``SummarizeCluster`` is
         # called many times during a build, and rebuilding the registry per
         # call would re-pay the BAML setup cost on each cluster.
-        self._baml_registry: Any = (
-            build_registry(config.summary_model) if config.summary_model is not None else None
-        )
+        self._baml_registry: Any = build_registry(config.summary_model) if config.summary_model is not None else None
 
     async def build(self, knowledge_id: str) -> RaptorBuildReport:
         """Build a fresh RAPTOR tree for ``knowledge_id`` and swap it active.
@@ -166,9 +164,7 @@ class RaptorTreeBuilder:
         decompose_calls = 0
         wall_start = time.perf_counter()
 
-        logger.info(
-            "raptor build start: knowledge_id=%s tree_id=%s", knowledge_id, new_tree_id
-        )
+        logger.info("raptor build start: knowledge_id=%s tree_id=%s", knowledge_id, new_tree_id)
 
         # ---- Stage 1: load leaves ---------------------------------------
         t0 = time.perf_counter()
@@ -243,9 +239,7 @@ class RaptorTreeBuilder:
 
             if not clusters:
                 # HDBSCAN can produce zero clusters when everything is noise.
-                logger.info(
-                    "raptor build: level %d produced no clusters — terminating", level
-                )
+                logger.info("raptor build: level %d produced no clusters — terminating", level)
                 break
 
             t_sum = time.perf_counter()
@@ -315,8 +309,7 @@ class RaptorTreeBuilder:
         duration = time.perf_counter() - wall_start
         total_summaries = sum(level_counts[1:]) if len(level_counts) > 1 else 0
         logger.info(
-            "raptor build done: knowledge_id=%s tree_id=%s level_counts=%s "
-            "duration=%.2fs cost=%s",
+            "raptor build done: knowledge_id=%s tree_id=%s level_counts=%s duration=%.2fs cost=%s",
             knowledge_id,
             new_tree_id,
             level_counts,
@@ -351,13 +344,9 @@ class RaptorTreeBuilder:
                 "Set IngestionConfig.raptor.enabled=True to opt in."
             )
         if self._cfg.summary_model is None:
-            raise ConfigurationError(
-                "RaptorConfig.summary_model is None — required when enabled=True."
-            )
+            raise ConfigurationError("RaptorConfig.summary_model is None — required when enabled=True.")
         if not knowledge_id or not knowledge_id.strip():
-            raise ConfigurationError(
-                "build_raptor_index requires a non-empty knowledge_id."
-            )
+            raise ConfigurationError("build_raptor_index requires a non-empty knowledge_id.")
         # Existence check: a knowledge_id with zero sources is allowed
         # (we'll write an empty-tree row), but a literally-empty value is
         # rejected above. We don't fail when the knowledge has no sources
@@ -394,21 +383,14 @@ class RaptorTreeBuilder:
         }
         offset: str | None = None
         while True:
-            results, next_offset = await self._vector_store.scroll(
-                filters=filters, limit=500, offset=offset
-            )
+            results, next_offset = await self._vector_store.scroll(filters=filters, limit=500, offset=offset)
             for r in results:
                 payload = r.payload
                 # Prefer the chunk's contextualized text (level-1 input);
                 # fall back to ``content`` for legacy points that predate
                 # the contextualized field. ``contextualized`` is the
                 # default for analyze-pipeline + chunk-pipeline writes.
-                text = (
-                    payload.get("contextualized")
-                    or payload.get("content")
-                    or payload.get("text")
-                    or ""
-                )
+                text = payload.get("contextualized") or payload.get("content") or payload.get("text") or ""
                 # Vector-store scroll doesn't return embeddings; the leaf's
                 # stored vector is not surfaced by the scroll API. We
                 # re-embed the text we already have below in one batched
@@ -478,9 +460,7 @@ class RaptorTreeBuilder:
                 min_cluster_size=self._cfg.min_cluster_size,
             )
 
-        matrix: NDArray[np.float32] = np.array(
-            [m.vector for m in current], dtype=np.float32
-        )
+        matrix: NDArray[np.float32] = np.array([m.vector for m in current], dtype=np.float32)
         labels, centroids = run_clustering(matrix, cfg)
 
         # Bucket inputs by label. HDBSCAN's noise label (-1) is dropped:
@@ -501,9 +481,7 @@ class RaptorTreeBuilder:
             indices = groups[label_int]
             if label_int < len(centroids):
                 centroid = centroids[label_int]
-                dists = [
-                    (np.linalg.norm(matrix[i] - centroid), i) for i in indices
-                ]
+                dists = [(np.linalg.norm(matrix[i] - centroid), i) for i in indices]
                 dists.sort(key=lambda t: t[0])
                 ordered = [current[i] for _, i in dists]
             else:
@@ -527,9 +505,7 @@ class RaptorTreeBuilder:
         # Cap cluster member count at top-N centroid-nearest BEFORE
         # dispatching the LLM call. ``clusters`` is already centroid-
         # nearest-first, so a slice is correct.
-        capped: list[list[_ClusterMember]] = [
-            cluster[:MAX_CLUSTER_MEMBERS_PER_SUMMARY] for cluster in clusters
-        ]
+        capped: list[list[_ClusterMember]] = [cluster[:MAX_CLUSTER_MEMBERS_PER_SUMMARY] for cluster in clusters]
 
         # We pre-allocate ``summaries`` and write each result back at its
         # cluster index so the order is stable for back-reference linking.
@@ -611,9 +587,7 @@ class RaptorTreeBuilder:
         ]
         await self._vector_store.upsert(points)
 
-    async def _set_parent_back_references(
-        self, summaries: list[_SummaryNode]
-    ) -> None:
+    async def _set_parent_back_references(self, summaries: list[_SummaryNode]) -> None:
         """Update each child point's ``raptor_parent_id`` payload field.
 
         Two cases share this code path:
@@ -668,9 +642,7 @@ class RaptorTreeBuilder:
             "vector_role": "raptor_summary",
         }
         while True:
-            results, next_offset = await self._vector_store.scroll(
-                filters=filters, limit=500, offset=offset
-            )
+            results, next_offset = await self._vector_store.scroll(filters=filters, limit=500, offset=offset)
             for r in results:
                 tid = r.payload.get("raptor_tree_id")
                 if tid and tid != new_tree_id:

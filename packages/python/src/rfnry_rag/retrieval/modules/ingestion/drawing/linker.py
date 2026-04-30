@@ -5,6 +5,7 @@ Three passes, all deterministic, zero LLM calls:
 2. parse_target_hints - regex "sheet N (zone XN)" inside target_hint -> resolve to the named target page and pair.
 3. merge_fuzzy_labels - RapidFuzz WRatio between component labels across pages, above config.fuzzy_label_threshold.
 """
+
 from __future__ import annotations
 
 import re
@@ -66,9 +67,7 @@ def pair_off_page_connectors(
     return pairings
 
 
-def parse_target_hints(
-    pages: list[DrawingPageAnalysis], config: DrawingIngestionConfig
-) -> list[DetectedConnection]:
+def parse_target_hints(pages: list[DrawingPageAnalysis], config: DrawingIngestionConfig) -> list[DetectedConnection]:
     """Parse off_page_connectors.target_hint -> resolve target page + pair.
 
     Heuristic: match regex 'sheet N (zone XN)?' inside target_hint; resolve
@@ -126,9 +125,7 @@ def merge_fuzzy_labels(
     merges: list[tuple[int, str, int, str]] = []
     threshold = int(config.fuzzy_label_threshold * 100)
     all_components = [
-        (pa.page_number, c.component_id, (c.label or c.component_id))
-        for pa in pages
-        for c in pa.components
+        (pa.page_number, c.component_id, (c.label or c.component_id)) for pa in pages for c in pa.components
     ]
     seen: set[tuple[int, str]] = set()
     for i, (page_a, id_a, label_a) in enumerate(all_components):
@@ -174,7 +171,7 @@ def find_unresolved_candidates(
             resolved.add((fp, pair.from_component))
         if tp is not None:
             resolved.add((tp, pair.to_component))
-    for (pa_a, id_a, pa_b, id_b) in fuzzy_merges:
+    for pa_a, id_a, pa_b, id_b in fuzzy_merges:
         resolved.add((pa_a, id_a))
         resolved.add((pa_b, id_b))
 
@@ -195,10 +192,7 @@ def build_digest(pages: list[DrawingPageAnalysis]) -> str:
     """
     lines: list[str] = []
     for pa in pages:
-        comps = ", ".join(
-            f"({c.component_id}, {c.symbol_class}, {c.label or ''})"
-            for c in pa.components
-        )
+        comps = ", ".join(f"({c.component_id}, {c.symbol_class}, {c.label or ''})" for c in pa.components)
         lines.append(f"Page {pa.page_number}: domain={pa.domain}, components=[{comps}]")
     return "\n".join(lines)
 
@@ -213,9 +207,7 @@ def format_already_linked(
         props = p.properties or {}
         fp = props.get("from_page", "?")
         tp = props.get("to_page", "?")
-        lines.append(
-            f"- page {fp} {p.from_component} <-> page {tp} {p.to_component} (net={p.net_label})"
-        )
-    for (pa_a, id_a, pa_b, id_b) in fuzzy_merges:
+        lines.append(f"- page {fp} {p.from_component} <-> page {tp} {p.to_component} (net={p.net_label})")
+    for pa_a, id_a, pa_b, id_b in fuzzy_merges:
         lines.append(f"- page {pa_a} {id_a} ~ page {pa_b} {id_b} (fuzzy)")
     return "\n".join(lines) if lines else "(none)"

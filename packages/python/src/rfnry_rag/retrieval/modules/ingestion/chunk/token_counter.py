@@ -1,10 +1,12 @@
 """Token counting with tiktoken when available, falling back to word count."""
+
 from __future__ import annotations
 
 from typing import Any
 
 try:
     import tiktoken
+
     _TIKTOKEN_AVAILABLE = True
     _ENC: Any = tiktoken.get_encoding("cl100k_base")  # covers GPT-3.5 / 4 / 4o
 except ImportError:  # pragma: no cover

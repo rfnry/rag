@@ -1,4 +1,5 @@
 """Link phase LLM residue pass: SynthesizeDrawingSet only on ambiguity."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -117,9 +118,12 @@ def _fake_merge(
     rationale: str = "llm says so",
 ) -> SimpleNamespace:
     return SimpleNamespace(
-        page_a=page_a, component_a=component_a,
-        page_b=page_b, component_b=component_b,
-        confidence=confidence, rationale=rationale,
+        page_a=page_a,
+        component_a=component_a,
+        page_b=page_b,
+        component_b=component_b,
+        confidence=confidence,
+        rationale=rationale,
     )
 
 
@@ -163,9 +167,11 @@ async def test_llm_call_fires_when_ambiguous_labels_exist() -> None:
     svc = _make_service(metadata)
     src = await _seed_extracted(metadata, [p1, p2])
 
-    mock_synth = AsyncMock(return_value=_fake_synthesis(
-        merges=[_fake_merge(1, "v1", 2, "v2", confidence=0.85)],
-    ))
+    mock_synth = AsyncMock(
+        return_value=_fake_synthesis(
+            merges=[_fake_merge(1, "v1", 2, "v2", confidence=0.85)],
+        )
+    )
     with patch(
         "rfnry_rag.retrieval.modules.ingestion.drawing.service.b.SynthesizeDrawingSet",
         mock_synth,
@@ -189,12 +195,14 @@ async def test_llm_merges_below_confidence_dropped() -> None:
     svc = _make_service(metadata)
     src = await _seed_extracted(metadata, [p1, p2])
 
-    mock_synth = AsyncMock(return_value=_fake_synthesis(
-        merges=[
-            _fake_merge(1, "v1", 2, "v2", confidence=0.30),  # below threshold
-            _fake_merge(1, "v1", 2, "v2", confidence=0.95),  # keep
-        ],
-    ))
+    mock_synth = AsyncMock(
+        return_value=_fake_synthesis(
+            merges=[
+                _fake_merge(1, "v1", 2, "v2", confidence=0.30),  # below threshold
+                _fake_merge(1, "v1", 2, "v2", confidence=0.95),  # keep
+            ],
+        )
+    )
     with patch(
         "rfnry_rag.retrieval.modules.ingestion.drawing.service.b.SynthesizeDrawingSet",
         mock_synth,
@@ -230,7 +238,7 @@ async def test_llm_call_skipped_when_no_registry() -> None:
     """No lm_client -> no ClientRegistry -> silent-skip the LLM residue pass."""
     p1 = _dp(1, [_dc("v1", label="V-101")])
     p2 = _dp(2, [_dc("v2", label="V-101-A")])
-    cfg = DrawingIngestionConfig(enabled=True)   # no lm_client
+    cfg = DrawingIngestionConfig(enabled=True)  # no lm_client
     metadata = _InMemoryMetadataStore()
     svc = _make_service(metadata, config=cfg)
     src = await _seed_extracted(metadata, [p1, p2])

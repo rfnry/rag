@@ -5,6 +5,7 @@ no built-in domain assumptions. The ``unclassified_relation_default`` setting
 determines whether a cross-reference with no matching keyword becomes a
 generic ``MENTIONS`` edge (default) or is dropped (``None``).
 """
+
 from __future__ import annotations
 
 import re

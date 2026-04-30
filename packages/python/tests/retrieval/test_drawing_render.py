@@ -1,4 +1,5 @@
 """Drawing render phase: PDF via PyMuPDF, DXF via ezdxf."""
+
 from __future__ import annotations
 
 from pathlib import Path

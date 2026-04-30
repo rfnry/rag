@@ -65,9 +65,7 @@ def test_benchmark_command_invokes_engine_and_prints_summary(tmp_path: Path) -> 
         # `--pretty` forces human-readable output: CliRunner has no TTY, so
         # `get_output_mode` would otherwise default to JSON (the production
         # behavior when stdout is piped).
-        result = runner.invoke(
-            cli, ["--pretty", "benchmark", str(cases_file), "-k", "kb-1"]
-        )
+        result = runner.invoke(cli, ["--pretty", "benchmark", str(cases_file), "-k", "kb-1"])
 
     assert result.exit_code == 0, result.output
     assert "Benchmark report" in result.output

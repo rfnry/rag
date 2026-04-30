@@ -1,4 +1,5 @@
 """Contract: BAML prompt bodies (retrieval + reasoning) carry no domain hints."""
+
 from pathlib import Path
 
 _RETRIEVAL_BAML_ROOT = Path("src/rfnry_rag/retrieval/baml/baml_src")
@@ -46,9 +47,17 @@ _PROMPT_FILES: list[Path] = _discover_prompt_files()
 # Domain-specific words that MUST NOT appear in prompts — they bias the LLM
 # toward electrical/mechanical output. (Case-insensitive substring check.)
 _DOMAIN_BIAS_TERMS = [
-    "valve", "motor", "wire", "terminal",
-    "480V", "PSI", "RPM", "SAE", "RV-2201",
-    "electrical", "mechanical",
+    "valve",
+    "motor",
+    "wire",
+    "terminal",
+    "480V",
+    "PSI",
+    "RPM",
+    "SAE",
+    "RV-2201",
+    "electrical",
+    "mechanical",
 ]
 
 

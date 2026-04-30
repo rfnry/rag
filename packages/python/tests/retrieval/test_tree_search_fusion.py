@@ -33,9 +33,7 @@ async def test_tree_chunks_threaded_into_single_unstructured_call(
     and discarding the first result set."""
     engine = _engine(make_engine, metadata_store=object(), tree_search_service=object())
 
-    unstructured = SimpleNamespace(
-        retrieve=AsyncMock(return_value=([_chunk("u1"), _chunk("u2"), _chunk("t1")], None))
-    )
+    unstructured = SimpleNamespace(retrieve=AsyncMock(return_value=([_chunk("u1"), _chunk("u2"), _chunk("t1")], None)))
     engine._get_retrieval = cast(Any, lambda _c: (unstructured, None))  # type: ignore[method-assign]
     engine._build_retrieval_query = cast(Any, lambda text, history: text)  # type: ignore[method-assign]
     engine._run_tree_search = cast(Any, AsyncMock(return_value=[_chunk("t1")]))  # type: ignore[method-assign]

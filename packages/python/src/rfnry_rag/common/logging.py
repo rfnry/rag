@@ -42,9 +42,7 @@ def _propagate_baml_log_env() -> None:
         if raw.lower() not in _VALID_BAML_LEVELS:
             from rfnry_rag.common.errors import ConfigurationError
 
-            raise ConfigurationError(
-                f"RFNRY_RAG_BAML_LOG must be one of {sorted(_VALID_BAML_LEVELS)}, got {raw!r}"
-            )
+            raise ConfigurationError(f"RFNRY_RAG_BAML_LOG must be one of {sorted(_VALID_BAML_LEVELS)}, got {raw!r}")
         if not os.getenv(_BAML_LOG_ENV):
             os.environ[_BAML_LOG_ENV] = raw.lower()
 

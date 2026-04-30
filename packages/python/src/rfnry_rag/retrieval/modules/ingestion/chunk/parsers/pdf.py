@@ -8,8 +8,8 @@ from rfnry_rag.retrieval.modules.ingestion.models import ParsedPage
 
 logger = get_logger("chunk/ingestion/parse")
 
-_MAX_PDF_BYTES = 500 * 1024 * 1024   # 500 MiB — defensive cap against OOM on huge PDFs
-_MAX_PDF_PAGES = 5_000               # defensive cap against page-count DoS
+_MAX_PDF_BYTES = 500 * 1024 * 1024  # 500 MiB — defensive cap against OOM on huge PDFs
+_MAX_PDF_PAGES = 5_000  # defensive cap against page-count DoS
 
 
 class PDFParser:

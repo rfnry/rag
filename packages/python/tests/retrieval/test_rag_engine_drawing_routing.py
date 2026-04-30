@@ -1,4 +1,5 @@
 """RagEngine drawing routing: .dxf always; .pdf only with source_type='drawing'."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -17,6 +18,7 @@ def test_drawing_extensions_allowlist_is_dxf_only() -> None:
     assert ".pdf" not in SUPPORTED_DRAWING_EXTENSIONS
     # Structured allowlist should also remain .xml + .l5x only (no .pdf regression)
     from rfnry_rag.retrieval.server import SUPPORTED_STRUCTURED_EXTENSIONS
+
     assert {".xml", ".l5x"} == SUPPORTED_STRUCTURED_EXTENSIONS
 
 
@@ -129,11 +131,7 @@ def _async_source_factory(*, status: str, source_id: str = "src-1", file_hash: s
     from rfnry_rag.retrieval.common.models import Source
 
     async def _return(*args: Any, **kwargs: Any) -> Source:
-        sid = (
-            args[0]
-            if args and isinstance(args[0], str) and not args[0].startswith("/")
-            else source_id
-        )
+        sid = args[0] if args and isinstance(args[0], str) and not args[0].startswith("/") else source_id
         return Source(
             source_id=sid,
             status=status,

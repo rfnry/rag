@@ -7,6 +7,7 @@ intentionally NOT defined here — they land in C5 when the extract phase
 actually calls ``AnalyzeDrawingPage``. For C3 we only need in-Python dict
 round-trips so the service skeleton can persist and reload analyses.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
