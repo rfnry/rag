@@ -9,11 +9,8 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
+from rfnry_rag.config import QueryMode, RoutingConfig
 from rfnry_rag.observability.trace import RetrievalTrace
-from rfnry_rag.server import (
-    QueryMode,
-    RoutingConfig,
-)
 
 
 def _engine(

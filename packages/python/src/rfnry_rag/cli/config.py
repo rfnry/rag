@@ -14,7 +14,7 @@ from rfnry_rag.config import (
 )
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.fastembed import FastEmbedSparseEmbeddings
-from rfnry_rag.ingestion.methods.vector import VectorIngestion
+from rfnry_rag.ingestion.methods import VectorIngestion
 from rfnry_rag.providers import Embeddings, LanguageModelClient, LanguageModelProvider, Reranking
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.server import _derive_embedding_model_name

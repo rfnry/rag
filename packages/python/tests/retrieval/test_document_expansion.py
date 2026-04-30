@@ -16,10 +16,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from rfnry_rag.config import DocumentExpansionConfig
 from rfnry_rag.exceptions import ConfigurationError, IngestionError
 from rfnry_rag.ingestion.chunk.expand import expand_chunks
 from rfnry_rag.ingestion.models import ChunkedContent
-from rfnry_rag.server import DocumentExpansionConfig
 
 # ---------------------------------------------------------------------------
 # DocumentExpansionConfig — bounds + invariants

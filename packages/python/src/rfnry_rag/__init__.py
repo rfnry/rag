@@ -8,7 +8,11 @@ from rfnry_rag.baml.version_check import check_baml as _check_baml
 
 _check_baml()
 
+from rfnry_rag.config import DEFAULT_SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
+from rfnry_rag.config import DocumentExpansionConfig as DocumentExpansionConfig
+from rfnry_rag.config import DrawingIngestionConfig as DrawingIngestionConfig
 from rfnry_rag.config import GenerationConfig as GenerationConfig
+from rfnry_rag.config import GraphIngestionConfig as GraphIngestionConfig
 from rfnry_rag.config import IngestionConfig as IngestionConfig
 from rfnry_rag.config import QueryMode as QueryMode
 from rfnry_rag.config import RagEngineConfig as RagEngineConfig
@@ -78,6 +82,7 @@ from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore as SQLA
 from rfnry_rag.stores.vector.qdrant import QdrantVectorStore as QdrantVectorStore
 
 __all__ = [
+    "DEFAULT_SYSTEM_PROMPT",
     "AnalyzedIngestion",
     "BaseIngestionMethod",
     "BaseRetrievalMethod",
@@ -87,9 +92,11 @@ __all__ = [
     "BenchmarkReport",
     "ConfigurationError",
     "ContentMatch",
+    "DocumentExpansionConfig",
     "DocumentIngestion",
     "DocumentRetrieval",
     "DrawingIngestion",
+    "DrawingIngestionConfig",
     "DuplicateSourceError",
     "EmbeddingError",
     "Embeddings",
@@ -102,6 +109,7 @@ __all__ = [
     "GenerationError",
     "GraphEntity",
     "GraphIngestion",
+    "GraphIngestionConfig",
     "GraphPath",
     "GraphRelation",
     "GraphResult",

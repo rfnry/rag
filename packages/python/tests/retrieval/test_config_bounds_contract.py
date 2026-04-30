@@ -14,6 +14,13 @@ import re
 from dataclasses import fields
 from typing import Any
 
+from rfnry_rag.config import (
+    DocumentExpansionConfig,
+    GenerationConfig,
+    IngestionConfig,
+    RetrievalConfig,
+    RoutingConfig,
+)
 from rfnry_rag.config.drawing import DrawingIngestionConfig
 from rfnry_rag.config.graph import GraphIngestionConfig
 from rfnry_rag.ingestion.chunk.batch import BatchConfig
@@ -21,13 +28,6 @@ from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
 from rfnry_rag.observability.benchmark import BenchmarkConfig
 from rfnry_rag.providers import LanguageModelClient, LanguageModelProvider
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
-from rfnry_rag.server import (
-    DocumentExpansionConfig,
-    GenerationConfig,
-    IngestionConfig,
-    RetrievalConfig,
-    RoutingConfig,
-)
 
 _CONFIGS_TO_AUDIT: list[type] = [
     IngestionConfig,
