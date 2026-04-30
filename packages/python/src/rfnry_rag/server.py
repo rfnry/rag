@@ -595,7 +595,8 @@ class RagEngine:
         ext = file_path.suffix.lower()
 
         # Drawing route: when a DrawingIngestion method is configured, defer to
-        # its ``accepts()``.
+        # its ``accepts()``. Drawing is checked before analyzed because a .pdf
+        # with source_type='drawing' satisfies both wrappers' accepts() — drawing wins.
         drawing_method = self._drawing_method
         drawing_route = drawing_method is not None and drawing_method.accepts(file_path, source_type)
         if drawing_route:
