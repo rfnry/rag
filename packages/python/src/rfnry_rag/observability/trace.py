@@ -15,7 +15,7 @@ class RetrievalTrace:
 
     `per_method_results` is keyed by `BaseRetrievalMethod.name`.
 
-    `routing_decision` enumerates `"indexed" | "full_context" | "auto_indexed" | "auto_full_context"`.
+    `routing_decision` enumerates `"indexed" | "full_context"`.
     """
 
     query: str

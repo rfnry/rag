@@ -71,7 +71,7 @@ src/rfnry_rag/
 ├── config/              # all config dataclasses, one place
 ├── ingestion/           # base + service + chunk/ + methods/ + drawing/
 ├── retrieval/           # base + service + fusion + methods/ + reranking + routing
-├── generation/          # service + grounding + ordering + formatting + full_context
+├── generation/          # service + grounding + formatting + models
 ├── stores/              # vector/ + document/ + graph/ + metadata/
 ├── knowledge/           # KnowledgeManager (CRUD + corpus-token accounting for AUTO routing)
 ├── observability/       # trace + benchmark + metrics
@@ -101,7 +101,7 @@ Methods carry `weight` and `top_k` configuration. Per-method error isolation: ca
 
 ### Optional trace
 
-Pass `trace=True` to `RagEngine.query()` to receive a `RetrievalTrace` (in `observability/trace.py`) capturing per-stage state: `query`, `rewritten_queries`, `per_method_results` (keyed by `BaseRetrievalMethod.name`, includes empty-result methods), `fused_results`, `reranked_results`, `final_results`, `grounding_decision`, `routing_decision`, `timings`, `knowledge_id`. Default `trace=False` is byte-for-byte unchanged. The `None` vs `[]` distinction is load-bearing: `reranked_results is None` means "reranker not configured", `[]` means "ran with no input". `query_stream` does not collect a trace.
+Pass `trace=True` to `RagEngine.query()` to receive a `RetrievalTrace` (in `observability/trace.py`) capturing per-stage state: `query`, `per_method_results` (keyed by `BaseRetrievalMethod.name`, includes empty-result methods), `fused_results`, `reranked_results`, `final_results`, `grounding_decision`, `routing_decision`, `timings`, `knowledge_id`. Default `trace=False` is byte-for-byte unchanged. The `None` vs `[]` distinction is load-bearing: `reranked_results is None` means "reranker not configured", `[]` means "ran with no input". `query_stream` does not collect a trace.
 
 ### Drawing ingestion
 
@@ -216,8 +216,8 @@ These act as regression guards — they enforce whole-class invariants:
 - `AnalyzedIngestion.analyze_concurrency`: `1 ≤ n ≤ 100`, default 5.
 - `AnalyzedIngestion.analyze_text_skip_threshold_chars`: `0 ≤ n ≤ 100_000`, default 300.
 - `RetrievalConfig.top_k`: `1 ≤ top_k ≤ 200`.
-- `RetrievalConfig.bm25_max_chunks`: `≤ 200_000`.
-- `RetrievalConfig.bm25_max_indexes`: `1 ≤ n ≤ 1000`, default 16.
+- `VectorRetrieval.bm25_max_chunks`: `≤ 200_000`.
+- `VectorRetrieval.bm25_max_indexes`: `1 ≤ n ≤ 1000`, default 16.
 - `RoutingConfig.mode`: `QueryMode` enum, default `INDEXED`. Other values: `FULL_CONTEXT`, `AUTO`.
 - `RoutingConfig.full_context_threshold`: `1_000 ≤ n ≤ 2_000_000`, default 150_000 (AUTO routes corpora `≤ threshold` to `FULL_CONTEXT`). Default = Anthropic's ~200k stuff-it-all anchor minus ~25% headroom for system prompt + history + question + answer; do **not** raise to match a model's advertised window (Lost-in-the-Middle / LaRA: effective ≪ advertised).
 - `GenerationConfig`: `grounding_enabled=True` requires `grounding_threshold > 0` and an `lm_client`.
