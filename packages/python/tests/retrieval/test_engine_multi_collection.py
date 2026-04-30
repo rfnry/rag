@@ -45,7 +45,6 @@ def _make_embeddings() -> MagicMock:
 def _vector_only_config(vector_store, embeddings) -> RagEngineConfig:
     return RagEngineConfig(
         ingestion=IngestionConfig(
-            embeddings=embeddings,
             methods=[VectorIngestion(store=vector_store, embeddings=embeddings)],
         ),
         retrieval=RetrievalConfig(methods=[VectorRetrieval(store=vector_store, embeddings=embeddings)]),
@@ -146,12 +145,16 @@ async def _build_multi_collection_engine() -> RagEngine:
     embeddings = _make_embeddings()
     metadata_store = _make_metadata_store()
 
+    from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
+
     engine = RagEngine(
         RagEngineConfig(
             metadata_store=metadata_store,
             ingestion=IngestionConfig(
-                embeddings=embeddings,
-                methods=[VectorIngestion(store=vector_store, embeddings=embeddings)],
+                methods=[
+                    VectorIngestion(store=vector_store, embeddings=embeddings),
+                    AnalyzedIngestion(store=vector_store, embeddings=embeddings, vision=MagicMock()),
+                ],
             ),
             retrieval=RetrievalConfig(methods=[VectorRetrieval(store=vector_store, embeddings=embeddings)]),
         )
@@ -211,8 +214,6 @@ async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
         RagEngineConfig(
             metadata_store=metadata_store,
             ingestion=IngestionConfig(
-                embeddings=embeddings,
-                lm_client=lm_client,
                 methods=[
                     VectorIngestion(store=vector_store, embeddings=embeddings),
                     DocumentIngestion(store=document_store),

@@ -196,13 +196,15 @@ async def test_ingest_routes_pdf_to_drawing_only_with_source_type(tmp_path: Any)
 
 
 async def test_ingest_dxf_raises_when_drawing_service_not_configured(tmp_path: Any) -> None:
-    """A .dxf file without a configured drawing service is a user error."""
+    """A .dxf file with no DrawingIngestion method falls through to the
+    standard chunker, which rejects the unsupported extension. The user error
+    surface is preserved — just with the chunker's wording."""
     dxf_path = tmp_path / "x.dxf"
     dxf_path.write_bytes(b"fake-dxf")
 
     engine = await _make_engine_without_drawing()
     try:
-        with pytest.raises(ValueError, match="(?i)drawing"):
+        with pytest.raises(ValueError, match=r"(?i)unsupported file type"):
             await engine.ingest(str(dxf_path), knowledge_id="k")
     finally:
         await engine.shutdown()

@@ -43,7 +43,6 @@ async def test_shutdown_tears_down_in_reverse_init_order() -> None:
     cfg = RagEngineConfig(
         metadata_store=metadata,
         ingestion=IngestionConfig(
-            embeddings=embeddings,
             methods=[
                 VectorIngestion(store=vector, embeddings=embeddings),
                 DocumentIngestion(store=document),
@@ -105,7 +104,6 @@ async def test_shutdown_is_idempotent() -> None:
     cfg = RagEngineConfig(
         metadata_store=metadata,
         ingestion=IngestionConfig(
-            embeddings=embeddings,
             methods=[VectorIngestion(store=vector, embeddings=embeddings)],
         ),
         retrieval=RetrievalConfig(

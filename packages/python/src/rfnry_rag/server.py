@@ -33,6 +33,7 @@ from rfnry_rag.ingestion.methods.document import DocumentIngestion
 from rfnry_rag.ingestion.methods.drawing import DrawingIngestion
 from rfnry_rag.ingestion.methods.graph import GraphIngestion
 from rfnry_rag.ingestion.methods.vector import VectorIngestion
+from rfnry_rag.ingestion.vision.base import BaseVision
 from rfnry_rag.knowledge.manager import KnowledgeManager
 from rfnry_rag.knowledge.migration import check_embedding_migration
 from rfnry_rag.logging import get_logger
@@ -336,17 +337,14 @@ class RagEngine:
             m for m in ingestion_methods if not isinstance(m, AnalyzedIngestion | DrawingIngestion)
         ]
 
-        # Vector store init: ask the first VectorIngestion/VectorRetrieval method
-        # for its embedding dimension and pre-create the store collection.
-        # Prefer the legacy ingestion.embeddings field when set; otherwise pull
-        # from any method exposing ``_embeddings`` (covers the methods-list path
-        # for both standard and phased wrappers).
-        embeddings_for_dim: BaseEmbeddings | None = ingestion.embeddings
-        if embeddings_for_dim is None:
-            embeddings_for_dim = next(
-                (m._embeddings for m in ingestion_methods if hasattr(m, "_embeddings")),
-                None,
-            )
+        # Vector store init: walk the methods list for an instance carrying an
+        # ``_embeddings`` reference (VectorIngestion / AnalyzedIngestion /
+        # DrawingIngestion all expose it) and ask it for the embedding
+        # dimension to pre-create the store collection.
+        embeddings_for_dim: BaseEmbeddings | None = next(
+            (m._embeddings for m in ingestion_methods if hasattr(m, "_embeddings")),
+            None,
+        )
         if self._vector_store is not None and embeddings_for_dim is not None:
             vector_size = await embeddings_for_dim.embedding_dimension()
             await self._vector_store.initialize(vector_size)
@@ -382,7 +380,19 @@ class RagEngine:
             else None
         )
 
-        # Build services
+        # Phased pipelines: method-list dispatch.
+        analyzed_method = next((m for m in ingestion_methods if isinstance(m, AnalyzedIngestion)), None)
+        drawing_method = next((m for m in ingestion_methods if isinstance(m, DrawingIngestion)), None)
+
+        # Build services. ``vision_parser`` is optional and only used by the
+        # standard chunker path for image extensions (.jpg/.png/...); pull it
+        # from the analyzed/drawing wrapper if one is configured.
+        vision_parser: BaseVision | None = None
+        if analyzed_method is not None:
+            vision_parser = analyzed_method._vision
+        elif drawing_method is not None:
+            vision_parser = drawing_method._vision
+
         self._ingestion_service = IngestionService(
             chunker=self._chunker,
             ingestion_methods=standard_methods,
@@ -390,17 +400,11 @@ class RagEngine:
             source_type_weights=retrieval.source_type_weights,
             metadata_store=metadata_store,
             on_ingestion_complete=self._on_ingestion_complete,
-            vision_parser=ingestion.vision,
+            vision_parser=vision_parser,
             chunk_context_headers=ingestion.chunk_context_headers,
             document_expansion=ingestion.document_expansion,
             expansion_registry=self._expansion_registry,
         )
-
-        # Phased pipelines: prefer the method-list path; fall back to the legacy
-        # IngestionConfig fields until B2/B3 migrations land. The fallback
-        # branches are transitional and removed in C1.
-        analyzed_method = next((m for m in ingestion_methods if isinstance(m, AnalyzedIngestion)), None)
-        drawing_method = next((m for m in ingestion_methods if isinstance(m, DrawingIngestion)), None)
 
         if analyzed_method is not None and metadata_store is not None:
             document_delegates = [m for m in standard_methods if isinstance(m, DocumentIngestion)]
@@ -419,32 +423,6 @@ class RagEngine:
             self._analyzed_method = analyzed_method
             if analyzed_method._vision is None:
                 logger.warning("no vision provider on AnalyzedIngestion — structured PDF analysis disabled")
-        elif metadata_store and self._vector_store and ingestion.embeddings:
-            analyzed_methods = [m for m in standard_methods if isinstance(m, DocumentIngestion)]
-            if not analyzed_methods:
-                logger.warning(
-                    "structured ingestion enabled but no DocumentIngestion configured — "
-                    "analyzed phase 3 will skip document storage"
-                )
-
-            self._structured_ingestion = AnalyzedIngestionService(
-                embeddings=ingestion.embeddings,
-                vector_store=self._vector_store,
-                metadata_store=metadata_store,
-                embedding_model_name=self._embedding_model_name,
-                vision=ingestion.vision,
-                dpi=ingestion.dpi,
-                source_type_weights=retrieval.source_type_weights,
-                on_ingestion_complete=self._on_ingestion_complete,
-                lm_client=ingestion.lm_client,
-                graph_store=self._graph_store,
-                ingestion_methods=analyzed_methods,
-                analyze_text_skip_threshold_chars=ingestion.analyze_text_skip_threshold_chars,
-                analyze_concurrency=ingestion.analyze_concurrency,
-                graph_config=ingestion.graph,
-            )
-            if not ingestion.vision:
-                logger.warning("no vision provider — structured PDF analysis disabled")
 
         if drawing_method is not None and metadata_store is not None:
             drawing_method.bind(
@@ -454,23 +432,6 @@ class RagEngine:
             self._drawing_ingestion = drawing_method._service_ref()
             self._drawing_method = drawing_method
             logger.info("drawing ingestion: enabled (via DrawingIngestion method)")
-        elif ingestion.drawings is not None and ingestion.drawings.enabled:
-            if metadata_store is None or self._vector_store is None:
-                raise ConfigurationError(
-                    "DrawingIngestionConfig.enabled=True requires metadata_store and a vector store"
-                )
-            if ingestion.embeddings is None:
-                raise ConfigurationError("DrawingIngestionConfig.enabled=True requires IngestionConfig.embeddings")
-            self._drawing_ingestion = DrawingIngestionService(
-                config=ingestion.drawings,
-                embeddings=ingestion.embeddings,
-                vector_store=self._vector_store,
-                metadata_store=metadata_store,
-                embedding_model_name=self._embedding_model_name,
-                graph_store=self._graph_store,
-                ingestion_methods=list(standard_methods),
-            )
-            logger.info("drawing ingestion: enabled")
 
         self._retrieval_service = RetrievalService(
             retrieval_methods=retrieval_methods,
@@ -635,18 +596,13 @@ class RagEngine:
         ext = file_path.suffix.lower()
 
         # Drawing route: when a DrawingIngestion method is configured, defer to
-        # its ``accepts()``; otherwise fall back to the legacy extension-set
-        # check (.dxf always; .pdf only with source_type='drawing').
+        # its ``accepts()``.
         drawing_method = self._drawing_method
-        if drawing_method is not None:
-            drawing_route = drawing_method.accepts(file_path, source_type)
-        else:
-            drawing_route = ext in SUPPORTED_DRAWING_EXTENSIONS or (ext == ".pdf" and source_type == "drawing")
+        drawing_route = drawing_method is not None and drawing_method.accepts(file_path, source_type)
         if drawing_route:
             if self._drawing_ingestion is None:
                 raise ValueError(
-                    "Drawing ingestion not configured. "
-                    "Pass IngestionConfig(drawings=DrawingIngestionConfig(enabled=True, ...))."
+                    "Drawing ingestion not configured. Add a DrawingIngestion(...) instance to IngestionConfig.methods."
                 )
             if collection is not None:
                 raise ValueError("collection routing is not supported with drawing ingestion")
@@ -679,10 +635,11 @@ class RagEngine:
             return source
 
         analyzed_method = self._analyzed_method
-        if analyzed_method is not None:
-            analyzed_route = self._structured_ingestion is not None and analyzed_method.accepts(file_path, source_type)
-        else:
-            analyzed_route = ext in SUPPORTED_STRUCTURED_EXTENSIONS and self._structured_ingestion is not None
+        analyzed_route = (
+            analyzed_method is not None
+            and self._structured_ingestion is not None
+            and analyzed_method.accepts(file_path, source_type)
+        )
         if analyzed_route:
             assert self._structured_ingestion is not None
             if collection is not None:
@@ -806,7 +763,9 @@ class RagEngine:
         """Drawing phase 1: render page images."""
         self._check_initialized()
         if self._drawing_ingestion is None:
-            raise ConfigurationError("DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...).")
+            raise ConfigurationError(
+                "DrawingIngestion not configured — add a DrawingIngestion(...) to IngestionConfig.methods."
+            )
         return await self._drawing_ingestion.render(
             file_path=file_path,
             knowledge_id=knowledge_id,
@@ -818,21 +777,27 @@ class RagEngine:
         """Drawing phase 2: per-page DrawingPageAnalysis."""
         self._check_initialized()
         if self._drawing_ingestion is None:
-            raise ConfigurationError("DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...).")
+            raise ConfigurationError(
+                "DrawingIngestion not configured — add a DrawingIngestion(...) to IngestionConfig.methods."
+            )
         return await self._drawing_ingestion.extract(source_id)
 
     async def link_drawing(self, source_id: str) -> Source:
         """Drawing phase 3: cross-sheet linking (deterministic + LLM residue)."""
         self._check_initialized()
         if self._drawing_ingestion is None:
-            raise ConfigurationError("DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...).")
+            raise ConfigurationError(
+                "DrawingIngestion not configured — add a DrawingIngestion(...) to IngestionConfig.methods."
+            )
         return await self._drawing_ingestion.link(source_id)
 
     async def complete_drawing_ingestion(self, source_id: str) -> Source:
         """Drawing phase 4: embed + graph write."""
         self._check_initialized()
         if self._drawing_ingestion is None:
-            raise ConfigurationError("DrawingIngestionConfig not configured — pass IngestionConfig(drawings=...).")
+            raise ConfigurationError(
+                "DrawingIngestion not configured — add a DrawingIngestion(...) to IngestionConfig.methods."
+            )
         return await self._drawing_ingestion.ingest(source_id)
 
     async def query(

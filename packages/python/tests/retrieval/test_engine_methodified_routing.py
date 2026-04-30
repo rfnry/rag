@@ -163,34 +163,6 @@ async def test_engine_method_list_path_overrides_legacy_drawing_field() -> None:
 
 
 @pytest.mark.asyncio
-async def test_engine_legacy_path_still_works_when_no_method_present() -> None:
-    """B2/B3 migration safety net: when no DrawingIngestion is in methods but
-    the legacy ``IngestionConfig.drawings=DrawingIngestionConfig(enabled=True)``
-    is set, the legacy code path still wires a DrawingIngestionService."""
-    metadata_store = _make_metadata_store()
-    vector_store = _make_vector_store()
-    embeddings = _make_embeddings()
-
-    cfg = _engine_config(
-        metadata_store=metadata_store,
-        vector_store=vector_store,
-        embeddings=embeddings,
-        ingestion_methods=[VectorIngestion(store=vector_store, embeddings=embeddings)],
-        extra_ingestion_kwargs={
-            "embeddings": embeddings,
-            "drawings": DrawingIngestionConfig(enabled=True),
-        },
-    )
-    engine = RagEngine(cfg)
-    await engine.initialize()
-    try:
-        assert engine._drawing_method is None
-        assert engine._drawing_ingestion is not None
-    finally:
-        await engine.shutdown()
-
-
-@pytest.mark.asyncio
 async def test_engine_routing_uses_method_accepts_when_method_present() -> None:
     """When a DrawingIngestion method is configured, the ingest() routing
     consults ``method.accepts()`` instead of the legacy extension-set check.
