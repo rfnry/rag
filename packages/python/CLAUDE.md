@@ -195,7 +195,7 @@ These act as regression guards — they enforce whole-class invariants:
 - `RetrievalConfig.bm25_max_chunks`: `≤ 200_000`.
 - `RetrievalConfig.bm25_max_indexes`: `1 ≤ n ≤ 1000`, default 16.
 - `RoutingConfig.mode`: `QueryMode` enum, default `INDEXED`. Other values: `FULL_CONTEXT`, `AUTO`.
-- `RoutingConfig.direct_context_threshold`: `1_000 ≤ n ≤ 2_000_000`, default 150_000 (AUTO routes corpora `≤ threshold` to `FULL_CONTEXT`).
+- `RoutingConfig.full_context_threshold`: `1_000 ≤ n ≤ 2_000_000`, default 150_000 (AUTO routes corpora `≤ threshold` to `FULL_CONTEXT`).
 - `GenerationConfig`: `grounding_enabled=True` requires `grounding_threshold > 0` and an `lm_client`.
 - `GenerationConfig.chunk_ordering`: `ChunkOrdering` enum, default `SCORE_DESCENDING`.
 - `BenchmarkConfig.concurrency`: `1 ≤ n ≤ 20`, default 1.

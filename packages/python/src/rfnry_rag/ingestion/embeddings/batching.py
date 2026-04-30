@@ -1,4 +1,4 @@
-"""Shared embedding utilities used by both retrieval and reasoning SDKs."""
+"""Embedding batch helpers."""
 
 from __future__ import annotations
 

@@ -102,28 +102,6 @@ class _PageAnalysisRow(_Base):
     )
 
 
-class _RaptorTreeRow(_Base):
-    """RAPTOR tree pointer per knowledge_id.
-
-    One row per knowledge_id. ``active_tree_id`` is a logical handle the
-    RAPTOR builder uses to namespace summary vectors in the vector store; the
-    builder writes a fresh tree under a new id, then atomically swaps this
-    row to point at it (blue/green). Old trees are GC'd separately by the
-    builder. ``level_counts`` is a JSON-encoded ``list[int]`` mirroring
-    ``RaptorBuildReport.level_counts``. No FK to ``rag_sources`` because
-    knowledge_id is not modelled as a first-class entity in the schema —
-    matches the ``rag_sources.knowledge_id`` precedent.
-    """
-
-    __tablename__ = "rag_raptor_trees"
-
-    knowledge_id: Mapped[str] = mapped_column(String(255), primary_key=True)
-    active_tree_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    built_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    level_counts_json: Mapped[str] = mapped_column(Text, nullable=False)
-    total_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
-
-
 class SQLAlchemyMetadataStore:
     def __init__(
         self,
@@ -253,13 +231,6 @@ class SQLAlchemyMetadataStore:
                 tables=[_PageAnalysisRow.__table__],  # type: ignore[list-item]
             )
             logger.info("migrated table: rag_page_analyses")
-        # Create rag_raptor_trees if it doesn't exist yet.
-        if not insp.has_table("rag_raptor_trees"):
-            _Base.metadata.create_all(
-                bind=conn,
-                tables=[_RaptorTreeRow.__table__],  # type: ignore[list-item]
-            )
-            logger.info("migrated table: rag_raptor_trees")
         preparer = conn.dialect.identifier_preparer
         for table in _Base.metadata.sorted_tables:
             if not insp.has_table(table.name):

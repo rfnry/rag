@@ -8,7 +8,3 @@ def file_hash(file_path: str | Path) -> str:
         for chunk in iter(lambda: f.read(8192), b""):
             sha256.update(chunk)
     return sha256.hexdigest()
-
-
-def embedding_model_fingerprint(provider: str, model: str) -> str:
-    return f"{provider}:{model}"

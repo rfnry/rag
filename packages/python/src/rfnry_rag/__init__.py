@@ -6,7 +6,7 @@ __version__ = version("rfnry-rag")
 
 from rfnry_rag.baml.version_check import check_baml as _check_baml
 
-_check_baml("rfnry-rag", "rfnry_rag.baml.baml_client")
+_check_baml()
 
 from rfnry_rag.config import GenerationConfig as GenerationConfig
 from rfnry_rag.config import IngestionConfig as IngestionConfig

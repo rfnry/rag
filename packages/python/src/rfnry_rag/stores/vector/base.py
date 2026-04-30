@@ -39,11 +39,9 @@ class BaseVectorStore(Protocol):
     async def set_payload(self, point_ids: list[str], payload: dict[str, Any]) -> None:
         """Partial-update payload keys for the given points without re-embedding.
 
-        Mandatory on the protocol so consumers (e.g. RAPTOR back-references)
-        can rely on a partial-update primitive rather than re-upserting full
-        vectors. Implementations without native payload-only updates should
-        raise ``NotImplementedError`` so the gap surfaces explicitly rather
-        than silently no-op'ing.
+        Implementations without native payload-only updates should raise
+        ``NotImplementedError`` so the gap surfaces explicitly rather than
+        silently no-op'ing.
         """
         ...
 

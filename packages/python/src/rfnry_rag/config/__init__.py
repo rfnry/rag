@@ -1,5 +1,4 @@
 from rfnry_rag.config.benchmark import BenchmarkConfig as BenchmarkConfig
-from rfnry_rag.config.confidence import ConfidenceConfig as ConfidenceConfig
 from rfnry_rag.config.drawing import DrawingIngestionConfig as DrawingIngestionConfig
 from rfnry_rag.config.generation import DEFAULT_SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
 from rfnry_rag.config.generation import GenerationConfig as GenerationConfig

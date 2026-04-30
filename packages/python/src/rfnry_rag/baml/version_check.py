@@ -1,26 +1,20 @@
-"""Startup checks that run before module imports."""
+"""Startup check: baml-py runtime version matches the generated client."""
 
 import sys
 
 
-def check_baml(sdk: str, baml_client_module: str) -> None:
-    """Validate baml-py version matches the generated client before importing modules.
-
-    Args:
-        sdk: SDK name for error messages (e.g. "retrieval", "reasoning").
-        baml_client_module: Dotted module path to the BAML client package
-            (e.g. "rfnry_rag.baml.baml_client").
-    """
+def check_baml() -> None:
+    """Validate baml-py version matches the generated client before module imports."""
     try:
         import importlib
         from importlib.metadata import version as pkg_version
 
-        client_mod = importlib.import_module(baml_client_module)
+        client_mod = importlib.import_module("rfnry_rag.baml.baml_client")
         generator_version: str = client_mod.__version__  # type: ignore[attr-defined]
         installed = pkg_version("baml-py")
     except ImportError as exc:
         print(
-            f"rfnry-rag.{sdk}: baml dependency error:\n  {exc}\n\nrun: uv sync --all-extras",
+            f"rfnry-rag: baml dependency error:\n  {exc}\n\nrun: uv sync --all-extras",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -32,7 +26,7 @@ def check_baml(sdk: str, baml_client_module: str) -> None:
 
     if gen_minor != inst_minor:
         print(
-            f"rfnry-rag.{sdk}: baml version mismatch:\n"
+            f"rfnry-rag: baml version mismatch:\n"
             f"  generator (generators.baml): {generator_version}\n"
             f"  installed (baml-py):         {installed}\n\n"
             f"run: uv add baml-py=={generator_version}\n"

@@ -1,4 +1,4 @@
-"""Shared CLI utilities for retrieval and reasoning CLIs."""
+"""CLI utilities — output mode, config paths, .env loading, API-key fetch."""
 
 from __future__ import annotations
 
@@ -32,8 +32,7 @@ def get_output_mode(explicit: str | None) -> OutputMode:
 
 
 def get_api_key(env_var: str, provider_name: str) -> str:
-    """Read API key from env var, raising ConfigError with a CLI-friendly
-    message when absent. Used by both retrieval and reasoning CLI loaders."""
+    """Read API key from env var, raising ConfigError with a CLI-friendly message when absent."""
     key = os.environ.get(env_var, "")
     if not key:
         raise ConfigError(f"{env_var} not set — required for {provider_name}. Add it to {ENV_FILE}")
