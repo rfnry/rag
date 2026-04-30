@@ -36,9 +36,11 @@ from rfnry_rag.ingestion.chunk.service import IngestionService as IngestionServi
 from rfnry_rag.ingestion.embeddings.sparse.fastembed import (
     FastEmbedSparseEmbeddings as FastEmbedSparseEmbeddings,
 )
-from rfnry_rag.ingestion.methods.document import DocumentIngestion as DocumentIngestion
-from rfnry_rag.ingestion.methods.graph import GraphIngestion as GraphIngestion
-from rfnry_rag.ingestion.methods.vector import VectorIngestion as VectorIngestion
+from rfnry_rag.ingestion.methods import AnalyzedIngestion as AnalyzedIngestion
+from rfnry_rag.ingestion.methods import DocumentIngestion as DocumentIngestion
+from rfnry_rag.ingestion.methods import DrawingIngestion as DrawingIngestion
+from rfnry_rag.ingestion.methods import GraphIngestion as GraphIngestion
+from rfnry_rag.ingestion.methods import VectorIngestion as VectorIngestion
 from rfnry_rag.models import ContentMatch as ContentMatch
 from rfnry_rag.models import RetrievedChunk as RetrievedChunk
 from rfnry_rag.models import Source as Source
@@ -87,6 +89,7 @@ from rfnry_rag.stores.vector.qdrant import QdrantVectorStore as QdrantVectorStor
 
 __all__ = [
     "AbstractiveRefinement",
+    "AnalyzedIngestion",
     "BaseChunkRefinement",
     "BaseIngestionMethod",
     "BaseRetrievalJudgment",
@@ -99,6 +102,7 @@ __all__ = [
     "ContentMatch",
     "DocumentIngestion",
     "DocumentRetrieval",
+    "DrawingIngestion",
     "DuplicateSourceError",
     "EmbeddingError",
     "Embeddings",

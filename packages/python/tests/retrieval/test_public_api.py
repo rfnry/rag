@@ -38,3 +38,27 @@ def test_base_retrieval_method_exported() -> None:
 def test_base_ingestion_method_exported() -> None:
     assert "BaseIngestionMethod" in rfnry_rag.__all__
     assert rfnry_rag.BaseIngestionMethod is not None
+
+
+def test_top_level_exports_method_classes() -> None:
+    from rfnry_rag import (
+        AnalyzedIngestion,
+        DocumentIngestion,
+        DrawingIngestion,
+        GraphIngestion,
+        VectorIngestion,
+    )
+
+    assert AnalyzedIngestion.__name__ == "AnalyzedIngestion"
+    assert DocumentIngestion.__name__ == "DocumentIngestion"
+    assert DrawingIngestion.__name__ == "DrawingIngestion"
+    assert GraphIngestion.__name__ == "GraphIngestion"
+    assert VectorIngestion.__name__ == "VectorIngestion"
+    for name in (
+        "AnalyzedIngestion",
+        "DocumentIngestion",
+        "DrawingIngestion",
+        "GraphIngestion",
+        "VectorIngestion",
+    ):
+        assert name in rfnry_rag.__all__
