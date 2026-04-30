@@ -288,7 +288,6 @@ def _load_config(config_path: str | Path | None) -> RagEngineConfig:
             )
         ],
         top_k=retrieval_cfg.get("top_k", 5),
-        bm25_enabled=bm25_enabled,
         reranker=_build_reranker(retrieval_cfg),
         query_rewriter=_build_query_rewriter(retrieval_cfg),
     )

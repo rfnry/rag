@@ -24,6 +24,9 @@ class GraphRetrieval:
         self._weight = weight
         self._top_k = top_k
 
+    def clone_for_store(self, store: BaseGraphStore) -> GraphRetrieval:
+        return GraphRetrieval(store=store, weight=self._weight, top_k=self._top_k)
+
     @property
     def name(self) -> str:
         return "graph"

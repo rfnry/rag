@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -16,23 +15,22 @@ if TYPE_CHECKING:
 
 @dataclass
 class RetrievalConfig:
+    """Cross-method retrieval config.
+
+    Per-method knobs (BM25 settings, parent-expansion, weights, top_k overrides)
+    live on the individual ``VectorRetrieval`` / ``DocumentRetrieval`` /
+    ``GraphRetrieval`` instances passed in ``methods``.
+    """
+
     methods: list[BaseRetrievalMethod] = field(default_factory=list)
     top_k: int = 5
     reranker: BaseReranking | None = None
     query_rewriter: BaseQueryRewriting | None = None
     source_type_weights: dict[str, float] | None = None
-    cross_reference_enrichment: bool = True
-    enrich_lm_client: LanguageModelClient | None = None
     chunk_refiner: BaseChunkRefinement | None = None
     history_window: int = 3
-    # Defaults consumed by the collection-scoped pipeline rebuilder when a
-    # multi-collection vector store is configured; primary `methods` list is
-    # the canonical place to tune VectorRetrieval per-instance.
-    bm25_enabled: bool = False
-    bm25_max_indexes: int = 16
-    bm25_max_chunks: int = 50_000
-    bm25_tokenizer: Callable[[str], list[str]] | None = None
-    parent_expansion: bool = True
+    cross_reference_enrichment: bool = True
+    enrich_lm_client: LanguageModelClient | None = None
 
     def __post_init__(self) -> None:
         if self.top_k < 1:
@@ -41,13 +39,6 @@ class RetrievalConfig:
             raise ConfigurationError(
                 f"top_k must be <= 200, got {self.top_k} — requesting thousands of results OOMs the reranker"
             )
-        if self.bm25_max_chunks > 200_000:
-            raise ConfigurationError(
-                f"bm25_max_chunks must be <= 200_000, got {self.bm25_max_chunks} — "
-                "in-memory BM25 index at that size risks OOM; use sparse_embeddings instead"
-            )
-        if not (1 <= self.bm25_max_indexes <= 1000):
-            raise ConfigurationError(f"bm25_max_indexes must be 1-1000, got {self.bm25_max_indexes}")
         if not (1 <= self.history_window <= 20):
             raise ConfigurationError(f"history_window must be 1-20, got {self.history_window}")
         if self.source_type_weights is not None:

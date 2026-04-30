@@ -18,6 +18,9 @@ class DocumentIngestion:
     def __init__(self, store: BaseDocumentStore) -> None:
         self._store = store
 
+    def clone_for_store(self, store: BaseDocumentStore) -> DocumentIngestion:
+        return DocumentIngestion(store=store)
+
     @property
     def name(self) -> str:
         return "document"

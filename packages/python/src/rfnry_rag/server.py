@@ -468,7 +468,7 @@ class RagEngine:
                     continue
 
                 scoped_store = self._vector_store.scoped(coll_name)  # type: ignore[attr-defined]
-                scoped_retrieval = self._build_retrieval_pipeline(scoped_store, ingestion, retrieval)
+                scoped_retrieval = self._build_retrieval_pipeline(scoped_store, retrieval)
                 self._retrieval_by_collection[coll_name] = scoped_retrieval
                 self._ingestion_by_collection[coll_name] = self._build_ingestion_service(scoped_store)
                 logger.info("pipelines built for collection '%s'", coll_name)
@@ -1153,28 +1153,16 @@ class RagEngine:
     def _build_retrieval_pipeline(
         self,
         vector_store: BaseVectorStore,
-        ingestion: IngestionConfig,
         retrieval: RetrievalConfig,
     ) -> tuple[RetrievalService, StructuredRetrievalService | None]:
         methods: list = []
-        if ingestion.embeddings:
-            methods.append(
-                VectorRetrieval(
-                    store=vector_store,
-                    embeddings=ingestion.embeddings,
-                    sparse_embeddings=ingestion.sparse_embeddings,
-                    parent_expansion=retrieval.parent_expansion,
-                    bm25_enabled=retrieval.bm25_enabled,
-                    bm25_max_indexes=retrieval.bm25_max_indexes,
-                    bm25_max_chunks=retrieval.bm25_max_chunks,
-                    bm25_tokenizer=retrieval.bm25_tokenizer,
-                    weight=1.0,
-                )
-            )
-        if self._document_store is not None:
-            methods.append(DocumentRetrieval(store=self._document_store, weight=0.8))
-        if self._graph_store is not None:
-            methods.append(GraphRetrieval(store=self._graph_store, weight=0.7))
+        embeddings: BaseEmbeddings | None = None
+        for m in retrieval.methods:
+            if isinstance(m, VectorRetrieval):
+                methods.append(m.clone_for_store(vector_store))
+                embeddings = m._embeddings
+            else:
+                methods.append(m)
 
         unstructured = RetrievalService(
             retrieval_methods=methods,
@@ -1185,10 +1173,10 @@ class RagEngine:
             chunk_refiner=retrieval.chunk_refiner,
         )
         structured: StructuredRetrievalService | None = None
-        if ingestion.embeddings:
+        if embeddings is not None:
             structured = StructuredRetrievalService(
                 vector_store=vector_store,
-                embeddings=ingestion.embeddings,
+                embeddings=embeddings,
                 lm_client=retrieval.enrich_lm_client,
                 top_k=retrieval.top_k,
                 enrich_cross_references=retrieval.cross_reference_enrichment,
@@ -1199,27 +1187,11 @@ class RagEngine:
         assert self._chunker is not None
         cfg = self._config
         methods: list = []
-        if cfg.ingestion.embeddings:
-            methods.append(
-                VectorIngestion(
-                    store=vector_store,
-                    embeddings=cfg.ingestion.embeddings,
-                    embedding_model_name=self._embedding_model_name,
-                    sparse_embeddings=cfg.ingestion.sparse_embeddings,
-                    include_synthetic_in_embeddings=cfg.ingestion.document_expansion.include_in_embeddings,
-                    include_synthetic_in_bm25=cfg.ingestion.document_expansion.include_in_bm25,
-                )
-            )
-        if self._document_store is not None:
-            methods.append(DocumentIngestion(store=self._document_store))
-        if self._graph_store is not None and cfg.ingestion.lm_client:
-            methods.append(
-                GraphIngestion(
-                    store=self._graph_store,
-                    lm_client=cfg.ingestion.lm_client,
-                    graph_config=cfg.ingestion.graph,
-                )
-            )
+        for m in cfg.ingestion.methods:
+            if isinstance(m, VectorIngestion):
+                methods.append(m.clone_for_store(vector_store))
+            else:
+                methods.append(m)
 
         return IngestionService(
             chunker=self._chunker,

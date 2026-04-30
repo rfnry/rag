@@ -43,8 +43,12 @@ class GraphIngestion:
         graph_config: GraphIngestionConfig | None = None,
     ) -> None:
         self._store = store
+        self._lm_client = lm_client
         self._registry = build_registry(lm_client) if lm_client else None
         self._graph_config = graph_config if graph_config is not None else GraphIngestionConfig()
+
+    def clone_for_store(self, store: BaseGraphStore) -> GraphIngestion:
+        return GraphIngestion(store=store, lm_client=self._lm_client, graph_config=self._graph_config)
 
     @property
     def name(self) -> str:

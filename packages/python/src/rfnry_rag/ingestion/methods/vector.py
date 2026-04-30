@@ -39,6 +39,16 @@ class VectorIngestion:
         self._include_synthetic_in_embeddings = include_synthetic_in_embeddings
         self._include_synthetic_in_bm25 = include_synthetic_in_bm25
 
+    def clone_for_store(self, store: BaseVectorStore) -> VectorIngestion:
+        return VectorIngestion(
+            store=store,
+            embeddings=self._embeddings,
+            embedding_model_name=self._embedding_model_name,
+            sparse_embeddings=self._sparse,
+            include_synthetic_in_embeddings=self._include_synthetic_in_embeddings,
+            include_synthetic_in_bm25=self._include_synthetic_in_bm25,
+        )
+
     @property
     def name(self) -> str:
         return "vector"

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import re
 import time
@@ -58,6 +60,21 @@ class VectorRetrieval:
         self._top_k = top_k
         self._bm25_cache: dict[str, _BM25Entry] = {}
         self._bm25_lock = asyncio.Lock()
+
+    def clone_for_store(self, store: BaseVectorStore) -> VectorRetrieval:
+        clone = VectorRetrieval(
+            store=store,
+            embeddings=self._embeddings,
+            sparse_embeddings=self._sparse,
+            parent_expansion=self._parent_expansion,
+            bm25_enabled=self._bm25_enabled,
+            bm25_max_indexes=self._bm25_max_indexes,
+            bm25_max_chunks=self._bm25_max_chunks,
+            bm25_tokenizer=self._tokenize_fn,
+            weight=self._weight,
+            top_k=self._top_k,
+        )
+        return clone
 
     @property
     def name(self) -> str:

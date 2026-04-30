@@ -47,7 +47,7 @@ async def test_bm25_under_cap_reads_to_end() -> None:
     assert store.scroll.await_count == 2
 
 
-def test_retrieval_config_default_bm25_max_chunks() -> None:
-    from rfnry_rag.server import RetrievalConfig
-
-    assert RetrievalConfig().bm25_max_chunks == 50000
+def test_vector_retrieval_default_bm25_max_chunks() -> None:
+    """BM25 sizing knobs are per-VectorRetrieval; no longer on RetrievalConfig."""
+    method = VectorRetrieval(store=SimpleNamespace(), embeddings=SimpleNamespace())
+    assert method._bm25_max_chunks == 50_000
