@@ -119,7 +119,7 @@ async def test_query_mode_auto_routing_decision_in_trace_matches_chosen_branch(
     direct._load_full_corpus = AsyncMock(return_value="corpus")  # type: ignore[method-assign]
     direct_result = await direct.query("q1", knowledge_id="kb-1", trace=True)
     assert direct_result.trace is not None
-    assert direct_result.trace.routing_decision == "direct"
+    assert direct_result.trace.routing_decision == "full_context"
 
     retrieval = _engine(make_engine, threshold=150_000, corpus_tokens=500_000)
     retrieval._retrieval_service.retrieve = AsyncMock(
@@ -127,7 +127,7 @@ async def test_query_mode_auto_routing_decision_in_trace_matches_chosen_branch(
     )
     retrieval_result = await retrieval.query("q1", knowledge_id="kb-1", trace=True)
     assert retrieval_result.trace is not None
-    assert retrieval_result.trace.routing_decision == "retrieval"
+    assert retrieval_result.trace.routing_decision == "indexed"
 
 
 async def test_query_mode_auto_calls_get_corpus_tokens_once_per_query(

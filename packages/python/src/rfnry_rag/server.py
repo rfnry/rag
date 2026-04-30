@@ -790,11 +790,11 @@ class RagEngine:
             raise ConfigurationError("query() requires generation.lm_client to be configured")
 
         mode = self._config.routing.mode
-        if mode == QueryMode.RETRIEVAL:
+        if mode == QueryMode.INDEXED:
             return await self._query_via_retrieval(
                 text, knowledge_id, history, min_score, collection, system_prompt, trace
             )
-        if mode == QueryMode.DIRECT:
+        if mode == QueryMode.FULL_CONTEXT:
             return await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
         return await self._query_via_auto(text, knowledge_id, history, min_score, collection, system_prompt, trace)
 
@@ -818,7 +818,7 @@ class RagEngine:
         )
         if trace_obj is not None:
             trace_obj.timings["grounding"] = time.perf_counter() - grounding_start
-            trace_obj.routing_decision = "retrieval"
+            trace_obj.routing_decision = "indexed"
             trace_obj.confidence = result.confidence
             if result.clarification is not None:
                 trace_obj.grounding_decision = "clarification"
@@ -857,7 +857,7 @@ class RagEngine:
             trace_obj = RetrievalTrace(
                 query=text,
                 knowledge_id=knowledge_id,
-                routing_decision="direct",
+                routing_decision="full_context",
             )
             trace_obj.timings["direct_context_load"] = load_elapsed
 
@@ -909,7 +909,7 @@ class RagEngine:
             raise ConfigurationError("query_stream() requires generation.lm_client to be configured")
 
         mode = self._config.routing.mode
-        if mode != QueryMode.RETRIEVAL:
+        if mode != QueryMode.INDEXED:
             raise ConfigurationError(
                 f"query_stream() does not support mode={mode.name}; "
                 "use query() or set RoutingConfig(mode=RETRIEVAL). "
