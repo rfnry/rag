@@ -8,13 +8,11 @@ from typing import Any
 
 from rfnry_rag.config.drawing import DrawingIngestionConfig as DrawingIngestionConfig
 from rfnry_rag.config.engine import RagEngineConfig
-from rfnry_rag.config.engine import RagServerConfig as RagServerConfig
 from rfnry_rag.config.generation import DEFAULT_SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
 from rfnry_rag.config.generation import GenerationConfig as GenerationConfig
 from rfnry_rag.config.graph import GraphIngestionConfig as GraphIngestionConfig
 from rfnry_rag.config.ingestion import DocumentExpansionConfig as DocumentExpansionConfig
 from rfnry_rag.config.ingestion import IngestionConfig
-from rfnry_rag.config.persistence import PersistenceConfig as PersistenceConfig
 from rfnry_rag.config.retrieval import RetrievalConfig
 from rfnry_rag.config.routing import QueryMode
 from rfnry_rag.config.routing import RoutingConfig as RoutingConfig
@@ -245,59 +243,6 @@ class RagEngine:
             elif isinstance(m, GraphIngestion | GraphRetrieval) and self._graph_store is None:
                 self._graph_store = store
 
-    def _auto_assemble_from_persistence(self) -> None:
-        """Legacy: build methods from PersistenceConfig + IngestionConfig resources."""
-        cfg = self._config
-        p = cfg.persistence
-        assert p is not None
-        ingestion = cfg.ingestion
-        retrieval = cfg.retrieval
-
-        ing_methods: list[Any] = []
-        ret_methods: list[Any] = []
-
-        if p.vector_store is not None and ingestion.embeddings is not None:
-            name = _derive_embedding_model_name(ingestion.embeddings)
-            ing_methods.append(
-                VectorIngestion(
-                    store=p.vector_store,
-                    embeddings=ingestion.embeddings,
-                    embedding_model_name=name,
-                    sparse_embeddings=ingestion.sparse_embeddings,
-                    include_synthetic_in_embeddings=ingestion.document_expansion.include_in_embeddings,
-                    include_synthetic_in_bm25=ingestion.document_expansion.include_in_bm25,
-                )
-            )
-            ret_methods.append(
-                VectorRetrieval(
-                    store=p.vector_store,
-                    embeddings=ingestion.embeddings,
-                    sparse_embeddings=ingestion.sparse_embeddings,
-                    parent_expansion=retrieval.parent_expansion,
-                    bm25_enabled=retrieval.bm25_enabled,
-                    bm25_max_indexes=retrieval.bm25_max_indexes,
-                    bm25_max_chunks=retrieval.bm25_max_chunks,
-                    bm25_tokenizer=retrieval.bm25_tokenizer,
-                    weight=1.0,
-                )
-            )
-        if p.document_store is not None:
-            ing_methods.append(DocumentIngestion(store=p.document_store))
-            ret_methods.append(DocumentRetrieval(store=p.document_store, weight=0.8))
-        if p.graph_store is not None:
-            if ingestion.lm_client is not None:
-                ing_methods.append(
-                    GraphIngestion(
-                        store=p.graph_store,
-                        lm_client=ingestion.lm_client,
-                        graph_config=ingestion.graph,
-                    )
-                )
-            ret_methods.append(GraphRetrieval(store=p.graph_store, weight=0.7))
-
-        ingestion.methods = ing_methods
-        retrieval.methods = ret_methods
-
     @property
     def knowledge(self) -> KnowledgeManager:
         self._check_initialized()
@@ -329,12 +274,10 @@ class RagEngine:
     def _validate_config(self) -> None:
         """Cross-config validation: ensure at least one retrieval method is configured."""
         cfg = self._config
-        if not cfg.retrieval.methods and cfg.persistence is None:
+        if not cfg.retrieval.methods:
             raise ConfigurationError(
                 "RetrievalConfig.methods must not be empty — configure at least one "
-                "retrieval method (VectorRetrieval, DocumentRetrieval, or GraphRetrieval). "
-                "(Legacy: a non-empty PersistenceConfig may be passed as RagEngineConfig.persistence "
-                "to auto-assemble methods.)"
+                "retrieval method (VectorRetrieval, DocumentRetrieval, or GraphRetrieval)."
             )
 
     async def initialize(self) -> None:
@@ -362,13 +305,6 @@ class RagEngine:
         ingestion = cfg.ingestion
         retrieval = cfg.retrieval
         gen = cfg.generation
-
-        # Legacy auto-assembly: if a PersistenceConfig was supplied and the
-        # explicit methods lists are empty, build VectorIngestion / DocumentIngestion
-        # / GraphIngestion (and matching retrieval methods) from the stores.
-        if cfg.persistence is not None and not ingestion.methods and not retrieval.methods:
-            self._auto_assemble_from_persistence()
-
         metadata_store = cfg.metadata_store
 
         logger.info("ragengine initializing")

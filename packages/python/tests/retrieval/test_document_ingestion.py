@@ -6,7 +6,7 @@ from rfnry_rag.ingestion.methods.document import DocumentIngestion
 async def test_ingest_stores_content():
     store = AsyncMock()
     store.store_content = AsyncMock()
-    method = DocumentIngestion(document_store=store)
+    method = DocumentIngestion(store=store)
     assert method.name == "document"
     await method.ingest(
         source_id="src-1",
@@ -31,6 +31,6 @@ async def test_ingest_stores_content():
 async def test_delete():
     store = AsyncMock()
     store.delete_content = AsyncMock()
-    method = DocumentIngestion(document_store=store)
+    method = DocumentIngestion(store=store)
     await method.delete("src-1")
     store.delete_content.assert_called_once_with("src-1")

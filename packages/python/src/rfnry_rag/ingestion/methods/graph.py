@@ -38,15 +38,10 @@ class GraphIngestion:
 
     def __init__(
         self,
-        store: BaseGraphStore | None = None,
+        store: BaseGraphStore,
         lm_client: LanguageModelClient | None = None,
         graph_config: GraphIngestionConfig | None = None,
-        *,
-        graph_store: BaseGraphStore | None = None,
     ) -> None:
-        store = store if store is not None else graph_store
-        if store is None:
-            raise TypeError("GraphIngestion requires `store=` (or legacy `graph_store=`)")
         self._store = store
         self._registry = build_registry(lm_client) if lm_client else None
         self._graph_config = graph_config if graph_config is not None else GraphIngestionConfig()

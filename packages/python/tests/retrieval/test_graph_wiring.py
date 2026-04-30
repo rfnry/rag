@@ -1,7 +1,5 @@
 from unittest.mock import AsyncMock
 
-from rfnry_rag.server import PersistenceConfig
-
 
 def _mock_vector_store():
     m = AsyncMock()
@@ -19,19 +17,6 @@ def _mock_graph_store():
     m.query_graph = AsyncMock(return_value=[])
     m.delete_by_source = AsyncMock()
     return m
-
-
-def test_persistence_config_accepts_graph_store():
-    vector_store = _mock_vector_store()
-    graph_store = _mock_graph_store()
-    config = PersistenceConfig(vector_store=vector_store, graph_store=graph_store)
-    assert config.graph_store is graph_store
-
-
-def test_persistence_config_graph_store_defaults_none():
-    vector_store = _mock_vector_store()
-    config = PersistenceConfig(vector_store=vector_store)
-    assert config.graph_store is None
 
 
 async def test_knowledge_manager_remove_calls_graph_store():

@@ -8,12 +8,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rfnry_rag.server import (
-    IngestionConfig,
-    PersistenceConfig,
-    RagEngine,
-    RagEngineConfig,
-)
+from rfnry_rag.ingestion.methods.document import DocumentIngestion
+from rfnry_rag.ingestion.methods.graph import GraphIngestion
+from rfnry_rag.retrieval.methods.document import DocumentRetrieval
+from rfnry_rag.retrieval.methods.graph import GraphRetrieval
+from rfnry_rag.server import IngestionConfig, RagEngine, RagEngineConfig, RetrievalConfig
 
 
 @pytest.mark.asyncio
@@ -32,12 +31,13 @@ async def test_initialize_rolls_back_already_opened_stores_on_failure():
     graph_store.shutdown = AsyncMock()
 
     cfg = RagEngineConfig(
-        persistence=PersistenceConfig(
-            metadata_store=metadata_store,
-            document_store=document_store,
-            graph_store=graph_store,
+        metadata_store=metadata_store,
+        ingestion=IngestionConfig(
+            methods=[DocumentIngestion(store=document_store), GraphIngestion(store=graph_store)],
         ),
-        ingestion=IngestionConfig(),
+        retrieval=RetrievalConfig(
+            methods=[DocumentRetrieval(store=document_store), GraphRetrieval(store=graph_store)],
+        ),
     )
     engine = RagEngine(cfg)
 
@@ -57,8 +57,8 @@ async def test_initialize_does_not_call_shutdown_on_success():
     document_store.shutdown = AsyncMock()
 
     cfg = RagEngineConfig(
-        persistence=PersistenceConfig(document_store=document_store),
-        ingestion=IngestionConfig(),
+        ingestion=IngestionConfig(methods=[DocumentIngestion(store=document_store)]),
+        retrieval=RetrievalConfig(methods=[DocumentRetrieval(store=document_store)]),
     )
     engine = RagEngine(cfg)
     await engine.initialize()

@@ -15,15 +15,7 @@ class DocumentIngestion:
 
     required: bool = True
 
-    def __init__(
-        self,
-        store: BaseDocumentStore | None = None,
-        *,
-        document_store: BaseDocumentStore | None = None,
-    ) -> None:
-        store = store if store is not None else document_store
-        if store is None:
-            raise TypeError("DocumentIngestion requires `store=` (or legacy `document_store=`)")
+    def __init__(self, store: BaseDocumentStore) -> None:
         self._store = store
 
     @property

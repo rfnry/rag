@@ -1,4 +1,3 @@
-# src/rfnry-rag/retrieval/tests/test_vector_ingestion.py
 from unittest.mock import AsyncMock, MagicMock
 
 from rfnry_rag.ingestion.methods.vector import VectorIngestion
@@ -27,14 +26,8 @@ async def test_ingest_embeds_and_upserts():
     vector_store = AsyncMock()
     vector_store.initialize = AsyncMock()
     vector_store.upsert = AsyncMock()
-
-    method = VectorIngestion(
-        vector_store=vector_store,
-        embeddings=embeddings,
-        embedding_model_name="test:model",
-    )
+    method = VectorIngestion(store=vector_store, embeddings=embeddings, embedding_model_name="test:model")
     assert method.name == "vector"
-
     await method.ingest(
         source_id="src-1",
         knowledge_id="kb-1",
@@ -58,12 +51,8 @@ async def test_ingest_with_sparse():
     vector_store = AsyncMock()
     vector_store.initialize = AsyncMock()
     vector_store.upsert = AsyncMock()
-
     method = VectorIngestion(
-        vector_store=vector_store,
-        embeddings=embeddings,
-        sparse_embeddings=sparse,
-        embedding_model_name="test:model",
+        store=vector_store, embeddings=embeddings, sparse_embeddings=sparse, embedding_model_name="test:model"
     )
     await method.ingest(
         source_id="src-1",
@@ -84,11 +73,6 @@ async def test_ingest_with_sparse():
 async def test_delete():
     vector_store = AsyncMock()
     vector_store.delete = AsyncMock()
-
-    method = VectorIngestion(
-        vector_store=vector_store,
-        embeddings=AsyncMock(),
-        embedding_model_name="test:model",
-    )
+    method = VectorIngestion(store=vector_store, embeddings=AsyncMock(), embedding_model_name="test:model")
     await method.delete("src-1")
     vector_store.delete.assert_called_once_with({"source_id": "src-1"})

@@ -9,22 +9,21 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from rfnry_rag.server import (
-    IngestionConfig,
-    PersistenceConfig,
-    RagEngine,
-    RagEngineConfig,
-)
+from rfnry_rag.ingestion.methods.document import DocumentIngestion
+from rfnry_rag.ingestion.methods.graph import GraphIngestion
+from rfnry_rag.ingestion.methods.vector import VectorIngestion
+from rfnry_rag.retrieval.methods.document import DocumentRetrieval
+from rfnry_rag.retrieval.methods.graph import GraphRetrieval
+from rfnry_rag.retrieval.methods.vector import VectorRetrieval
+from rfnry_rag.server import IngestionConfig, RagEngine, RagEngineConfig, RetrievalConfig
 
 
 def _make_vector_store(collections: list[str]) -> MagicMock:
-    """MagicMock that quacks like a multi-collection QdrantVectorStore."""
     store = MagicMock()
     store.initialize = AsyncMock()
     store.shutdown = AsyncMock()
     store.collections = collections
 
-    # scoped(name) returns a separate mock so we can tell them apart.
     def _scoped(name: str) -> MagicMock:
         scoped = MagicMock()
         scoped.initialize = AsyncMock()
@@ -43,17 +42,21 @@ def _make_embeddings() -> MagicMock:
     return embeddings
 
 
+def _vector_only_config(vector_store, embeddings) -> RagEngineConfig:
+    return RagEngineConfig(
+        ingestion=IngestionConfig(
+            embeddings=embeddings,
+            methods=[VectorIngestion(store=vector_store, embeddings=embeddings)],
+        ),
+        retrieval=RetrievalConfig(methods=[VectorRetrieval(store=vector_store, embeddings=embeddings)]),
+    )
+
+
 @pytest.mark.asyncio
 async def test_initialize_populates_both_maps_for_every_collection():
     vector_store = _make_vector_store(["a", "b", "c"])
     embeddings = _make_embeddings()
-
-    engine = RagEngine(
-        RagEngineConfig(
-            persistence=PersistenceConfig(vector_store=vector_store),
-            ingestion=IngestionConfig(embeddings=embeddings),
-        )
-    )
+    engine = RagEngine(_vector_only_config(vector_store, embeddings))
     await engine.initialize()
 
     assert set(engine._retrieval_by_collection.keys()) == {"a", "b", "c"}
@@ -64,12 +67,7 @@ async def test_initialize_populates_both_maps_for_every_collection():
 async def test_get_ingestion_raises_on_unknown_collection():
     vector_store = _make_vector_store(["a"])
     embeddings = _make_embeddings()
-    engine = RagEngine(
-        RagEngineConfig(
-            persistence=PersistenceConfig(vector_store=vector_store),
-            ingestion=IngestionConfig(embeddings=embeddings),
-        )
-    )
+    engine = RagEngine(_vector_only_config(vector_store, embeddings))
     await engine.initialize()
 
     with pytest.raises(ValueError, match="unknown collection"):
@@ -80,12 +78,7 @@ async def test_get_ingestion_raises_on_unknown_collection():
 async def test_get_retrieval_raises_on_unknown_collection():
     vector_store = _make_vector_store(["a"])
     embeddings = _make_embeddings()
-    engine = RagEngine(
-        RagEngineConfig(
-            persistence=PersistenceConfig(vector_store=vector_store),
-            ingestion=IngestionConfig(embeddings=embeddings),
-        )
-    )
+    engine = RagEngine(_vector_only_config(vector_store, embeddings))
     await engine.initialize()
 
     with pytest.raises(ValueError, match="unknown collection"):
@@ -96,15 +89,9 @@ async def test_get_retrieval_raises_on_unknown_collection():
 async def test_non_default_collection_uses_scoped_store():
     vector_store = _make_vector_store(["a", "b"])
     embeddings = _make_embeddings()
-    engine = RagEngine(
-        RagEngineConfig(
-            persistence=PersistenceConfig(vector_store=vector_store),
-            ingestion=IngestionConfig(embeddings=embeddings),
-        )
-    )
+    engine = RagEngine(_vector_only_config(vector_store, embeddings))
     await engine.initialize()
 
-    # scoped() must have been called once for "b" (not for "a", which reuses defaults)
     vector_store.scoped.assert_called_with("b")
 
 
@@ -112,15 +99,9 @@ async def test_non_default_collection_uses_scoped_store():
 async def test_default_collection_uses_unscoped_default_services():
     vector_store = _make_vector_store(["a"])
     embeddings = _make_embeddings()
-    engine = RagEngine(
-        RagEngineConfig(
-            persistence=PersistenceConfig(vector_store=vector_store),
-            ingestion=IngestionConfig(embeddings=embeddings),
-        )
-    )
+    engine = RagEngine(_vector_only_config(vector_store, embeddings))
     await engine.initialize()
 
-    # The first collection should reuse the default service instances, not scoped ones.
     assert engine._ingestion_by_collection["a"] is engine._ingestion_service
 
 
@@ -130,15 +111,9 @@ async def test_cache_invalidation_fans_out_to_all_scoped_collections():
     caches on every scoped collection, not just the default."""
     vector_store = _make_vector_store(["a", "b", "c"])
     embeddings = _make_embeddings()
-    engine = RagEngine(
-        RagEngineConfig(
-            persistence=PersistenceConfig(vector_store=vector_store),
-            ingestion=IngestionConfig(embeddings=embeddings),
-        )
-    )
+    engine = RagEngine(_vector_only_config(vector_store, embeddings))
     await engine.initialize()
 
-    # Replace each collection's VectorRetrieval with a spy that records invalidations.
     invalidated: list[tuple[int, str | None]] = []
 
     for idx, (retrieval_service, _) in enumerate(engine._retrieval_by_collection.values()):
@@ -153,15 +128,9 @@ async def test_cache_invalidation_fans_out_to_all_scoped_collections():
     await engine._on_source_removed("kb-1")
     await engine._on_ingestion_complete("kb-2")
 
-    # Three collections × two callbacks = 6 invalidations
     assert len(invalidated) == 6
     seen_indexes = {i for i, _ in invalidated}
     assert seen_indexes == {0, 1, 2}
-
-
-# ---------------------------------------------------------------------------
-# Helpers for structured-ingestion collection-routing tests (C1)
-# ---------------------------------------------------------------------------
 
 
 def _make_metadata_store() -> MagicMock:
@@ -173,22 +142,18 @@ def _make_metadata_store() -> MagicMock:
 
 
 async def _build_multi_collection_engine() -> RagEngine:
-    """Build a minimal RagEngine that has _structured_ingestion wired up.
-
-    Requires: metadata_store + vector_store + embeddings (see server.py:567).
-    Uses two collections so collection= routing is meaningful.
-    """
     vector_store = _make_vector_store(["primary", "secondary"])
     embeddings = _make_embeddings()
     metadata_store = _make_metadata_store()
 
     engine = RagEngine(
         RagEngineConfig(
-            persistence=PersistenceConfig(
-                vector_store=vector_store,
-                metadata_store=metadata_store,
+            metadata_store=metadata_store,
+            ingestion=IngestionConfig(
+                embeddings=embeddings,
+                methods=[VectorIngestion(store=vector_store, embeddings=embeddings)],
             ),
-            ingestion=IngestionConfig(embeddings=embeddings),
+            retrieval=RetrievalConfig(methods=[VectorRetrieval(store=vector_store, embeddings=embeddings)]),
         )
     )
     await engine.initialize()
@@ -196,7 +161,6 @@ async def _build_multi_collection_engine() -> RagEngine:
 
 
 async def test_ingest_structured_path_rejects_non_default_collection(tmp_path) -> None:
-    """ingest() with .xml/.l5x + collection= must raise, not silently write to default."""
     rag = await _build_multi_collection_engine()
     xml_file = tmp_path / "sample.xml"
     xml_file.write_text("<root/>")
@@ -214,11 +178,6 @@ async def test_analyze_rejects_non_default_collection(tmp_path) -> None:
     await rag.shutdown()
 
 
-# ---------------------------------------------------------------------------
-# M1 regression: scoped-collection ingestion must mirror full method assembly
-# ---------------------------------------------------------------------------
-
-
 def _make_graph_store() -> MagicMock:
     store = MagicMock()
     store.initialize = AsyncMock()
@@ -231,14 +190,6 @@ def _make_graph_store() -> MagicMock:
 
 
 async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
-    """Build an engine with graph store and tree indexing enabled.
-
-    All four ingestion methods (vector, document, graph, tree) should be
-    assembled for every collection — including non-default ones.
-
-    build_registry is patched in GraphIngestion to avoid touching the BAML
-    C extension, which rejects MagicMock provider objects.
-    """
     vector_store = _make_vector_store(collections)
     embeddings = _make_embeddings()
     metadata_store = _make_metadata_store()
@@ -246,27 +197,8 @@ async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
     document_store.initialize = AsyncMock()
     document_store.shutdown = AsyncMock()
     graph_store = _make_graph_store()
-    lm_client = MagicMock()  # GraphIngestion only calls it at ingest time, not at init
+    lm_client = MagicMock()
 
-    engine = RagEngine(
-        RagEngineConfig(
-            persistence=PersistenceConfig(
-                vector_store=vector_store,
-                metadata_store=metadata_store,
-                document_store=document_store,
-                graph_store=graph_store,
-            ),
-            ingestion=IngestionConfig(
-                embeddings=embeddings,
-                lm_client=lm_client,
-            ),
-        )
-    )
-    # Patch build_registry in every module that calls it at construction time
-    # during initialize() — GraphIngestion, AnalyzedIngestionService, and the
-    # tree-indexing/tree-search paths in server.py all call it in __init__ or
-    # during _initialize_impl, which rejects MagicMock provider objects via
-    # BAML's C extension.
     _patches = [
         patch("rfnry_rag.ingestion.methods.graph.build_registry", return_value=MagicMock()),
         patch("rfnry_rag.ingestion.analyze.service.build_registry", return_value=MagicMock()),
@@ -274,6 +206,28 @@ async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
     ]
     for p in _patches:
         p.start()
+
+    engine = RagEngine(
+        RagEngineConfig(
+            metadata_store=metadata_store,
+            ingestion=IngestionConfig(
+                embeddings=embeddings,
+                lm_client=lm_client,
+                methods=[
+                    VectorIngestion(store=vector_store, embeddings=embeddings),
+                    DocumentIngestion(store=document_store),
+                    GraphIngestion(store=graph_store, lm_client=lm_client),
+                ],
+            ),
+            retrieval=RetrievalConfig(
+                methods=[
+                    VectorRetrieval(store=vector_store, embeddings=embeddings),
+                    DocumentRetrieval(store=document_store),
+                    GraphRetrieval(store=graph_store),
+                ],
+            ),
+        )
+    )
     try:
         await engine.initialize()
     finally:

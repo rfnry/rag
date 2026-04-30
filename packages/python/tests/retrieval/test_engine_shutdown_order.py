@@ -1,17 +1,18 @@
 """Regression: shutdown() must tear down stores in reverse-init order.
 
-Init order:  metadata → document → graph → vector
-Shutdown order (correct): vector → graph → document → metadata
+Init order:  metadata -> document -> graph -> vector
+Shutdown order (correct): vector -> graph -> document -> metadata
 """
 
 from unittest.mock import AsyncMock, MagicMock
 
-from rfnry_rag.server import (
-    IngestionConfig,
-    PersistenceConfig,
-    RagEngine,
-    RagEngineConfig,
-)
+from rfnry_rag.ingestion.methods.document import DocumentIngestion
+from rfnry_rag.ingestion.methods.graph import GraphIngestion
+from rfnry_rag.ingestion.methods.vector import VectorIngestion
+from rfnry_rag.retrieval.methods.document import DocumentRetrieval
+from rfnry_rag.retrieval.methods.graph import GraphRetrieval
+from rfnry_rag.retrieval.methods.vector import VectorRetrieval
+from rfnry_rag.server import IngestionConfig, RagEngine, RagEngineConfig, RetrievalConfig
 
 
 async def test_shutdown_tears_down_in_reverse_init_order() -> None:
@@ -40,13 +41,22 @@ async def test_shutdown_tears_down_in_reverse_init_order() -> None:
     embeddings.embedding_dimension = AsyncMock(return_value=128)
 
     cfg = RagEngineConfig(
-        persistence=PersistenceConfig(
-            metadata_store=metadata,
-            document_store=document,
-            graph_store=graph,
-            vector_store=vector,
+        metadata_store=metadata,
+        ingestion=IngestionConfig(
+            embeddings=embeddings,
+            methods=[
+                VectorIngestion(store=vector, embeddings=embeddings),
+                DocumentIngestion(store=document),
+                GraphIngestion(store=graph),
+            ],
         ),
-        ingestion=IngestionConfig(embeddings=embeddings),
+        retrieval=RetrievalConfig(
+            methods=[
+                VectorRetrieval(store=vector, embeddings=embeddings),
+                DocumentRetrieval(store=document),
+                GraphRetrieval(store=graph),
+            ],
+        ),
     )
     engine = RagEngine(cfg)
     await engine.initialize()
@@ -61,8 +71,8 @@ async def test_shutdown_clears_service_refs() -> None:
     document.shutdown = AsyncMock()
 
     cfg = RagEngineConfig(
-        persistence=PersistenceConfig(document_store=document),
-        ingestion=IngestionConfig(),
+        ingestion=IngestionConfig(methods=[DocumentIngestion(store=document)]),
+        retrieval=RetrievalConfig(methods=[DocumentRetrieval(store=document)]),
     )
     engine = RagEngine(cfg)
     await engine.initialize()
@@ -93,17 +103,20 @@ async def test_shutdown_is_idempotent() -> None:
     embeddings.embedding_dimension = AsyncMock(return_value=128)
 
     cfg = RagEngineConfig(
-        persistence=PersistenceConfig(
-            metadata_store=metadata,
-            vector_store=vector,
+        metadata_store=metadata,
+        ingestion=IngestionConfig(
+            embeddings=embeddings,
+            methods=[VectorIngestion(store=vector, embeddings=embeddings)],
         ),
-        ingestion=IngestionConfig(embeddings=embeddings),
+        retrieval=RetrievalConfig(
+            methods=[VectorRetrieval(store=vector, embeddings=embeddings)],
+        ),
     )
     engine = RagEngine(cfg)
     await engine.initialize()
 
     await engine.shutdown()
-    await engine.shutdown()  # second call must be a no-op
+    await engine.shutdown()
 
-    assert vector.shutdown.await_count == 1, "vector.shutdown must be called exactly once"
-    assert metadata.shutdown.await_count == 1, "metadata.shutdown must be called exactly once"
+    assert vector.shutdown.await_count == 1
+    assert metadata.shutdown.await_count == 1

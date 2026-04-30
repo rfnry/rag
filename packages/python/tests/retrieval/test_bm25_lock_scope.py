@@ -23,18 +23,13 @@ async def test_bm25_build_does_not_hold_lock_across_scroll() -> None:
         max_concurrent = max(max_concurrent, concurrent)
         await asyncio.sleep(0.02)
         concurrent -= 1
-        return [], None  # empty result terminates loop immediately
+        return ([], None)
 
     store = MagicMock()
     store.scroll = AsyncMock(side_effect=slow_scroll)
     embeddings = MagicMock()
-    method = VectorRetrieval(vector_store=store, embeddings=embeddings, bm25_enabled=True)
-
-    await asyncio.gather(
-        method._build_bm25_index(knowledge_id="kb-a"),
-        method._build_bm25_index(knowledge_id="kb-b"),
-    )
-
+    method = VectorRetrieval(store=store, embeddings=embeddings, bm25_enabled=True)
+    await asyncio.gather(method._build_bm25_index(knowledge_id="kb-a"), method._build_bm25_index(knowledge_id="kb-b"))
     assert max_concurrent >= 2, f"scroll ran serially under lock (max_concurrent={max_concurrent})"
 
 
@@ -49,15 +44,10 @@ async def test_keyword_search_build_does_not_hold_lock_across_scroll() -> None:
         max_concurrent = max(max_concurrent, concurrent)
         await asyncio.sleep(0.02)
         concurrent -= 1
-        return [], None  # empty result terminates loop immediately
+        return ([], None)
 
     store = MagicMock()
     store.scroll = AsyncMock(side_effect=slow_scroll)
     searcher = KeywordSearch(vector_store=store)
-
-    await asyncio.gather(
-        searcher._build_index(knowledge_id="kb-a"),
-        searcher._build_index(knowledge_id="kb-b"),
-    )
-
+    await asyncio.gather(searcher._build_index(knowledge_id="kb-a"), searcher._build_index(knowledge_id="kb-b"))
     assert max_concurrent >= 2, f"scroll ran serially under lock (max_concurrent={max_concurrent})"

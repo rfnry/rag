@@ -16,15 +16,10 @@ class GraphRetrieval:
 
     def __init__(
         self,
-        store: BaseGraphStore | None = None,
+        store: BaseGraphStore,
         weight: float = 1.0,
         top_k: int | None = None,
-        *,
-        graph_store: BaseGraphStore | None = None,
     ) -> None:
-        store = store if store is not None else graph_store
-        if store is None:
-            raise TypeError("GraphRetrieval requires `store=` (or legacy `graph_store=`)")
         self._store = store
         self._weight = weight
         self._top_k = top_k
