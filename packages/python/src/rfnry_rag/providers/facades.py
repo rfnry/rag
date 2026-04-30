@@ -22,6 +22,7 @@ class Embeddings:
     """Embeddings client dispatching to the correct provider implementation."""
 
     def __init__(self, provider: LanguageModelProvider) -> None:
+        self._provider = provider
         match provider.provider:
             case "openai":
                 self._impl: _OpenAIEmbeddings | _VoyageEmbeddings | _CohereEmbeddings = _OpenAIEmbeddings(provider)
@@ -37,6 +38,10 @@ class Embeddings:
     @property
     def model(self) -> str:
         return self._impl.model
+
+    @property
+    def name(self) -> str:
+        return self._provider.name
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         return await self._impl.embed(texts)

@@ -31,6 +31,8 @@ class VectorIngestion:
         include_synthetic_in_bm25: bool = True,
     ) -> None:
         self._store = store
+        if not embedding_model_name:
+            embedding_model_name = getattr(embeddings, "name", "") or ""
         self._embeddings = embeddings
         self._sparse = sparse_embeddings
         self._embedding_model_name = embedding_model_name
