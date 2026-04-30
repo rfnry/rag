@@ -15,7 +15,7 @@ from rfnry_rag.config import (
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.fastembed import FastEmbedSparseEmbeddings
 from rfnry_rag.ingestion.methods.vector import VectorIngestion
-from rfnry_rag.providers import Embeddings, LanguageModelClient, LanguageModelProvider, Reranking, Vision
+from rfnry_rag.providers import Embeddings, LanguageModelClient, LanguageModelProvider, Reranking
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.retrieval.search.rewriting.multi_query import MultiQueryRewriting
 from rfnry_rag.server import _derive_embedding_model_name
@@ -55,30 +55,6 @@ def _build_embeddings(cfg: dict[str, Any]) -> BaseEmbeddings:
     model = cfg.get("model", _EMBEDDINGS_DEFAULTS[provider])
 
     return Embeddings(LanguageModelProvider(provider=provider, model=model, api_key=api_key))
-
-
-_VISION_KEYS = {
-    "anthropic": "ANTHROPIC_API_KEY",
-    "openai": "OPENAI_API_KEY",
-}
-
-_VISION_DEFAULTS = {
-    "anthropic": "claude-sonnet-4-20250514",
-    "openai": "gpt-4o",
-}
-
-
-def _build_vision(cfg: dict[str, Any]):
-    provider = cfg.get("vision")
-    if not provider:
-        return None
-    env_var = _VISION_KEYS.get(provider)
-    if env_var is None:
-        raise ConfigError(f"Unknown vision provider: {provider!r}. Supported: {', '.join(_VISION_KEYS)}")
-    api_key = _get_api_key(env_var, provider)
-    model = cfg.get("vision_model", _VISION_DEFAULTS[provider])
-
-    return Vision(LanguageModelProvider(provider=provider, model=model, api_key=api_key))
 
 
 _RERANKER_KEYS = {
@@ -249,10 +225,6 @@ def _load_config(config_path: str | Path | None) -> RagEngineConfig:
 
     embeddings = _build_embeddings(ingestion_cfg)
     sparse_embeddings = FastEmbedSparseEmbeddings() if ingestion_cfg.get("sparse_embeddings") else None
-    # Validates the TOML "vision" knob; the result is unused until CLI wires
-    # AnalyzedIngestion into the methods list. Calling it here surfaces
-    # configuration errors at load time rather than ingest time.
-    _build_vision(ingestion_cfg)
 
     chunk_context_headers = ingestion_cfg.get("chunk_context_headers", True)
     embedding_model_name = _derive_embedding_model_name(embeddings)

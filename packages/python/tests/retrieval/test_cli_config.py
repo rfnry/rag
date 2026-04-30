@@ -117,27 +117,6 @@ embeddings = "unknown"
 
 
 class TestLoadConfigProviders:
-    def test_vision_anthropic(self, tmp_path):
-        """Vision TOML knob is accepted and validated; load_config() returns
-        a usable RagEngineConfig (no exception)."""
-        path = _write_config(
-            tmp_path,
-            '\nvision = "anthropic"\n',
-            {"ANTHROPIC_API_KEY": "sk-ant-test"},
-        )
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("OPENAI_API_KEY", None)
-            os.environ.pop("ANTHROPIC_API_KEY", None)
-            cfg = load_config(path)
-        assert cfg is not None
-
-    def test_vision_unknown_raises(self, tmp_path):
-        path = _write_config(tmp_path, '\nvision = "bad"\n')
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("OPENAI_API_KEY", None)
-            with pytest.raises(ConfigError, match="Unknown vision"):
-                load_config(path)
-
     def test_reranker_voyage(self, tmp_path):
         path = _write_config(
             tmp_path,
