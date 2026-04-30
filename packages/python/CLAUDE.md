@@ -66,7 +66,7 @@ src/rfnry_rag/
 ├── logging.py           # get_logger, query_logging_enabled
 ├── concurrency.py       # run_concurrent
 ├── exceptions/          # one file per error family
-├── providers/           # LanguageModelClient, LanguageModelProvider, registry, facades
+├── providers/           # LanguageModelClient, LanguageModel, registry, facades
 ├── models/              # Source, Chunk, vector DTOs, retrieval results, stats
 ├── config/              # all config dataclasses, one place
 ├── ingestion/           # base + service + chunk/ + methods/ + drawing/
@@ -151,7 +151,7 @@ RagError (root, catch-all for SDK errors)
 
 All LLM calls go through BAML for structured output parsing, retry/fallback, and observability. Edit `baml/baml_src/`; regenerate with `poe baml:generate`. Never edit `baml_client/`.
 
-`LanguageModelClient` (in `providers/client.py`) builds a BAML `ClientRegistry` with primary + optional fallback provider routing. `LanguageModelProvider` (in `providers/provider.py`) configures a single endpoint (API key, base URL, model). Facades (`Embeddings`, `Vision`, `Reranking` in `providers/facades.py`) dispatch to the correct backend at runtime based on the configured provider.
+`LanguageModelClient` (in `providers/client.py`) builds a BAML `ClientRegistry` with primary + optional fallback provider routing. `LanguageModel` (in `providers/provider.py`) configures a single endpoint (API key, base URL, model). Facades (`Embeddings`, `Vision`, `Reranking` in `providers/facades.py`) dispatch to the correct backend at runtime based on the configured provider.
 
 ### When to use BAML for a new feature
 
@@ -179,7 +179,7 @@ Before adding a new BAML function, answer all 5. **Two or more "no" → don't us
 ## Key patterns
 
 - **Protocol-based abstraction.** No inheritance; `Protocol` classes define interfaces (`BaseEmbeddings`, `BaseRetrievalMethod`, `BaseIngestionMethod`, `BaseReranking`, etc.). Any conforming object works.
-- **Facade pattern.** `Embeddings(LanguageModelProvider)`, `Vision(LanguageModelProvider)`, `Reranking(LanguageModelProvider | LanguageModelClient)` are public facades that select the correct private provider implementation at runtime.
+- **Facade pattern.** `Embeddings(LanguageModel)`, `Vision(LanguageModel)`, `Reranking(LanguageModel | LanguageModelClient)` are public facades that select the correct private provider implementation at runtime.
 - **Modular pipeline.** Services receive `list[BaseRetrievalMethod]` / `list[BaseIngestionMethod]` and dispatch generically. Per-method error isolation.
 - **Async-first.** All I/O is async. Services use `async def`; stores use asyncpg / aiosqlite.
 - **Service pattern.** Each module has a `Service` class with dependencies injected via `__init__`.
@@ -231,7 +231,7 @@ These act as regression guards — they enforce whole-class invariants:
 - `GraphIngestionConfig.relationship_keyword_map`: all values must be in `ALLOWED_RELATION_TYPES`.
 - `LanguageModelClient.timeout_seconds`: `> 0`, default 60.
 - `LanguageModelClient.temperature`: `0.0 ≤ t ≤ 2.0`.
-- `LanguageModelProvider.context_size`: `int | None`, default `None`. When set, must be `≥ 1`; declares the model's advertised input window. Used as a *safety cap*, not a routing threshold: `RagEngine.initialize()` refuses configs where `RoutingConfig.full_context_threshold + 16_000 (non-output reserve) + LanguageModelClient.max_tokens (output reserve)` exceeds it.
+- `LanguageModel.context_size`: `int | None`, default `None`. When set, must be `≥ 1`; declares the model's advertised input window. Used as a *safety cap*, not a routing threshold: `RagEngine.initialize()` refuses configs where `RoutingConfig.full_context_threshold + 16_000 (non-output reserve) + LanguageModelClient.max_tokens (output reserve)` exceeds it.
 - `Neo4jGraphStore.password`: required.
 - Public-input bounds: query ≤ 32 000 chars, `ingest_text` ≤ 5 000 000 chars, metadata ≤ 50 keys × 8 000 chars.
 

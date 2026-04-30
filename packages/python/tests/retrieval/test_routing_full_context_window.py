@@ -1,4 +1,4 @@
-"""LanguageModelProvider.context_size as a safety cap on FULL_CONTEXT mode.
+"""LanguageModel.context_size as a safety cap on FULL_CONTEXT mode.
 
 When the generation provider declares a ``context_size``, RagEngine init must
 refuse configurations where ``RoutingConfig.full_context_threshold`` plus a
@@ -13,7 +13,7 @@ import pytest
 
 from rfnry_rag.config import GenerationConfig, RagEngineConfig, RetrievalConfig, RoutingConfig
 from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.providers import LanguageModelClient, LanguageModelProvider
+from rfnry_rag.providers import LanguageModel, LanguageModelClient
 from rfnry_rag.server import (
     _FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS,
     RagEngine,
@@ -32,14 +32,14 @@ def _make_engine_for_validation(
     ``methods must not be empty`` check; the validation under test is the
     FULL_CONTEXT-window cross-check.
     """
-    provider = LanguageModelProvider(
-        backend="anthropic",
+    provider = LanguageModel(
+        provider="anthropic",
         model="claude-test",
         api_key="k",
         context_size=context_size,
     )
     lm_client: LanguageModelClient | None = (
-        LanguageModelClient(provider=provider, max_tokens=max_tokens) if has_lm_client else None
+        LanguageModelClient(lm=provider, max_tokens=max_tokens) if has_lm_client else None
     )
     generation = GenerationConfig(lm_client=lm_client, grounding_enabled=False)
 
@@ -56,16 +56,16 @@ def _make_engine_for_validation(
 def test_provider_context_size_must_be_positive_when_set() -> None:
     """``context_size=0`` and negatives are rejected at construction."""
     with pytest.raises(ConfigurationError, match="context_size"):
-        LanguageModelProvider(backend="x", model="y", context_size=0)
+        LanguageModel(provider="x", model="y", context_size=0)
     with pytest.raises(ConfigurationError, match="context_size"):
-        LanguageModelProvider(backend="x", model="y", context_size=-1)
+        LanguageModel(provider="x", model="y", context_size=-1)
 
 
 def test_provider_context_size_none_and_positive_accepted() -> None:
     """``None`` (default) and positive ints are accepted."""
-    LanguageModelProvider(backend="x", model="y")
-    LanguageModelProvider(backend="x", model="y", context_size=200_000)
-    LanguageModelProvider(backend="x", model="y", context_size=1)
+    LanguageModel(provider="x", model="y")
+    LanguageModel(provider="x", model="y", context_size=200_000)
+    LanguageModel(provider="x", model="y", context_size=1)
 
 
 def test_validate_skipped_when_context_size_unset() -> None:
@@ -103,7 +103,7 @@ def test_validate_passes_when_threshold_plus_reserve_fits() -> None:
 
 def test_validate_rejects_when_threshold_overflows_window() -> None:
     """Default threshold 150k against a small 64k provider window → rejected."""
-    with pytest.raises(ConfigurationError, match="exceeds LanguageModelProvider.context_size"):
+    with pytest.raises(ConfigurationError, match="exceeds LanguageModel.context_size"):
         _make_engine_for_validation(
             context_size=64_000,
             full_context_threshold=150_000,
@@ -132,7 +132,7 @@ def test_validate_runs_at_initialize_time() -> None:
         context_size=32_000,
         full_context_threshold=150_000,
     )
-    with pytest.raises(ConfigurationError, match="exceeds LanguageModelProvider.context_size"):
+    with pytest.raises(ConfigurationError, match="exceeds LanguageModel.context_size"):
         asyncio.run(engine.initialize())
 
 

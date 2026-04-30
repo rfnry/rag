@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from rfnry_rag.providers.client import LanguageModelClient as LanguageModelClient
 from rfnry_rag.providers.protocols import BaseEmbeddings as BaseEmbeddings
-from rfnry_rag.providers.provider import LanguageModelProvider as LanguageModelProvider
+from rfnry_rag.providers.provider import LanguageModel as LanguageModel
 from rfnry_rag.providers.registry import build_registry as build_registry
 
 if TYPE_CHECKING:

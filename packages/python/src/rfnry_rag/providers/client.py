@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.providers.provider import LanguageModelProvider
+from rfnry_rag.providers.provider import LanguageModel
 
 _MAX_RETRIES_LIMIT = 5
 
@@ -22,8 +22,8 @@ class LanguageModelClient:
     per-fallback overrides are intentionally not supported.
     """
 
-    provider: LanguageModelProvider
-    fallback: LanguageModelProvider | None = None
+    lm: LanguageModel
+    fallback: LanguageModel | None = None
     max_retries: int = 3
     strategy: Literal["primary_only", "fallback"] = "primary_only"
     max_tokens: int = 4096  # unbounded: user pays for tokens; provider enforces its own context-window cap
@@ -58,7 +58,7 @@ class LanguageModelClient:
 
         try:
             return await _generate(
-                provider=self.provider,
+                lm=self.lm,
                 system_prompt=system_prompt,
                 history=history,
                 user=user,
@@ -70,7 +70,7 @@ class LanguageModelClient:
         except Exception:
             if self.strategy == "fallback" and self.fallback is not None:
                 return await _generate(
-                    provider=self.fallback,
+                    lm=self.fallback,
                     system_prompt=system_prompt,
                     history=history,
                     user=user,
@@ -92,7 +92,7 @@ class LanguageModelClient:
         from rfnry_rag.providers.text_generation import stream_text as _stream
 
         return _stream(
-            provider=self.provider,
+            lm=self.lm,
             system_prompt=system_prompt,
             history=history,
             user=user,

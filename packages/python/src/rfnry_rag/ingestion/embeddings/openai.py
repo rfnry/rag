@@ -1,6 +1,6 @@
 from openai import AsyncOpenAI
 
-from rfnry_rag.providers.provider import LanguageModelProvider
+from rfnry_rag.providers.provider import LanguageModel
 
 # Maximum texts per single API call. Callers should use embed_batched() from
 # rfnry_rag.ingestion.embeddings.batching when sending more than this many texts — that
@@ -9,7 +9,7 @@ _OPENAI_MAX_BATCH = 2048
 
 
 class _OpenAIEmbeddings:
-    def __init__(self, provider: LanguageModelProvider, max_retries: int = 3) -> None:
+    def __init__(self, provider: LanguageModel, max_retries: int = 3) -> None:
         self._client = AsyncOpenAI(api_key=provider.api_key, max_retries=max_retries)
         self._model = provider.model
         self._dimension: int | None = None

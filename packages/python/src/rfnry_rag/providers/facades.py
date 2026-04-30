@@ -9,7 +9,7 @@ from rfnry_rag.ingestion.vision.anthropic import _AnthropicVision
 from rfnry_rag.ingestion.vision.gemini import _GeminiVision
 from rfnry_rag.ingestion.vision.openai import _OpenAIVision
 from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.providers.provider import LanguageModelProvider
+from rfnry_rag.providers.provider import LanguageModel
 from rfnry_rag.retrieval.search.reranking.cohere import _CohereReranking
 from rfnry_rag.retrieval.search.reranking.voyage import _VoyageReranking
 
@@ -19,18 +19,18 @@ _DEDICATED_RERANKER_PROVIDERS = {"cohere", "voyage"}
 class Embeddings:
     """Embeddings client dispatching to the correct provider implementation."""
 
-    def __init__(self, provider: LanguageModelProvider) -> None:
-        self._provider = provider
-        match provider.backend:
+    def __init__(self, lm: LanguageModel) -> None:
+        self._lm = lm
+        match lm.provider:
             case "openai":
-                self._impl: _OpenAIEmbeddings | _VoyageEmbeddings | _CohereEmbeddings = _OpenAIEmbeddings(provider)
+                self._impl: _OpenAIEmbeddings | _VoyageEmbeddings | _CohereEmbeddings = _OpenAIEmbeddings(lm)
             case "voyage":
-                self._impl = _VoyageEmbeddings(provider)
+                self._impl = _VoyageEmbeddings(lm)
             case "cohere":
-                self._impl = _CohereEmbeddings(provider)
+                self._impl = _CohereEmbeddings(lm)
             case _:
                 raise ConfigurationError(
-                    f"Unsupported embeddings provider: {provider.backend!r}. Supported: openai, voyage, cohere."
+                    f"Unsupported embeddings provider: {lm.provider!r}. Supported: openai, voyage, cohere."
                 )
 
     @property
@@ -39,7 +39,7 @@ class Embeddings:
 
     @property
     def name(self) -> str:
-        return self._provider.name
+        return self._lm.name
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         return await self._impl.embed(texts)
@@ -53,22 +53,22 @@ class Vision:
 
     def __init__(
         self,
-        provider: LanguageModelProvider,
+        lm: LanguageModel,
         max_tokens: int = 4096,
         max_retries: int = 3,
     ) -> None:
-        match provider.backend:
+        match lm.provider:
             case "anthropic":
                 self._impl: _AnthropicVision | _OpenAIVision | _GeminiVision = _AnthropicVision(
-                    provider, max_tokens=max_tokens, max_retries=max_retries
+                    lm, max_tokens=max_tokens, max_retries=max_retries
                 )
             case "openai":
-                self._impl = _OpenAIVision(provider, max_tokens=max_tokens, max_retries=max_retries)
+                self._impl = _OpenAIVision(lm, max_tokens=max_tokens, max_retries=max_retries)
             case "gemini":
-                self._impl = _GeminiVision(provider, max_tokens=max_tokens, max_retries=max_retries)
+                self._impl = _GeminiVision(lm, max_tokens=max_tokens, max_retries=max_retries)
             case _:
                 raise ConfigurationError(
-                    f"Unsupported vision provider: {provider.backend!r}. Supported: anthropic, openai, gemini."
+                    f"Unsupported vision provider: {lm.provider!r}. Supported: anthropic, openai, gemini."
                 )
 
     async def parse(self, file_path: str, pages: set[int] | None = None) -> list[ParsedPage]:
@@ -78,14 +78,14 @@ class Vision:
 class Reranking:
     """Reranker facade dispatching to a dedicated provider API (Cohere or Voyage)."""
 
-    def __init__(self, provider: LanguageModelProvider) -> None:
-        if provider.backend not in _DEDICATED_RERANKER_PROVIDERS:
+    def __init__(self, lm: LanguageModel) -> None:
+        if lm.provider not in _DEDICATED_RERANKER_PROVIDERS:
             raise ConfigurationError(
-                f"Provider {provider.backend!r} has no dedicated reranker API. "
+                f"Provider {lm.provider!r} has no dedicated reranker API. "
                 f"Supported: {', '.join(sorted(_DEDICATED_RERANKER_PROVIDERS))}."
             )
         self._impl: _CohereReranking | _VoyageReranking = (
-            _CohereReranking(provider) if provider.backend == "cohere" else _VoyageReranking(provider)
+            _CohereReranking(lm) if lm.provider == "cohere" else _VoyageReranking(lm)
         )
 
     async def rerank(self, query: str, results: list[RetrievedChunk], top_k: int = 5) -> list[RetrievedChunk]:

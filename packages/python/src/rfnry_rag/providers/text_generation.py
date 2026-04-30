@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.providers.provider import LanguageModelProvider
+from rfnry_rag.providers.provider import LanguageModel
 
 
 def assemble_user_message(query: str, context: str) -> str:
@@ -35,7 +35,7 @@ def _compose_system(system_prompt: str, history: str) -> str:
 
 
 async def generate_text(
-    provider: LanguageModelProvider,
+    lm: LanguageModel,
     system_prompt: str,
     history: str,
     user: str,
@@ -45,9 +45,9 @@ async def generate_text(
     timeout_seconds: int,
 ) -> str:
     system = _compose_system(system_prompt, history)
-    if provider.backend == "anthropic":
+    if lm.provider == "anthropic":
         return await _anthropic_generate(
-            provider=provider,
+            lm=lm,
             system=system,
             user=user,
             max_tokens=max_tokens,
@@ -55,9 +55,9 @@ async def generate_text(
             max_retries=max_retries,
             timeout_seconds=timeout_seconds,
         )
-    if provider.backend == "openai":
+    if lm.provider == "openai":
         return await _openai_generate(
-            provider=provider,
+            lm=lm,
             system=system,
             user=user,
             max_tokens=max_tokens,
@@ -65,9 +65,9 @@ async def generate_text(
             max_retries=max_retries,
             timeout_seconds=timeout_seconds,
         )
-    if provider.backend == "gemini":
+    if lm.provider == "gemini":
         return await _gemini_generate(
-            provider=provider,
+            lm=lm,
             system=system,
             user=user,
             max_tokens=max_tokens,
@@ -76,12 +76,12 @@ async def generate_text(
             timeout_seconds=timeout_seconds,
         )
     raise ConfigurationError(
-        f"Unsupported text-generation provider: {provider.backend!r}. Supported: anthropic, openai, gemini."
+        f"Unsupported text-generation provider: {lm.provider!r}. Supported: anthropic, openai, gemini."
     )
 
 
 def stream_text(
-    provider: LanguageModelProvider,
+    lm: LanguageModel,
     system_prompt: str,
     history: str,
     user: str,
@@ -91,9 +91,9 @@ def stream_text(
     timeout_seconds: int,
 ) -> AsyncIterator[str]:
     system = _compose_system(system_prompt, history)
-    if provider.backend == "anthropic":
+    if lm.provider == "anthropic":
         return _anthropic_stream(
-            provider=provider,
+            lm=lm,
             system=system,
             user=user,
             max_tokens=max_tokens,
@@ -101,9 +101,9 @@ def stream_text(
             max_retries=max_retries,
             timeout_seconds=timeout_seconds,
         )
-    if provider.backend == "openai":
+    if lm.provider == "openai":
         return _openai_stream(
-            provider=provider,
+            lm=lm,
             system=system,
             user=user,
             max_tokens=max_tokens,
@@ -111,9 +111,9 @@ def stream_text(
             max_retries=max_retries,
             timeout_seconds=timeout_seconds,
         )
-    if provider.backend == "gemini":
+    if lm.provider == "gemini":
         return _gemini_stream(
-            provider=provider,
+            lm=lm,
             system=system,
             user=user,
             max_tokens=max_tokens,
@@ -122,7 +122,7 @@ def stream_text(
             timeout_seconds=timeout_seconds,
         )
     raise ConfigurationError(
-        f"Unsupported text-generation provider: {provider.backend!r}. Supported: anthropic, openai, gemini."
+        f"Unsupported text-generation provider: {lm.provider!r}. Supported: anthropic, openai, gemini."
     )
 
 
@@ -133,7 +133,7 @@ def stream_text(
 
 async def _anthropic_generate(
     *,
-    provider: LanguageModelProvider,
+    lm: LanguageModel,
     system: str,
     user: str,
     max_tokens: int,
@@ -144,9 +144,9 @@ async def _anthropic_generate(
     from anthropic import AsyncAnthropic
     from anthropic.types import TextBlock
 
-    client = AsyncAnthropic(api_key=provider.api_key, max_retries=max_retries, timeout=timeout_seconds)
+    client = AsyncAnthropic(api_key=lm.api_key, max_retries=max_retries, timeout=timeout_seconds)
     response = await client.messages.create(
-        model=provider.model,
+        model=lm.model,
         max_tokens=max_tokens,
         temperature=temperature,
         system=system,
@@ -158,7 +158,7 @@ async def _anthropic_generate(
 
 async def _anthropic_stream(
     *,
-    provider: LanguageModelProvider,
+    lm: LanguageModel,
     system: str,
     user: str,
     max_tokens: int,
@@ -168,9 +168,9 @@ async def _anthropic_stream(
 ) -> AsyncIterator[str]:
     from anthropic import AsyncAnthropic
 
-    client = AsyncAnthropic(api_key=provider.api_key, max_retries=max_retries, timeout=timeout_seconds)
+    client = AsyncAnthropic(api_key=lm.api_key, max_retries=max_retries, timeout=timeout_seconds)
     async with client.messages.stream(
-        model=provider.model,
+        model=lm.model,
         max_tokens=max_tokens,
         temperature=temperature,
         system=system,
@@ -188,7 +188,7 @@ async def _anthropic_stream(
 
 async def _openai_generate(
     *,
-    provider: LanguageModelProvider,
+    lm: LanguageModel,
     system: str,
     user: str,
     max_tokens: int,
@@ -198,9 +198,9 @@ async def _openai_generate(
 ) -> str:
     from openai import AsyncOpenAI
 
-    client = AsyncOpenAI(api_key=provider.api_key, max_retries=max_retries, timeout=timeout_seconds)
+    client = AsyncOpenAI(api_key=lm.api_key, max_retries=max_retries, timeout=timeout_seconds)
     response = await client.chat.completions.create(
-        model=provider.model,
+        model=lm.model,
         max_tokens=max_tokens,
         temperature=temperature,
         messages=[
@@ -214,7 +214,7 @@ async def _openai_generate(
 
 async def _openai_stream(
     *,
-    provider: LanguageModelProvider,
+    lm: LanguageModel,
     system: str,
     user: str,
     max_tokens: int,
@@ -224,9 +224,9 @@ async def _openai_stream(
 ) -> AsyncIterator[str]:
     from openai import AsyncOpenAI
 
-    client = AsyncOpenAI(api_key=provider.api_key, max_retries=max_retries, timeout=timeout_seconds)
+    client = AsyncOpenAI(api_key=lm.api_key, max_retries=max_retries, timeout=timeout_seconds)
     stream = await client.chat.completions.create(
-        model=provider.model,
+        model=lm.model,
         max_tokens=max_tokens,
         temperature=temperature,
         messages=[
@@ -250,7 +250,7 @@ async def _openai_stream(
 
 async def _gemini_generate(
     *,
-    provider: LanguageModelProvider,
+    lm: LanguageModel,
     system: str,
     user: str,
     max_tokens: int,
@@ -265,9 +265,9 @@ async def _gemini_generate(
         timeout=timeout_seconds * 1000,
         retry_options=types.HttpRetryOptions(attempts=max_retries),
     )
-    client = genai.Client(api_key=provider.api_key, http_options=http_options)
+    client = genai.Client(api_key=lm.api_key, http_options=http_options)
     response = await client.aio.models.generate_content(
-        model=provider.model,
+        model=lm.model,
         contents=user,
         config=types.GenerateContentConfig(
             system_instruction=system,
@@ -280,7 +280,7 @@ async def _gemini_generate(
 
 async def _gemini_stream(
     *,
-    provider: LanguageModelProvider,
+    lm: LanguageModel,
     system: str,
     user: str,
     max_tokens: int,
@@ -295,9 +295,9 @@ async def _gemini_stream(
         timeout=timeout_seconds * 1000,
         retry_options=types.HttpRetryOptions(attempts=max_retries),
     )
-    client = genai.Client(api_key=provider.api_key, http_options=http_options)
+    client = genai.Client(api_key=lm.api_key, http_options=http_options)
     stream = await client.aio.models.generate_content_stream(
-        model=provider.model,
+        model=lm.model,
         contents=user,
         config=types.GenerateContentConfig(
             system_instruction=system,

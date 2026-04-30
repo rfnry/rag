@@ -60,8 +60,8 @@ from rfnry_rag.observability.retrieval_metrics import RetrievalPrecision as Retr
 from rfnry_rag.observability.retrieval_metrics import RetrievalRecall as RetrievalRecall
 from rfnry_rag.observability.trace import RetrievalTrace as RetrievalTrace
 from rfnry_rag.providers import Embeddings as Embeddings
+from rfnry_rag.providers import LanguageModel as LanguageModel
 from rfnry_rag.providers import LanguageModelClient as LanguageModelClient
-from rfnry_rag.providers import LanguageModelProvider as LanguageModelProvider
 from rfnry_rag.providers import Reranking as Reranking
 from rfnry_rag.providers import Vision as Vision
 from rfnry_rag.retrieval.base import BaseRetrievalMethod as BaseRetrievalMethod
@@ -120,8 +120,8 @@ __all__ = [
     "IngestionService",
     "InputError",
     "LLMJudgment",
+    "LanguageModel",
     "LanguageModelClient",
-    "LanguageModelProvider",
     "MetricResult",
     "Neo4jGraphStore",
     "ParseError",

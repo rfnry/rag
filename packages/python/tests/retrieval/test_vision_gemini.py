@@ -7,11 +7,11 @@ import pytest
 from rfnry_rag.exceptions import ParseError
 from rfnry_rag.ingestion.vision.constants import MAX_VISION_FILE_SIZE
 from rfnry_rag.ingestion.vision.gemini import _GeminiVision
-from rfnry_rag.providers import LanguageModelProvider
+from rfnry_rag.providers import LanguageModel
 
 
 def _make_vision() -> _GeminiVision:
-    provider = LanguageModelProvider(backend="gemini", model="gemini-2.5-flash", api_key="x")
+    provider = LanguageModel(provider="gemini", model="gemini-2.5-flash", api_key="x")
     return _GeminiVision(provider)
 
 

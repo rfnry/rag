@@ -1,6 +1,6 @@
 import cohere
 
-from rfnry_rag.providers.provider import LanguageModelProvider
+from rfnry_rag.providers.provider import LanguageModel
 
 # Maximum texts per single API call. Callers should use embed_batched() from
 # rfnry_rag.ingestion.embeddings.batching when sending more than this many texts — that
@@ -9,7 +9,7 @@ _COHERE_MAX_BATCH = 96
 
 
 class _CohereEmbeddings:
-    def __init__(self, provider: LanguageModelProvider) -> None:
+    def __init__(self, provider: LanguageModel) -> None:
         self._client = cohere.AsyncClientV2(api_key=provider.api_key)
         self._model = provider.model
         self._dimension: int | None = None

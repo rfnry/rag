@@ -291,7 +291,7 @@ class RagEngine:
         client = cfg.generation.lm_client
         if client is None:
             return
-        window = client.provider.context_size
+        window = client.lm.context_size
         if window is None:
             return
         threshold = cfg.routing.full_context_threshold
@@ -301,8 +301,8 @@ class RagEngine:
             raise ConfigurationError(
                 f"RoutingConfig.full_context_threshold={threshold} + reserve={total_reserve} "
                 f"({_FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS} non-output + {output_reserve} max_tokens output) "
-                f"exceeds LanguageModelProvider.context_size={window} for "
-                f"{client.provider.name}. Lower full_context_threshold or raise context_size."
+                f"exceeds LanguageModel.context_size={window} for "
+                f"{client.lm.name}. Lower full_context_threshold or raise context_size."
             )
 
     async def initialize(self) -> None:

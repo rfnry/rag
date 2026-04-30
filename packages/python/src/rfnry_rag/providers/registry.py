@@ -7,7 +7,7 @@ from baml_py import ClientRegistry
 
 from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.providers.client import LanguageModelClient
-from rfnry_rag.providers.provider import LanguageModelProvider
+from rfnry_rag.providers.provider import LanguageModel
 
 _boundary_logger = logging.getLogger("rfnry_rag.providers.registry")
 _BOUNDARY_ENV = "BOUNDARY_API_KEY"
@@ -24,18 +24,18 @@ def _retry_policy_name(max_retries: int) -> str | None:
 
 
 def _build_client_options(
-    provider: LanguageModelProvider,
+    lm: LanguageModel,
     max_tokens: int,
     temperature: float,
     timeout_seconds: int | None = None,
 ) -> dict:
     options: dict = {
-        "model": provider.model,
+        "model": lm.model,
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
-    if provider.api_key:
-        options["api_key"] = provider.api_key
+    if lm.api_key:
+        options["api_key"] = lm.api_key
     if timeout_seconds is not None:
         # BAML passes these through to the underlying provider SDK.
         # Both keys are accepted by different provider backends — set both.
@@ -50,15 +50,15 @@ def build_registry(client: LanguageModelClient) -> ClientRegistry:
 
     registry.add_llm_client(
         _CLIENT_DEFAULT,
-        provider=client.provider.backend,
-        options=_build_client_options(client.provider, client.max_tokens, client.temperature, client.timeout_seconds),
+        provider=client.lm.provider,
+        options=_build_client_options(client.lm, client.max_tokens, client.temperature, client.timeout_seconds),
         retry_policy=policy,
     )
 
     if client.strategy == "fallback" and client.fallback is not None:
         registry.add_llm_client(
             _CLIENT_FALLBACK,
-            provider=client.fallback.backend,
+            provider=client.fallback.provider,
             options=_build_client_options(
                 client.fallback, client.max_tokens, client.temperature, client.timeout_seconds
             ),
@@ -76,9 +76,9 @@ def build_registry(client: LanguageModelClient) -> ClientRegistry:
     _apply_boundary_api_key(client.boundary_api_key)
 
     _boundary_logger.info(
-        "language model client: backend=%s model=%s strategy=%s max_retries=%d timeout=%ds fallback=%s",
-        client.provider.backend,
-        client.provider.model,
+        "language model client: provider=%s model=%s strategy=%s max_retries=%d timeout=%ds fallback=%s",
+        client.lm.provider,
+        client.lm.model,
         client.strategy,
         client.max_retries,
         client.timeout_seconds,

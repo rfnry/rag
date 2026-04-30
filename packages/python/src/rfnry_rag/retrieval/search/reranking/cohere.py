@@ -4,13 +4,13 @@ import cohere
 
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.providers.provider import LanguageModelProvider
+from rfnry_rag.providers.provider import LanguageModel
 
 logger = get_logger(__name__)
 
 
 class _CohereReranking:
-    def __init__(self, provider: LanguageModelProvider) -> None:
+    def __init__(self, provider: LanguageModel) -> None:
         self._client = cohere.AsyncClientV2(api_key=provider.api_key)
         self._model = provider.model
 

@@ -19,7 +19,7 @@ from rfnry_rag.ingestion.embeddings.voyage import (
     _VOYAGE_MAX_BATCH,
     _VoyageEmbeddings,
 )
-from rfnry_rag.providers import LanguageModelProvider
+from rfnry_rag.providers import LanguageModel
 
 # ---------------------------------------------------------------------------
 # OpenAI — single-call provider behaviour
@@ -40,7 +40,7 @@ async def test_openai_embeddings_single_call() -> None:
         fake_client.embeddings.create = AsyncMock(side_effect=fake_create)
         mock_cls.return_value = fake_client
 
-        provider = LanguageModelProvider(backend="openai", model="text-embedding-3-small", api_key="sk-test")
+        provider = LanguageModel(provider="openai", model="text-embedding-3-small", api_key="sk-test")
         emb = _OpenAIEmbeddings(provider=provider)
         result = await emb.embed(["x"] * _OPENAI_MAX_BATCH)
 
@@ -62,7 +62,7 @@ async def test_openai_embeddings_within_limit_single_call() -> None:
         fake_client.embeddings.create = AsyncMock(side_effect=fake_create)
         mock_cls.return_value = fake_client
 
-        provider = LanguageModelProvider(backend="openai", model="text-embedding-3-small", api_key="sk-test")
+        provider = LanguageModel(provider="openai", model="text-embedding-3-small", api_key="sk-test")
         emb = _OpenAIEmbeddings(provider=provider)
         result = await emb.embed(["x"] * _OPENAI_MAX_BATCH)
 
@@ -88,7 +88,7 @@ async def test_voyage_embeddings_single_call() -> None:
         fake_client.embed = AsyncMock(side_effect=fake_embed)
         mock_voyageai.AsyncClient.return_value = fake_client
 
-        provider = LanguageModelProvider(backend="voyage", model="voyage-3", api_key="vo-test")
+        provider = LanguageModel(provider="voyage", model="voyage-3", api_key="vo-test")
         emb = _VoyageEmbeddings(provider=provider)
         result = await emb.embed(["x"] * _VOYAGE_MAX_BATCH)
 
@@ -109,7 +109,7 @@ async def test_voyage_embeddings_within_limit_single_call() -> None:
         fake_client.embed = AsyncMock(side_effect=fake_embed)
         mock_voyageai.AsyncClient.return_value = fake_client
 
-        provider = LanguageModelProvider(backend="voyage", model="voyage-3", api_key="vo-test")
+        provider = LanguageModel(provider="voyage", model="voyage-3", api_key="vo-test")
         emb = _VoyageEmbeddings(provider=provider)
         result = await emb.embed(["x"] * _VOYAGE_MAX_BATCH)
 
@@ -137,7 +137,7 @@ async def test_cohere_embeddings_single_call() -> None:
         fake_client.embed = AsyncMock(side_effect=fake_embed)
         mock_cohere.AsyncClientV2.return_value = fake_client
 
-        provider = LanguageModelProvider(backend="cohere", model="embed-english-v3.0", api_key="co-test")
+        provider = LanguageModel(provider="cohere", model="embed-english-v3.0", api_key="co-test")
         emb = _CohereEmbeddings(provider=provider)
         result = await emb.embed(["x"] * _COHERE_MAX_BATCH)
 
@@ -160,7 +160,7 @@ async def test_cohere_embeddings_within_limit_single_call() -> None:
         fake_client.embed = AsyncMock(side_effect=fake_embed)
         mock_cohere.AsyncClientV2.return_value = fake_client
 
-        provider = LanguageModelProvider(backend="cohere", model="embed-english-v3.0", api_key="co-test")
+        provider = LanguageModel(provider="cohere", model="embed-english-v3.0", api_key="co-test")
         emb = _CohereEmbeddings(provider=provider)
         result = await emb.embed(["x"] * _COHERE_MAX_BATCH)
 

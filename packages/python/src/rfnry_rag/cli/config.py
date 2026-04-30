@@ -15,7 +15,7 @@ from rfnry_rag.config import (
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.fastembed import FastEmbedSparseEmbeddings
 from rfnry_rag.ingestion.methods import VectorIngestion
-from rfnry_rag.providers import Embeddings, LanguageModelClient, LanguageModelProvider, Reranking
+from rfnry_rag.providers import Embeddings, LanguageModel, LanguageModelClient, Reranking
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.server import _derive_embedding_model_name
 from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
@@ -53,7 +53,7 @@ def _build_embeddings(cfg: dict[str, Any]) -> BaseEmbeddings:
     api_key = _get_api_key(env_var, provider)
     model = cfg.get("model", _EMBEDDINGS_DEFAULTS[provider])
 
-    return Embeddings(LanguageModelProvider(backend=provider, model=model, api_key=api_key))
+    return Embeddings(LanguageModel(provider=provider, model=model, api_key=api_key))
 
 
 _RERANKER_KEYS = {
@@ -77,7 +77,7 @@ def _build_reranker(cfg: dict[str, Any]):
     api_key = _get_api_key(env_var, provider)
     model = cfg.get("reranker_model", _RERANKER_DEFAULTS[provider])
 
-    return Reranking(LanguageModelProvider(backend=provider, model=model, api_key=api_key))
+    return Reranking(LanguageModel(provider=provider, model=model, api_key=api_key))
 
 
 _GENERATION_KEYS = {
@@ -103,8 +103,8 @@ def _build_generation_config(cfg: dict[str, Any]) -> GenerationConfig:
     model = cfg.get("model", _GENERATION_DEFAULTS[provider])
 
     lm_client = LanguageModelClient(
-        provider=LanguageModelProvider(
-            backend=provider,
+        lm=LanguageModel(
+            provider=provider,
             model=model,
             api_key=api_key,
         ),
@@ -119,7 +119,7 @@ def _build_generation_config(cfg: dict[str, Any]) -> GenerationConfig:
             raise ConfigError(f"Unknown relevance_gate_provider: {rg_provider!r}")
         rg_api_key = _get_api_key(rg_env_var, rg_provider)
         relevance_gate_lm = LanguageModelClient(
-            provider=LanguageModelProvider(backend=rg_provider, model=rg_model, api_key=rg_api_key),
+            lm=LanguageModel(provider=rg_provider, model=rg_model, api_key=rg_api_key),
         )
 
     return GenerationConfig(

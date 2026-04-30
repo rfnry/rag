@@ -7,7 +7,7 @@ from rfnry_rag.generation.grounding import DEFAULT_ESCALATION
 from rfnry_rag.generation.models import RelevanceResult
 from rfnry_rag.generation.service import GenerationService
 from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.providers import LanguageModelClient, LanguageModelProvider
+from rfnry_rag.providers import LanguageModel, LanguageModelClient
 
 
 def _chunk(chunk_id: str = "c1", score: float = 0.9) -> RetrievedChunk:
@@ -22,7 +22,7 @@ def _chunk(chunk_id: str = "c1", score: float = 0.9) -> RetrievedChunk:
 
 
 def _lm_client() -> LanguageModelClient:
-    return LanguageModelClient(provider=LanguageModelProvider(backend="openai", model="gpt-4o-mini"))
+    return LanguageModelClient(lm=LanguageModel(provider="openai", model="gpt-4o-mini"))
 
 
 def _make_service(
