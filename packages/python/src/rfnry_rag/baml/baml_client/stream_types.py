@@ -23,7 +23,7 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
     value: StreamStateValueT
     state: typing_extensions.Literal["Pending", "Incomplete", "Complete"]
 # #########################################################################
-# Generated classes (20)
+# Generated classes (19)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -116,11 +116,6 @@ class RelevanceJudgment(BaseModel):
     needs_clarification: typing.Optional[bool] = None
     clarifying_question: typing.Optional[str] = None
     clarifying_options: typing.Optional[typing.List[str]] = None
-
-class RetrievalNecessityJudgment(BaseModel):
-    should_retrieve: typing.Optional[bool] = Field(default=None, description='True if the query requires domain-specific knowledge retrieval')
-    confidence: typing.Optional[float] = Field(default=None, description='Confidence in the judgment from 0.0 to 1.0')
-    reasoning: typing.Optional[str] = Field(default=None, description='Brief explanation of why retrieval is or is not needed')
 
 class SynthesisCrossReference(BaseModel):
     source_page: typing.Optional[int] = None

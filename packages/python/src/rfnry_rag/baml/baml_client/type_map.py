@@ -64,9 +64,6 @@ type_map = {
     "types.RelevanceJudgment": types.RelevanceJudgment,
     "stream_types.RelevanceJudgment": stream_types.RelevanceJudgment,
 
-    "types.RetrievalNecessityJudgment": types.RetrievalNecessityJudgment,
-    "stream_types.RetrievalNecessityJudgment": stream_types.RetrievalNecessityJudgment,
-
     "types.SynthesisCrossReference": types.SynthesisCrossReference,
     "stream_types.SynthesisCrossReference": stream_types.SynthesisCrossReference,
 

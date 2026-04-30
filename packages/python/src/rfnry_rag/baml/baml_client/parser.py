@@ -89,12 +89,6 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="JudgeAnswerQuality", llm_response=llm_response, mode="request")
         return typing.cast(types.AnswerQualityJudgment, __result__)
 
-    def JudgeRetrievalNecessity(
-        self, llm_response: str, baml_options: BamlCallOptions = {},
-    ) -> types.RetrievalNecessityJudgment:
-        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="JudgeRetrievalNecessity", llm_response=llm_response, mode="request")
-        return typing.cast(types.RetrievalNecessityJudgment, __result__)
-
     def RerankChunks(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> typing.List["types.RankedChunk"]:
@@ -180,12 +174,6 @@ class LlmStreamParser:
     ) -> stream_types.AnswerQualityJudgment:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="JudgeAnswerQuality", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.AnswerQualityJudgment, __result__)
-
-    def JudgeRetrievalNecessity(
-        self, llm_response: str, baml_options: BamlCallOptions = {},
-    ) -> stream_types.RetrievalNecessityJudgment:
-        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="JudgeRetrievalNecessity", llm_response=llm_response, mode="stream")
-        return typing.cast(stream_types.RetrievalNecessityJudgment, __result__)
 
     def RerankChunks(
         self, llm_response: str, baml_options: BamlCallOptions = {},

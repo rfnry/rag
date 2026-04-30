@@ -39,7 +39,6 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     # ---- retrieval / retrieval ----
     "AnalyzeQuery": ["query"],
     "RerankChunks": ["query", "passages"],
-    "JudgeRetrievalNecessity": ["query"],
     "CompressRetrievedContext": ["query", "passages"],
     # ---- retrieval / evaluation ----
     "JudgeAnswerQuality": ["query", "prediction", "reference"],

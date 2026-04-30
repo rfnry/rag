@@ -9,12 +9,3 @@ class MetricResult:
 
     mean: float
     scores: list[float]
-
-
-@dataclass
-class JudgmentResult:
-    """Result from a retrieval necessity judgment."""
-
-    should_retrieve: bool
-    confidence: float
-    reasoning: str | None = None

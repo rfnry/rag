@@ -41,7 +41,7 @@ def all_succeeded(checks: typing.Dict[CheckName, Check]) -> bool:
 # #########################################################################
 
 # #########################################################################
-# Generated classes (20)
+# Generated classes (19)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -134,11 +134,6 @@ class RelevanceJudgment(BaseModel):
     needs_clarification: bool
     clarifying_question: typing.Optional[str] = None
     clarifying_options: typing.Optional[typing.List[str]] = None
-
-class RetrievalNecessityJudgment(BaseModel):
-    should_retrieve: bool = Field(description='True if the query requires domain-specific knowledge retrieval')
-    confidence: float = Field(description='Confidence in the judgment from 0.0 to 1.0')
-    reasoning: str = Field(description='Brief explanation of why retrieval is or is not needed')
 
 class SynthesisCrossReference(BaseModel):
     source_page: int

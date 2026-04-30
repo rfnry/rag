@@ -52,7 +52,6 @@ from rfnry_rag.observability import BenchmarkReport as BenchmarkReport
 from rfnry_rag.observability.metrics import ExactMatch as ExactMatch
 from rfnry_rag.observability.metrics import F1Score as F1Score
 from rfnry_rag.observability.metrics import LLMJudgment as LLMJudgment
-from rfnry_rag.observability.models import JudgmentResult as JudgmentResult
 from rfnry_rag.observability.models import MetricResult as MetricResult
 from rfnry_rag.observability.retrieval_metrics import RetrievalPrecision as RetrievalPrecision
 from rfnry_rag.observability.retrieval_metrics import RetrievalRecall as RetrievalRecall
@@ -63,8 +62,6 @@ from rfnry_rag.providers import LanguageModelProvider as LanguageModelProvider
 from rfnry_rag.providers import Reranking as Reranking
 from rfnry_rag.providers import Vision as Vision
 from rfnry_rag.retrieval.base import BaseRetrievalMethod as BaseRetrievalMethod
-from rfnry_rag.retrieval.judging import BaseRetrievalJudgment as BaseRetrievalJudgment
-from rfnry_rag.retrieval.judging import RetrievalJudgment as RetrievalJudgment
 from rfnry_rag.retrieval.methods.document import DocumentRetrieval as DocumentRetrieval
 from rfnry_rag.retrieval.methods.enrich import StructuredRetrieval as StructuredRetrieval
 from rfnry_rag.retrieval.methods.graph import GraphRetrieval as GraphRetrieval
@@ -92,7 +89,6 @@ __all__ = [
     "AnalyzedIngestion",
     "BaseChunkRefinement",
     "BaseIngestionMethod",
-    "BaseRetrievalJudgment",
     "BaseRetrievalMethod",
     "BenchmarkCase",
     "BenchmarkCaseResult",
@@ -125,7 +121,6 @@ __all__ = [
     "IngestionInterruptedError",
     "IngestionService",
     "InputError",
-    "JudgmentResult",
     "LLMJudgment",
     "LanguageModelClient",
     "LanguageModelProvider",
@@ -143,7 +138,6 @@ __all__ = [
     "Reranking",
     "RetrievalConfig",
     "RetrievalError",
-    "RetrievalJudgment",
     "RetrievalPrecision",
     "RetrievalRecall",
     "RetrievalService",
