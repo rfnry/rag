@@ -123,7 +123,7 @@ Symbol vocabularies are consumer-configurable via `DrawingIngestionConfig` (ship
 Retrieval and ingestion are protocol-based plugin architectures. No mandatory vector DB or embeddings — at least one retrieval path (vector, document, or graph) must be configured.
 
 - **`BaseRetrievalMethod` / `BaseIngestionMethod`** — protocol interfaces in `retrieval/base.py` and `ingestion/base.py`.
-- **Method classes** — `VectorRetrieval`, `DocumentRetrieval`, `GraphRetrieval` (retrieval); `VectorIngestion`, `DocumentIngestion`, `GraphIngestion` (ingestion). Each is self-contained with error isolation and timing logs.
+- **Method classes** — `VectorRetrieval`, `DocumentRetrieval`, `GraphRetrieval` (retrieval); `VectorIngestion`, `DocumentIngestion`, `GraphIngestion`, `AnalyzedIngestion`, `DrawingIngestion` (ingestion). Each is self-contained with error isolation and timing logs.
 - **Dynamic assembly** — `RagEngine.initialize()` builds method lists from config, validates cross-config constraints, assembles `RetrievalService` and `IngestionService` with method-list dispatch.
 - **`BaseIngestionMethod.required: bool`** is part of the protocol. `VectorIngestion` and `DocumentIngestion` default `required=True`; `GraphIngestion` defaults `required=False`. Required-method failures abort the ingest with `IngestionError` and skip the metadata commit.
 - **Graph ingestion is consumer-agnostic by default.** `GraphIngestionConfig` lets consumers supply their own entity-type regex patterns, relationship keyword map, and fallback edge type. Empty config → type inference falls through to `DiscoveredEntity.category.lower()`; cross-references with no keyword match become generic `MENTIONS` edges.
@@ -187,10 +187,12 @@ These act as regression guards — they enforce whole-class invariants:
 
 `__post_init__` validators reject pathological values at construction time:
 
-- `IngestionConfig.dpi`: `72 ≤ dpi ≤ 600`.
 - `IngestionConfig.chunk_size_unit`: `Literal["chars", "tokens"]`, default `"tokens"`. Default `chunk_size=375` tokens, `chunk_overlap=40`.
 - `IngestionConfig.parent_chunk_size`: sentinel `-1` (default) resolves to `3 * chunk_size`; explicit `0` disables parent-child indexing.
 - `IngestionConfig.document_expansion`: nested `DocumentExpansionConfig`. Defaults disabled. When `enabled=True`, `lm_client` is required.
+- `AnalyzedIngestion.dpi`: `72 ≤ dpi ≤ 600`, default 300.
+- `AnalyzedIngestion.analyze_concurrency`: `1 ≤ n ≤ 100`, default 5.
+- `AnalyzedIngestion.analyze_text_skip_threshold_chars`: `0 ≤ n ≤ 100_000`, default 300.
 - `RetrievalConfig.top_k`: `1 ≤ top_k ≤ 200`.
 - `RetrievalConfig.bm25_max_chunks`: `≤ 200_000`.
 - `RetrievalConfig.bm25_max_indexes`: `1 ≤ n ≤ 1000`, default 16.
@@ -201,6 +203,7 @@ These act as regression guards — they enforce whole-class invariants:
 - `BenchmarkConfig.concurrency`: `1 ≤ n ≤ 20`, default 1.
 - `BenchmarkConfig.failure_threshold`: `0.0 ≤ t ≤ 1.0`, default 0.5.
 - `DrawingIngestionConfig.dpi`: `150 ≤ dpi ≤ 600`, default 400.
+- `DrawingIngestionConfig.analyze_concurrency`: `1 ≤ n ≤ 100`, default 5.
 - `DrawingIngestionConfig.relation_vocabulary`: every target must be in `ALLOWED_RELATION_TYPES`.
 - `GraphIngestionConfig.entity_type_patterns`: regex strings compiled at `__post_init__`.
 - `GraphIngestionConfig.relationship_keyword_map`: all values must be in `ALLOWED_RELATION_TYPES`.
