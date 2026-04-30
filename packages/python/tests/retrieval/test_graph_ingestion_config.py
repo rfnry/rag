@@ -2,7 +2,7 @@
 
 import pytest
 
-from rfnry_rag.common.errors import ConfigurationError
+from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
 
 

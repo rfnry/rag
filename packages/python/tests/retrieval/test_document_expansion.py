@@ -16,9 +16,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from rfnry_rag.exceptions import ConfigurationError, IngestionError
 from rfnry_rag.ingestion.chunk.expand import expand_chunks
 from rfnry_rag.ingestion.models import ChunkedContent
-from rfnry_rag.retrieval.common.errors import ConfigurationError, IngestionError
 from rfnry_rag.server import DocumentExpansionConfig
 
 # ---------------------------------------------------------------------------

@@ -33,7 +33,7 @@ def test_apply_boundary_api_key_same_value_is_idempotent() -> None:
 def test_apply_boundary_api_key_different_value_raises() -> None:
     """Collision on boundary key now raises so multi-tenant misconfiguration
     can't be silently hidden."""
-    from rfnry_rag.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
 
     _apply_boundary_api_key("first")
     with pytest.raises(ConfigurationError, match="boundary_api_key collision"):

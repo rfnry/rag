@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from rfnry_rag.exceptions import IngestionError
 from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
 from rfnry_rag.ingestion.chunk.service import IngestionService
-from rfnry_rag.retrieval.common.errors import IngestionError
 
 
 def _make_method(name: str, *, required: bool, fails: bool) -> MagicMock:

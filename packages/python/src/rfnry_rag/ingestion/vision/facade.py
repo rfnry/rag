@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from rfnry_rag.common.errors import ConfigurationError
 from rfnry_rag.common.language_model import LanguageModelProvider
+from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.ingestion.models import ParsedPage
 from rfnry_rag.ingestion.vision.anthropic import _AnthropicVision
 from rfnry_rag.ingestion.vision.gemini import _GeminiVision

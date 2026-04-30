@@ -43,7 +43,7 @@ def test_neo4j_graph_store_repr_does_not_leak_password():
 
 
 def test_neo4j_graph_store_rejects_empty_password():
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
     from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
 
     with pytest.raises(ConfigurationError, match="password"):

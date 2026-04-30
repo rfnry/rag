@@ -10,6 +10,7 @@ from typing import Any, Literal
 
 from rfnry_rag.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.common.logging import get_logger
+from rfnry_rag.exceptions import ConfigurationError, InputError
 from rfnry_rag.generation.models import QueryResult, StepResult, StreamEvent
 from rfnry_rag.generation.service import GenerationService
 from rfnry_rag.generation.step import StepGenerationService
@@ -36,7 +37,6 @@ from rfnry_rag.observability.benchmark import (
 )
 from rfnry_rag.observability.metrics import LLMJudgment
 from rfnry_rag.retrieval.base import BaseRetrievalMethod
-from rfnry_rag.retrieval.common.errors import ConfigurationError, InputError
 from rfnry_rag.retrieval.common.formatting import ChunkOrdering
 from rfnry_rag.retrieval.common.grounding import max_chunk_score
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash

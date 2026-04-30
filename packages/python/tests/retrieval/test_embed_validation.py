@@ -23,7 +23,7 @@ async def test_embed_rejects_oversize_text() -> None:
 
 
 def test_validate_query_text_raises_typed_input_error() -> None:
-    from rfnry_rag.retrieval.common.errors import InputError
+    from rfnry_rag.exceptions import InputError
 
     with pytest.raises(InputError, match="query exceeds"):
         _validate_query_text("x" * 40_000)

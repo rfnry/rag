@@ -236,7 +236,7 @@ async def test_dxf_end_to_end_file_hash_idempotent_on_second_run(
 
 async def test_phase_methods_reject_status_skip_ahead(simple_rlc_dxf: Path) -> None:
     """Each phase enforces its predecessor's status; skipping raises IngestionError."""
-    from rfnry_rag.retrieval.common.errors import IngestionError
+    from rfnry_rag.exceptions import IngestionError
 
     metadata = _InMemoryMetadataStore()
     svc = _make_service(metadata, graph_store=_RecordingGraphStore())

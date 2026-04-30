@@ -125,7 +125,7 @@ async def test_ingest_text_empty_chunks_raises():
         chunker=chunker,
         ingestion_methods=[],
     )
-    from rfnry_rag.retrieval.common.errors import EmptyDocumentError
+    from rfnry_rag.exceptions import EmptyDocumentError
 
     with pytest.raises(EmptyDocumentError):
         await service.ingest_text(content="Hello world")

@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.common.errors import ConfigurationError
+from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.generation.models import QueryResult, SourceReference
 from rfnry_rag.observability import (
     BenchmarkCase,

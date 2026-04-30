@@ -63,7 +63,7 @@ class TestServerQuery:
         assert "what is X?" in retrieval_query
 
     async def test_query_without_generation_raises(self):
-        from rfnry_rag.retrieval.common.errors import ConfigurationError
+        from rfnry_rag.exceptions import ConfigurationError
 
         server = _make_server()
         server._generation_service = None
@@ -156,7 +156,7 @@ class TestServerQueryStream:
         assert events[1].type == "sources"
 
     async def test_query_stream_without_generation_raises(self):
-        from rfnry_rag.retrieval.common.errors import ConfigurationError
+        from rfnry_rag.exceptions import ConfigurationError
 
         server = _make_server()
         server._generation_service = None
@@ -178,7 +178,7 @@ class TestServerGenerateStep:
         )
 
     async def test_generate_step_without_service_raises(self):
-        from rfnry_rag.retrieval.common.errors import ConfigurationError
+        from rfnry_rag.exceptions import ConfigurationError
 
         server = _make_server()
         with pytest.raises(ConfigurationError, match="generation.step_lm_client"):

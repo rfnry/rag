@@ -1,9 +1,4 @@
-from rfnry_rag.common.errors import ConfigurationError as ConfigurationError
-from rfnry_rag.common.errors import SdkBaseError
-
-
-class RagError(SdkBaseError):
-    """Base exception for retrieval SDK errors."""
+from rfnry_rag.exceptions.base import RagError
 
 
 class IngestionError(RagError):
@@ -42,31 +37,3 @@ class IngestionInterruptedError(IngestionError):
         super().__init__(message)
         self.completed_chunk_index = completed_chunk_index
         self.source_id = source_id
-
-
-class RetrievalError(RagError):
-    """Error during retrieval pipeline."""
-
-
-class GenerationError(RagError):
-    """Error during LLM generation."""
-
-
-class StoreError(RagError):
-    """Error from a storage backend."""
-
-
-class DuplicateSourceError(StoreError):
-    """Attempted to create a source with an existing ID."""
-
-
-class SourceNotFoundError(StoreError):
-    """Source ID does not exist."""
-
-
-class InputError(RagError, ValueError):
-    """Raised when a public-input guard rejects caller-supplied text or metadata.
-
-    Inherits from both RagError (for catching SDK-specific errors) and
-    ValueError (for back-compat — existing `except ValueError:` still works).
-    """

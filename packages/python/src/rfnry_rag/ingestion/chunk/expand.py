@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 from rfnry_rag.baml.baml_client.async_client import b
 from rfnry_rag.common.concurrency import run_concurrent
 from rfnry_rag.common.logging import get_logger
+from rfnry_rag.exceptions import IngestionError
 from rfnry_rag.ingestion.models import ChunkedContent
-from rfnry_rag.retrieval.common.errors import IngestionError
 
 if TYPE_CHECKING:
     from baml_py import ClientRegistry

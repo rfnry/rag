@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.generation.models import QueryResult
-from rfnry_rag.retrieval.common.errors import ConfigurationError
 from rfnry_rag.retrieval.common.models import RetrievalTrace
 from rfnry_rag.server import (
     QueryMode,

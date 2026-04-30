@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from rfnry_rag.common.language_model import LanguageModelProvider
+from rfnry_rag.exceptions import ParseError
 from rfnry_rag.ingestion.vision.constants import MAX_VISION_FILE_SIZE
 from rfnry_rag.ingestion.vision.gemini import _GeminiVision
-from rfnry_rag.retrieval.common.errors import ParseError
 
 
 def _make_vision() -> _GeminiVision:

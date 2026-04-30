@@ -8,6 +8,12 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from rfnry_rag.common.logging import get_logger
+from rfnry_rag.exceptions import (
+    ConfigurationError,
+    DuplicateSourceError,
+    EmptyDocumentError,
+    IngestionError,
+)
 from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
 from rfnry_rag.ingestion.chunk.context import contextualize_chunks
 from rfnry_rag.ingestion.chunk.expand import expand_chunks
@@ -17,12 +23,6 @@ from rfnry_rag.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.ingestion.models import ParsedPage
 from rfnry_rag.ingestion.vision.base import BaseVision
 from rfnry_rag.ingestion.vision.constants import IMAGE_EXTENSIONS
-from rfnry_rag.retrieval.common.errors import (
-    ConfigurationError,
-    DuplicateSourceError,
-    EmptyDocumentError,
-    IngestionError,
-)
 from rfnry_rag.retrieval.common.hashing import file_hash
 from rfnry_rag.retrieval.common.models import Source
 from rfnry_rag.retrieval.common.page_range import parse_page_range

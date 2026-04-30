@@ -143,7 +143,7 @@ def test_build_registry_logs_lm_policy(caplog) -> None:
 
 
 def test_qdrant_hybrid_prefetch_multiplier_defaults_and_validates() -> None:
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
     from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
     default = QdrantVectorStore(url="http://fake", api_key="k")
@@ -160,7 +160,7 @@ def test_qdrant_hybrid_prefetch_multiplier_defaults_and_validates() -> None:
 
 
 def test_sqlalchemy_metadata_store_rejects_nonpositive_pool_timeout() -> None:
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
 
     with pytest.raises(ConfigurationError, match="pool_timeout"):
         SQLAlchemyMetadataStore(url="sqlite+aiosqlite:///:memory:", pool_timeout=0)
@@ -170,7 +170,7 @@ def test_sqlalchemy_metadata_store_rejects_nonpositive_pool_timeout() -> None:
 
 
 def test_sqlalchemy_metadata_store_rejects_bad_pool_recycle() -> None:
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
 
     with pytest.raises(ConfigurationError, match="pool_recycle"):
         SQLAlchemyMetadataStore(url="sqlite+aiosqlite:///:memory:", pool_recycle=0)
@@ -180,7 +180,7 @@ def test_sqlalchemy_metadata_store_rejects_bad_pool_recycle() -> None:
 
 
 def test_postgres_document_store_rejects_nonpositive_pool_timeout() -> None:
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
 
     with pytest.raises(ConfigurationError, match="pool_timeout"):
         PostgresDocumentStore(url="sqlite+aiosqlite:///:memory:", pool_timeout=0)
@@ -190,7 +190,7 @@ def test_postgres_document_store_rejects_nonpositive_pool_timeout() -> None:
 
 
 def test_postgres_document_store_rejects_bad_pool_recycle() -> None:
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
 
     with pytest.raises(ConfigurationError, match="pool_recycle"):
         PostgresDocumentStore(url="sqlite+aiosqlite:///:memory:", pool_recycle=0)
@@ -200,7 +200,7 @@ def test_postgres_document_store_rejects_bad_pool_recycle() -> None:
 
 
 def test_qdrant_store_rejects_nonpositive_timeout() -> None:
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
     from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
     with pytest.raises(ConfigurationError, match="timeout"):
@@ -208,7 +208,7 @@ def test_qdrant_store_rejects_nonpositive_timeout() -> None:
 
 
 def test_qdrant_store_rejects_nonpositive_scroll_timeout() -> None:
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
     from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
     with pytest.raises(ConfigurationError, match="scroll_timeout"):
@@ -216,7 +216,7 @@ def test_qdrant_store_rejects_nonpositive_scroll_timeout() -> None:
 
 
 def test_qdrant_store_rejects_nonpositive_write_timeout() -> None:
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
     from rfnry_rag.stores.vector.qdrant import QdrantVectorStore
 
     with pytest.raises(ConfigurationError, match="write_timeout"):
@@ -224,7 +224,7 @@ def test_qdrant_store_rejects_nonpositive_write_timeout() -> None:
 
 
 def test_neo4j_store_rejects_nonpositive_query_timeout() -> None:
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
     from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
 
     with pytest.raises(ConfigurationError, match="query_timeout"):
@@ -232,7 +232,7 @@ def test_neo4j_store_rejects_nonpositive_query_timeout() -> None:
 
 
 def test_neo4j_store_rejects_nonpositive_connection_timeout() -> None:
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
     from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
 
     with pytest.raises(ConfigurationError, match="connection_timeout"):
@@ -240,7 +240,7 @@ def test_neo4j_store_rejects_nonpositive_connection_timeout() -> None:
 
 
 def test_neo4j_store_rejects_nonpositive_connection_acquisition_timeout() -> None:
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
     from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
 
     with pytest.raises(ConfigurationError, match="connection_acquisition_timeout"):

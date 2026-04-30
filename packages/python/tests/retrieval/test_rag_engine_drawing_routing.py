@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.common.errors import ConfigurationError
+from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.server import SUPPORTED_DRAWING_EXTENSIONS
 
 

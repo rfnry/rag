@@ -1,7 +1,7 @@
 import pytest
 
-from rfnry_rag.common.errors import ConfigurationError
 from rfnry_rag.common.language_model import LanguageModelProvider
+from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.ingestion.embeddings.cohere import _CohereEmbeddings
 from rfnry_rag.ingestion.embeddings.facade import Embeddings
 from rfnry_rag.ingestion.embeddings.openai import _OpenAIEmbeddings

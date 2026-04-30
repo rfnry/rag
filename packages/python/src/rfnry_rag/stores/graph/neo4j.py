@@ -226,7 +226,7 @@ class Neo4jGraphStore:
         # The Neo4j community-edition default is "password" — rejecting empty
         # passwords forces operators to be explicit rather than shipping with
         # the universally-known default string.
-        from rfnry_rag.retrieval.common.errors import ConfigurationError
+        from rfnry_rag.exceptions import ConfigurationError
 
         if not self.password:
             raise ConfigurationError("Neo4jGraphStore requires a non-empty password")

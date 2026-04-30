@@ -10,6 +10,7 @@ from baml_py import errors as baml_errors
 
 from rfnry_rag.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.common.logging import get_logger
+from rfnry_rag.exceptions import ConfigurationError, IngestionError
 from rfnry_rag.ingestion.analyze.models import (
     CrossReference,
     DiscoveredEntity,
@@ -25,7 +26,6 @@ from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.utils import embed_batched
 from rfnry_rag.ingestion.graph.config import GraphIngestionConfig
 from rfnry_rag.ingestion.vision.base import BaseVision
-from rfnry_rag.retrieval.common.errors import ConfigurationError, IngestionError
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
 from rfnry_rag.retrieval.common.models import Source, VectorPoint
 from rfnry_rag.retrieval.common.page_range import parse_page_range

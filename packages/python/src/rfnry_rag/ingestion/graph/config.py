@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from rfnry_rag.common.errors import ConfigurationError
+from rfnry_rag.exceptions import ConfigurationError
 
 
 @dataclass

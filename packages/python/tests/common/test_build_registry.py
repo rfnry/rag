@@ -97,7 +97,7 @@ def test_language_model_client_default_timeout():
 def test_language_model_client_rejects_non_positive_timeout():
     import pytest
 
-    from rfnry_rag.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
 
     with pytest.raises(ConfigurationError, match="timeout"):
         LanguageModelClient(

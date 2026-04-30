@@ -31,16 +31,16 @@ def test_no_env_no_propagation(monkeypatch):
 
 
 def test_invalid_log_level_raises_configuration_error(monkeypatch) -> None:
-    from rfnry_rag.common.errors import ConfigurationError
     from rfnry_rag.common.logging import _resolve_level
+    from rfnry_rag.exceptions import ConfigurationError
 
     with pytest.raises(ConfigurationError, match="unknown log level"):
         _resolve_level("TRACE")
 
 
 def test_invalid_baml_log_level_raises_configuration_error(monkeypatch) -> None:
-    from rfnry_rag.common.errors import ConfigurationError
     from rfnry_rag.common.logging import _propagate_baml_log_env
+    from rfnry_rag.exceptions import ConfigurationError
 
     monkeypatch.delenv("BAML_LOG", raising=False)
     monkeypatch.setenv("RFNRY_RAG_BAML_LOG", "verbose")

@@ -2,7 +2,7 @@
 
 import pytest
 
-from rfnry_rag.common.errors import ConfigurationError
+from rfnry_rag.exceptions import ConfigurationError
 
 
 def test_default_symbol_library_covers_iec_and_isa() -> None:

@@ -7,7 +7,7 @@ from typing import Literal
 
 from baml_py import ClientRegistry
 
-from rfnry_rag.common.errors import ConfigurationError
+from rfnry_rag.exceptions import ConfigurationError
 
 _boundary_logger = logging.getLogger("rfnry_rag.common.language_model")
 _BOUNDARY_ENV = "BOUNDARY_API_KEY"

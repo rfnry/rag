@@ -5,7 +5,7 @@ from baml_py import errors as baml_errors
 from rfnry_rag.baml.baml_client.async_client import b
 from rfnry_rag.common.language_model import LanguageModelClient, build_registry
 from rfnry_rag.common.logging import get_logger
-from rfnry_rag.retrieval.common.errors import ConfigurationError
+from rfnry_rag.exceptions import ConfigurationError
 
 logger = get_logger("retrieval/rewriting/multi_query")
 

@@ -290,7 +290,7 @@ async def test_page_with_images_does_not_skip_vision(fake_analyzed_service_text_
 
 
 def test_config_bounds_rejected() -> None:
-    from rfnry_rag.retrieval.common.errors import ConfigurationError
+    from rfnry_rag.exceptions import ConfigurationError
     from rfnry_rag.server import IngestionConfig
 
     with pytest.raises(ConfigurationError):

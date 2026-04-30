@@ -14,8 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from rfnry_rag.common.errors import ConfigurationError
 from rfnry_rag.common.language_model import LanguageModelClient
+from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.ingestion.drawing.defaults import (
     DEFAULT_OFF_PAGE_CONNECTOR_PATTERNS,
     DEFAULT_RELATION_VOCABULARY,

@@ -6,13 +6,13 @@ from anthropic.types import Base64ImageSourceParam, ImageBlockParam, TextBlock, 
 
 from rfnry_rag.common.language_model import LanguageModelProvider
 from rfnry_rag.common.logging import get_logger
+from rfnry_rag.exceptions import ParseError
 from rfnry_rag.ingestion.models import ParsedPage
 from rfnry_rag.ingestion.vision.constants import (
     MAX_VISION_FILE_SIZE,
     MEDIA_TYPES,
     VISION_EXTRACTION_PROMPT,
 )
-from rfnry_rag.retrieval.common.errors import ParseError
 
 logger = get_logger(__name__)
 

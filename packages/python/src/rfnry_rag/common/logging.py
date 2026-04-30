@@ -17,7 +17,7 @@ def _resolve_level(raw: str) -> int:
     """
     upper = raw.upper()
     if upper not in _VALID_LEVELS:
-        from rfnry_rag.common.errors import ConfigurationError
+        from rfnry_rag.exceptions import ConfigurationError
 
         raise ConfigurationError(f"unknown log level {raw!r}; valid: {sorted(_VALID_LEVELS)}")
     return logging.getLevelNamesMapping()[upper]
@@ -40,7 +40,7 @@ def _propagate_baml_log_env() -> None:
     raw = os.environ.get(_RFNRY_RAG_BAML_LOG_ENV)
     if raw is not None:
         if raw.lower() not in _VALID_BAML_LEVELS:
-            from rfnry_rag.common.errors import ConfigurationError
+            from rfnry_rag.exceptions import ConfigurationError
 
             raise ConfigurationError(f"RFNRY_RAG_BAML_LOG must be one of {sorted(_VALID_BAML_LEVELS)}, got {raw!r}")
         if not os.getenv(_BAML_LOG_ENV):

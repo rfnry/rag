@@ -3,10 +3,10 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from rfnry_rag.common.language_model import LanguageModelClient, LanguageModelProvider
+from rfnry_rag.exceptions import GenerationError
 from rfnry_rag.generation.grounding import DEFAULT_ESCALATION
 from rfnry_rag.generation.models import RelevanceResult
 from rfnry_rag.generation.service import GenerationService
-from rfnry_rag.retrieval.common.errors import GenerationError
 from rfnry_rag.retrieval.common.models import RetrievedChunk
 
 

@@ -1,6 +1,6 @@
 from enum import Enum
 
-from rfnry_rag.retrieval.common.errors import ConfigurationError
+from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.retrieval.common.models import RetrievedChunk
 
 

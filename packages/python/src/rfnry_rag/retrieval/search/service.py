@@ -128,7 +128,7 @@ class RetrievalService:
                     per_method.setdefault(method_name, []).extend(results)
 
         if query_results and successes == 0:
-            from rfnry_rag.retrieval.common.errors import RetrievalError
+            from rfnry_rag.exceptions import RetrievalError
 
             raise RetrievalError("all retrieval query variants failed")
 
