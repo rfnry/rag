@@ -50,7 +50,6 @@ def test_document_only_preset() -> None:
     assert _has(config.ingestion.methods, DocumentIngestion)
     assert _has(config.retrieval.methods, DocumentRetrieval)
     assert not _has(config.ingestion.methods, VectorIngestion)
-    assert config.ingestion.embeddings is None
 
 
 def test_hybrid_preset_wires_all_stores() -> None:

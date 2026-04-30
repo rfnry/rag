@@ -50,12 +50,10 @@ def _engine_config(
     vector_store: Any,
     embeddings: Any,
     ingestion_methods: list[Any],
-    extra_ingestion_kwargs: dict[str, Any] | None = None,
 ) -> RagEngineConfig:
-    extra = extra_ingestion_kwargs or {}
     return RagEngineConfig(
         metadata_store=metadata_store,
-        ingestion=IngestionConfig(methods=ingestion_methods, **extra),
+        ingestion=IngestionConfig(methods=ingestion_methods),
         retrieval=RetrievalConfig(
             methods=[VectorRetrieval(store=vector_store, embeddings=embeddings)],
         ),
@@ -121,43 +119,6 @@ async def test_engine_picks_up_drawing_method_from_methods_list() -> None:
     try:
         assert engine._drawing_ingestion is drawing._service_ref()
         assert engine._drawing_method is drawing
-    finally:
-        await engine.shutdown()
-
-
-@pytest.mark.asyncio
-async def test_engine_method_list_path_overrides_legacy_drawing_field() -> None:
-    """When BOTH the method-shaped DrawingIngestion AND the legacy
-    IngestionConfig.drawings field are present, the method-list path wins —
-    ``_drawing_method`` is set, the legacy fallback does not fire."""
-    metadata_store = _make_metadata_store()
-    vector_store = _make_vector_store()
-    embeddings = _make_embeddings()
-
-    drawing = DrawingIngestion(
-        config=DrawingIngestionConfig(enabled=True),
-        store=vector_store,
-        embeddings=embeddings,
-        vision=MagicMock(),
-    )
-    cfg = _engine_config(
-        metadata_store=metadata_store,
-        vector_store=vector_store,
-        embeddings=embeddings,
-        ingestion_methods=[
-            VectorIngestion(store=vector_store, embeddings=embeddings),
-            drawing,
-        ],
-        extra_ingestion_kwargs={
-            "embeddings": embeddings,
-            "drawings": DrawingIngestionConfig(enabled=True),
-        },
-    )
-    engine = RagEngine(cfg)
-    await engine.initialize()
-    try:
-        assert engine._drawing_method is drawing
-        assert engine._drawing_ingestion is drawing._service_ref()
     finally:
         await engine.shutdown()
 

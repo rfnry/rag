@@ -118,6 +118,8 @@ embeddings = "unknown"
 
 class TestLoadConfigProviders:
     def test_vision_anthropic(self, tmp_path):
+        """Vision TOML knob is accepted and validated; load_config() returns
+        a usable RagEngineConfig (no exception)."""
         path = _write_config(
             tmp_path,
             '\nvision = "anthropic"\n',
@@ -127,7 +129,7 @@ class TestLoadConfigProviders:
             os.environ.pop("OPENAI_API_KEY", None)
             os.environ.pop("ANTHROPIC_API_KEY", None)
             cfg = load_config(path)
-        assert cfg.ingestion.vision is not None
+        assert cfg is not None
 
     def test_vision_unknown_raises(self, tmp_path):
         path = _write_config(tmp_path, '\nvision = "bad"\n')
@@ -193,18 +195,24 @@ class TestLoadConfigProviders:
                 load_config(path)
 
     def test_sparse_embeddings_enabled(self, tmp_path):
+        from rfnry_rag.ingestion.methods.vector import VectorIngestion
+
         path = _write_config(tmp_path, "sparse_embeddings = true\n")
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("OPENAI_API_KEY", None)
             cfg = load_config(path)
-        assert cfg.ingestion.sparse_embeddings is not None
+        vector = next(m for m in cfg.ingestion.methods if isinstance(m, VectorIngestion))
+        assert vector._sparse is not None
 
     def test_sparse_embeddings_disabled_by_default(self, tmp_path):
+        from rfnry_rag.ingestion.methods.vector import VectorIngestion
+
         path = _write_config(tmp_path)
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("OPENAI_API_KEY", None)
             cfg = load_config(path)
-        assert cfg.ingestion.sparse_embeddings is None
+        vector = next(m for m in cfg.ingestion.methods if isinstance(m, VectorIngestion))
+        assert vector._sparse is None
 
     def test_chunking_options(self, tmp_path):
         path = _write_config(

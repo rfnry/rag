@@ -127,8 +127,6 @@ class RagEngine:
                         sparse_embeddings=sparse_embeddings,
                     )
                 ],
-                embeddings=embeddings,
-                sparse_embeddings=sparse_embeddings,
             ),
             retrieval=RetrievalConfig(
                 methods=[
@@ -195,7 +193,7 @@ class RagEngine:
 
         return RagEngineConfig(
             metadata_store=metadata_store,
-            ingestion=IngestionConfig(methods=ing_methods, embeddings=embeddings, sparse_embeddings=sparse_embeddings),
+            ingestion=IngestionConfig(methods=ing_methods),
             retrieval=RetrievalConfig(
                 methods=ret_methods, top_k=top_k, reranker=reranker, query_rewriter=query_rewriter
             ),
@@ -442,11 +440,12 @@ class RagEngine:
             chunk_refiner=retrieval.chunk_refiner,
         )
 
-        # Structured retrieval (unchanged)
-        if self._vector_store and ingestion.embeddings:
+        # Structured retrieval. Reuse whichever embeddings instance the
+        # methods list already carries.
+        if self._vector_store is not None and embeddings_for_dim is not None:
             self._structured_retrieval = StructuredRetrievalService(
                 vector_store=self._vector_store,
-                embeddings=ingestion.embeddings,
+                embeddings=embeddings_for_dim,
                 lm_client=retrieval.enrich_lm_client,
                 top_k=retrieval.top_k,
                 enrich_cross_references=retrieval.cross_reference_enrichment,
@@ -1023,22 +1022,33 @@ class RagEngine:
 
         return await run_benchmark(cases, _run_one, config=config, llm_judge=llm_judge)
 
+    def _embeddings_from_methods(self) -> BaseEmbeddings | None:
+        """Walk the configured ingestion methods and return the first
+        embeddings instance found (VectorIngestion / AnalyzedIngestion /
+        DrawingIngestion all expose ``_embeddings``)."""
+        return next(
+            (m._embeddings for m in self._config.ingestion.methods if hasattr(m, "_embeddings")),
+            None,
+        )
+
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for a list of texts using the configured provider."""
         self._check_initialized()
-        if not self._config.ingestion.embeddings:
-            raise ConfigurationError("embed() requires embeddings to be configured")
+        embeddings = self._embeddings_from_methods()
+        if embeddings is None:
+            raise ConfigurationError("embed() requires an ingestion method that carries embeddings")
         for text in texts:
             _validate_query_text(text)
-        return await self._config.ingestion.embeddings.embed(texts)
+        return await embeddings.embed(texts)
 
     async def embed_single(self, text: str) -> list[float]:
         """Generate an embedding for a single text."""
         self._check_initialized()
-        if not self._config.ingestion.embeddings:
-            raise ConfigurationError("embed_single() requires embeddings to be configured")
+        embeddings = self._embeddings_from_methods()
+        if embeddings is None:
+            raise ConfigurationError("embed_single() requires an ingestion method that carries embeddings")
         _validate_query_text(text)
-        vectors = await self._config.ingestion.embeddings.embed([text])
+        vectors = await embeddings.embed([text])
         return vectors[0]
 
     async def _load_full_corpus(self, knowledge_id: str | None) -> str:
@@ -1215,11 +1225,14 @@ class RagEngine:
         assert self._chunker is not None
         cfg = self._config
         methods: list = []
+        vision_parser: BaseVision | None = None
         for m in cfg.ingestion.methods:
             if isinstance(m, VectorIngestion):
                 methods.append(m.clone_for_store(vector_store))
             else:
                 methods.append(m)
+            if vision_parser is None and isinstance(m, AnalyzedIngestion | DrawingIngestion):
+                vision_parser = m._vision
 
         return IngestionService(
             chunker=self._chunker,
@@ -1228,7 +1241,7 @@ class RagEngine:
             source_type_weights=cfg.retrieval.source_type_weights,
             metadata_store=cfg.metadata_store,
             on_ingestion_complete=self._on_ingestion_complete,
-            vision_parser=cfg.ingestion.vision,
+            vision_parser=vision_parser,
             chunk_context_headers=cfg.ingestion.chunk_context_headers,
             document_expansion=cfg.ingestion.document_expansion,
             expansion_registry=self._expansion_registry,
