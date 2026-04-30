@@ -35,12 +35,6 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzePage", llm_response=llm_response, mode="request")
         return typing.cast(types.PageAnalysis, __result__)
 
-    def AnalyzeQuery(
-        self, llm_response: str, baml_options: BamlCallOptions = {},
-    ) -> types.QueryAnalysis:
-        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzeQuery", llm_response=llm_response, mode="request")
-        return typing.cast(types.QueryAnalysis, __result__)
-
     def CheckRelevance(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> types.RelevanceJudgment:
@@ -108,12 +102,6 @@ class LlmStreamParser:
     ) -> stream_types.PageAnalysis:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzePage", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.PageAnalysis, __result__)
-
-    def AnalyzeQuery(
-        self, llm_response: str, baml_options: BamlCallOptions = {},
-    ) -> stream_types.QueryAnalysis:
-        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzeQuery", llm_response=llm_response, mode="stream")
-        return typing.cast(stream_types.QueryAnalysis, __result__)
 
     def CheckRelevance(
         self, llm_response: str, baml_options: BamlCallOptions = {},

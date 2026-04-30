@@ -20,7 +20,7 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(type_builder.TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["AnswerQualityJudgment","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","OffPageConnector","PageAnalysis","Port","QueryAnalysis","QueryVariants","RankedChunk","RelevanceJudgment","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries",]
+          ["AnswerQualityJudgment","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","OffPageConnector","PageAnalysis","Port","QueryVariants","RankedChunk","RelevanceJudgment","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries",]
         ), enums=set(
           []
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
@@ -31,7 +31,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
     # #########################################################################
-    # Generated classes 17
+    # Generated classes 16
     # #########################################################################
 
     @property
@@ -75,10 +75,6 @@ class TypeBuilder(type_builder.TypeBuilder):
         return PortViewer(self)
 
     @property
-    def QueryAnalysis(self) -> "QueryAnalysisViewer":
-        return QueryAnalysisViewer(self)
-
-    @property
     def QueryVariants(self) -> "QueryVariantsViewer":
         return QueryVariantsViewer(self)
 
@@ -110,7 +106,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
 # #########################################################################
-# Generated classes 17
+# Generated classes 16
 # #########################################################################
 
 class AnswerQualityJudgmentAst:
@@ -635,53 +631,6 @@ class PortProperties:
     @property
     def position(self) -> type_builder.ClassPropertyViewer:
         return type_builder.ClassPropertyViewer(self.__bldr.property("position"))
-    
-    
-
-
-class QueryAnalysisAst:
-    def __init__(self, tb: type_builder.TypeBuilder):
-        _tb = tb._tb # type: ignore (we know how to use this private attribute)
-        self._bldr = _tb.class_("QueryAnalysis")
-        self._properties: typing.Set[str] = set([  "keywords",  "entity_references",  "intent",  ])
-        self._props = QueryAnalysisProperties(self._bldr, self._properties)
-
-    def type(self) -> baml_py.FieldType:
-        return self._bldr.field()
-
-    @property
-    def props(self) -> "QueryAnalysisProperties":
-        return self._props
-
-
-class QueryAnalysisViewer(QueryAnalysisAst):
-    def __init__(self, tb: type_builder.TypeBuilder):
-        super().__init__(tb)
-
-    
-    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
-        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
-    
-
-
-class QueryAnalysisProperties:
-    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
-        self.__bldr = bldr
-        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
-
-    
-    
-    @property
-    def keywords(self) -> type_builder.ClassPropertyViewer:
-        return type_builder.ClassPropertyViewer(self.__bldr.property("keywords"))
-    
-    @property
-    def entity_references(self) -> type_builder.ClassPropertyViewer:
-        return type_builder.ClassPropertyViewer(self.__bldr.property("entity_references"))
-    
-    @property
-    def intent(self) -> type_builder.ClassPropertyViewer:
-        return type_builder.ClassPropertyViewer(self.__bldr.property("intent"))
     
     
 

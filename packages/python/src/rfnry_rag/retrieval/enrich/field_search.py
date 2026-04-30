@@ -1,24 +1,9 @@
 """Exact field matching on Qdrant payload metadata for structured documents."""
 
-from typing import Any
-
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk, VectorResult
 
 logger = get_logger("enrich/retrieval/field")
-
-
-def build_structured_filters(
-    analysis: dict[str, Any],
-    knowledge_id: str | None = None,
-) -> dict[str, Any]:
-    """Build Qdrant filter dict from query analysis."""
-    filters: dict[str, Any] = {}
-    if knowledge_id:
-        filters["knowledge_id"] = knowledge_id
-    if analysis.get("entity_references"):
-        filters["entities"] = analysis["entity_references"]
-    return filters
 
 
 def results_to_chunks(results: list[VectorResult]) -> list[RetrievedChunk]:

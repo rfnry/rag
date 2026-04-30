@@ -480,7 +480,6 @@ class RagEngine:
             self._structured_retrieval = StructuredRetrievalService(
                 vector_store=self._vector_store,
                 embeddings=embeddings_for_dim,
-                lm_client=retrieval.enrich_lm_client,
                 top_k=retrieval.top_k,
                 enrich_cross_references=retrieval.cross_reference_enrichment,
             )
@@ -1221,7 +1220,6 @@ class RagEngine:
             structured = StructuredRetrievalService(
                 vector_store=vector_store,
                 embeddings=embeddings,
-                lm_client=retrieval.enrich_lm_client,
                 top_k=retrieval.top_k,
                 enrich_cross_references=retrieval.cross_reference_enrichment,
             )

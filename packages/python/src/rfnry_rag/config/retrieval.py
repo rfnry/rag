@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.providers import LanguageModelClient
 from rfnry_rag.retrieval.search.reranking.base import BaseReranking
 from rfnry_rag.retrieval.search.rewriting.base import BaseQueryRewriting
 
@@ -28,7 +27,6 @@ class RetrievalConfig:
     source_type_weights: dict[str, float] | None = None
     history_window: int = 3
     cross_reference_enrichment: bool = True
-    enrich_lm_client: LanguageModelClient | None = None
 
     def __post_init__(self) -> None:
         if self.top_k < 1:

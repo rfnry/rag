@@ -46,9 +46,6 @@ type_map = {
     "types.Port": types.Port,
     "stream_types.Port": stream_types.Port,
 
-    "types.QueryAnalysis": types.QueryAnalysis,
-    "stream_types.QueryAnalysis": stream_types.QueryAnalysis,
-
     "types.QueryVariants": types.QueryVariants,
     "stream_types.QueryVariants": stream_types.QueryVariants,
 

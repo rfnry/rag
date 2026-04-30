@@ -36,7 +36,6 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     # ---- retrieval / rewriting ----
     "GenerateQueryVariants": ["query"],
     # ---- retrieval / retrieval ----
-    "AnalyzeQuery": ["query"],
     "RerankChunks": ["query", "passages"],
     # ---- retrieval / evaluation ----
     "JudgeAnswerQuality": ["query", "prediction", "reference"],
