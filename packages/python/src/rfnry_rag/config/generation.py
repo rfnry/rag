@@ -22,7 +22,6 @@ class GenerationConfig:
     relevance_gate_enabled: bool = False
     relevance_gate_model: LanguageModelClient | None = None
     guiding_enabled: bool = False
-    step_lm_client: LanguageModelClient | None = None
     chunk_ordering: ChunkOrdering = ChunkOrdering.SCORE_DESCENDING
 
     def __post_init__(self) -> None:

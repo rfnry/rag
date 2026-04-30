@@ -165,32 +165,6 @@ class TestServerQueryStream:
                 pass
 
 
-class TestServerGenerateStep:
-    async def test_generate_step_delegates_to_step_service(self):
-        server = _make_server()
-        server._step_service = AsyncMock()
-        server._step_service.generate_step = AsyncMock()
-
-        await server.generate_step("query", [_chunk("c1")], context="prior reasoning")
-
-        server._step_service.generate_step.assert_awaited_once_with(
-            query="query", chunks=[_chunk("c1")], context="prior reasoning"
-        )
-
-    async def test_generate_step_without_service_raises(self):
-        from rfnry_rag.exceptions import ConfigurationError
-
-        server = _make_server()
-        with pytest.raises(ConfigurationError, match="generation.step_lm_client"):
-            await server.generate_step("query", [])
-
-    async def test_generate_step_rejects_oversize_query(self):
-        server = _make_server()
-        server._step_service = AsyncMock()
-        with pytest.raises(ValueError, match="query exceeds"):
-            await server.generate_step(query="x" * 40_000, chunks=[])
-
-
 class TestMinScore:
     async def test_retrieve_filters_by_min_score(self):
         server = _make_server()

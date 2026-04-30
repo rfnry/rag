@@ -17,9 +17,8 @@ from rfnry_rag.config.retrieval import RetrievalConfig
 from rfnry_rag.config.routing import QueryMode
 from rfnry_rag.config.routing import RoutingConfig as RoutingConfig
 from rfnry_rag.exceptions import ConfigurationError, InputError
-from rfnry_rag.generation.models import QueryResult, StepResult, StreamEvent
+from rfnry_rag.generation.models import QueryResult, StreamEvent
 from rfnry_rag.generation.service import GenerationService
-from rfnry_rag.generation.step import StepGenerationService
 from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
 from rfnry_rag.ingestion.base import BaseIngestionMethod
 from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
@@ -220,7 +219,6 @@ class RagEngine:
         self._structured_retrieval: StructuredRetrievalService | None = None
         self._generation_service: GenerationService | None = None
         self._knowledge_manager: KnowledgeManager | None = None
-        self._step_service: StepGenerationService | None = None
 
         self._retrieval_namespace: MethodNamespace[BaseRetrievalMethod] | None = None
         self._ingestion_namespace: MethodNamespace[BaseIngestionMethod] | None = None
@@ -536,13 +534,6 @@ class RagEngine:
         else:
             logger.info("generation: disabled (retrieval-only mode)")
 
-        if gen.step_lm_client:
-            self._step_service = StepGenerationService(
-                lm_client=gen.step_lm_client,
-                chunk_ordering=gen.chunk_ordering,
-            )
-            logger.info("step generation: enabled")
-
         self._knowledge_manager = KnowledgeManager(
             vector_store=self._vector_store,
             metadata_store=metadata_store,
@@ -599,7 +590,6 @@ class RagEngine:
         self._structured_retrieval = None
         self._generation_service = None
         self._knowledge_manager = None
-        self._step_service = None
         self._retrieval_namespace = None
         self._ingestion_namespace = None
         self._retrieval_by_collection.clear()
@@ -1013,28 +1003,6 @@ class RagEngine:
         _validate_query_text(text)
         chunks, trace_obj = await self._retrieve_chunks(text, knowledge_id, None, min_score, collection, trace=trace)
         return chunks, trace_obj
-
-    async def generate_step(
-        self,
-        query: str,
-        chunks: list[RetrievedChunk],
-        context: str | None = None,
-    ) -> StepResult:
-        """Generate a single reasoning step from retrieved chunks.
-
-        Use with retrieve() to build iterative retrieval loops. The consumer
-        owns the loop, stopping conditions, and query enrichment between iterations.
-        """
-        self._check_initialized()
-        _validate_query_text(query)
-        if not self._step_service:
-            raise ConfigurationError("generate_step() requires generation.step_lm_client to be configured")
-
-        return await self._step_service.generate_step(
-            query=query,
-            chunks=chunks,
-            context=context,
-        )
 
     async def benchmark(
         self,

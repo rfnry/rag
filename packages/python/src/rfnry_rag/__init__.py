@@ -28,7 +28,6 @@ from rfnry_rag.exceptions import RetrievalError as RetrievalError
 from rfnry_rag.exceptions import SourceNotFoundError as SourceNotFoundError
 from rfnry_rag.exceptions import StoreError as StoreError
 from rfnry_rag.generation.models import QueryResult as QueryResult
-from rfnry_rag.generation.models import StepResult as StepResult
 from rfnry_rag.generation.models import StreamEvent as StreamEvent
 from rfnry_rag.ingestion.base import BaseIngestionMethod as BaseIngestionMethod
 from rfnry_rag.ingestion.chunk.chunker import SemanticChunker as SemanticChunker
@@ -149,7 +148,6 @@ __all__ = [
     "Source",
     "SourceNotFoundError",
     "SparseVector",
-    "StepResult",
     "StoreError",
     "StreamEvent",
     "StructuredRetrieval",

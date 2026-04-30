@@ -58,9 +58,6 @@ type_map = {
     "types.RankedChunk": types.RankedChunk,
     "stream_types.RankedChunk": stream_types.RankedChunk,
 
-    "types.ReasoningStep": types.ReasoningStep,
-    "stream_types.ReasoningStep": stream_types.ReasoningStep,
-
     "types.RelevanceJudgment": types.RelevanceJudgment,
     "stream_types.RelevanceJudgment": stream_types.RelevanceJudgment,
 

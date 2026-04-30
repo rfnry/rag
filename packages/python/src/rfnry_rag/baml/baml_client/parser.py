@@ -71,12 +71,6 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="GenerateQueryVariants", llm_response=llm_response, mode="request")
         return typing.cast(types.QueryVariants, __result__)
 
-    def GenerateReasoningStep(
-        self, llm_response: str, baml_options: BamlCallOptions = {},
-    ) -> types.ReasoningStep:
-        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="GenerateReasoningStep", llm_response=llm_response, mode="request")
-        return typing.cast(types.ReasoningStep, __result__)
-
     def GenerateSyntheticQueries(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> types.SyntheticQueries:
@@ -156,12 +150,6 @@ class LlmStreamParser:
     ) -> stream_types.QueryVariants:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="GenerateQueryVariants", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.QueryVariants, __result__)
-
-    def GenerateReasoningStep(
-        self, llm_response: str, baml_options: BamlCallOptions = {},
-    ) -> stream_types.ReasoningStep:
-        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="GenerateReasoningStep", llm_response=llm_response, mode="stream")
-        return typing.cast(stream_types.ReasoningStep, __result__)
 
     def GenerateSyntheticQueries(
         self, llm_response: str, baml_options: BamlCallOptions = {},

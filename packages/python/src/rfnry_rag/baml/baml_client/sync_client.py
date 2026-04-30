@@ -206,20 +206,6 @@ class BamlSyncClient:
                 "query": query,"num_variants": num_variants,
             })
             return typing.cast(types.QueryVariants, __result__.cast_to(types, types, stream_types, False, __runtime__))
-    def GenerateReasoningStep(self, query: str,context: str,prior_reasoning: str,
-        baml_options: BamlCallOptions = {},
-    ) -> types.ReasoningStep:
-        # Check if on_tick is provided
-        if 'on_tick' in baml_options:
-            __stream__ = self.stream.GenerateReasoningStep(query=query,context=context,prior_reasoning=prior_reasoning,
-                baml_options=baml_options)
-            return __stream__.get_final_response()
-        else:
-            # Original non-streaming code
-            __result__ = self.__options.merge_options(baml_options).call_function_sync(function_name="GenerateReasoningStep", args={
-                "query": query,"context": context,"prior_reasoning": prior_reasoning,
-            })
-            return typing.cast(types.ReasoningStep, __result__.cast_to(types, types, stream_types, False, __runtime__))
     def GenerateSyntheticQueries(self, passage: str,num_queries: int,
         baml_options: BamlCallOptions = {},
     ) -> types.SyntheticQueries:
@@ -381,18 +367,6 @@ class BamlStreamClient:
           lambda x: typing.cast(types.QueryVariants, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
-    def GenerateReasoningStep(self, query: str,context: str,prior_reasoning: str,
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.BamlSyncStream[stream_types.ReasoningStep, types.ReasoningStep]:
-        __ctx__, __result__ = self.__options.merge_options(baml_options).create_sync_stream(function_name="GenerateReasoningStep", args={
-            "query": query,"context": context,"prior_reasoning": prior_reasoning,
-        })
-        return baml_py.BamlSyncStream[stream_types.ReasoningStep, types.ReasoningStep](
-          __result__,
-          lambda x: typing.cast(stream_types.ReasoningStep, x.cast_to(types, types, stream_types, True, __runtime__)),
-          lambda x: typing.cast(types.ReasoningStep, x.cast_to(types, types, stream_types, False, __runtime__)),
-          __ctx__,
-        )
     def GenerateSyntheticQueries(self, passage: str,num_queries: int,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlSyncStream[stream_types.SyntheticQueries, types.SyntheticQueries]:
@@ -505,13 +479,6 @@ class BamlHttpRequestClient:
             "query": query,"num_variants": num_variants,
         }, mode="request")
         return __result__
-    def GenerateReasoningStep(self, query: str,context: str,prior_reasoning: str,
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.baml_py.HTTPRequest:
-        __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="GenerateReasoningStep", args={
-            "query": query,"context": context,"prior_reasoning": prior_reasoning,
-        }, mode="request")
-        return __result__
     def GenerateSyntheticQueries(self, passage: str,num_queries: int,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
@@ -602,13 +569,6 @@ class BamlHttpStreamRequestClient:
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="GenerateQueryVariants", args={
             "query": query,"num_variants": num_variants,
-        }, mode="stream")
-        return __result__
-    def GenerateReasoningStep(self, query: str,context: str,prior_reasoning: str,
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.baml_py.HTTPRequest:
-        __result__ = self.__options.merge_options(baml_options).create_http_request_sync(function_name="GenerateReasoningStep", args={
-            "query": query,"context": context,"prior_reasoning": prior_reasoning,
         }, mode="stream")
         return __result__
     def GenerateSyntheticQueries(self, passage: str,num_queries: int,

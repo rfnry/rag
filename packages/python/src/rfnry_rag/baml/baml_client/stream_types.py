@@ -23,7 +23,7 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
     value: StreamStateValueT
     state: typing_extensions.Literal["Pending", "Incomplete", "Complete"]
 # #########################################################################
-# Generated classes (19)
+# Generated classes (18)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -105,10 +105,6 @@ class RankedChunk(BaseModel):
     index: typing.Optional[int] = None
     score: typing.Optional[float] = None
     reasoning: typing.Optional[str] = None
-
-class ReasoningStep(BaseModel):
-    text: typing.Optional[str] = Field(default=None, description='The generated reasoning step or final answer')
-    is_final: typing.Optional[bool] = Field(default=None, description='True if this is a final answer, false if more reasoning is needed')
 
 class RelevanceJudgment(BaseModel):
     relevant: typing.Optional[bool] = None

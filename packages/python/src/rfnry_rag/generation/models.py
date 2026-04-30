@@ -51,11 +51,3 @@ class RelevanceResult:
     needs_clarification: bool = False
     clarifying_question: str | None = None
     clarifying_options: list[str] | None = field(default=None)
-
-
-@dataclass
-class StepResult:
-    """Result from a single reasoning step generation."""
-
-    text: str
-    done: bool

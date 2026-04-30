@@ -41,7 +41,7 @@ def all_succeeded(checks: typing.Dict[CheckName, Check]) -> bool:
 # #########################################################################
 
 # #########################################################################
-# Generated classes (19)
+# Generated classes (18)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -123,10 +123,6 @@ class RankedChunk(BaseModel):
     index: int
     score: float
     reasoning: typing.Optional[str] = None
-
-class ReasoningStep(BaseModel):
-    text: str = Field(description='The generated reasoning step or final answer')
-    is_final: bool = Field(description='True if this is a final answer, false if more reasoning is needed')
 
 class RelevanceJudgment(BaseModel):
     relevant: bool
