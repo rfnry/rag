@@ -11,8 +11,8 @@ from rfnry_rag.common.cli import get_output_mode as get_output_mode
 
 if TYPE_CHECKING:
     from rfnry_rag.generation.models import QueryResult
+    from rfnry_rag.models import Chunk, RetrievedChunk, Source, SourceStats
     from rfnry_rag.observability.benchmark import BenchmarkReport
-    from rfnry_rag.retrieval.common.models import Chunk, RetrievedChunk, Source, SourceStats
 
 
 def _json_default(obj: Any) -> Any:

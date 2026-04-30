@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 
 
 class BaseRetrievalMethod(Protocol):

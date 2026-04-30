@@ -1,8 +1,8 @@
 from typing import Protocol
 
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.observability.models import MetricResult
 from rfnry_rag.observability.normalize import normalize_answer
-from rfnry_rag.retrieval.common.models import RetrievedChunk
 
 
 class BaseRetrievalMetric(Protocol):

@@ -2,7 +2,7 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.retrieval.methods.graph import GraphRetrieval
 from rfnry_rag.retrieval.search.service import RetrievalService
 from rfnry_rag.stores.graph.models import GraphEntity, GraphPath, GraphResult

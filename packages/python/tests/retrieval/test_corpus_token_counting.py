@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 from rfnry_rag.ingestion.chunk.service import IngestionService
 from rfnry_rag.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.knowledge.manager import KnowledgeManager
-from rfnry_rag.retrieval.common.models import Source, VectorResult
+from rfnry_rag.models import Source, VectorResult
 
 
 def _mock_method(name: str, required: bool = True) -> SimpleNamespace:

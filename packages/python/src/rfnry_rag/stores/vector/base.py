@@ -1,6 +1,6 @@
 from typing import Any, Protocol
 
-from rfnry_rag.retrieval.common.models import SparseVector, VectorPoint, VectorResult
+from rfnry_rag.models import SparseVector, VectorPoint, VectorResult
 
 
 class BaseVectorStore(Protocol):

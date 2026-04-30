@@ -7,7 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from rfnry_rag.common.logging import get_logger
 from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.retrieval.common.models import ContentMatch
+from rfnry_rag.models import ContentMatch
 from rfnry_rag.stores.document.excerpt import extract_window
 
 logger = get_logger(__name__)

@@ -7,7 +7,7 @@ from typing import Any
 from rank_bm25 import BM25Okapi
 
 from rfnry_rag.common.logging import get_logger
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.stores.vector.base import BaseVectorStore
 
 logger = get_logger("search/retrieval/bm25")

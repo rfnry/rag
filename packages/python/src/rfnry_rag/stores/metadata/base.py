@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from rfnry_rag.retrieval.common.models import Source, SourceStats
+from rfnry_rag.models import Source, SourceStats
 
 
 class BaseMetadataStore(Protocol):

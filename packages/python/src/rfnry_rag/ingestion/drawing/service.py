@@ -36,9 +36,9 @@ from rfnry_rag.ingestion.drawing.models import (
 from rfnry_rag.ingestion.drawing.render import render_dxf, render_pdf_pages
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.utils import embed_batched
+from rfnry_rag.models import Source, VectorPoint
 from rfnry_rag.providers import build_registry
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
-from rfnry_rag.retrieval.common.models import Source, VectorPoint
 from rfnry_rag.stores.graph.base import BaseGraphStore
 from rfnry_rag.stores.graph.drawing_mapper import drawing_to_graph
 from rfnry_rag.stores.metadata.base import BaseMetadataStore

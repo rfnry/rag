@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from rfnry_rag.knowledge.manager import KnowledgeManager
-from rfnry_rag.retrieval.common.models import Source
+from rfnry_rag.models import Source
 
 
 def _source(sid: str, stale: bool = False) -> Source:

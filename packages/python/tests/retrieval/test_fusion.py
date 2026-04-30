@@ -1,4 +1,4 @@
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.retrieval.search.fusion import reciprocal_rank_fusion
 
 

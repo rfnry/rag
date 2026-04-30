@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from rfnry_rag.generation.models import QueryResult, StreamEvent
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.server import RagEngine, RagServerConfig, RoutingConfig
 
 

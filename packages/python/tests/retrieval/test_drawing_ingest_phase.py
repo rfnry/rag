@@ -14,7 +14,7 @@ from rfnry_rag.ingestion.drawing.models import (
     DrawingPageAnalysis,
 )
 from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
-from rfnry_rag.retrieval.common.models import Source, VectorPoint
+from rfnry_rag.models import Source, VectorPoint
 
 
 class _InMemoryMetadataStore:

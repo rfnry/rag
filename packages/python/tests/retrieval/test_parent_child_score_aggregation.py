@@ -2,7 +2,7 @@
 
 import pytest
 
-from rfnry_rag.retrieval.common.models import VectorResult
+from rfnry_rag.models import VectorResult
 
 
 def _make_child(parent_id: str, score: float, point_id: str, idx: int) -> VectorResult:

@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from rfnry_rag.retrieval.common.models import Source
+from rfnry_rag.models import Source
 from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 

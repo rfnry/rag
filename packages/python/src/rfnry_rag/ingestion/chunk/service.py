@@ -23,8 +23,8 @@ from rfnry_rag.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.ingestion.models import ParsedPage
 from rfnry_rag.ingestion.vision.base import BaseVision
 from rfnry_rag.ingestion.vision.constants import IMAGE_EXTENSIONS
+from rfnry_rag.models import Source
 from rfnry_rag.retrieval.common.hashing import file_hash
-from rfnry_rag.retrieval.common.models import Source
 from rfnry_rag.retrieval.common.page_range import parse_page_range
 from rfnry_rag.stores.metadata.base import BaseMetadataStore
 

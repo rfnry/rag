@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.retrieval.methods.enrich import StructuredRetrieval
 
 

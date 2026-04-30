@@ -128,7 +128,7 @@ async def test_ingest_drawing_rejects_collection_argument() -> None:
 
 
 def _async_source_factory(*, status: str, source_id: str = "src-1", file_hash: str = "h"):
-    from rfnry_rag.retrieval.common.models import Source
+    from rfnry_rag.models import Source
 
     async def _return(*args: Any, **kwargs: Any) -> Source:
         sid = args[0] if args and isinstance(args[0], str) and not args[0].startswith("/") else source_id

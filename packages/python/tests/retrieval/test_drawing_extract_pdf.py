@@ -160,7 +160,7 @@ async def test_extract_reuses_cached_analyses_on_re_entry(sample_pdf: Path) -> N
 
 async def test_extract_requires_rendered_status(sample_pdf: Path) -> None:
     """Calling extract on a Source that hasn't been rendered yet is a hard error."""
-    from rfnry_rag.retrieval.common.models import Source
+    from rfnry_rag.models import Source
 
     metadata = _InMemoryMetadataStore()
     svc = _make_service(metadata)

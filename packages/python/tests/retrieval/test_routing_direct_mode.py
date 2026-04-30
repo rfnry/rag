@@ -14,7 +14,7 @@ import pytest
 
 from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.generation.models import QueryResult
-from rfnry_rag.retrieval.common.models import RetrievalTrace
+from rfnry_rag.observability.trace import RetrievalTrace
 from rfnry_rag.server import (
     QueryMode,
     RoutingConfig,

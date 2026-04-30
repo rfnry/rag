@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from rfnry_rag.retrieval.common.models import ContentMatch
+from rfnry_rag.models import ContentMatch
 
 
 class BaseDocumentStore(Protocol):

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from rfnry_rag.retrieval.common.models import RetrievalTrace
+from rfnry_rag.observability.trace import RetrievalTrace
 
 
 @dataclass

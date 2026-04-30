@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from rfnry_rag.retrieval.common.models import SparseVector
+from rfnry_rag.models import SparseVector
 
 
 class BaseSparseEmbeddings(Protocol):

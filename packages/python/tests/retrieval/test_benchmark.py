@@ -19,13 +19,14 @@ import pytest
 
 from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.generation.models import QueryResult, SourceReference
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.observability import (
     BenchmarkCase,
     BenchmarkConfig,
     run_benchmark,
 )
 from rfnry_rag.observability.metrics import LLMJudgment
-from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk
+from rfnry_rag.observability.trace import RetrievalTrace
 
 
 def _result(

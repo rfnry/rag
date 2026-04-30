@@ -1,0 +1,40 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any
+
+
+@dataclass
+class Source:
+    source_id: str
+    status: str = "completed"
+    metadata: dict[str, Any] = field(default_factory=dict)
+    tags: list[str] = field(default_factory=list)
+    chunk_count: int = 0
+    embedding_model: str = ""
+    file_hash: str | None = None
+    stale: bool = False
+    created_at: datetime | None = None
+    knowledge_id: str | None = None
+    source_type: str | None = None
+    source_weight: float = 1.0
+
+    @property
+    def estimated_tokens(self) -> int | None:
+        value = self.metadata.get("estimated_tokens")
+        if value is None:
+            return None
+        return int(value)
+
+
+@dataclass
+class SourceStats:
+    source_id: str
+    total_chunks: int = 0
+    total_pages: int = 0
+    avg_chunk_size: int = 0
+    processing_time: float = 0.0
+    total_hits: int = 0
+    grounded_hits: int = 0
+    ungrounded_hits: int = 0

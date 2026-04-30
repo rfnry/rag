@@ -1,7 +1,7 @@
 from enum import Enum
 
 from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 
 
 class ChunkOrdering(Enum):

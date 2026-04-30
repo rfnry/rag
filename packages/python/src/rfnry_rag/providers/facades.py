@@ -8,9 +8,9 @@ from rfnry_rag.ingestion.models import ParsedPage
 from rfnry_rag.ingestion.vision.anthropic import _AnthropicVision
 from rfnry_rag.ingestion.vision.gemini import _GeminiVision
 from rfnry_rag.ingestion.vision.openai import _OpenAIVision
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.providers.client import LanguageModelClient
 from rfnry_rag.providers.provider import LanguageModelProvider
-from rfnry_rag.retrieval.common.models import RetrievedChunk
 from rfnry_rag.retrieval.search.reranking.cohere import _CohereReranking
 from rfnry_rag.retrieval.search.reranking.llm import _LLMReranking
 from rfnry_rag.retrieval.search.reranking.voyage import _VoyageReranking

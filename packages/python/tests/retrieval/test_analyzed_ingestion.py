@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
-from rfnry_rag.retrieval.common.models import Source
+from rfnry_rag.models import Source
 
 # Serialised page-analysis rows stored in rag_page_analyses (keyed by "data")
 _PAGE_ANALYSES_ROWS = [

@@ -7,9 +7,9 @@ from rfnry_rag.common.logging import get_logger
 from rfnry_rag.exceptions import GenerationError
 from rfnry_rag.generation.grounding import DEFAULT_ESCALATION, RelevanceGate, ScoreGate
 from rfnry_rag.generation.models import Clarification, QueryResult, SourceReference, StreamEvent
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.providers import LanguageModelClient, build_registry
 from rfnry_rag.retrieval.common.formatting import ChunkOrdering, chunks_to_context
-from rfnry_rag.retrieval.common.models import RetrievedChunk
 
 logger = get_logger("generation")
 

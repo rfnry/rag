@@ -4,7 +4,7 @@ import time
 from typing import Any
 
 from rfnry_rag.common.logging import get_logger
-from rfnry_rag.retrieval.common.models import ContentMatch, RetrievedChunk
+from rfnry_rag.models import ContentMatch, RetrievedChunk
 from rfnry_rag.stores.document.base import BaseDocumentStore
 
 logger = get_logger("retrieval.methods.document")

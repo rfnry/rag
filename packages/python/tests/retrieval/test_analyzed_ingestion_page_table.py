@@ -14,7 +14,7 @@ from rfnry_rag.ingestion.analyze.service import (
     AnalyzedIngestionService,
     _serialize_analysis,
 )
-from rfnry_rag.retrieval.common.models import Source
+from rfnry_rag.models import Source
 from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 # ---------------------------------------------------------------------------

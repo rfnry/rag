@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 
 
 def reciprocal_rank_fusion(

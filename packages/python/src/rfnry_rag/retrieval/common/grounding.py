@@ -26,7 +26,7 @@ score equal to the threshold is grounded, not weak.
 
 from __future__ import annotations
 
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 
 
 def max_chunk_score(chunks: list[RetrievedChunk]) -> float | None:

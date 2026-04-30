@@ -4,8 +4,8 @@ import pytest
 
 from rfnry_rag.exceptions import GenerationError
 from rfnry_rag.generation.step import StepGenerationService
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.providers import LanguageModelClient, LanguageModelProvider
-from rfnry_rag.retrieval.common.models import RetrievedChunk
 
 
 def _make_chunk(content: str) -> RetrievedChunk:

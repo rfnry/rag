@@ -10,7 +10,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from rfnry_rag.common.logging import get_logger
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 
 if TYPE_CHECKING:
     from rfnry_rag.retrieval.enrich.service import StructuredRetrievalService

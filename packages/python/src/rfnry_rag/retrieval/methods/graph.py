@@ -4,7 +4,7 @@ import time
 from typing import Any
 
 from rfnry_rag.common.logging import get_logger
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.stores.graph.base import BaseGraphStore
 from rfnry_rag.stores.graph.models import GraphPath, GraphResult
 

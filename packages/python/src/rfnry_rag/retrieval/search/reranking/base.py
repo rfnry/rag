@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 
 
 class BaseReranking(Protocol):

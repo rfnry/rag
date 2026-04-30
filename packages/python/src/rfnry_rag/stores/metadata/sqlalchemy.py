@@ -25,7 +25,7 @@ from sqlalchemy.schema import ColumnDefault
 
 from rfnry_rag.common.logging import get_logger
 from rfnry_rag.exceptions import ConfigurationError, DuplicateSourceError, SourceNotFoundError
-from rfnry_rag.retrieval.common.models import Source, SourceStats
+from rfnry_rag.models import Source, SourceStats
 
 logger = get_logger(__name__)
 

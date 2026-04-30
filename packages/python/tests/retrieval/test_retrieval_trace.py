@@ -13,7 +13,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from rfnry_rag.generation.models import QueryResult
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.retrieval.search.service import RetrievalService
 from rfnry_rag.server import RagEngine, RagServerConfig, RoutingConfig
 
@@ -74,7 +74,7 @@ async def test_retrieve_default_returns_no_trace() -> None:
 
 async def test_retrieve_with_trace_populates_query_field() -> None:
     """`engine.query(text, trace=True)` populates trace.query with the original text."""
-    from rfnry_rag.retrieval.common.models import RetrievalTrace
+    from rfnry_rag.observability.trace import RetrievalTrace
 
     incoming_trace = RetrievalTrace(query="hello")
     server = _make_engine_for_query(([_chunk("c1")], incoming_trace))
@@ -170,7 +170,7 @@ async def test_rag_engine_retrieve_with_trace_returns_trace_alongside_chunks() -
     (no grounding stage runs), and final_results carries the post-refinement
     chunks the caller actually receives.
     """
-    from rfnry_rag.retrieval.common.models import RetrievalTrace
+    from rfnry_rag.observability.trace import RetrievalTrace
 
     incoming_chunks = [_chunk("c1")]
     incoming_trace = RetrievalTrace(query="query", final_results=list(incoming_chunks))

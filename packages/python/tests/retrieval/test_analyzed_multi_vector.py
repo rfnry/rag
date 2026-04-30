@@ -11,7 +11,7 @@ from rfnry_rag.ingestion.analyze.models import (
     DiscoveredTable,
     PageAnalysis,
 )
-from rfnry_rag.retrieval.common.models import Source
+from rfnry_rag.models import Source
 
 
 def _serialize_page_for_test(pa: PageAnalysis) -> dict:

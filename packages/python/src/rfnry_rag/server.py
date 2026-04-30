@@ -28,6 +28,7 @@ from rfnry_rag.ingestion.methods.vector import VectorIngestion
 from rfnry_rag.ingestion.vision.base import BaseVision
 from rfnry_rag.knowledge.manager import KnowledgeManager
 from rfnry_rag.knowledge.migration import check_embedding_migration
+from rfnry_rag.models import RetrievedChunk, Source
 from rfnry_rag.observability.benchmark import (
     BenchmarkCase,
     BenchmarkConfig,
@@ -35,12 +36,12 @@ from rfnry_rag.observability.benchmark import (
     run_benchmark,
 )
 from rfnry_rag.observability.metrics import LLMJudgment
+from rfnry_rag.observability.trace import RetrievalTrace
 from rfnry_rag.providers import LanguageModelClient, build_registry
 from rfnry_rag.retrieval.base import BaseRetrievalMethod
 from rfnry_rag.retrieval.common.formatting import ChunkOrdering
 from rfnry_rag.retrieval.common.grounding import max_chunk_score
 from rfnry_rag.retrieval.common.hashing import file_hash as compute_file_hash
-from rfnry_rag.retrieval.common.models import RetrievalTrace, RetrievedChunk, Source
 from rfnry_rag.retrieval.enrich.service import StructuredRetrievalService
 from rfnry_rag.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.methods.graph import GraphRetrieval

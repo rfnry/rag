@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 from rfnry_rag.cli.output import OutputMode, get_output_mode, print_json
-from rfnry_rag.retrieval.common.models import Source
+from rfnry_rag.models import Source
 
 
 class TestGetOutputMode:

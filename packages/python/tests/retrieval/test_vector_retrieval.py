@@ -2,7 +2,7 @@
 import re
 from unittest.mock import AsyncMock
 
-from rfnry_rag.retrieval.common.models import SparseVector, VectorResult
+from rfnry_rag.models import SparseVector, VectorResult
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 
 

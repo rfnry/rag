@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.retrieval.common.models import RetrievedChunk
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.retrieval.search.service import RetrievalService
 

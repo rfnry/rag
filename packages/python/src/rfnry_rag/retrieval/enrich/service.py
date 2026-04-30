@@ -5,8 +5,8 @@ from typing import Any
 
 from rfnry_rag.common.logging import get_logger
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.providers import LanguageModelClient, build_registry
-from rfnry_rag.retrieval.common.models import RetrievedChunk
 from rfnry_rag.retrieval.enrich.enrichment import enrich_with_cross_references
 from rfnry_rag.retrieval.enrich.field_search import build_structured_filters, results_to_chunks
 from rfnry_rag.retrieval.enrich.query_analyzer import analyze_query

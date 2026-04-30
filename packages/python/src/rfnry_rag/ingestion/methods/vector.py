@@ -10,7 +10,7 @@ from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
 from rfnry_rag.ingestion.embeddings.utils import embed_batched
 from rfnry_rag.ingestion.models import ChunkedContent, ParsedPage
-from rfnry_rag.retrieval.common.models import SparseVector, VectorPoint
+from rfnry_rag.models import SparseVector, VectorPoint
 from rfnry_rag.stores.vector.base import BaseVectorStore
 
 logger = get_logger("ingestion.methods.vector")

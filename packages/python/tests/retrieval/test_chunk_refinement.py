@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.providers import LanguageModelClient, LanguageModelProvider
-from rfnry_rag.retrieval.common.models import RetrievedChunk
 from rfnry_rag.retrieval.refinement.abstractive import AbstractiveRefinement
 from rfnry_rag.retrieval.refinement.extractive import ExtractiveRefinement
 
