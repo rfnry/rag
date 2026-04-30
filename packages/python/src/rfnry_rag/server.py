@@ -637,7 +637,7 @@ class RagEngine:
         # Drawing route: when a DrawingIngestion method is configured, defer to
         # its ``accepts()``; otherwise fall back to the legacy extension-set
         # check (.dxf always; .pdf only with source_type='drawing').
-        drawing_method = getattr(self, "_drawing_method", None)
+        drawing_method = self._drawing_method
         if drawing_method is not None:
             drawing_route = drawing_method.accepts(file_path, source_type)
         else:
@@ -678,7 +678,7 @@ class RagEngine:
                 source = await self._drawing_ingestion.ingest(source.source_id)
             return source
 
-        analyzed_method = getattr(self, "_analyzed_method", None)
+        analyzed_method = self._analyzed_method
         if analyzed_method is not None:
             analyzed_route = self._structured_ingestion is not None and analyzed_method.accepts(file_path, source_type)
         else:
