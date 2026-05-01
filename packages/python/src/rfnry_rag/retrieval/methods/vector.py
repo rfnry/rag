@@ -14,8 +14,10 @@ from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk, VectorResult
+from rfnry_rag.observability.context import current_obs
 from rfnry_rag.retrieval.search.fusion import reciprocal_rank_fusion
 from rfnry_rag.stores.vector.base import BaseVectorStore
+from rfnry_rag.telemetry.context import current_query_row
 
 logger = get_logger("retrieval.methods.vector")
 
@@ -104,14 +106,43 @@ class VectorRetrieval:
         knowledge_id: str | None = None,
     ) -> list[RetrievedChunk]:
         start = time.perf_counter()
+        obs = current_obs()
+        row = current_query_row()
         try:
             results = await self._do_search(query, top_k, filters, knowledge_id)
-            elapsed = (time.perf_counter() - start) * 1000
-            logger.info("%d results in %.1fms", len(results), elapsed)
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            logger.info("%d results in %dms", len(results), elapsed_ms)
+            if row is not None:
+                row.method_durations_ms[self.name] = elapsed_ms
+                if self.name not in row.methods_used:
+                    row.methods_used.append(self.name)
+                row.chunks_retrieved += len(results)
+            if obs is not None:
+                await obs.emit(
+                    "info",
+                    "retrieval.method.success",
+                    f"{self.name} retrieval ok",
+                    method_name=self.name,
+                    chunks=len(results),
+                    duration_ms=elapsed_ms,
+                )
             return results
-        except Exception:
-            elapsed = (time.perf_counter() - start) * 1000
-            logger.warning("vector retrieval failed in %.1fms", elapsed, exc_info=True)
+        except Exception as exc:
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            logger.warning("vector retrieval failed in %dms", elapsed_ms, exc_info=True)
+            if row is not None:
+                row.method_errors += 1
+                row.method_durations_ms[self.name] = elapsed_ms
+            if obs is not None:
+                await obs.emit(
+                    "error",
+                    "retrieval.method.error",
+                    f"{self.name} retrieval failed",
+                    method_name=self.name,
+                    duration_ms=elapsed_ms,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
             return []
 
     async def invalidate_cache(self, knowledge_id: str | None = None) -> None:

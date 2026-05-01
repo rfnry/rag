@@ -11,7 +11,9 @@ from rfnry_rag.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
 from rfnry_rag.ingestion.models import ChunkedContent, ParsedPage
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import SparseVector, VectorPoint
+from rfnry_rag.observability.context import current_obs
 from rfnry_rag.stores.vector.base import BaseVectorStore
+from rfnry_rag.telemetry.context import current_ingest_row
 
 logger = get_logger("ingestion.methods.vector")
 
@@ -69,6 +71,8 @@ class VectorIngestion:
         notes: list[str] | None = None,
     ) -> None:
         start = time.perf_counter()
+        obs = current_obs()
+        row = current_ingest_row()
         try:
             texts = [c.text_for_embedding(include_synthetic=self._include_synthetic_in_embeddings) for c in chunks]
             if self._sparse is not None:
@@ -96,11 +100,35 @@ class VectorIngestion:
             )
             await self._store.upsert(points)
 
-            elapsed = (time.perf_counter() - start) * 1000
-            logger.info("%d chunks embedded in %.1fms", len(chunks), elapsed)
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            logger.info("%d chunks embedded in %dms", len(chunks), elapsed_ms)
+            if row is not None:
+                row.embed_ms += elapsed_ms
+                row.chunks_count = max(row.chunks_count, len(chunks))
+            if obs is not None:
+                await obs.emit(
+                    "info",
+                    "ingestion.method.success",
+                    f"{self.name} ingest ok",
+                    method_name=self.name,
+                    chunks=len(chunks),
+                    duration_ms=elapsed_ms,
+                    source_id=source_id,
+                )
         except Exception as exc:
-            elapsed = (time.perf_counter() - start) * 1000
-            logger.warning("failed in %.1fms — %s", elapsed, exc)
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            logger.warning("failed in %dms — %s", elapsed_ms, exc)
+            if obs is not None:
+                await obs.emit(
+                    "error",
+                    "ingestion.method.error",
+                    f"{self.name} ingest failed",
+                    method_name=self.name,
+                    duration_ms=elapsed_ms,
+                    source_id=source_id,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
             raise
 
     async def delete(self, source_id: str) -> None:

@@ -5,7 +5,9 @@ from typing import Any
 
 from rfnry_rag.ingestion.models import ChunkedContent, ParsedPage
 from rfnry_rag.logging import get_logger
+from rfnry_rag.observability.context import current_obs
 from rfnry_rag.stores.document.base import BaseDocumentStore
+from rfnry_rag.telemetry.context import current_ingest_row
 
 logger = get_logger("ingestion.methods.document")
 
@@ -41,6 +43,8 @@ class DocumentIngestion:
         notes: list[str] | None = None,
     ) -> None:
         start = time.perf_counter()
+        obs = current_obs()
+        row = current_ingest_row()
         try:
             await self._store.store_content(
                 source_id=source_id,
@@ -49,11 +53,33 @@ class DocumentIngestion:
                 title=title,
                 content=full_text,
             )
-            elapsed = (time.perf_counter() - start) * 1000
-            logger.info("stored in %.1fms", elapsed)
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            logger.info("stored in %dms", elapsed_ms)
+            if row is not None:
+                row.persist_ms += elapsed_ms
+            if obs is not None:
+                await obs.emit(
+                    "info",
+                    "ingestion.method.success",
+                    f"{self.name} ingest ok",
+                    method_name=self.name,
+                    duration_ms=elapsed_ms,
+                    source_id=source_id,
+                )
         except Exception as exc:
-            elapsed = (time.perf_counter() - start) * 1000
-            logger.warning("failed in %.1fms — %s", elapsed, exc)
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            logger.warning("failed in %dms — %s", elapsed_ms, exc)
+            if obs is not None:
+                await obs.emit(
+                    "error",
+                    "ingestion.method.error",
+                    f"{self.name} ingest failed",
+                    method_name=self.name,
+                    duration_ms=elapsed_ms,
+                    source_id=source_id,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
             raise
 
     async def delete(self, source_id: str) -> None:

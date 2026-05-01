@@ -5,7 +5,9 @@ from typing import Any
 
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import ContentMatch, RetrievedChunk
+from rfnry_rag.observability.context import current_obs
 from rfnry_rag.stores.document.base import BaseDocumentStore
+from rfnry_rag.telemetry.context import current_query_row
 
 logger = get_logger("retrieval.methods.document")
 
@@ -46,15 +48,44 @@ class DocumentRetrieval:
         knowledge_id: str | None = None,
     ) -> list[RetrievedChunk]:
         start = time.perf_counter()
+        obs = current_obs()
+        row = current_query_row()
         try:
             matches = await self._store.search_content(query=query, knowledge_id=knowledge_id, top_k=top_k)
             results = self._convert(matches)
-            elapsed = (time.perf_counter() - start) * 1000
-            logger.info("%d results in %.1fms", len(results), elapsed)
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            logger.info("%d results in %dms", len(results), elapsed_ms)
+            if row is not None:
+                row.method_durations_ms[self.name] = elapsed_ms
+                if self.name not in row.methods_used:
+                    row.methods_used.append(self.name)
+                row.chunks_retrieved += len(results)
+            if obs is not None:
+                await obs.emit(
+                    "info",
+                    "retrieval.method.success",
+                    f"{self.name} retrieval ok",
+                    method_name=self.name,
+                    chunks=len(results),
+                    duration_ms=elapsed_ms,
+                )
             return results
         except Exception as exc:
-            elapsed = (time.perf_counter() - start) * 1000
-            logger.warning("failed in %.1fms — %s", elapsed, exc)
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            logger.warning("failed in %dms — %s", elapsed_ms, exc)
+            if row is not None:
+                row.method_errors += 1
+                row.method_durations_ms[self.name] = elapsed_ms
+            if obs is not None:
+                await obs.emit(
+                    "error",
+                    "retrieval.method.error",
+                    f"{self.name} retrieval failed",
+                    method_name=self.name,
+                    duration_ms=elapsed_ms,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
             return []
 
     @staticmethod

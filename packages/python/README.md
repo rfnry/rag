@@ -130,6 +130,10 @@ A complete factory-operations example with vector + document + graph + drawing i
 
 **Benchmark harness.** Structured test cases run through `RagEngine.benchmark()` or the CLI. Aggregates exact match, F1, retrieval recall and precision (when expected source IDs are provided), and optional LLM-judge scores. Per-case traces are part of the report so individual failures are debuggable.
 
+**Structured event stream.** `Observability` on `RagEngineConfig` is always-on. Every entry point, every LLM call, and every retrieval / ingestion method emit a typed `ObservabilityRecord` (Pydantic, JSON-serializable) through the configured `Sink`. Default `JsonlStderrSink` writes one JSON line per record; swap to `JsonlFileSink`, `MultiSink`, or a custom `Sink` (an OTel adapter is ~25 lines) without touching pipeline code. `kind` discriminates events: `query.start`, `provider.call`, `retrieval.method.success`, etc. Pass `Observability(sink=NullSink())` to silence.
+
+**Row-per-transaction telemetry.** `Telemetry` writes one `QueryTelemetryRow` per query and one `IngestTelemetryRow` per ingest. Rows carry `outcome`, `duration_ms`, per-method timings, raw token counts (input / output / cache_creation / cache_read), and routing/grounding decisions. Default sink is stderr; use `SqlAlchemyTelemetrySink(metadata_store)` to persist into `rag_query_telemetry` / `rag_ingest_telemetry` tables for admin-UI consumption. Cost is the consumer's stack — the library emits raw token counts only.
+
 ### Providers
 
 **Provider-agnostic facades.** `Embeddings`, `Vision`, `Reranking`, and `LanguageModelClient` dispatch to the correct backend at runtime — Anthropic, OpenAI, Gemini, Voyage, Cohere — based on the configured `LanguageModel`. The retrieval pipeline looks identical regardless of which model is wired in; swapping providers is a configuration change, not a code change.

@@ -149,6 +149,17 @@ RagError (root, catch-all for SDK errors)
 
 `RagError` is the root — there is no separate `SdkBaseError`. Catch the specific subclasses, or `RagError` for the catch-all.
 
+### Observability + Telemetry
+
+Two always-on first-class modules on `RagEngineConfig`:
+
+- **`rfnry_rag.observability.Observability`** — qualitative event stream. `await obs.emit(level, kind, message, **context)` builds an `ObservabilityRecord` (Pydantic) and dispatches via the configured `Sink`. Default sink is `JsonlStderrSink`. Library-defined `kind` vocabulary: `query.start`/`query.success`/`query.refused`/`query.error`, `ingest.start`/`ingest.success`/`ingest.partial`/`ingest.error`, `provider.call`/`provider.error`, `retrieval.method.success`/`retrieval.method.error`, `ingestion.method.success`/`ingestion.method.error`, `enrichment.skipped`, `vision.page.skipped`, `routing.decision`. Adding a kind is non-breaking; renaming/removing is breaking.
+- **`rfnry_rag.telemetry.Telemetry`** — row-per-transaction. Two row types: `QueryTelemetryRow`, `IngestTelemetryRow` (Pydantic). One row written per `RagEngine.query()` / `ingest()` / `ingest_text()` invocation; outcome / duration / token totals / per-method timings populate. Default sink `JsonlStderrSink`; `SqlAlchemyTelemetrySink` persists rows via `SQLAlchemyMetadataStore` (tables `rag_query_telemetry`, `rag_ingest_telemetry` auto-created on init).
+
+Both fields default to a stderr-emitting sink. Pass `Observability(sink=NullSink())` / `Telemetry(sink=NullSink())` to silence; `None` is not accepted. Cross-cutting access is via `contextvars.ContextVar` (`current_obs()`, `current_query_row()`, `current_ingest_row()`) — set at the entry-point boundary, propagated automatically through async tasks. The library emits raw token counts only; no pricing tables, no cost calculator.
+
+Concrete sink class names mirror the rfnry agent SDK (separate repo) so a future shared package extraction is mechanical: `JsonlStderrSink`, `JsonlFileSink`, `MultiSink`, `NullSink`, `RecordingSink`. Records carry a `schema_version: int = 1` for future migrations.
+
 ### LLM integration
 
 All LLM calls go through BAML for structured output parsing, retry/fallback, and observability. Edit `baml/baml_src/`; regenerate with `poe baml:generate`. Never edit `baml_client/`.

@@ -7,9 +7,11 @@ from rfnry_rag.config.graph import GraphIngestionConfig
 from rfnry_rag.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
 from rfnry_rag.ingestion.models import ChunkedContent, ParsedPage
 from rfnry_rag.logging import get_logger
+from rfnry_rag.observability.context import current_obs
 from rfnry_rag.providers import LanguageModelClient, build_registry
 from rfnry_rag.stores.graph.base import BaseGraphStore
 from rfnry_rag.stores.graph.mapper import page_entities_to_graph
+from rfnry_rag.telemetry.context import current_ingest_row
 from rfnry_rag.telemetry.usage import instrument_baml_call
 
 logger = get_logger("ingestion.methods.graph")
@@ -75,13 +77,16 @@ class GraphIngestion:
             return
 
         start = time.perf_counter()
+        obs = current_obs()
+        ingest_row = current_ingest_row()
+        registry = self._registry
         try:
             client = _get_baml_client()
             result = await instrument_baml_call(
                 operation="extract_entities",
                 call=lambda collector: client.ExtractEntitiesFromText(
                     full_text,
-                    baml_options={"client_registry": self._registry, "collector": collector},
+                    baml_options={"client_registry": registry, "collector": collector},
                 ),
             )
 
@@ -115,14 +120,37 @@ class GraphIngestion:
                 entities=graph_entities,
             )
 
-            elapsed = (time.perf_counter() - start) * 1000
-            logger.info("%d entities extracted and stored in %.1fms", len(graph_entities), elapsed)
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            logger.info("%d entities extracted and stored in %dms", len(graph_entities), elapsed_ms)
+            if obs is not None:
+                await obs.emit(
+                    "info",
+                    "ingestion.method.success",
+                    f"{self.name} ingest ok",
+                    method_name=self.name,
+                    duration_ms=elapsed_ms,
+                    source_id=source_id,
+                    entities=len(graph_entities),
+                )
 
         except Exception as exc:
-            elapsed = (time.perf_counter() - start) * 1000
-            logger.warning("failed in %.1fms — %s", elapsed, exc)
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            logger.warning("failed in %dms — %s", elapsed_ms, exc)
             if notes is not None:
                 notes.append(f"graph:warn:extraction_failed({exc!s:.80})")
+            if ingest_row is not None:
+                ingest_row.graph_extraction_failed = True
+            if obs is not None:
+                await obs.emit(
+                    "error",
+                    "ingestion.method.error",
+                    f"{self.name} ingest failed",
+                    method_name=self.name,
+                    duration_ms=elapsed_ms,
+                    source_id=source_id,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
 
     async def delete(self, source_id: str) -> None:
         await self._store.delete_by_source(source_id)
