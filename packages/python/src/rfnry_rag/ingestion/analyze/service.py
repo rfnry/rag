@@ -99,9 +99,12 @@ class AnalyzedIngestionService:
             return existing
 
         page_filter = parse_page_range(page_range) if page_range else None
+        notes: list[str] = []
 
         if ext == ".pdf":
-            page_analyses = await self._analyze_pdf_with_cache(file_path, page_filter, knowledge_id)
+            page_analyses = await self._analyze_pdf_with_cache(
+                file_path, page_filter, knowledge_id, notes=notes
+            )
             file_type = "pdf"
         elif ext == ".l5x" or (ext == ".xml" and is_l5x(file_path)):
             page_analyses = self._analyze_l5x(file_path)
@@ -113,7 +116,14 @@ class AnalyzedIngestionService:
             raise IngestionError(f"unsupported structured file extension: {ext}")
 
         source_id = str(uuid4())
-        # file_hash_value already computed above for the short-circuit check
+
+        source_metadata: dict[str, Any] = {
+            **(metadata or {}),
+            "file_type": file_type,
+            "file_name": file_path.name,
+        }
+        if notes:
+            source_metadata["ingestion_notes"] = list(notes)
 
         source = Source(
             source_id=source_id,
@@ -124,11 +134,7 @@ class AnalyzedIngestionService:
             file_hash=file_hash_value,
             created_at=datetime.now(UTC),
             source_weight=self._source_type_weights.get(source_type, 1.0) if source_type else 1.0,
-            metadata={
-                **(metadata or {}),
-                "file_type": file_type,
-                "file_name": file_path.name,
-            },
+            metadata=source_metadata,
         )
         await self._metadata_store.create_source(source)
         await self._metadata_store.upsert_page_analyses(
@@ -340,6 +346,7 @@ class AnalyzedIngestionService:
         file_path: Path,
         page_filter: set[int] | None,
         knowledge_id: str | None,
+        notes: list[str] | None = None,
     ) -> list[PageAnalysis]:
         """PDF analysis with per-page image-hash caching and text-density pre-filter.
 
@@ -395,8 +402,16 @@ class AnalyzedIngestionService:
         fresh_by_num: dict[int, PageAnalysis] = {}
         if vision_pages:
             sem = asyncio.Semaphore(self._analyze_concurrency)
-            fresh = list(await asyncio.gather(*(self._analyze_one(p, sem) for p in vision_pages)))
-            fresh_by_num = {f.page_number: f for f in fresh}
+            fresh_results = await asyncio.gather(
+                *(self._analyze_one(p, sem, notes=notes) for p in vision_pages)
+            )
+            for f in fresh_results:
+                if f is not None:
+                    fresh_by_num[f.page_number] = f
+            if not fresh_by_num and not text_only_pages:
+                raise IngestionError(
+                    "AnalyzePage failed on all pages — no document content extracted"
+                )
 
         # Build PageAnalysis for text-only pages directly from raw text.
         for p in text_only_pages:
@@ -415,13 +430,14 @@ class AnalyzedIngestionService:
             ph = p.get("page_hash", "")
             if ph and ph in cached:
                 pa = _deserialize_analysis(cached[ph])
-                # Override position-sensitive and freshly-extracted fields
                 pa.page_number = p["page_number"]
                 pa.raw_text = p.get("raw_text", "")
                 pa.page_hash = ph
             else:
-                pa = fresh_by_num[p["page_number"]]
-                # Inject raw_text and page_hash (set after LLM call or text-only path)
+                pa_or_none = fresh_by_num.get(p["page_number"])
+                if pa_or_none is None:
+                    continue
+                pa = pa_or_none
                 pa.raw_text = p.get("raw_text", "")
                 pa.page_hash = ph
             results.append(pa)
@@ -437,17 +453,27 @@ class AnalyzedIngestionService:
                 "Provide a LanguageModelClient with your LLM provider and API key."
             )
 
-    async def _analyze_one(self, img: dict, sem: asyncio.Semaphore) -> PageAnalysis:
-        """Analyze a single page image via BAML AnalyzePage."""
+    async def _analyze_one(
+        self,
+        img: dict,
+        sem: asyncio.Semaphore,
+        notes: list[str] | None = None,
+    ) -> PageAnalysis | None:
+        """Analyze a single page image via BAML AnalyzePage.
+
+        Per-page failures soft-skip: returns None and appends a note to the
+        caller-supplied list. The caller decides whether the surviving page
+        count is enough to proceed.
+        """
         self._require_vision_and_registry()
 
         from baml_py import Image
 
         from rfnry_rag.baml.baml_client.async_client import b
 
-        # Narrow the type: _require_vision_and_registry() guarantees _registry is not None.
         registry: ClientRegistry = self._registry  # type: ignore[assignment]
         baml_image = Image.from_base64("image/png", img["image_base64"])
+        page_number = img["page_number"]
         async with sem:
             try:
                 result = await b.AnalyzePage(
@@ -455,12 +481,15 @@ class AnalyzedIngestionService:
                     baml_options={"client_registry": registry},
                 )
             except baml_errors.BamlValidationError as exc:
-                raise IngestionError(
-                    f"AnalyzePage failed on page {img['page_number']}: LLM returned an unparseable response. "
-                    f"This usually means the model does not support the expected output format. Detail: {exc}"
-                ) from exc
+                logger.warning("AnalyzePage invalid output on page %d: %s", page_number, exc)
+                if notes is not None:
+                    notes.append(f"vision:warn:page_{page_number}:invalid_output({exc!s:.80})")
+                return None
             except Exception as exc:
-                raise IngestionError(f"AnalyzePage failed on page {img['page_number']}: {exc}") from exc
+                logger.warning("AnalyzePage failed on page %d: %s", page_number, exc)
+                if notes is not None:
+                    notes.append(f"vision:warn:page_{page_number}:{type(exc).__name__}({exc!s:.80})")
+                return None
 
         analysis = PageAnalysis(
             page_number=img["page_number"],
