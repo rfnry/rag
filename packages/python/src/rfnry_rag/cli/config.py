@@ -84,18 +84,20 @@ def _build_reranker(cfg: dict[str, Any]):
 _GENERATION_KEYS = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
+    "gemini": "GEMINI_API_KEY",
 }
 
 _GENERATION_DEFAULTS = {
     "anthropic": "claude-sonnet-4-20250514",
     "openai": "gpt-4o",
+    "gemini": "gemini-2.5-pro",
 }
 
 
 def _build_generation_config(cfg: dict[str, Any]) -> GenerationConfig:
     provider = cfg.get("provider")
     if not provider:
-        raise ConfigError("[generation] requires 'provider' (anthropic or openai)")
+        raise ConfigError("[generation] requires 'provider' (anthropic, openai, or gemini)")
     env_var = _GENERATION_KEYS.get(provider)
     if env_var is None:
         raise ConfigError(f"Unknown generation provider: {provider!r}. Supported: {', '.join(_GENERATION_KEYS)}")

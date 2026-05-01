@@ -169,6 +169,19 @@ class TestLoadConfigProviders:
         assert cfg.ingestion.parent_chunk_size == 1500
         assert cfg.ingestion.parent_chunk_overlap == 100
 
+    def test_generation_provider_gemini(self, tmp_path):
+        path = _write_config(
+            tmp_path,
+            '\n[generation]\nprovider = "gemini"\n',
+            {"GEMINI_API_KEY": "ai-test"},
+        )
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("OPENAI_API_KEY", None)
+            os.environ.pop("GEMINI_API_KEY", None)
+            cfg = load_config(path)
+        assert cfg.generation.lm_client is not None
+        assert cfg.generation.lm_client.lm.provider == "gemini"
+
     def test_grounding_gates(self, tmp_path):
         path = _write_config(
             tmp_path,
