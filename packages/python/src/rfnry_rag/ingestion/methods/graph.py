@@ -67,6 +67,7 @@ class GraphIngestion:
         metadata: dict[str, Any],
         hash_value: str | None = None,
         pages: list[ParsedPage] | None = None,
+        notes: list[str] | None = None,
     ) -> None:
         if not self._registry:
             logger.warning("graph ingestion skipped — no lm_client provided")
@@ -116,6 +117,8 @@ class GraphIngestion:
         except Exception as exc:
             elapsed = (time.perf_counter() - start) * 1000
             logger.warning("failed in %.1fms — %s", elapsed, exc)
+            if notes is not None:
+                notes.append(f"graph:warn:extraction_failed({exc!s:.80})")
 
     async def delete(self, source_id: str) -> None:
         await self._store.delete_by_source(source_id)

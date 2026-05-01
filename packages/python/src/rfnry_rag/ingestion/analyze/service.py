@@ -188,6 +188,8 @@ class AnalyzedIngestionService:
         synthesis_data = source.metadata.get("synthesis", {})
         synthesis = _deserialize_synthesis(synthesis_data)
 
+        notes: list[str] = []
+
         logger.info("[analyze/ingestion/ingest] building multi-vector set for %d pages", len(page_analyses))
 
         xref_map: dict[int, list[int]] = {}
@@ -287,6 +289,7 @@ class AnalyzedIngestionService:
                 )
             except Exception as exc:
                 logger.warning("[analyze/ingestion/ingest] graph failed: %s", exc)
+                notes.append(f"graph:warn:method_failed({exc!s:.80})")
 
         # Delegate to other ingestion methods — prefer raw OCR text; fall back to enriched
         # description (with entity names) for L5X/XML where raw_text is always empty.
@@ -303,15 +306,26 @@ class AnalyzedIngestionService:
                     chunks=[],
                     tags=[],
                     metadata=source.metadata,
+                    notes=notes,
                 )
             except Exception as exc:
                 logger.warning("[analyze/ingestion/ingest] method '%s' failed: %s", method.name, exc)
+                notes.append(f"{method.name}:warn:method_failed({exc!s:.80})")
 
-        await self._metadata_store.update_source(
-            source_id,
-            status="completed",
-            chunk_count=len(page_analyses),
-        )
+        if notes:
+            source.metadata.setdefault("ingestion_notes", []).extend(notes)
+            await self._metadata_store.update_source(
+                source_id,
+                status="completed",
+                chunk_count=len(page_analyses),
+                metadata=source.metadata,
+            )
+        else:
+            await self._metadata_store.update_source(
+                source_id,
+                status="completed",
+                chunk_count=len(page_analyses),
+            )
 
         source.status = "completed"
 

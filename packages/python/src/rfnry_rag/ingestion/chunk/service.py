@@ -112,6 +112,7 @@ class IngestionService:
         hash_value: str | None = None,
         pages: list[ParsedPage] | None = None,
         on_progress: IngestionProgress | None = None,
+        notes: list[str] | None = None,
     ) -> None:
         """Dispatch ingestion to all registered methods in parallel groups.
 
@@ -148,6 +149,7 @@ class IngestionService:
             metadata=metadata,
             hash_value=hash_value,
             pages=pages,
+            notes=notes,
         )
 
         if required:
@@ -243,6 +245,8 @@ class IngestionService:
 
         full_text = "\n\n".join(f"[Page {p.page_number}]\n{p.content}" for p in pages)
 
+        notes: list[str] = []
+
         if self._contextual_chunk is not None and self._contextual_chunk.enabled:
             try:
                 chunks = await contextualize_chunks_with_llm(
@@ -252,9 +256,7 @@ class IngestionService:
                 )
             except EnrichmentSkipped as exc:
                 logger.warning("ingestion enrichment skipped: %s", exc)
-                metadata.setdefault("ingestion_notes", []).append(
-                    f"{exc.step}:info:{exc.reason}"
-                )
+                notes.append(f"{exc.step}:info:{exc.reason}")
 
         if self._document_expansion is not None and self._document_expansion.enabled:
             assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__
@@ -281,7 +283,11 @@ class IngestionService:
             hash_value=hash_value,
             pages=pages,
             on_progress=on_progress,
+            notes=notes,
         )
+
+        if notes:
+            metadata.setdefault("ingestion_notes", []).extend(notes)
 
         source = Source(
             source_id=source_id,
@@ -327,6 +333,8 @@ class IngestionService:
             source_name = (metadata or {}).get("name", "text-input")
             chunks = contextualize_chunks(chunks, source_name=source_name, source_type=source_type)
 
+        notes: list[str] = []
+
         if self._contextual_chunk is not None and self._contextual_chunk.enabled:
             try:
                 chunks = await contextualize_chunks_with_llm(
@@ -336,9 +344,7 @@ class IngestionService:
                 )
             except EnrichmentSkipped as exc:
                 logger.warning("ingestion enrichment skipped: %s", exc)
-                metadata.setdefault("ingestion_notes", []).append(
-                    f"{exc.step}:info:{exc.reason}"
-                )
+                notes.append(f"{exc.step}:info:{exc.reason}")
 
         if self._document_expansion is not None and self._document_expansion.enabled:
             assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__
@@ -361,7 +367,11 @@ class IngestionService:
             metadata=metadata,
             hash_value=None,
             pages=pages,
+            notes=notes,
         )
+
+        if notes:
+            metadata.setdefault("ingestion_notes", []).extend(notes)
 
         source = Source(
             source_id=source_id,

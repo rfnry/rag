@@ -38,6 +38,7 @@ class DocumentIngestion:
         metadata: dict[str, Any],
         hash_value: str | None = None,
         pages: list[ParsedPage] | None = None,
+        notes: list[str] | None = None,
     ) -> None:
         start = time.perf_counter()
         try:
