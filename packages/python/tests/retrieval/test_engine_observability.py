@@ -228,6 +228,98 @@ async def test_query_and_ingest_get_distinct_uuids() -> None:
     assert len(set(ids)) == 2
 
 
+async def test_explicit_indexed_mode_emits_routing_decision() -> None:
+    obs_sink = RecordingSink()
+    tel_sink = TelRecordingSink()
+    engine = _build_engine(
+        obs_sink=obs_sink,
+        tel_sink=tel_sink,
+        routing=RoutingConfig(mode=QueryMode.INDEXED),
+    )
+
+    await engine.query("hello")
+
+    decisions = [r for r in obs_sink.records if r.kind == "routing.decision"]
+    assert len(decisions) == 1
+    assert decisions[0].context["mode"] == "indexed"
+    assert decisions[0].context["reason"] == "explicit_mode"
+    assert decisions[0].context["corpus_tokens"] is None
+    assert tel_sink.rows[0].routing_decision == "indexed"
+
+
+async def test_explicit_full_context_mode_emits_routing_decision() -> None:
+    obs_sink = RecordingSink()
+    tel_sink = TelRecordingSink()
+    engine = _build_engine(
+        obs_sink=obs_sink,
+        tel_sink=tel_sink,
+        routing=RoutingConfig(mode=QueryMode.FULL_CONTEXT),
+    )
+    engine._knowledge_manager = AsyncMock()
+    engine._knowledge_manager.get_corpus_tokens = AsyncMock(return_value=42)
+    engine._load_full_corpus = AsyncMock(return_value="corpus")  # type: ignore[method-assign]
+    engine._generation_service.generate_from_corpus = AsyncMock(return_value=_query_result())
+
+    await engine.query("hello")
+
+    decisions = [r for r in obs_sink.records if r.kind == "routing.decision"]
+    assert len(decisions) == 1
+    assert decisions[0].context["mode"] == "full_context"
+    assert decisions[0].context["reason"] == "explicit_mode"
+    assert tel_sink.rows[0].routing_decision == "full_context"
+
+
+async def test_auto_mode_emits_routing_decision_event_full_context() -> None:
+    obs_sink = RecordingSink()
+    tel_sink = TelRecordingSink()
+    engine = _build_engine(
+        obs_sink=obs_sink,
+        tel_sink=tel_sink,
+        routing=RoutingConfig(mode=QueryMode.AUTO, full_context_threshold=10_000),
+    )
+    engine._knowledge_manager = AsyncMock()
+    engine._knowledge_manager.get_corpus_tokens = AsyncMock(return_value=500)
+    engine._load_full_corpus = AsyncMock(return_value="corpus")  # type: ignore[method-assign]
+    engine._generation_service.generate_from_corpus = AsyncMock(return_value=_query_result())
+
+    await engine.query("hello")
+
+    decisions = [r for r in obs_sink.records if r.kind == "routing.decision"]
+    assert len(decisions) == 1
+    assert decisions[0].context["mode"] == "full_context"
+    assert decisions[0].context["reason"] == "auto_dispatch"
+    assert decisions[0].context["corpus_tokens"] == 500
+    assert decisions[0].context["threshold"] == 10_000
+    row = tel_sink.rows[0]
+    assert row.routing_decision == "full_context"
+    assert row.mode == "full_context"
+    assert row.corpus_tokens == 500
+
+
+async def test_auto_mode_emits_routing_decision_event_indexed() -> None:
+    obs_sink = RecordingSink()
+    tel_sink = TelRecordingSink()
+    engine = _build_engine(
+        obs_sink=obs_sink,
+        tel_sink=tel_sink,
+        routing=RoutingConfig(mode=QueryMode.AUTO, full_context_threshold=10_000),
+    )
+    engine._knowledge_manager = AsyncMock()
+    engine._knowledge_manager.get_corpus_tokens = AsyncMock(return_value=200_000)
+
+    await engine.query("hello")
+
+    decisions = [r for r in obs_sink.records if r.kind == "routing.decision"]
+    assert len(decisions) == 1
+    assert decisions[0].context["mode"] == "indexed"
+    assert decisions[0].context["reason"] == "auto_dispatch"
+    assert decisions[0].context["corpus_tokens"] == 200_000
+    row = tel_sink.rows[0]
+    assert row.routing_decision == "indexed"
+    assert row.mode == "indexed"
+    assert row.corpus_tokens == 200_000
+
+
 async def test_telemetry_persists_via_metadata_store(tmp_path) -> None:
     from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
     from rfnry_rag.telemetry import SqlAlchemyTelemetrySink

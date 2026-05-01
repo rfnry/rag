@@ -981,14 +981,32 @@ class RagEngine:
         )
         try:
             if mode == QueryMode.INDEXED:
+                await obs.emit(
+                    "info",
+                    "routing.decision",
+                    "explicit indexed mode",
+                    mode="indexed",
+                    corpus_tokens=None,
+                    threshold=None,
+                    reason="explicit_mode",
+                )
                 result = await self._query_via_retrieval(
                     text, knowledge_id, history, min_score, collection, system_prompt, trace
                 )
             elif mode == QueryMode.FULL_CONTEXT:
+                await obs.emit(
+                    "info",
+                    "routing.decision",
+                    "explicit full_context mode",
+                    mode="full_context",
+                    corpus_tokens=None,
+                    threshold=None,
+                    reason="explicit_mode",
+                )
                 result = await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
             else:
                 result = await self._query_via_auto(
-                    text, knowledge_id, history, min_score, collection, system_prompt, trace
+                    text, knowledge_id, history, min_score, collection, system_prompt, trace, row=row
                 )
             row.duration_ms = int((time.perf_counter() - start) * 1000)
             row.confidence = result.confidence
@@ -1133,13 +1151,31 @@ class RagEngine:
         collection: str | None,
         system_prompt: str | None,
         trace: bool,
+        *,
+        row: QueryTelemetryRow | None = None,
     ) -> QueryResult:
         """AUTO: pick DIRECT or RETRIEVAL per query based on corpus token count."""
         assert self._knowledge_manager is not None
         tokens = await self._knowledge_manager.get_corpus_tokens(knowledge_id)
         threshold = self._config.routing.full_context_threshold
+        decision = "full_context" if tokens <= threshold else "indexed"
 
-        if tokens <= threshold:
+        if row is not None:
+            row.routing_decision = decision
+            row.mode = decision  # type: ignore[assignment]
+            row.corpus_tokens = tokens
+
+        await self._observability.emit(
+            "info",
+            "routing.decision",
+            f"auto routing: corpus_tokens={tokens} threshold={threshold} -> {decision}",
+            mode=decision,
+            corpus_tokens=tokens,
+            threshold=threshold,
+            reason="auto_dispatch",
+        )
+
+        if decision == "full_context":
             logger.info("auto routing: tokens=%d threshold=%d → DIRECT", tokens, threshold)
             return await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
 
