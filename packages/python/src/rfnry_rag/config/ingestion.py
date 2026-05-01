@@ -26,8 +26,6 @@ class DocumentExpansionConfig:
     enabled: bool = False
     num_queries: int = 5
     lm_client: LanguageModelClient | None = None
-    include_in_embeddings: bool = True
-    include_in_bm25: bool = True
     concurrency: int = 5
 
     def __post_init__(self) -> None:
@@ -60,8 +58,6 @@ class ContextualChunkConfig:
     lm_client: LanguageModelClient | None = None
     concurrency: int = 5
     max_context_tokens: int = 100
-    include_in_embeddings: bool = True
-    include_in_bm25: bool = True
 
     def __post_init__(self) -> None:
         if not (1 <= self.concurrency <= 100):

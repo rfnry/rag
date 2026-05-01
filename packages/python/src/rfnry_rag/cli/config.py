@@ -163,8 +163,6 @@ def _build_contextual_chunk_config(cfg: dict[str, Any]) -> ContextualChunkConfig
         lm_client=lm_client,
         concurrency=cfg.get("concurrency", 5),
         max_context_tokens=cfg.get("max_context_tokens", 100),
-        include_in_embeddings=cfg.get("include_in_embeddings", True),
-        include_in_bm25=cfg.get("include_in_bm25", True),
     )
 
 
