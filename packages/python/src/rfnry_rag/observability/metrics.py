@@ -7,8 +7,21 @@ from rfnry_rag.logging import get_logger
 from rfnry_rag.observability.models import MetricResult
 from rfnry_rag.observability.normalize import normalize_answer
 from rfnry_rag.providers import LanguageModelClient, build_registry
+from rfnry_rag.telemetry.usage import instrument_baml_call
 
 logger = get_logger("evaluation")
+
+
+def _judge_caller(*, query: str, prediction: str, reference: str, registry):
+    async def _call(collector):
+        return await b.JudgeAnswerQuality(
+            query=query,
+            prediction=prediction,
+            reference=reference,
+            baml_options={"client_registry": registry, "collector": collector},
+        )
+
+    return _call
 
 
 class BaseMetric(Protocol):
@@ -84,11 +97,9 @@ class LLMJudgment:
         # here would add concurrency at both levels simultaneously.
         for ref in references:
             try:
-                result = await b.JudgeAnswerQuality(
-                    query=query,
-                    prediction=prediction,
-                    reference=ref,
-                    baml_options={"client_registry": registry},
+                result = await instrument_baml_call(
+                    operation="judge_answer_quality",
+                    call=_judge_caller(query=query, prediction=prediction, reference=ref, registry=registry),
                 )
                 best_score = max(best_score, min(max(result.score, 0.0), 1.0))
             except Exception:

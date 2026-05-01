@@ -19,6 +19,7 @@ from rfnry_rag.ingestion.drawing.models import (
     Port,
 )
 from rfnry_rag.logging import get_logger
+from rfnry_rag.telemetry.usage import instrument_baml_call
 
 logger = get_logger("drawing/ingestion/extract_pdf")
 
@@ -58,12 +59,15 @@ async def analyze_drawing_page(
     _ = config  # reserved for future per-call knobs (e.g. temperature overrides)
     baml_image = Image.from_base64("image/png", page_image_b64)
     try:
-        result = await b.AnalyzeDrawingPage(
-            baml_image,
-            domain_hint,
-            symbol_library_prompt,
-            off_page_patterns_prompt,
-            baml_options={"client_registry": registry},
+        result = await instrument_baml_call(
+            operation="analyze_drawing_page",
+            call=lambda collector: b.AnalyzeDrawingPage(
+                baml_image,
+                domain_hint,
+                symbol_library_prompt,
+                off_page_patterns_prompt,
+                baml_options={"client_registry": registry, "collector": collector},
+            ),
         )
     except baml_errors.BamlValidationError as exc:
         raise IngestionError(

@@ -15,6 +15,12 @@ from rfnry_rag.exceptions import ConfigurationError, EnrichmentSkipped, Ingestio
 from rfnry_rag.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.ingestion.models import ChunkedContent
 from rfnry_rag.logging import get_logger
+from rfnry_rag.telemetry.usage import (
+    extract_anthropic_usage,
+    extract_gemini_usage,
+    extract_openai_usage,
+    instrument_call,
+)
 
 if TYPE_CHECKING:
     from rfnry_rag.config.ingestion import ContextualChunkConfig
@@ -163,18 +169,24 @@ async def _anthropic_situate(
     user_message = _PROMPT_TEMPLATE.format(chunk=chunk, max_tokens=max_tokens)
     # The document body lives on the system parameter as a list-of-blocks
     # so cache_control marks it as the stable prefix shared across chunks.
-    response = await client.messages.create(
+    response = await instrument_call(
+        provider="anthropic",
         model=lm.model,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        system=[
-            {
-                "type": "text",
-                "text": f"<document>\n{document}\n</document>",
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        messages=[{"role": "user", "content": user_message}],
+        operation="contextualize",
+        extract_usage=extract_anthropic_usage,
+        call=lambda: client.messages.create(
+            model=lm.model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            system=[
+                {
+                    "type": "text",
+                    "text": f"<document>\n{document}\n</document>",
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+            messages=[{"role": "user", "content": user_message}],
+        ),
     )
     first_block = response.content[0] if response.content else None
     return first_block.text if isinstance(first_block, TextBlock) else ""
@@ -201,14 +213,20 @@ async def _openai_situate(
     user_message = _PROMPT_TEMPLATE.format(chunk=chunk, max_tokens=max_tokens)
     # Stable system prefix → OpenAI's automatic prefix cache applies once
     # the request crosses the provider's size threshold; no explicit knob.
-    response = await client.chat.completions.create(
+    response = await instrument_call(
+        provider="openai",
         model=lm.model,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        messages=[
-            {"role": "system", "content": f"<document>\n{document}\n</document>"},
-            {"role": "user", "content": user_message},
-        ],
+        operation="contextualize",
+        extract_usage=extract_openai_usage,
+        call=lambda: client.chat.completions.create(
+            model=lm.model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            messages=[
+                {"role": "system", "content": f"<document>\n{document}\n</document>"},
+                {"role": "user", "content": user_message},
+            ],
+        ),
     )
     content = response.choices[0].message.content
     return content or ""
@@ -238,13 +256,19 @@ async def _gemini_situate(
     )
     client = genai.Client(api_key=lm.api_key, http_options=http_options)
     user_message = _PROMPT_TEMPLATE.format(chunk=chunk, max_tokens=max_tokens)
-    response = await client.aio.models.generate_content(
+    response = await instrument_call(
+        provider="gemini",
         model=lm.model,
-        contents=user_message,
-        config=types.GenerateContentConfig(
-            system_instruction=f"<document>\n{document}\n</document>",
-            max_output_tokens=max_tokens,
-            temperature=temperature,
+        operation="contextualize",
+        extract_usage=extract_gemini_usage,
+        call=lambda: client.aio.models.generate_content(
+            model=lm.model,
+            contents=user_message,
+            config=types.GenerateContentConfig(
+                system_instruction=f"<document>\n{document}\n</document>",
+                max_output_tokens=max_tokens,
+                temperature=temperature,
+            ),
         ),
     )
     return response.text or ""

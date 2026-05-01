@@ -12,6 +12,7 @@ from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.providers.provider import LanguageModel
 from rfnry_rag.retrieval.search.reranking.cohere import _CohereReranking
 from rfnry_rag.retrieval.search.reranking.voyage import _VoyageReranking
+from rfnry_rag.telemetry.usage import instrument_call
 
 _DEDICATED_RERANKER_PROVIDERS = {"cohere", "voyage"}
 
@@ -42,7 +43,13 @@ class Embeddings:
         return self._lm.name
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        return await self._impl.embed(texts)
+        return await instrument_call(
+            provider=self._lm.provider,
+            model=self._lm.model,
+            operation="embed",
+            extract_usage=lambda _resp: {},
+            call=lambda: self._impl.embed(texts),
+        )
 
     async def embedding_dimension(self) -> int:
         return await self._impl.embedding_dimension()
@@ -57,6 +64,7 @@ class Vision:
         max_tokens: int = 4096,
         max_retries: int = 3,
     ) -> None:
+        self._lm = lm
         match lm.provider:
             case "anthropic":
                 self._impl: _AnthropicVision | _OpenAIVision | _GeminiVision = _AnthropicVision(
@@ -72,7 +80,13 @@ class Vision:
                 )
 
     async def parse(self, file_path: str, pages: set[int] | None = None) -> list[ParsedPage]:
-        return await self._impl.parse(file_path, pages)
+        return await instrument_call(
+            provider=self._lm.provider,
+            model=self._lm.model,
+            operation="vision_parse",
+            extract_usage=lambda _resp: {},
+            call=lambda: self._impl.parse(file_path, pages),
+        )
 
 
 class Reranking:
@@ -84,9 +98,16 @@ class Reranking:
                 f"Provider {lm.provider!r} has no dedicated reranker API. "
                 f"Supported: {', '.join(sorted(_DEDICATED_RERANKER_PROVIDERS))}."
             )
+        self._lm = lm
         self._impl: _CohereReranking | _VoyageReranking = (
             _CohereReranking(lm) if lm.provider == "cohere" else _VoyageReranking(lm)
         )
 
     async def rerank(self, query: str, results: list[RetrievedChunk], top_k: int = 5) -> list[RetrievedChunk]:
-        return await self._impl.rerank(query, results, top_k)
+        return await instrument_call(
+            provider=self._lm.provider,
+            model=self._lm.model,
+            operation="rerank",
+            extract_usage=lambda _resp: {},
+            call=lambda: self._impl.rerank(query, results, top_k),
+        )

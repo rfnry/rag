@@ -10,6 +10,7 @@ from rfnry_rag.logging import get_logger
 from rfnry_rag.providers import LanguageModelClient, build_registry
 from rfnry_rag.stores.graph.base import BaseGraphStore
 from rfnry_rag.stores.graph.mapper import page_entities_to_graph
+from rfnry_rag.telemetry.usage import instrument_baml_call
 
 logger = get_logger("ingestion.methods.graph")
 
@@ -76,9 +77,12 @@ class GraphIngestion:
         start = time.perf_counter()
         try:
             client = _get_baml_client()
-            result = await client.ExtractEntitiesFromText(
-                full_text,
-                baml_options={"client_registry": self._registry},
+            result = await instrument_baml_call(
+                operation="extract_entities",
+                call=lambda collector: client.ExtractEntitiesFromText(
+                    full_text,
+                    baml_options={"client_registry": self._registry, "collector": collector},
+                ),
             )
 
             if not result.entities:

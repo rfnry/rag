@@ -5,6 +5,7 @@ from rfnry_rag.generation.models import RelevanceResult
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk
 from rfnry_rag.providers import LanguageModelClient, build_registry
+from rfnry_rag.telemetry.usage import instrument_baml_call
 
 logger = get_logger("generation/grounding")
 
@@ -60,10 +61,13 @@ class RelevanceGate:
         passages = "\n".join(f"[{i}] {r.content}" for i, r in enumerate(results))
 
         try:
-            result = await b.CheckRelevance(
-                query,
-                passages,
-                baml_options={"client_registry": self._registry},
+            result = await instrument_baml_call(
+                operation="check_relevance",
+                call=lambda collector: b.CheckRelevance(
+                    query,
+                    passages,
+                    baml_options={"client_registry": self._registry, "collector": collector},
+                ),
             )
 
             relevance = RelevanceResult(

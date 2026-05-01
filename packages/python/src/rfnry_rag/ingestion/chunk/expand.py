@@ -12,6 +12,7 @@ from rfnry_rag.baml.baml_client.async_client import b
 from rfnry_rag.concurrency import run_concurrent
 from rfnry_rag.ingestion.models import ChunkedContent
 from rfnry_rag.logging import get_logger
+from rfnry_rag.telemetry.usage import instrument_baml_call
 
 if TYPE_CHECKING:
     from baml_py import ClientRegistry
@@ -49,10 +50,13 @@ async def expand_chunks(
     async def _expand_one(chunk: ChunkedContent) -> None:
         nonlocal failed_count
         try:
-            result = await b.GenerateSyntheticQueries(
-                chunk.content,
-                config.num_queries,
-                baml_options={"client_registry": registry},
+            result = await instrument_baml_call(
+                operation="document_expansion",
+                call=lambda collector: b.GenerateSyntheticQueries(
+                    chunk.content,
+                    config.num_queries,
+                    baml_options={"client_registry": registry, "collector": collector},
+                ),
             )
         except Exception as exc:
             failed_count += 1

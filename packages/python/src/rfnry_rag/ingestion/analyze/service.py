@@ -33,6 +33,7 @@ from rfnry_rag.stores.graph.base import BaseGraphStore
 from rfnry_rag.stores.graph.mapper import cross_refs_to_graph_relations, page_entities_to_graph
 from rfnry_rag.stores.metadata.base import BaseMetadataStore
 from rfnry_rag.stores.vector.base import BaseVectorStore
+from rfnry_rag.telemetry.usage import instrument_baml_call
 
 logger = get_logger("analyze/ingestion")
 
@@ -480,9 +481,12 @@ class AnalyzedIngestionService:
         page_number = img["page_number"]
         async with sem:
             try:
-                result = await b.AnalyzePage(
-                    baml_image,
-                    baml_options={"client_registry": registry},
+                result = await instrument_baml_call(
+                    operation="analyze_page",
+                    call=lambda collector: b.AnalyzePage(
+                        baml_image,
+                        baml_options={"client_registry": registry, "collector": collector},
+                    ),
                 )
             except baml_errors.BamlValidationError as exc:
                 logger.warning("AnalyzePage invalid output on page %d: %s", page_number, exc)
@@ -559,10 +563,14 @@ class AnalyzedIngestionService:
 
         context = "\n\n".join(context_parts)
 
+        registry = self._registry
         try:
-            result = await b.SynthesizeDocument(
-                context,
-                baml_options={"client_registry": self._registry},
+            result = await instrument_baml_call(
+                operation="synthesize_document",
+                call=lambda collector: b.SynthesizeDocument(
+                    context,
+                    baml_options={"client_registry": registry, "collector": collector},
+                ),
             )
         except baml_errors.BamlValidationError as exc:
             logger.warning("SynthesizeDocument invalid output: %s", exc)
