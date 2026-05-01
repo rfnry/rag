@@ -160,20 +160,24 @@ class AnalyzedIngestionService:
         file_type = source.metadata.get("file_type")
         rows = await self._metadata_store.get_page_analyses(source_id)
         page_analyses = [_deserialize_analysis(r["data"]) for r in rows]
+        notes: list[str] = list(source.metadata.get("ingestion_notes", []))
 
         logger.info("[analyze/ingestion/synthesize] source %s: %d pages in context", source_id, len(page_analyses))
 
         if file_type == "pdf":
-            synthesis = await self._synthesize_pdf(page_analyses)
+            synthesis = await self._synthesize_pdf(page_analyses, notes=notes)
         elif file_type == "l5x":
             synthesis = self._synthesize_l5x(page_analyses)
         else:
             synthesis = self._synthesize_xml(page_analyses)
 
+        new_metadata = {**source.metadata, "synthesis": _serialize_synthesis(synthesis)}
+        if notes:
+            new_metadata["ingestion_notes"] = notes
         await self._metadata_store.update_source(
             source_id,
             status="synthesized",
-            metadata={**source.metadata, "synthesis": _serialize_synthesis(synthesis)},
+            metadata=new_metadata,
         )
 
         source.status = "synthesized"
@@ -525,8 +529,18 @@ class AnalyzedIngestionService:
             for i, doc in enumerate(docs)
         ]
 
-    async def _synthesize_pdf(self, page_analyses: list[PageAnalysis]) -> DocumentSynthesis:
-        """Use LLM to find cross-page relationships in PDF analyses."""
+    async def _synthesize_pdf(
+        self,
+        page_analyses: list[PageAnalysis],
+        notes: list[str] | None = None,
+    ) -> DocumentSynthesis:
+        """Use LLM to find cross-page relationships in PDF analyses.
+
+        BAML failures soft-skip: an empty ``DocumentSynthesis`` is returned and
+        a ``document_synthesis:warn:...`` note is appended to the caller-supplied
+        list. Downstream consumers (graph mapper, xref_map builder) already
+        handle empty cross-reference lists.
+        """
         if not self._registry:
             raise ConfigurationError(
                 "AnalyzedIngestion.lm_client is required for PDF synthesis "
@@ -551,12 +565,15 @@ class AnalyzedIngestionService:
                 baml_options={"client_registry": self._registry},
             )
         except baml_errors.BamlValidationError as exc:
-            raise IngestionError(
-                f"SynthesizeDocument failed: LLM returned an unparseable response. "
-                f"This usually means the model does not support the expected output format. Detail: {exc}"
-            ) from exc
+            logger.warning("SynthesizeDocument invalid output: %s", exc)
+            if notes is not None:
+                notes.append(f"document_synthesis:warn:invalid_output({exc!s:.80})")
+            return DocumentSynthesis()
         except Exception as exc:
-            raise IngestionError(f"SynthesizeDocument failed: {exc}") from exc
+            logger.warning("SynthesizeDocument failed: %s", exc)
+            if notes is not None:
+                notes.append(f"document_synthesis:warn:{type(exc).__name__}({exc!s:.80})")
+            return DocumentSynthesis()
 
         synthesis = DocumentSynthesis(
             cross_references=[
