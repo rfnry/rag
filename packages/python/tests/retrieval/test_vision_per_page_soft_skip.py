@@ -197,6 +197,54 @@ async def test_vision_invalid_baml_output_writes_invalid_output_note(tmp_path) -
     assert any("invalid_output" in n for n in notes), notes
 
 
+async def test_vision_per_page_soft_skip_emits_vision_page_skipped_event(tmp_path) -> None:
+    from rfnry_rag.observability import Observability, RecordingSink
+    from rfnry_rag.observability.context import _reset_obs, _set_obs
+
+    svc = _make_service()
+    pages = _pages(3)
+
+    call_count = {"n": 0}
+
+    async def selective_baml(image, *, baml_options=None):
+        call_count["n"] += 1
+        if call_count["n"] == 2:
+            raise RuntimeError("page 2 broke")
+        return _baml_result(call_count["n"])
+
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+
+    obs_sink = RecordingSink()
+    obs_token = _set_obs(Observability(sink=obs_sink))
+    try:
+        with (
+            patch(
+                "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
+                return_value=iter(pages),
+            ),
+            patch(
+                "rfnry_rag.ingestion.analyze.service.compute_file_hash",
+                return_value="hash5",
+            ),
+            patch(
+                "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
+                new_callable=AsyncMock,
+                side_effect=lambda fn, *args: fn(*args),
+            ),
+            patch("rfnry_rag.baml.baml_client.async_client.b") as mock_b,
+        ):
+            mock_b.AnalyzePage = AsyncMock(side_effect=selective_baml)
+            await svc.analyze(file_path=pdf)
+    finally:
+        _reset_obs(obs_token)
+
+    events = [r for r in obs_sink.records if r.kind == "vision.page.skipped"]
+    assert len(events) == 1
+    assert events[0].context["page_number"] == 2
+    assert events[0].context["step"] == "vision"
+
+
 async def test_vision_clean_no_notes(tmp_path) -> None:
     svc = _make_service()
     pages = _pages(3)

@@ -6,6 +6,7 @@ from typing import Any
 from rfnry_rag.config.graph import GraphIngestionConfig
 from rfnry_rag.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
 from rfnry_rag.ingestion.models import ChunkedContent, ParsedPage
+from rfnry_rag.ingestion.notes import record_skip
 from rfnry_rag.logging import get_logger
 from rfnry_rag.observability.context import current_obs
 from rfnry_rag.providers import LanguageModelClient, build_registry
@@ -136,8 +137,12 @@ class GraphIngestion:
         except Exception as exc:
             elapsed_ms = int((time.perf_counter() - start) * 1000)
             logger.warning("failed in %dms — %s", elapsed_ms, exc)
-            if notes is not None:
-                notes.append(f"graph:warn:extraction_failed({exc!s:.80})")
+            await record_skip(
+                notes,
+                step="graph",
+                level="warn",
+                reason=f"extraction_failed({exc!s:.80})",
+            )
             if ingest_row is not None:
                 ingest_row.graph_extraction_failed = True
             if obs is not None:

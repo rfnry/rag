@@ -24,6 +24,7 @@ from rfnry_rag.ingestion.analyze.pdf_splitter import iter_pdf_page_images
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.batching import embed_batched
 from rfnry_rag.ingestion.hashing import file_hash as compute_file_hash
+from rfnry_rag.ingestion.notes import record_skip
 from rfnry_rag.ingestion.page_range import parse_page_range
 from rfnry_rag.ingestion.vision.base import BaseVision
 from rfnry_rag.logging import get_logger
@@ -300,7 +301,12 @@ class AnalyzedIngestionService:
                 )
             except Exception as exc:
                 logger.warning("[analyze/ingestion/ingest] graph failed: %s", exc)
-                notes.append(f"graph:warn:method_failed({exc!s:.80})")
+                await record_skip(
+                    notes,
+                    step="graph",
+                    level="warn",
+                    reason=f"method_failed({exc!s:.80})",
+                )
 
         # Delegate to other ingestion methods — prefer raw OCR text; fall back to enriched
         # description (with entity names) for L5X/XML where raw_text is always empty.
@@ -321,7 +327,12 @@ class AnalyzedIngestionService:
                 )
             except Exception as exc:
                 logger.warning("[analyze/ingestion/ingest] method '%s' failed: %s", method.name, exc)
-                notes.append(f"{method.name}:warn:method_failed({exc!s:.80})")
+                await record_skip(
+                    notes,
+                    step=method.name,
+                    level="warn",
+                    reason=f"method_failed({exc!s:.80})",
+                )
 
         if notes:
             source.metadata.setdefault("ingestion_notes", []).extend(notes)
@@ -490,13 +501,23 @@ class AnalyzedIngestionService:
                 )
             except baml_errors.BamlValidationError as exc:
                 logger.warning("AnalyzePage invalid output on page %d: %s", page_number, exc)
-                if notes is not None:
-                    notes.append(f"vision:warn:page_{page_number}:invalid_output({exc!s:.80})")
+                await record_skip(
+                    notes,
+                    step="vision",
+                    level="warn",
+                    reason=f"page_{page_number}:invalid_output({exc!s:.80})",
+                    page_number=page_number,
+                )
                 return None
             except Exception as exc:
                 logger.warning("AnalyzePage failed on page %d: %s", page_number, exc)
-                if notes is not None:
-                    notes.append(f"vision:warn:page_{page_number}:{type(exc).__name__}({exc!s:.80})")
+                await record_skip(
+                    notes,
+                    step="vision",
+                    level="warn",
+                    reason=f"page_{page_number}:{type(exc).__name__}({exc!s:.80})",
+                    page_number=page_number,
+                )
                 return None
 
         analysis = PageAnalysis(
@@ -574,13 +595,21 @@ class AnalyzedIngestionService:
             )
         except baml_errors.BamlValidationError as exc:
             logger.warning("SynthesizeDocument invalid output: %s", exc)
-            if notes is not None:
-                notes.append(f"document_synthesis:warn:invalid_output({exc!s:.80})")
+            await record_skip(
+                notes,
+                step="document_synthesis",
+                level="warn",
+                reason=f"invalid_output({exc!s:.80})",
+            )
             return DocumentSynthesis()
         except Exception as exc:
             logger.warning("SynthesizeDocument failed: %s", exc)
-            if notes is not None:
-                notes.append(f"document_synthesis:warn:{type(exc).__name__}({exc!s:.80})")
+            await record_skip(
+                notes,
+                step="document_synthesis",
+                level="warn",
+                reason=f"{type(exc).__name__}({exc!s:.80})",
+            )
             return DocumentSynthesis()
 
         synthesis = DocumentSynthesis(

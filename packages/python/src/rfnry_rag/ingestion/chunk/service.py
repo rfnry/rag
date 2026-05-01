@@ -23,6 +23,7 @@ from rfnry_rag.ingestion.chunk.parsers.text import TextParser
 from rfnry_rag.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.ingestion.hashing import file_hash
 from rfnry_rag.ingestion.models import ParsedPage
+from rfnry_rag.ingestion.notes import record_skip
 from rfnry_rag.ingestion.page_range import parse_page_range
 from rfnry_rag.ingestion.vision.base import BaseVision
 from rfnry_rag.ingestion.vision.constants import IMAGE_EXTENSIONS
@@ -256,7 +257,7 @@ class IngestionService:
                 )
             except EnrichmentSkipped as exc:
                 logger.warning("ingestion enrichment skipped: %s", exc)
-                notes.append(f"{exc.step}:info:{exc.reason}")
+                await record_skip(notes, step=exc.step, level="info", reason=exc.reason)
 
         if self._document_expansion is not None and self._document_expansion.enabled:
             assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__
@@ -349,7 +350,7 @@ class IngestionService:
                 )
             except EnrichmentSkipped as exc:
                 logger.warning("ingestion enrichment skipped: %s", exc)
-                notes.append(f"{exc.step}:info:{exc.reason}")
+                await record_skip(notes, step=exc.step, level="info", reason=exc.reason)
 
         if self._document_expansion is not None and self._document_expansion.enabled:
             assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__

@@ -320,6 +320,65 @@ async def test_auto_mode_emits_routing_decision_event_indexed() -> None:
     assert row.corpus_tokens == 200_000
 
 
+async def test_record_skip_emits_enrichment_skipped_event() -> None:
+    from rfnry_rag.ingestion.notes import record_skip
+    from rfnry_rag.observability.context import _reset_obs, _set_obs
+
+    obs_sink = RecordingSink()
+    obs_token = _set_obs(Observability(sink=obs_sink))
+    notes: list[str] = []
+    try:
+        await record_skip(
+            notes,
+            step="contextual_chunk",
+            level="info",
+            reason="document_too_large(500000>134000_cap)",
+        )
+    finally:
+        _reset_obs(obs_token)
+
+    assert notes == ["contextual_chunk:info:document_too_large(500000>134000_cap)"]
+    events = [r for r in obs_sink.records if r.kind == "enrichment.skipped"]
+    assert len(events) == 1
+    assert events[0].context == {
+        "step": "contextual_chunk",
+        "reason": "document_too_large(500000>134000_cap)",
+    }
+
+
+async def test_record_skip_emits_vision_page_skipped_when_page_number_set() -> None:
+    from rfnry_rag.ingestion.notes import record_skip
+    from rfnry_rag.observability.context import _reset_obs, _set_obs
+
+    obs_sink = RecordingSink()
+    obs_token = _set_obs(Observability(sink=obs_sink))
+    notes: list[str] = []
+    try:
+        await record_skip(
+            notes,
+            step="vision",
+            level="warn",
+            reason="page_3:RuntimeError(rate_limited)",
+            page_number=3,
+        )
+    finally:
+        _reset_obs(obs_token)
+
+    assert "vision:warn:page_3:RuntimeError(rate_limited)" in notes
+    events = [r for r in obs_sink.records if r.kind == "vision.page.skipped"]
+    assert len(events) == 1
+    assert events[0].context["page_number"] == 3
+    assert events[0].context["step"] == "vision"
+
+
+async def test_record_skip_no_op_outside_obs_context() -> None:
+    from rfnry_rag.ingestion.notes import record_skip
+
+    notes: list[str] = []
+    await record_skip(notes, step="x", level="info", reason="y")
+    assert notes == ["x:info:y"]
+
+
 async def test_telemetry_persists_via_metadata_store(tmp_path) -> None:
     from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
     from rfnry_rag.telemetry import SqlAlchemyTelemetrySink

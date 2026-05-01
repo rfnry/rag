@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from rfnry_rag.baml.baml_client.async_client import b
 from rfnry_rag.concurrency import run_concurrent
 from rfnry_rag.ingestion.models import ChunkedContent
+from rfnry_rag.ingestion.notes import record_skip
 from rfnry_rag.logging import get_logger
 from rfnry_rag.telemetry.usage import instrument_baml_call
 
@@ -60,10 +61,12 @@ async def expand_chunks(
             )
         except Exception as exc:
             failed_count += 1
-            if notes is not None:
-                notes.append(
-                    f"document_expansion:warn:chunk_{chunk.chunk_index}:failed({exc!s:.80})"
-                )
+            await record_skip(
+                notes,
+                step="document_expansion",
+                level="warn",
+                reason=f"chunk_{chunk.chunk_index}:failed({exc!s:.80})",
+            )
             chunk.synthetic_queries = []
             return
         chunk.synthetic_queries = list(result.queries)
@@ -71,8 +74,13 @@ async def expand_chunks(
     await run_concurrent(chunks, _expand_one, concurrency=config.concurrency)
 
     total = len(chunks)
-    if notes is not None and total > 0 and failed_count / total > _MAJORITY_FAILURE_RATIO:
-        notes.append(f"document_expansion:warn:majority_failed({failed_count}/{total})")
+    if total > 0 and failed_count / total > _MAJORITY_FAILURE_RATIO:
+        await record_skip(
+            notes,
+            step="document_expansion",
+            level="warn",
+            reason=f"majority_failed({failed_count}/{total})",
+        )
 
     logger.info(
         "expanded %d chunks with synthetic queries (concurrency=%d, failed=%d)",
