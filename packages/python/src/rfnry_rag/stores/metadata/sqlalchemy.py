@@ -3,6 +3,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import (
+    JSON,
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -26,6 +28,7 @@ from sqlalchemy.schema import ColumnDefault
 from rfnry_rag.exceptions import ConfigurationError, DuplicateSourceError, SourceNotFoundError
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import Source, SourceStats
+from rfnry_rag.telemetry.record import IngestTelemetryRow, QueryTelemetryRow
 
 logger = get_logger(__name__)
 
@@ -100,6 +103,76 @@ class _PageAnalysisRow(_Base):
             ondelete="CASCADE",
         ),
     )
+
+
+class _QueryTelemetryRow(_Base):
+    __tablename__ = "rag_query_telemetry"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    knowledge_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    query_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    routing_decision: Mapped[str] = mapped_column(String(64), nullable=False)
+    corpus_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    stop_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tokens_input: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_output: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_cache_creation: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_cache_read: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    llm_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    retrieval_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    grounding_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    generation_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    chunks_retrieved: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    methods_used_json: Mapped[str] = mapped_column(JSON, nullable=False, default="[]")
+    method_durations_ms_json: Mapped[str] = mapped_column(JSON, nullable=False, default="{}")
+    method_errors: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    grounding_decision: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class _IngestTelemetryRow(_Base):
+    __tablename__ = "rag_ingest_telemetry"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    knowledge_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    source_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    ingest_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    chunks_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    pages_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    contextual_chunk_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    contextual_chunk_skipped: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    document_expansion_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    document_expansion_chunk_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    vision_pages_analyzed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    vision_pages_skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    graph_extraction_failed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    tokens_input: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_output: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_cache_creation: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_cache_read: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    llm_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    parse_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    chunk_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    enrichment_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    embed_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    persist_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    notes_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class SQLAlchemyMetadataStore:
@@ -562,6 +635,192 @@ class SQLAlchemyMetadataStore:
         if row is None:
             return None
         return json.loads(row.data_json)
+
+    async def insert_query_telemetry(self, row: QueryTelemetryRow) -> None:
+        orm_row = _QueryTelemetryRow(
+            schema_version=row.schema_version,
+            at=row.at,
+            knowledge_id=row.knowledge_id,
+            query_id=row.query_id,
+            mode=row.mode,
+            routing_decision=row.routing_decision,
+            corpus_tokens=row.corpus_tokens,
+            provider=row.provider,
+            model=row.model,
+            stop_reason=row.stop_reason,
+            tokens_input=row.tokens_input,
+            tokens_output=row.tokens_output,
+            tokens_cache_creation=row.tokens_cache_creation,
+            tokens_cache_read=row.tokens_cache_read,
+            llm_calls=row.llm_calls,
+            duration_ms=row.duration_ms,
+            retrieval_ms=row.retrieval_ms,
+            grounding_ms=row.grounding_ms,
+            generation_ms=row.generation_ms,
+            chunks_retrieved=row.chunks_retrieved,
+            methods_used_json=json.dumps(row.methods_used),
+            method_durations_ms_json=json.dumps(row.method_durations_ms),
+            method_errors=row.method_errors,
+            grounding_decision=row.grounding_decision,
+            confidence=row.confidence,
+            outcome=row.outcome,
+            error_type=row.error_type,
+            error_message=row.error_message,
+        )
+        async with self._session_factory() as session:
+            session.add(orm_row)
+            await session.commit()
+
+    async def insert_ingest_telemetry(self, row: IngestTelemetryRow) -> None:
+        orm_row = _IngestTelemetryRow(
+            schema_version=row.schema_version,
+            at=row.at,
+            knowledge_id=row.knowledge_id,
+            source_id=row.source_id,
+            ingest_id=row.ingest_id,
+            source_type=row.source_type,
+            chunks_count=row.chunks_count,
+            pages_count=row.pages_count,
+            contextual_chunk_calls=row.contextual_chunk_calls,
+            contextual_chunk_skipped=row.contextual_chunk_skipped,
+            document_expansion_calls=row.document_expansion_calls,
+            document_expansion_chunk_failures=row.document_expansion_chunk_failures,
+            vision_pages_analyzed=row.vision_pages_analyzed,
+            vision_pages_skipped=row.vision_pages_skipped,
+            graph_extraction_failed=row.graph_extraction_failed,
+            tokens_input=row.tokens_input,
+            tokens_output=row.tokens_output,
+            tokens_cache_creation=row.tokens_cache_creation,
+            tokens_cache_read=row.tokens_cache_read,
+            llm_calls=row.llm_calls,
+            duration_ms=row.duration_ms,
+            parse_ms=row.parse_ms,
+            chunk_ms=row.chunk_ms,
+            enrichment_ms=row.enrichment_ms,
+            embed_ms=row.embed_ms,
+            persist_ms=row.persist_ms,
+            outcome=row.outcome,
+            notes_count=row.notes_count,
+            error_type=row.error_type,
+            error_message=row.error_message,
+        )
+        async with self._session_factory() as session:
+            session.add(orm_row)
+            await session.commit()
+
+    async def list_query_telemetry(
+        self,
+        *,
+        knowledge_id: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        limit: int = 1000,
+    ) -> list[QueryTelemetryRow]:
+        stmt = select(_QueryTelemetryRow)
+        if knowledge_id is not None:
+            stmt = stmt.where(_QueryTelemetryRow.knowledge_id == knowledge_id)
+        if since is not None:
+            stmt = stmt.where(_QueryTelemetryRow.at >= since)
+        if until is not None:
+            stmt = stmt.where(_QueryTelemetryRow.at <= until)
+        stmt = stmt.order_by(_QueryTelemetryRow.at.desc()).limit(limit)
+        async with self._session_factory() as session:
+            rows = (await session.execute(stmt)).scalars().all()
+        return [self._query_orm_to_record(r) for r in rows]
+
+    async def list_ingest_telemetry(
+        self,
+        *,
+        knowledge_id: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        limit: int = 1000,
+    ) -> list[IngestTelemetryRow]:
+        stmt = select(_IngestTelemetryRow)
+        if knowledge_id is not None:
+            stmt = stmt.where(_IngestTelemetryRow.knowledge_id == knowledge_id)
+        if since is not None:
+            stmt = stmt.where(_IngestTelemetryRow.at >= since)
+        if until is not None:
+            stmt = stmt.where(_IngestTelemetryRow.at <= until)
+        stmt = stmt.order_by(_IngestTelemetryRow.at.desc()).limit(limit)
+        async with self._session_factory() as session:
+            rows = (await session.execute(stmt)).scalars().all()
+        return [self._ingest_orm_to_record(r) for r in rows]
+
+    @staticmethod
+    def _query_orm_to_record(r: _QueryTelemetryRow) -> QueryTelemetryRow:
+        methods_used_raw = r.methods_used_json
+        method_durations_raw = r.method_durations_ms_json
+        methods_used = json.loads(methods_used_raw) if isinstance(methods_used_raw, str) else (methods_used_raw or [])
+        method_durations = (
+            json.loads(method_durations_raw) if isinstance(method_durations_raw, str) else (method_durations_raw or {})
+        )
+        return QueryTelemetryRow(
+            schema_version=r.schema_version,
+            at=r.at,
+            knowledge_id=r.knowledge_id,
+            query_id=r.query_id,
+            mode=r.mode,  # type: ignore[arg-type]
+            routing_decision=r.routing_decision,
+            corpus_tokens=r.corpus_tokens,
+            provider=r.provider,
+            model=r.model,
+            stop_reason=r.stop_reason,
+            tokens_input=r.tokens_input,
+            tokens_output=r.tokens_output,
+            tokens_cache_creation=r.tokens_cache_creation,
+            tokens_cache_read=r.tokens_cache_read,
+            llm_calls=r.llm_calls,
+            duration_ms=r.duration_ms,
+            retrieval_ms=r.retrieval_ms,
+            grounding_ms=r.grounding_ms,
+            generation_ms=r.generation_ms,
+            chunks_retrieved=r.chunks_retrieved,
+            methods_used=methods_used,
+            method_durations_ms=method_durations,
+            method_errors=r.method_errors,
+            grounding_decision=r.grounding_decision,  # type: ignore[arg-type]
+            confidence=r.confidence,
+            outcome=r.outcome,  # type: ignore[arg-type]
+            error_type=r.error_type,
+            error_message=r.error_message,
+        )
+
+    @staticmethod
+    def _ingest_orm_to_record(r: _IngestTelemetryRow) -> IngestTelemetryRow:
+        return IngestTelemetryRow(
+            schema_version=r.schema_version,
+            at=r.at,
+            knowledge_id=r.knowledge_id,
+            source_id=r.source_id,
+            ingest_id=r.ingest_id,
+            source_type=r.source_type,
+            chunks_count=r.chunks_count,
+            pages_count=r.pages_count,
+            contextual_chunk_calls=r.contextual_chunk_calls,
+            contextual_chunk_skipped=r.contextual_chunk_skipped,
+            document_expansion_calls=r.document_expansion_calls,
+            document_expansion_chunk_failures=r.document_expansion_chunk_failures,
+            vision_pages_analyzed=r.vision_pages_analyzed,
+            vision_pages_skipped=r.vision_pages_skipped,
+            graph_extraction_failed=r.graph_extraction_failed,
+            tokens_input=r.tokens_input,
+            tokens_output=r.tokens_output,
+            tokens_cache_creation=r.tokens_cache_creation,
+            tokens_cache_read=r.tokens_cache_read,
+            llm_calls=r.llm_calls,
+            duration_ms=r.duration_ms,
+            parse_ms=r.parse_ms,
+            chunk_ms=r.chunk_ms,
+            enrichment_ms=r.enrichment_ms,
+            embed_ms=r.embed_ms,
+            persist_ms=r.persist_ms,
+            outcome=r.outcome,  # type: ignore[arg-type]
+            notes_count=r.notes_count,
+            error_type=r.error_type,
+            error_message=r.error_message,
+        )
 
     async def shutdown(self) -> None:
         await self._engine.dispose()

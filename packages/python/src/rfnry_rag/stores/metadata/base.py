@@ -1,6 +1,8 @@
+from datetime import datetime
 from typing import Protocol
 
 from rfnry_rag.models import Source, SourceStats
+from rfnry_rag.telemetry.record import IngestTelemetryRow, QueryTelemetryRow
 
 
 class BaseMetadataStore(Protocol):
@@ -49,5 +51,27 @@ class BaseMetadataStore(Protocol):
         source_id: str,
         page_number: int,
     ) -> dict | None: ...
+
+    async def insert_query_telemetry(self, row: QueryTelemetryRow) -> None: ...
+
+    async def insert_ingest_telemetry(self, row: IngestTelemetryRow) -> None: ...
+
+    async def list_query_telemetry(
+        self,
+        *,
+        knowledge_id: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        limit: int = 1000,
+    ) -> list[QueryTelemetryRow]: ...
+
+    async def list_ingest_telemetry(
+        self,
+        *,
+        knowledge_id: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        limit: int = 1000,
+    ) -> list[IngestTelemetryRow]: ...
 
     async def shutdown(self) -> None: ...
