@@ -6,7 +6,7 @@ from typing import Any
 
 from rfnry_rag.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.logging import get_logger
-from rfnry_rag.models import Chunk, Source, SourceStats
+from rfnry_rag.models import Chunk, HealthSummary, RetrievalHealth, Source, SourceStats
 from rfnry_rag.stores.document.base import BaseDocumentStore
 from rfnry_rag.stores.graph.base import BaseGraphStore
 from rfnry_rag.stores.metadata.base import BaseMetadataStore
@@ -91,6 +91,32 @@ class KnowledgeManager:
         if self._metadata_store:
             return await self._metadata_store.get_source_stats(source_id)
         return None
+
+    async def health(self, source_id: str) -> HealthSummary | None:
+        """Fuse ingestion notes, retrieval stats, and embedding freshness for a source."""
+        if not source_id or not source_id.strip():
+            raise ValueError("source_id must not be empty")
+        source = await self.get(source_id)
+        if source is None:
+            return None
+        stats = await self.get_stats(source_id)
+        retrieval: RetrievalHealth | None = None
+        if stats is not None:
+            grounding_rate = stats.grounded_hits / stats.total_hits if stats.total_hits else None
+            retrieval = RetrievalHealth(
+                total_hits=stats.total_hits,
+                grounded_hits=stats.grounded_hits,
+                ungrounded_hits=stats.ungrounded_hits,
+                grounding_rate=grounding_rate,
+            )
+        return HealthSummary(
+            source_id=source.source_id,
+            fully_ingested=source.fully_ingested,
+            ingestion_notes=source.ingestion_notes,
+            stale_embedding=source.stale,
+            embedding_model=source.embedding_model,
+            retrieval=retrieval,
+        )
 
     async def list_stale(self, knowledge_id: str | None = None) -> builtins.list[Source]:
         """List sources whose stored embedding model differs from the current config.

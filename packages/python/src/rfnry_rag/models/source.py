@@ -47,3 +47,21 @@ class SourceStats:
     total_hits: int = 0
     grounded_hits: int = 0
     ungrounded_hits: int = 0
+
+
+@dataclass
+class RetrievalHealth:
+    total_hits: int
+    grounded_hits: int
+    ungrounded_hits: int
+    grounding_rate: float | None
+
+
+@dataclass
+class HealthSummary:
+    source_id: str
+    fully_ingested: bool
+    ingestion_notes: list[str]
+    stale_embedding: bool
+    embedding_model: str
+    retrieval: RetrievalHealth | None

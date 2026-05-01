@@ -11,7 +11,7 @@ from rfnry_rag.cli.utils import get_output_mode as get_output_mode
 
 if TYPE_CHECKING:
     from rfnry_rag.generation.models import QueryResult
-    from rfnry_rag.models import Chunk, RetrievedChunk, Source, SourceStats
+    from rfnry_rag.models import Chunk, HealthSummary, RetrievedChunk, Source, SourceStats
     from rfnry_rag.observability.benchmark import BenchmarkReport
 
 
@@ -115,6 +115,33 @@ def print_stats(stats: SourceStats) -> None:
     print(f"  Avg chunk size: {stats.avg_chunk_size} chars")
     print(f"  Processing time: {stats.processing_time:.1f}s")
     print(f"  Hits: {stats.total_hits} (grounded: {stats.grounded_hits}, ungrounded: {stats.ungrounded_hits})")
+
+
+def print_health(health: HealthSummary) -> None:
+    """Human-readable health summary."""
+    print(f"  Source: {health.source_id}")
+    if health.fully_ingested:
+        print("  Ingested: ok")
+    else:
+        print(f"  Ingested: {len(health.ingestion_notes)} note(s)")
+        for note in health.ingestion_notes:
+            print(f"    - {note}")
+    embedding_label = health.embedding_model or "unknown"
+    if health.stale_embedding:
+        print(f"  Embedding: stale ({embedding_label})")
+    else:
+        print(f"  Embedding: fresh ({embedding_label})")
+    if health.retrieval is None:
+        print("  Retrieval: no hits recorded")
+    else:
+        r = health.retrieval
+        if r.grounding_rate is None:
+            print(f"  Retrieval: {r.total_hits} hits")
+        else:
+            print(
+                f"  Retrieval: {r.total_hits} hits "
+                f"({r.grounding_rate:.0%} grounded, {r.ungrounded_hits} ungrounded)"
+            )
 
 
 def print_benchmark_report(report: BenchmarkReport) -> None:

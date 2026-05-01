@@ -10,6 +10,7 @@ from rfnry_rag.cli.output import (
     OutputMode,
     print_chunks,
     print_error,
+    print_health,
     print_json,
     print_source,
     print_source_list,
@@ -155,6 +156,43 @@ async def _stats(server_config, source_id, mode):
                 print_json(asdict(stats))
             else:
                 print_stats(stats)
+    except SystemExit:
+        raise
+    except Exception as e:
+        print_error(str(e), mode)
+        raise SystemExit(1) from None
+
+
+@knowledge.command("inspect")
+@click.argument("source_id")
+@click.pass_context
+def inspect_source(ctx: click.Context, source_id: str) -> None:
+    """Show ingestion notes, embedding freshness, and retrieval stats for a source."""
+    mode: OutputMode = ctx.obj["output_mode"]
+    config_path = ctx.obj["config_path"]
+
+    try:
+        server_config = load_config(config_path)
+    except ConfigError as e:
+        print_error(str(e), mode)
+        raise SystemExit(1) from None
+
+    run_async(_inspect(server_config, source_id, mode))
+
+
+async def _inspect(server_config, source_id, mode):
+    from rfnry_rag.server import RagEngine
+
+    try:
+        async with RagEngine(server_config) as rag:
+            health = await rag.knowledge.health(source_id)
+            if health is None:
+                print_error(f"Source not found: {source_id}", mode)
+                raise SystemExit(1) from None
+            if mode == OutputMode.JSON:
+                print_json(asdict(health))
+            else:
+                print_health(health)
     except SystemExit:
         raise
     except Exception as e:

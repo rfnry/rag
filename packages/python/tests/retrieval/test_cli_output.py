@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
-from rfnry_rag.cli.output import OutputMode, get_output_mode, print_json
-from rfnry_rag.models import Source
+from rfnry_rag.cli.output import OutputMode, get_output_mode, print_health, print_json
+from rfnry_rag.models import HealthSummary, RetrievalHealth, Source
 
 
 class TestGetOutputMode:
@@ -34,3 +34,43 @@ class TestPrintJson:
         print_json({"key": "value"})
         output = capsys.readouterr().out
         assert '"key": "value"' in output
+
+
+class TestPrintHealth:
+    def test_clean_source(self, capsys):
+        h = HealthSummary(
+            source_id="abc",
+            fully_ingested=True,
+            ingestion_notes=[],
+            stale_embedding=False,
+            embedding_model="openai:text-embedding-3-small",
+            retrieval=None,
+        )
+        print_health(h)
+        out = capsys.readouterr().out
+        assert "abc" in out
+        assert "Ingested: ok" in out
+        assert "fresh" in out
+        assert "no hits recorded" in out
+
+    def test_with_notes_and_retrieval(self, capsys):
+        h = HealthSummary(
+            source_id="xyz",
+            fully_ingested=False,
+            ingestion_notes=["vision:warn:page_3:bad"],
+            stale_embedding=True,
+            embedding_model="openai:text-embedding-3-small",
+            retrieval=RetrievalHealth(
+                total_hits=10,
+                grounded_hits=7,
+                ungrounded_hits=3,
+                grounding_rate=0.7,
+            ),
+        )
+        print_health(h)
+        out = capsys.readouterr().out
+        assert "1 note" in out
+        assert "vision:warn:page_3:bad" in out
+        assert "stale" in out
+        assert "10 hits" in out
+        assert "70% grounded" in out
