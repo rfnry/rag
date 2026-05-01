@@ -100,6 +100,54 @@ async def test_unsupported_provider_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Oversized document guard — refuse upfront rather than truncate
+# ---------------------------------------------------------------------------
+
+
+async def test_oversized_document_raises_with_explicit_window() -> None:
+    chunks = [_make_chunk(0, content="alpha")]
+    client = LanguageModelClient(
+        lm=LanguageModel(provider="anthropic", model="m", api_key="k", context_size=32_000),
+    )
+    cfg = ContextualChunkConfig(enabled=True, lm_client=client, max_context_tokens=100)
+    huge_doc = "word " * 20_000
+    with pytest.raises(IngestionError, match="cap of") as exc_info:
+        await contextualize_chunks_with_llm(chunks, document_text=huge_doc, config=cfg)
+    assert "window=32000" in str(exc_info.value)
+
+
+async def test_oversized_document_raises_with_default_cap() -> None:
+    chunks = [_make_chunk(0, content="alpha")]
+    cfg = ContextualChunkConfig(
+        enabled=True,
+        lm_client=_make_client("anthropic"),
+        max_context_tokens=100,
+    )
+    huge_doc = "word " * 200_000
+    with pytest.raises(IngestionError, match="cap of") as exc_info:
+        await contextualize_chunks_with_llm(chunks, document_text=huge_doc, config=cfg)
+    assert "150000" in str(exc_info.value)
+
+
+async def test_within_cap_proceeds_normally() -> None:
+    async def fake_create(**kwargs: object) -> object:
+        return SimpleNamespace(content=[SimpleNamespace(text="ok")])
+
+    with patch("anthropic.AsyncAnthropic") as mock_cls, patch(
+        "anthropic.types.TextBlock", new=SimpleNamespace
+    ):
+        fake_client = MagicMock()
+        fake_client.messages.create = AsyncMock(side_effect=fake_create)
+        mock_cls.return_value = fake_client
+
+        chunks = [_make_chunk(0, content="alpha")]
+        cfg = ContextualChunkConfig(enabled=True, lm_client=_make_client("anthropic"))
+        await contextualize_chunks_with_llm(chunks, document_text="small doc", config=cfg)
+
+    assert chunks[0].situating_context == "ok"
+
+
+# ---------------------------------------------------------------------------
 # Anthropic dispatch — system block carries cache_control, chunk in user message
 # ---------------------------------------------------------------------------
 

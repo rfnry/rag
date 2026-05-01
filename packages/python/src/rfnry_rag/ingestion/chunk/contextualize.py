@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from rfnry_rag.concurrency import run_concurrent
 from rfnry_rag.exceptions import ConfigurationError, IngestionError
+from rfnry_rag.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.ingestion.models import ChunkedContent
 from rfnry_rag.logging import get_logger
 
@@ -31,6 +32,9 @@ _PROMPT_TEMPLATE = (
     "nothing else."
 )
 
+DOC_RESERVE_TOKENS = 16_000
+DEFAULT_DOC_CAP = 150_000
+
 
 async def contextualize_chunks_with_llm(
     chunks: list[ChunkedContent],
@@ -49,6 +53,17 @@ async def contextualize_chunks_with_llm(
         return chunks
     client = config.lm_client
     assert client is not None  # __post_init__ guarantees this when enabled
+
+    window = client.lm.context_size or DEFAULT_DOC_CAP
+    cap = window - DOC_RESERVE_TOKENS - config.max_context_tokens
+    doc_tokens = count_tokens(document_text)
+    if doc_tokens > cap:
+        raise IngestionError(
+            f"document is {doc_tokens} tokens, exceeds contextualization cap of {cap} "
+            f"(window={window}, reserve={DOC_RESERVE_TOKENS}, max_context_tokens={config.max_context_tokens}). "
+            f"Disable contextual_chunk for this source, configure a model with larger context_size, "
+            f"or pre-split the document."
+        )
 
     async def _situate_one(chunk: ChunkedContent) -> None:
         try:
