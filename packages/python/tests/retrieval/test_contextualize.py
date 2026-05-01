@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from rfnry_rag.config import ContextualChunkConfig
-from rfnry_rag.exceptions import ConfigurationError, IngestionError
+from rfnry_rag.exceptions import ConfigurationError, EnrichmentSkipped, IngestionError
 from rfnry_rag.ingestion.chunk.contextualize import contextualize_chunks_with_llm
 from rfnry_rag.ingestion.models import ChunkedContent
 from rfnry_rag.providers import LanguageModel, LanguageModelClient
@@ -111,9 +111,10 @@ async def test_oversized_document_raises_with_explicit_window() -> None:
     )
     cfg = ContextualChunkConfig(enabled=True, lm_client=client, max_context_tokens=100)
     huge_doc = "word " * 20_000
-    with pytest.raises(IngestionError, match="cap of") as exc_info:
+    with pytest.raises(EnrichmentSkipped) as exc_info:
         await contextualize_chunks_with_llm(chunks, document_text=huge_doc, config=cfg)
-    assert "window=32000" in str(exc_info.value)
+    assert exc_info.value.step == "contextual_chunk"
+    assert "document_too_large" in exc_info.value.reason
 
 
 async def test_oversized_document_raises_with_default_cap() -> None:
@@ -124,9 +125,10 @@ async def test_oversized_document_raises_with_default_cap() -> None:
         max_context_tokens=100,
     )
     huge_doc = "word " * 200_000
-    with pytest.raises(IngestionError, match="cap of") as exc_info:
+    with pytest.raises(EnrichmentSkipped) as exc_info:
         await contextualize_chunks_with_llm(chunks, document_text=huge_doc, config=cfg)
-    assert "150000" in str(exc_info.value)
+    assert exc_info.value.step == "contextual_chunk"
+    assert "document_too_large" in exc_info.value.reason
 
 
 async def test_within_cap_proceeds_normally() -> None:
@@ -437,3 +439,65 @@ async def test_ingestion_service_invokes_llm_when_enabled() -> None:
     chunks = method.ingest.call_args.kwargs["chunks"]
     assert all(c.situating_context == "SITUATED" for c in chunks)
     assert all("SITUATED" in c.contextualized for c in chunks)
+
+
+async def test_oversized_document_records_ingestion_note_and_continues() -> None:
+    import re
+
+    from rfnry_rag.ingestion.chunk.service import IngestionService
+
+    method = _ingest_method()
+    service = IngestionService(
+        chunker=_service_chunker(["alpha", "beta"]),
+        ingestion_methods=[method],
+        contextual_chunk=ContextualChunkConfig(
+            enabled=True,
+            lm_client=_make_client("anthropic"),
+            concurrency=1,
+        ),
+    )
+
+    async def raise_skipped(*args: object, **kwargs: object) -> list[ChunkedContent]:
+        raise EnrichmentSkipped("contextual_chunk", "document_too_large(450000>134000_cap)")
+
+    with patch(
+        "rfnry_rag.ingestion.chunk.service.contextualize_chunks_with_llm",
+        new=AsyncMock(side_effect=raise_skipped),
+    ):
+        source = await service.ingest_text(content="DOCBODY", metadata={"name": "src"})
+
+    method.ingest.assert_awaited_once()
+    assert source.fully_ingested is False
+    assert len(source.ingestion_notes) == 1
+    note = source.ingestion_notes[0]
+    assert re.fullmatch(r"contextual_chunk:info:document_too_large\(\d+>\d+_cap\)", note)
+
+
+async def test_clean_ingest_has_empty_ingestion_notes() -> None:
+    from rfnry_rag.ingestion.chunk.service import IngestionService
+
+    async def fake_create(**kwargs: object) -> object:
+        return SimpleNamespace(content=[SimpleNamespace(text="SITUATED")])
+
+    method = _ingest_method()
+    service = IngestionService(
+        chunker=_service_chunker(["alpha", "beta"]),
+        ingestion_methods=[method],
+        contextual_chunk=ContextualChunkConfig(
+            enabled=True,
+            lm_client=_make_client("anthropic"),
+            concurrency=1,
+        ),
+    )
+
+    with patch("anthropic.AsyncAnthropic") as mock_cls, patch(
+        "anthropic.types.TextBlock", new=SimpleNamespace
+    ):
+        fake_client = MagicMock()
+        fake_client.messages.create = AsyncMock(side_effect=fake_create)
+        mock_cls.return_value = fake_client
+
+        source = await service.ingest_text(content="DOCBODY", metadata={"name": "src"})
+
+    assert source.fully_ingested is True
+    assert source.ingestion_notes == []

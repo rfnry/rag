@@ -11,6 +11,7 @@ from rfnry_rag.exceptions import (
     ConfigurationError,
     DuplicateSourceError,
     EmptyDocumentError,
+    EnrichmentSkipped,
     IngestionError,
 )
 from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
@@ -243,11 +244,17 @@ class IngestionService:
         full_text = "\n\n".join(f"[Page {p.page_number}]\n{p.content}" for p in pages)
 
         if self._contextual_chunk is not None and self._contextual_chunk.enabled:
-            chunks = await contextualize_chunks_with_llm(
-                chunks,
-                document_text=full_text,
-                config=self._contextual_chunk,
-            )
+            try:
+                chunks = await contextualize_chunks_with_llm(
+                    chunks,
+                    document_text=full_text,
+                    config=self._contextual_chunk,
+                )
+            except EnrichmentSkipped as exc:
+                logger.warning("ingestion enrichment skipped: %s", exc)
+                metadata.setdefault("ingestion_notes", []).append(
+                    f"{exc.step}:info:{exc.reason}"
+                )
 
         if self._document_expansion is not None and self._document_expansion.enabled:
             assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__
@@ -321,11 +328,17 @@ class IngestionService:
             chunks = contextualize_chunks(chunks, source_name=source_name, source_type=source_type)
 
         if self._contextual_chunk is not None and self._contextual_chunk.enabled:
-            chunks = await contextualize_chunks_with_llm(
-                chunks,
-                document_text=content,
-                config=self._contextual_chunk,
-            )
+            try:
+                chunks = await contextualize_chunks_with_llm(
+                    chunks,
+                    document_text=content,
+                    config=self._contextual_chunk,
+                )
+            except EnrichmentSkipped as exc:
+                logger.warning("ingestion enrichment skipped: %s", exc)
+                metadata.setdefault("ingestion_notes", []).append(
+                    f"{exc.step}:info:{exc.reason}"
+                )
 
         if self._document_expansion is not None and self._document_expansion.enabled:
             assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__

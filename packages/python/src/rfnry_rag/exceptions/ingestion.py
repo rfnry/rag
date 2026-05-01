@@ -37,3 +37,12 @@ class IngestionInterruptedError(IngestionError):
         super().__init__(message)
         self.completed_chunk_index = completed_chunk_index
         self.source_id = source_id
+
+
+class EnrichmentSkipped(RagError):
+    """Non-fatal pipeline step that produced no output and should be recorded as an audit note."""
+
+    def __init__(self, step: str, reason: str) -> None:
+        super().__init__(f"{step} skipped: {reason}")
+        self.step = step
+        self.reason = reason

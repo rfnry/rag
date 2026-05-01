@@ -27,6 +27,15 @@ class Source:
             return None
         return int(value)
 
+    @property
+    def ingestion_notes(self) -> list[str]:
+        notes = self.metadata.get("ingestion_notes")
+        return list(notes) if isinstance(notes, list) else []
+
+    @property
+    def fully_ingested(self) -> bool:
+        return not self.ingestion_notes
+
 
 @dataclass
 class SourceStats:

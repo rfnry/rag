@@ -6,6 +6,7 @@ from rfnry_rag.exceptions.generation import GenerationError
 from rfnry_rag.exceptions.ingestion import (
     EmbeddingError,
     EmptyDocumentError,
+    EnrichmentSkipped,
     IngestionError,
     IngestionInterruptedError,
     ParseError,
@@ -19,6 +20,7 @@ __all__ = [
     "DuplicateSourceError",
     "EmbeddingError",
     "EmptyDocumentError",
+    "EnrichmentSkipped",
     "GenerationError",
     "IngestionError",
     "IngestionInterruptedError",
