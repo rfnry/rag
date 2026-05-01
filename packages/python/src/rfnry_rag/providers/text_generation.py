@@ -3,7 +3,6 @@ from __future__ import annotations
 import time
 import traceback as tb_module
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 
 from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.observability.context import current_obs
@@ -15,51 +14,6 @@ from rfnry_rag.telemetry.usage import (
     extract_openai_usage,
     instrument_call,
 )
-
-
-@asynccontextmanager
-async def _stream_span(*, provider: str, model: str, operation: str):
-    """Wrap a streaming call: time + emit `provider.call` / `.error`.
-
-    Streaming responses do not surface usage metadata uniformly across the
-    three providers, so token counts stay zero. The call still increments
-    `llm_calls` on the active row and emits a `provider.call` event with
-    duration so the absence of token data is not absence of accounting.
-    """
-    obs = current_obs()
-    start = time.perf_counter()
-    try:
-        yield
-    except BaseException as exc:
-        elapsed = int((time.perf_counter() - start) * 1000)
-        if obs is not None:
-            await obs.emit(
-                "error",
-                "provider.error",
-                f"{provider}/{model} {operation} failed",
-                provider=provider,
-                model=model,
-                operation=operation,
-                duration_ms=elapsed,
-                error_type=type(exc).__name__,
-                error_message=str(exc),
-                traceback=tb_module.format_exc(),
-            )
-        raise
-    elapsed = int((time.perf_counter() - start) * 1000)
-    add_llm_usage(provider, model, {})
-    if obs is not None:
-        await obs.emit(
-            "info",
-            "provider.call",
-            f"{provider}/{model} {operation} ok",
-            provider=provider,
-            model=model,
-            operation=operation,
-            duration_ms=elapsed,
-            tokens_input=0,
-            tokens_output=0,
-        )
 
 
 def assemble_user_message(query: str, context: str) -> str:
@@ -182,6 +136,44 @@ def stream_text(
     )
 
 
+async def _emit_stream_call(*, provider: str, model: str, elapsed_ms: int, usage: dict[str, int]) -> None:
+    add_llm_usage(provider, model, usage)
+    obs = current_obs()
+    if obs is None:
+        return
+    await obs.emit(
+        "info",
+        "provider.call",
+        f"{provider}/{model} text_generation_stream ok",
+        provider=provider,
+        model=model,
+        operation="text_generation_stream",
+        duration_ms=elapsed_ms,
+        tokens_input=usage.get("tokens_input", 0),
+        tokens_output=usage.get("tokens_output", 0),
+        tokens_cache_creation=usage.get("tokens_cache_creation", 0),
+        tokens_cache_read=usage.get("tokens_cache_read", 0),
+    )
+
+
+async def _emit_stream_error(*, provider: str, model: str, elapsed_ms: int, exc: BaseException) -> None:
+    obs = current_obs()
+    if obs is None:
+        return
+    await obs.emit(
+        "error",
+        "provider.error",
+        f"{provider}/{model} text_generation_stream failed",
+        provider=provider,
+        model=model,
+        operation="text_generation_stream",
+        duration_ms=elapsed_ms,
+        error_type=type(exc).__name__,
+        error_message=str(exc),
+        traceback=tb_module.format_exc(),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Anthropic
 # ---------------------------------------------------------------------------
@@ -231,16 +223,30 @@ async def _anthropic_stream(
     from anthropic import AsyncAnthropic
 
     client = AsyncAnthropic(api_key=lm.api_key, max_retries=max_retries, timeout=timeout_seconds)
-    async with _stream_span(provider="anthropic", model=lm.model, operation="text_stream"), client.messages.stream(
+    start = time.perf_counter()
+    try:
+        async with client.messages.stream(
+            model=lm.model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        ) as stream:
+            async for delta in stream.text_stream:
+                if delta:
+                    yield delta
+            final = await stream.get_final_message()
+    except BaseException as exc:
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        await _emit_stream_error(provider="anthropic", model=lm.model, elapsed_ms=elapsed_ms, exc=exc)
+        raise
+    elapsed_ms = int((time.perf_counter() - start) * 1000)
+    await _emit_stream_call(
+        provider="anthropic",
         model=lm.model,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    ) as stream:
-        async for delta in stream.text_stream:
-            if delta:
-                yield delta
+        elapsed_ms=elapsed_ms,
+        usage=extract_anthropic_usage(final),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +299,9 @@ async def _openai_stream(
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(api_key=lm.api_key, max_retries=max_retries, timeout=timeout_seconds)
-    async with _stream_span(provider="openai", model=lm.model, operation="text_stream"):
+    start = time.perf_counter()
+    final_chunk: object | None = None
+    try:
         stream = await client.chat.completions.create(
             model=lm.model,
             max_tokens=max_tokens,
@@ -303,13 +311,27 @@ async def _openai_stream(
                 {"role": "user", "content": user},
             ],
             stream=True,
+            stream_options={"include_usage": True},
         )
         async for chunk in stream:
+            if getattr(chunk, "usage", None) is not None:
+                final_chunk = chunk
             if not chunk.choices:
                 continue
             delta = chunk.choices[0].delta.content
             if delta:
                 yield delta
+    except BaseException as exc:
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        await _emit_stream_error(provider="openai", model=lm.model, elapsed_ms=elapsed_ms, exc=exc)
+        raise
+    elapsed_ms = int((time.perf_counter() - start) * 1000)
+    await _emit_stream_call(
+        provider="openai",
+        model=lm.model,
+        elapsed_ms=elapsed_ms,
+        usage=extract_openai_usage(final_chunk) if final_chunk is not None else {},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +393,9 @@ async def _gemini_stream(
         retry_options=types.HttpRetryOptions(attempts=max_retries),
     )
     client = genai.Client(api_key=lm.api_key, http_options=http_options)
-    async with _stream_span(provider="gemini", model=lm.model, operation="text_stream"):
+    start = time.perf_counter()
+    final_chunk: object | None = None
+    try:
         stream = await client.aio.models.generate_content_stream(
             model=lm.model,
             contents=user,
@@ -382,6 +406,19 @@ async def _gemini_stream(
             ),
         )
         async for chunk in stream:
+            if getattr(chunk, "usage_metadata", None) is not None:
+                final_chunk = chunk
             text = chunk.text
             if text:
                 yield text
+    except BaseException as exc:
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        await _emit_stream_error(provider="gemini", model=lm.model, elapsed_ms=elapsed_ms, exc=exc)
+        raise
+    elapsed_ms = int((time.perf_counter() - start) * 1000)
+    await _emit_stream_call(
+        provider="gemini",
+        model=lm.model,
+        elapsed_ms=elapsed_ms,
+        usage=extract_gemini_usage(final_chunk) if final_chunk is not None else {},
+    )
