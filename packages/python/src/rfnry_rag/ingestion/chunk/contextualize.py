@@ -15,6 +15,7 @@ from rfnry_rag.exceptions import ConfigurationError, EnrichmentSkipped, Ingestio
 from rfnry_rag.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.ingestion.models import ChunkedContent
 from rfnry_rag.logging import get_logger
+from rfnry_rag.telemetry.context import increment_ingest_field
 from rfnry_rag.telemetry.usage import (
     extract_anthropic_usage,
     extract_gemini_usage,
@@ -86,6 +87,7 @@ async def contextualize_chunks_with_llm(
             ) from exc
         chunk.situating_context = blob
         chunk.contextualized = _fold(chunk)
+        increment_ingest_field("contextual_chunk_calls")
 
     await run_concurrent(chunks, _situate_one, concurrency=config.concurrency)
     logger.info(

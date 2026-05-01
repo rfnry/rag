@@ -13,6 +13,7 @@ from rfnry_rag.concurrency import run_concurrent
 from rfnry_rag.ingestion.models import ChunkedContent
 from rfnry_rag.ingestion.notes import record_skip
 from rfnry_rag.logging import get_logger
+from rfnry_rag.telemetry.context import increment_ingest_field
 from rfnry_rag.telemetry.usage import instrument_baml_call
 
 if TYPE_CHECKING:
@@ -61,6 +62,7 @@ async def expand_chunks(
             )
         except Exception as exc:
             failed_count += 1
+            increment_ingest_field("document_expansion_chunk_failures")
             await record_skip(
                 notes,
                 step="document_expansion",
@@ -69,6 +71,7 @@ async def expand_chunks(
             )
             chunk.synthetic_queries = []
             return
+        increment_ingest_field("document_expansion_calls")
         chunk.synthetic_queries = list(result.queries)
 
     await run_concurrent(chunks, _expand_one, concurrency=config.concurrency)

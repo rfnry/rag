@@ -30,6 +30,7 @@ from rfnry_rag.ingestion.vision.constants import IMAGE_EXTENSIONS
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import Source
 from rfnry_rag.stores.metadata.base import BaseMetadataStore
+from rfnry_rag.telemetry.context import set_ingest_field
 
 if TYPE_CHECKING:
     from baml_py import ClientRegistry
@@ -258,6 +259,8 @@ class IngestionService:
             except EnrichmentSkipped as exc:
                 logger.warning("ingestion enrichment skipped: %s", exc)
                 await record_skip(notes, step=exc.step, level="info", reason=exc.reason)
+                if exc.step == "contextual_chunk":
+                    set_ingest_field("contextual_chunk_skipped", True)
 
         if self._document_expansion is not None and self._document_expansion.enabled:
             assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__
@@ -351,6 +354,8 @@ class IngestionService:
             except EnrichmentSkipped as exc:
                 logger.warning("ingestion enrichment skipped: %s", exc)
                 await record_skip(notes, step=exc.step, level="info", reason=exc.reason)
+                if exc.step == "contextual_chunk":
+                    set_ingest_field("contextual_chunk_skipped", True)
 
         if self._document_expansion is not None and self._document_expansion.enabled:
             assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__

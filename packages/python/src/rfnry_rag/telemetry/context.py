@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextvars import ContextVar, Token
+from typing import Any
 
 from rfnry_rag.telemetry.record import IngestTelemetryRow, QueryTelemetryRow
 
@@ -57,3 +58,19 @@ def add_llm_usage(provider: str, model: str, usage: dict[str, int]) -> None:
     row.tokens_output += int(usage.get("tokens_output", 0))
     row.tokens_cache_creation += int(usage.get("tokens_cache_creation", 0))
     row.tokens_cache_read += int(usage.get("tokens_cache_read", 0))
+
+
+def increment_ingest_field(field: str, n: int = 1) -> None:
+    """Add ``n`` to ``IngestTelemetryRow.<field>`` on the active row, or no-op."""
+    row = current_ingest_row()
+    if row is None:
+        return
+    setattr(row, field, getattr(row, field) + n)
+
+
+def set_ingest_field(field: str, value: Any) -> None:
+    """Set ``IngestTelemetryRow.<field>`` on the active row, or no-op."""
+    row = current_ingest_row()
+    if row is None:
+        return
+    setattr(row, field, value)

@@ -34,6 +34,7 @@ from rfnry_rag.stores.graph.base import BaseGraphStore
 from rfnry_rag.stores.graph.mapper import cross_refs_to_graph_relations, page_entities_to_graph
 from rfnry_rag.stores.metadata.base import BaseMetadataStore
 from rfnry_rag.stores.vector.base import BaseVectorStore
+from rfnry_rag.telemetry.context import increment_ingest_field
 from rfnry_rag.telemetry.usage import instrument_baml_call
 
 logger = get_logger("analyze/ingestion")
@@ -501,6 +502,7 @@ class AnalyzedIngestionService:
                 )
             except baml_errors.BamlValidationError as exc:
                 logger.warning("AnalyzePage invalid output on page %d: %s", page_number, exc)
+                increment_ingest_field("vision_pages_skipped")
                 await record_skip(
                     notes,
                     step="vision",
@@ -511,6 +513,7 @@ class AnalyzedIngestionService:
                 return None
             except Exception as exc:
                 logger.warning("AnalyzePage failed on page %d: %s", page_number, exc)
+                increment_ingest_field("vision_pages_skipped")
                 await record_skip(
                     notes,
                     step="vision",
@@ -531,6 +534,7 @@ class AnalyzedIngestionService:
             annotations=result.annotations,
             page_type=result.page_type,
         )
+        increment_ingest_field("vision_pages_analyzed")
 
         logger.info(
             "[analyze/ingestion/analyze/vision] page %d analyzed (%s, %d entities)",
