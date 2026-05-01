@@ -141,6 +141,11 @@ async def test_engine_routing_uses_method_accepts_when_method_present() -> None:
 
     fast_ingest = AsyncMock(side_effect=_async_source_factory(status="completed"))
 
+    from rfnry_rag.observability import NullSink as _ObsNullSink
+    from rfnry_rag.observability import Observability
+    from rfnry_rag.telemetry import NullSink as _TelNullSink
+    from rfnry_rag.telemetry import Telemetry
+
     engine = RagEngine.__new__(RagEngine)
     engine._initialized = True  # type: ignore[attr-defined]
     engine._drawing_ingestion = drawing_service  # type: ignore[attr-defined]
@@ -148,6 +153,8 @@ async def test_engine_routing_uses_method_accepts_when_method_present() -> None:
     engine._structured_ingestion = None  # type: ignore[attr-defined]
     engine._analyzed_method = None  # type: ignore[attr-defined]
     engine._config = SimpleNamespace(metadata_store=None)  # type: ignore[assignment]
+    engine._observability = Observability(sink=_ObsNullSink())  # type: ignore[attr-defined]
+    engine._telemetry = Telemetry(sink=_TelNullSink())  # type: ignore[attr-defined]
     engine._get_ingestion = lambda collection: SimpleNamespace(ingest=fast_ingest)  # type: ignore[assignment,method-assign]
 
     await engine.ingest("/tmp/doc.pdf", knowledge_id="k", source_type="drawing")

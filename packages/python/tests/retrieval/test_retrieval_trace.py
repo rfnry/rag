@@ -46,8 +46,15 @@ def _make_engine_for_query(retrieve_return: tuple[list[RetrievedChunk], Any]) ->
     config = MagicMock(spec=RagEngineConfig)
     config.retrieval = SimpleNamespace(history_window=3)
     config.routing = RoutingConfig()
+    from rfnry_rag.observability import NullSink as _ObsNullSink
+    from rfnry_rag.observability import Observability
+    from rfnry_rag.telemetry import NullSink as _TelNullSink
+    from rfnry_rag.telemetry import Telemetry
+
     server = RagEngine.__new__(RagEngine)
     server._config = config
+    server._observability = Observability(sink=_ObsNullSink())
+    server._telemetry = Telemetry(sink=_TelNullSink())
     server._initialized = True
     server._retrieval_service = AsyncMock()
     server._retrieval_service.retrieve = AsyncMock(return_value=retrieve_return)

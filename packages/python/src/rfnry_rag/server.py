@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import time
+import traceback as tb_module
+import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -33,12 +35,14 @@ from rfnry_rag.knowledge.manager import KnowledgeManager
 from rfnry_rag.knowledge.migration import check_embedding_migration
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk, Source
+from rfnry_rag.observability import Observability
 from rfnry_rag.observability.benchmark import (
     BenchmarkCase,
     BenchmarkConfig,
     BenchmarkReport,
     run_benchmark,
 )
+from rfnry_rag.observability.context import _reset_obs, _set_obs
 from rfnry_rag.observability.metrics import LLMJudgment
 from rfnry_rag.observability.trace import RetrievalTrace
 from rfnry_rag.providers import build_registry
@@ -53,6 +57,8 @@ from rfnry_rag.retrieval.search.service import RetrievalService
 from rfnry_rag.stores.document.base import BaseDocumentStore
 from rfnry_rag.stores.graph.base import BaseGraphStore
 from rfnry_rag.stores.vector.base import BaseVectorStore
+from rfnry_rag.telemetry import IngestTelemetryRow, QueryTelemetryRow, Telemetry
+from rfnry_rag.telemetry.context import _reset_row, _set_row
 
 logger = get_logger("server")
 
@@ -194,6 +200,8 @@ class RagEngine:
 
     def __init__(self, config: RagEngineConfig) -> None:
         self._config = config
+        self._observability: Observability = config.observability
+        self._telemetry: Telemetry = config.telemetry
         self._initialized = False
         self._stores_opened = False  # set True before first store.initialize(); guards re-entrant shutdown
 
@@ -603,7 +611,33 @@ class RagEngine:
         """Ingest a file. Routes to unstructured or structured based on extension."""
         self._check_initialized()
         _validate_metadata(metadata)
-        file_path = Path(file_path)
+        return await self._with_ingest_telemetry(
+            knowledge_id=knowledge_id,
+            source_type=source_type,
+            run=lambda: self._ingest_impl(
+                file_path=Path(file_path),
+                knowledge_id=knowledge_id,
+                source_type=source_type,
+                metadata=metadata,
+                page_range=page_range,
+                resume_from_chunk=resume_from_chunk,
+                on_progress=on_progress,
+                collection=collection,
+            ),
+        )
+
+    async def _ingest_impl(
+        self,
+        *,
+        file_path: Path,
+        knowledge_id: str | None,
+        source_type: str | None,
+        metadata: dict[str, Any] | None,
+        page_range: str | None,
+        resume_from_chunk: int,
+        on_progress: Callable[[int, int], Awaitable[None]] | None,
+        collection: str | None,
+    ) -> Source:
         ext = file_path.suffix.lower()
 
         # Drawing route: when a DrawingIngestion method is configured, defer to
@@ -717,10 +751,102 @@ class RagEngine:
         self._check_initialized()
         _validate_ingest_content(content)
         _validate_metadata(metadata)
-        ingestion_svc = self._get_ingestion(collection)
-        return await ingestion_svc.ingest_text(
-            content=content, knowledge_id=knowledge_id, source_type=source_type, metadata=metadata
+
+        async def _run() -> Source:
+            ingestion_svc = self._get_ingestion(collection)
+            return await ingestion_svc.ingest_text(
+                content=content, knowledge_id=knowledge_id, source_type=source_type, metadata=metadata
+            )
+
+        return await self._with_ingest_telemetry(
+            knowledge_id=knowledge_id,
+            source_type=source_type,
+            run=_run,
         )
+
+    async def _with_ingest_telemetry(
+        self,
+        *,
+        knowledge_id: str | None,
+        source_type: str | None,
+        run: Callable[[], Awaitable[Source]],
+    ) -> Source:
+        """Wrap an ingest call: build IngestTelemetryRow, set contextvars,
+        emit lifecycle events, and write the row in `finally`."""
+        ingest_id = str(uuid.uuid4())
+        row = IngestTelemetryRow(
+            source_id="",
+            ingest_id=ingest_id,
+            knowledge_id=knowledge_id,
+            source_type=source_type,
+            outcome="success",
+        )
+        obs = self._observability
+        obs_token = _set_obs(obs)
+        row_token = _set_row(row)
+        start = time.perf_counter()
+        await obs.emit(
+            "info",
+            "ingest.start",
+            "ingest started",
+            knowledge_id=knowledge_id,
+            ingest_id=ingest_id,
+        )
+        try:
+            source = await run()
+            row.duration_ms = int((time.perf_counter() - start) * 1000)
+            row.source_id = source.source_id
+            row.chunks_count = source.chunk_count
+            notes = source.metadata.get("ingestion_notes", []) if source.metadata else []
+            row.notes_count = len(notes) if isinstance(notes, list) else 0
+            if row.notes_count > 0:
+                row.outcome = "partial"
+                await obs.emit(
+                    "warn",
+                    "ingest.partial",
+                    "ingest partially succeeded",
+                    knowledge_id=knowledge_id,
+                    source_id=source.source_id,
+                    ingest_id=ingest_id,
+                    duration_ms=row.duration_ms,
+                    notes_count=row.notes_count,
+                )
+            else:
+                row.outcome = "success"
+                await obs.emit(
+                    "info",
+                    "ingest.success",
+                    "ingest succeeded",
+                    knowledge_id=knowledge_id,
+                    source_id=source.source_id,
+                    ingest_id=ingest_id,
+                    duration_ms=row.duration_ms,
+                )
+            return source
+        except BaseException as exc:
+            row.duration_ms = int((time.perf_counter() - start) * 1000)
+            row.outcome = "error"
+            row.error_type = type(exc).__name__
+            row.error_message = str(exc)
+            await obs.emit(
+                "error",
+                "ingest.error",
+                "ingest failed",
+                knowledge_id=knowledge_id,
+                ingest_id=ingest_id,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+                traceback=tb_module.format_exc(),
+                duration_ms=row.duration_ms,
+            )
+            raise
+        finally:
+            try:
+                await self._telemetry.write(row)
+            except Exception:  # noqa: BLE001
+                logger.exception("telemetry write failed for ingest_id=%s", ingest_id)
+            _reset_row(row_token)
+            _reset_obs(obs_token)
 
     async def analyze(
         self,
@@ -835,13 +961,95 @@ class RagEngine:
             raise ConfigurationError("query() requires generation.lm_client to be configured")
 
         mode = self._config.routing.mode
-        if mode == QueryMode.INDEXED:
-            return await self._query_via_retrieval(
-                text, knowledge_id, history, min_score, collection, system_prompt, trace
+        row = QueryTelemetryRow(
+            query_id=str(uuid.uuid4()),
+            knowledge_id=knowledge_id,
+            mode="indexed" if mode == QueryMode.INDEXED else "full_context",
+            routing_decision=mode.name.lower(),
+            outcome="success",
+        )
+        obs = self._observability
+        obs_token = _set_obs(obs)
+        row_token = _set_row(row)
+        start = time.perf_counter()
+        await obs.emit(
+            "info",
+            "query.start",
+            "query started",
+            knowledge_id=knowledge_id,
+            query_id=row.query_id,
+        )
+        try:
+            if mode == QueryMode.INDEXED:
+                result = await self._query_via_retrieval(
+                    text, knowledge_id, history, min_score, collection, system_prompt, trace
+                )
+            elif mode == QueryMode.FULL_CONTEXT:
+                result = await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
+            else:
+                result = await self._query_via_auto(
+                    text, knowledge_id, history, min_score, collection, system_prompt, trace
+                )
+            row.duration_ms = int((time.perf_counter() - start) * 1000)
+            row.confidence = result.confidence
+            if result.clarification is not None:
+                row.grounding_decision = "clarification"
+                row.outcome = "refused"
+                await obs.emit(
+                    "info",
+                    "query.refused",
+                    "query refused (clarification)",
+                    knowledge_id=knowledge_id,
+                    query_id=row.query_id,
+                    duration_ms=row.duration_ms,
+                )
+            elif result.grounded:
+                row.grounding_decision = "grounded"
+                row.outcome = "success"
+                await obs.emit(
+                    "info",
+                    "query.success",
+                    "query succeeded",
+                    knowledge_id=knowledge_id,
+                    query_id=row.query_id,
+                    duration_ms=row.duration_ms,
+                )
+            else:
+                row.grounding_decision = "ungrounded"
+                row.outcome = "refused"
+                await obs.emit(
+                    "info",
+                    "query.refused",
+                    "query refused (ungrounded)",
+                    knowledge_id=knowledge_id,
+                    query_id=row.query_id,
+                    duration_ms=row.duration_ms,
+                )
+            return result
+        except BaseException as exc:
+            row.duration_ms = int((time.perf_counter() - start) * 1000)
+            row.outcome = "error"
+            row.error_type = type(exc).__name__
+            row.error_message = str(exc)
+            await obs.emit(
+                "error",
+                "query.error",
+                "query failed",
+                knowledge_id=knowledge_id,
+                query_id=row.query_id,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+                traceback=tb_module.format_exc(),
+                duration_ms=row.duration_ms,
             )
-        if mode == QueryMode.FULL_CONTEXT:
-            return await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
-        return await self._query_via_auto(text, knowledge_id, history, min_score, collection, system_prompt, trace)
+            raise
+        finally:
+            try:
+                await self._telemetry.write(row)
+            except Exception:  # noqa: BLE001
+                logger.exception("telemetry write failed for query_id=%s", row.query_id)
+            _reset_row(row_token)
+            _reset_obs(obs_token)
 
     async def _query_via_retrieval(
         self,

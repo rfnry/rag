@@ -6,7 +6,11 @@ import pytest
 from rfnry_rag.config import RagEngineConfig, RoutingConfig
 from rfnry_rag.generation.models import QueryResult, StreamEvent
 from rfnry_rag.models import RetrievedChunk
+from rfnry_rag.observability import NullSink as _ObsNullSink
+from rfnry_rag.observability import Observability
 from rfnry_rag.server import RagEngine
+from rfnry_rag.telemetry import NullSink as _TelNullSink
+from rfnry_rag.telemetry import Telemetry
 
 
 def _chunk(chunk_id: str, score: float = 0.9) -> RetrievedChunk:
@@ -23,6 +27,8 @@ def _make_server() -> RagEngine:
     config.routing = RoutingConfig()
     server = RagEngine.__new__(RagEngine)
     server._config = config
+    server._observability = Observability(sink=_ObsNullSink())
+    server._telemetry = Telemetry(sink=_TelNullSink())
     server._initialized = True
     server._retrieval_service = AsyncMock()
     server._retrieval_service.retrieve = AsyncMock(return_value=([_chunk("c1"), _chunk("c2")], None))
