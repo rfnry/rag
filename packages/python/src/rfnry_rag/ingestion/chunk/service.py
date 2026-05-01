@@ -260,7 +260,12 @@ class IngestionService:
 
         if self._document_expansion is not None and self._document_expansion.enabled:
             assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__
-            chunks = await expand_chunks(chunks, self._document_expansion, self._expansion_registry)
+            chunks = await expand_chunks(
+                chunks,
+                self._document_expansion,
+                self._expansion_registry,
+                notes=notes,
+            )
 
         title = metadata.get("name", file_path.name)
 
@@ -348,7 +353,12 @@ class IngestionService:
 
         if self._document_expansion is not None and self._document_expansion.enabled:
             assert self._expansion_registry is not None  # guaranteed by RagEngine.__init__
-            chunks = await expand_chunks(chunks, self._document_expansion, self._expansion_registry)
+            chunks = await expand_chunks(
+                chunks,
+                self._document_expansion,
+                self._expansion_registry,
+                notes=notes,
+            )
 
         source_id = str(uuid4())
         title = metadata.get("name", "text-input")

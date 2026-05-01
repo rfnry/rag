@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 
 from rfnry_rag.baml.baml_client.async_client import b
 from rfnry_rag.concurrency import run_concurrent
-from rfnry_rag.exceptions import IngestionError
 from rfnry_rag.ingestion.models import ChunkedContent
 from rfnry_rag.logging import get_logger
 
@@ -21,17 +20,22 @@ if TYPE_CHECKING:
 
 logger = get_logger("ingestion.chunk.expand")
 
+_MAJORITY_FAILURE_RATIO = 0.5
+
 
 async def expand_chunks(
     chunks: list[ChunkedContent],
     config: DocumentExpansionConfig,
     registry: ClientRegistry,
+    notes: list[str] | None = None,
 ) -> list[ChunkedContent]:
     """Attach synthetic queries to each chunk via the configured LLM.
 
-    Mutates each chunk's ``synthetic_queries`` field in-place and returns the
-    same list for caller convenience. No-ops when ``config.enabled`` is False
-    or the chunk list is empty.
+    Per-chunk failures soft-skip: the chunk ends with an empty
+    ``synthetic_queries`` list and a ``document_expansion:warn:chunk_<i>:...``
+    note is appended to the caller-supplied list. When more than half of the
+    chunks fail, an additional ``document_expansion:warn:majority_failed(f/t)``
+    summary note records the overall feature degradation.
 
     Bias-term hygiene: this helper never inspects chunk content textually; the
     BAML prompt body is the only consumer-facing surface, audited by the
@@ -40,7 +44,10 @@ async def expand_chunks(
     if not config.enabled or not chunks:
         return chunks
 
+    failed_count = 0
+
     async def _expand_one(chunk: ChunkedContent) -> None:
+        nonlocal failed_count
         try:
             result = await b.GenerateSyntheticQueries(
                 chunk.content,
@@ -48,9 +55,25 @@ async def expand_chunks(
                 baml_options={"client_registry": registry},
             )
         except Exception as exc:
-            raise IngestionError(f"document expansion failed for chunk_index={chunk.chunk_index}: {exc}") from exc
+            failed_count += 1
+            if notes is not None:
+                notes.append(
+                    f"document_expansion:warn:chunk_{chunk.chunk_index}:failed({exc!s:.80})"
+                )
+            chunk.synthetic_queries = []
+            return
         chunk.synthetic_queries = list(result.queries)
 
     await run_concurrent(chunks, _expand_one, concurrency=config.concurrency)
-    logger.info("expanded %d chunks with synthetic queries (concurrency=%d)", len(chunks), config.concurrency)
+
+    total = len(chunks)
+    if notes is not None and total > 0 and failed_count / total > _MAJORITY_FAILURE_RATIO:
+        notes.append(f"document_expansion:warn:majority_failed({failed_count}/{total})")
+
+    logger.info(
+        "expanded %d chunks with synthetic queries (concurrency=%d, failed=%d)",
+        total,
+        config.concurrency,
+        failed_count,
+    )
     return chunks

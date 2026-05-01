@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from rfnry_rag.config import DocumentExpansionConfig
-from rfnry_rag.exceptions import ConfigurationError, IngestionError
+from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.ingestion.chunk.expand import expand_chunks
 from rfnry_rag.ingestion.models import ChunkedContent
 
@@ -142,7 +142,7 @@ async def test_expand_chunks_attaches_queries_to_chunk_dataclass() -> None:
     assert chunks[0].synthetic_queries == ["a", "b", "c"]
 
 
-async def test_expand_chunks_propagates_lm_failure_as_ingestion_error() -> None:
+async def test_expand_chunks_lm_failure_soft_skips_with_note() -> None:
     cfg = DocumentExpansionConfig(
         enabled=True,
         num_queries=2,
@@ -151,8 +151,89 @@ async def test_expand_chunks_propagates_lm_failure_as_ingestion_error() -> None:
     )
     chunks = [_make_chunk(7)]
     registry = MagicMock()
+    notes: list[str] = []
 
     with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
         mock_b.GenerateSyntheticQueries = AsyncMock(side_effect=RuntimeError("boom"))
-        with pytest.raises(IngestionError, match="chunk_index=7"):
-            await expand_chunks(chunks, cfg, registry)
+        result = await expand_chunks(chunks, cfg, registry, notes=notes)
+
+    assert result is chunks
+    assert chunks[0].synthetic_queries == []
+    assert any(n.startswith("document_expansion:warn:chunk_7:failed(") for n in notes), notes
+
+
+async def test_expansion_one_chunk_fails_others_succeed() -> None:
+    cfg = DocumentExpansionConfig(
+        enabled=True,
+        num_queries=1,
+        lm_client=MagicMock(),
+        concurrency=1,
+    )
+    chunks = [_make_chunk(i) for i in range(5)]
+    registry = MagicMock()
+    notes: list[str] = []
+
+    async def selective(passage: str, num_queries: int, baml_options: dict) -> object:
+        if "passage_2" in passage:
+            raise RuntimeError("rate limited")
+        return SimpleNamespace(queries=[f"q_for_{passage}"])
+
+    with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
+        mock_b.GenerateSyntheticQueries = AsyncMock(side_effect=selective)
+        await expand_chunks(chunks, cfg, registry, notes=notes)
+
+    succeeded = [c for c in chunks if c.synthetic_queries]
+    failed = [c for c in chunks if not c.synthetic_queries]
+    assert len(succeeded) == 4
+    assert len(failed) == 1
+    assert failed[0].chunk_index == 2
+    assert any(n.startswith("document_expansion:warn:chunk_2:failed(") for n in notes), notes
+    assert not any("majority_failed" in n for n in notes)
+
+
+async def test_expansion_majority_failure_writes_summary() -> None:
+    cfg = DocumentExpansionConfig(
+        enabled=True,
+        num_queries=1,
+        lm_client=MagicMock(),
+        concurrency=1,
+    )
+    chunks = [_make_chunk(i) for i in range(10)]
+    registry = MagicMock()
+    notes: list[str] = []
+
+    async def fail_first_six(passage: str, num_queries: int, baml_options: dict) -> object:
+        idx = int(passage.split("_")[-1])
+        if idx < 6:
+            raise RuntimeError("boom")
+        return SimpleNamespace(queries=[f"q{idx}"])
+
+    with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
+        mock_b.GenerateSyntheticQueries = AsyncMock(side_effect=fail_first_six)
+        await expand_chunks(chunks, cfg, registry, notes=notes)
+
+    per_chunk_notes = [n for n in notes if "majority_failed" not in n]
+    summary_notes = [n for n in notes if "majority_failed" in n]
+    assert len(per_chunk_notes) == 6
+    assert summary_notes == ["document_expansion:warn:majority_failed(6/10)"]
+
+
+async def test_expansion_clean_no_notes() -> None:
+    cfg = DocumentExpansionConfig(
+        enabled=True,
+        num_queries=1,
+        lm_client=MagicMock(),
+        concurrency=1,
+    )
+    chunks = [_make_chunk(i) for i in range(3)]
+    registry = MagicMock()
+    notes: list[str] = []
+
+    with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
+        mock_b.GenerateSyntheticQueries = AsyncMock(
+            return_value=SimpleNamespace(queries=["q"]),
+        )
+        await expand_chunks(chunks, cfg, registry, notes=notes)
+
+    assert notes == []
+    assert all(c.synthetic_queries == ["q"] for c in chunks)
