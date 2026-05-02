@@ -21,13 +21,14 @@ import asyncio
 import os
 
 from rfnry_rag import (
+    AnthropicModelProvider,
     DocumentIngestion,
     DocumentRetrieval,
     Embeddings,
     GenerationConfig,
+    GenerativeModelClient,
     IngestionConfig,
-    LanguageModel,
-    LanguageModelClient,
+    OpenAIModelProvider,
     PostgresDocumentStore,
     QdrantVectorStore,
     QueryMode,
@@ -42,15 +43,13 @@ from rfnry_rag import (
 
 
 async def main() -> None:
-    embeddings = Embeddings(LanguageModel(
-        provider="openai",
-        model="text-embedding-3-small",
+    embeddings = Embeddings(OpenAIModelProvider(
         api_key=os.environ["OPENAI_API_KEY"],
+        model="text-embedding-3-small",
     ))
-    generation = LanguageModelClient(lm=LanguageModel(
-        provider="anthropic",
-        model="claude-sonnet-4-5",
+    generation = GenerativeModelClient(provider=AnthropicModelProvider(
         api_key=os.environ["ANTHROPIC_API_KEY"],
+        model="claude-sonnet-4-5",
         context_size=200_000,
     ))
 
@@ -99,7 +98,7 @@ A complete factory-operations example with vector + document + graph + drawing i
 
 **Modular method composition.** Vector (dense + BM25 fused internally), document (Postgres FTS + substring), and graph (entity lookup + N-hop traversal). All paths are pluggable via `BaseRetrievalMethod` and run concurrently per query, merging through reciprocal rank fusion with per-method weights. No mandatory backend; configure only the paths you need. Per-method error isolation means one failing path does not break the others.
 
-**Auto routing between indexed retrieval and full-context generation.** Each query is dispatched through one of three modes: `INDEXED` (the standard retrieval pipeline), `FULL_CONTEXT` (load the entire corpus into a prompt-cached prefix and let the model answer directly), or `AUTO` (a corpus-token threshold dispatches between them per query). When a generation `LanguageModel.context_size` is declared, engine init refuses configurations where the threshold plus reserve would overflow the model's window — the cap is a safety bound, not a routing target.
+**Auto routing between indexed retrieval and full-context generation.** Each query is dispatched through one of three modes: `INDEXED` (the standard retrieval pipeline), `FULL_CONTEXT` (load the entire corpus into a prompt-cached prefix and let the model answer directly), or `AUTO` (a corpus-token threshold dispatches between them per query). When a generation provider's `context_size` is declared, engine init refuses configurations where the threshold plus reserve would overflow the model's window — the cap is a safety bound, not a routing target.
 
 **Cross-encoder reranking.** Optional reranking against the original query (Cohere, Voyage). Sits cleanly between fusion and generation; opt-in per config.
 
@@ -136,7 +135,7 @@ A complete factory-operations example with vector + document + graph + drawing i
 
 ### Providers
 
-**Provider-agnostic facades.** `Embeddings`, `Vision`, `Reranking`, and `LanguageModelClient` dispatch to the correct backend at runtime — Anthropic, OpenAI, Gemini, Voyage, Cohere — based on the configured `LanguageModel`. The retrieval pipeline looks identical regardless of which model is wired in; swapping providers is a configuration change, not a code change.
+**Provider-agnostic facades.** `Embeddings`, `Vision`, `Reranking`, and `GenerativeModelClient` dispatch to the correct backend at runtime — Anthropic, OpenAI, Google, Voyage, Cohere — based on the typed `ModelProvider` passed in (e.g. `AnthropicModelProvider`, `OpenAIModelProvider`). The retrieval pipeline looks identical regardless of which model is wired in; swapping providers is a configuration change, not a code change.
 
 **Native SDK + BAML hybrid.** Plain text generation and streaming go through native provider SDKs in `providers/text_generation.py` (per-backend dispatch with prompt-cache-aware blocks for Anthropic). Structured-output calls — vision page analysis, entity extraction, document synthesis, the answer-quality judge — go through BAML for schema-typed parsing, retry policies, and primary-plus-fallback provider routing.
 

@@ -1,5 +1,5 @@
 """BOUNDARY_API_KEY handling — first-write-wins, no silent clobbering
-across multiple LanguageModelClient instances."""
+across multiple GenerativeModelClient instances."""
 
 import os
 
