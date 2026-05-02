@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-import traceback as tb_module
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
@@ -786,7 +785,6 @@ class RagEngine:
         row_token = _set_row(row)
         start = time.perf_counter()
         await obs.emit(
-            "info",
             "ingest.start",
             "ingest started",
             knowledge_id=knowledge_id,
@@ -802,25 +800,23 @@ class RagEngine:
             if row.notes_count > 0:
                 row.outcome = "partial"
                 await obs.emit(
-                    "warn",
                     "ingest.partial",
                     "ingest partially succeeded",
+                    level="warn",
                     knowledge_id=knowledge_id,
                     source_id=source.source_id,
                     ingest_id=ingest_id,
-                    duration_ms=row.duration_ms,
-                    notes_count=row.notes_count,
+                    context={"duration_ms": row.duration_ms, "notes_count": row.notes_count},
                 )
             else:
                 row.outcome = "success"
                 await obs.emit(
-                    "info",
                     "ingest.success",
                     "ingest succeeded",
                     knowledge_id=knowledge_id,
                     source_id=source.source_id,
                     ingest_id=ingest_id,
-                    duration_ms=row.duration_ms,
+                    context={"duration_ms": row.duration_ms},
                 )
             return source
         except BaseException as exc:
@@ -829,15 +825,13 @@ class RagEngine:
             row.error_type = type(exc).__name__
             row.error_message = str(exc)
             await obs.emit(
-                "error",
                 "ingest.error",
                 "ingest failed",
+                level="error",
                 knowledge_id=knowledge_id,
                 ingest_id=ingest_id,
-                error_type=type(exc).__name__,
-                error_message=str(exc),
-                traceback=tb_module.format_exc(),
-                duration_ms=row.duration_ms,
+                context={"duration_ms": row.duration_ms},
+                error=exc,
             )
             raise
         finally:
@@ -973,7 +967,6 @@ class RagEngine:
         row_token = _set_row(row)
         start = time.perf_counter()
         await obs.emit(
-            "info",
             "query.start",
             "query started",
             knowledge_id=knowledge_id,
@@ -982,26 +975,28 @@ class RagEngine:
         try:
             if mode == QueryMode.INDEXED:
                 await obs.emit(
-                    "info",
                     "routing.decision",
                     "explicit indexed mode",
-                    mode="indexed",
-                    corpus_tokens=None,
-                    threshold=None,
-                    reason="explicit_mode",
+                    context={
+                        "mode": "indexed",
+                        "corpus_tokens": None,
+                        "threshold": None,
+                        "reason": "explicit_mode",
+                    },
                 )
                 result = await self._query_via_retrieval(
                     text, knowledge_id, history, min_score, collection, system_prompt, trace
                 )
             elif mode == QueryMode.FULL_CONTEXT:
                 await obs.emit(
-                    "info",
                     "routing.decision",
                     "explicit full_context mode",
-                    mode="full_context",
-                    corpus_tokens=None,
-                    threshold=None,
-                    reason="explicit_mode",
+                    context={
+                        "mode": "full_context",
+                        "corpus_tokens": None,
+                        "threshold": None,
+                        "reason": "explicit_mode",
+                    },
                 )
                 result = await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
             else:
@@ -1014,34 +1009,31 @@ class RagEngine:
                 row.grounding_decision = "clarification"
                 row.outcome = "refused"
                 await obs.emit(
-                    "info",
                     "query.refused",
                     "query refused (clarification)",
                     knowledge_id=knowledge_id,
                     query_id=row.query_id,
-                    duration_ms=row.duration_ms,
+                    context={"duration_ms": row.duration_ms},
                 )
             elif result.grounded:
                 row.grounding_decision = "grounded"
                 row.outcome = "success"
                 await obs.emit(
-                    "info",
                     "query.success",
                     "query succeeded",
                     knowledge_id=knowledge_id,
                     query_id=row.query_id,
-                    duration_ms=row.duration_ms,
+                    context={"duration_ms": row.duration_ms},
                 )
             else:
                 row.grounding_decision = "ungrounded"
                 row.outcome = "refused"
                 await obs.emit(
-                    "info",
                     "query.refused",
                     "query refused (ungrounded)",
                     knowledge_id=knowledge_id,
                     query_id=row.query_id,
-                    duration_ms=row.duration_ms,
+                    context={"duration_ms": row.duration_ms},
                 )
             return result
         except BaseException as exc:
@@ -1050,15 +1042,13 @@ class RagEngine:
             row.error_type = type(exc).__name__
             row.error_message = str(exc)
             await obs.emit(
-                "error",
                 "query.error",
                 "query failed",
+                level="error",
                 knowledge_id=knowledge_id,
                 query_id=row.query_id,
-                error_type=type(exc).__name__,
-                error_message=str(exc),
-                traceback=tb_module.format_exc(),
-                duration_ms=row.duration_ms,
+                context={"duration_ms": row.duration_ms},
+                error=exc,
             )
             raise
         finally:
@@ -1166,13 +1156,14 @@ class RagEngine:
             row.corpus_tokens = tokens
 
         await self._observability.emit(
-            "info",
             "routing.decision",
             f"auto routing: corpus_tokens={tokens} threshold={threshold} -> {decision}",
-            mode=decision,
-            corpus_tokens=tokens,
-            threshold=threshold,
-            reason="auto_dispatch",
+            context={
+                "mode": decision,
+                "corpus_tokens": tokens,
+                "threshold": threshold,
+                "reason": "auto_dispatch",
+            },
         )
 
         if decision == "full_context":

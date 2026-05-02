@@ -8,14 +8,14 @@ import pytest
 from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 from rfnry_rag.telemetry import (
     IngestTelemetryRow,
-    JsonlFileSink,
-    JsonlStderrSink,
-    MultiSink,
-    NullSink,
+    JsonlStderrTelemetrySink,
+    JsonlTelemetrySink,
+    MultiTelemetrySink,
+    NullTelemetrySink,
     QueryTelemetryRow,
-    RecordingSink,
     SqlAlchemyTelemetrySink,
     Telemetry,
+    TelemetrySink,
 )
 from rfnry_rag.telemetry.context import (
     _reset_row,
@@ -26,30 +26,38 @@ from rfnry_rag.telemetry.context import (
 )
 
 
-def _make_query_row(**overrides) -> QueryTelemetryRow:
-    base = dict(
-        query_id="q-1",
-        mode="indexed",
-        routing_decision="indexed",
-        outcome="success",
-    )
-    base.update(overrides)
-    return QueryTelemetryRow(**base)
+class _CaptureTelemetry:
+    def __init__(self) -> None:
+        self.rows: list[QueryTelemetryRow | IngestTelemetryRow] = []
+
+    async def write(self, row: QueryTelemetryRow | IngestTelemetryRow) -> None:
+        self.rows.append(row)
 
 
-def _make_ingest_row(**overrides) -> IngestTelemetryRow:
-    base = dict(
-        source_id="s-1",
-        ingest_id="i-1",
-        outcome="success",
-    )
+def _make_query_row(**overrides: object) -> QueryTelemetryRow:
+    base: dict[str, object] = {
+        "query_id": "q-1",
+        "mode": "indexed",
+        "routing_decision": "indexed",
+        "outcome": "success",
+    }
     base.update(overrides)
-    return IngestTelemetryRow(**base)
+    return QueryTelemetryRow(**base)  # type: ignore[arg-type]
+
+
+def _make_ingest_row(**overrides: object) -> IngestTelemetryRow:
+    base: dict[str, object] = {
+        "source_id": "s-1",
+        "ingest_id": "i-1",
+        "outcome": "success",
+    }
+    base.update(overrides)
+    return IngestTelemetryRow(**base)  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio
-async def test_recording_sink_captures_both_row_types() -> None:
-    sink = RecordingSink()
+async def test_capture_sink_collects_both_row_types() -> None:
+    sink = _CaptureTelemetry()
     await sink.write(_make_query_row())
     await sink.write(_make_ingest_row())
     assert len(sink.rows) == 2
@@ -59,25 +67,25 @@ async def test_recording_sink_captures_both_row_types() -> None:
 
 @pytest.mark.asyncio
 async def test_null_sink_swallows() -> None:
-    sink = NullSink()
+    sink = NullTelemetrySink()
     await sink.write(_make_query_row())
 
 
 @pytest.mark.asyncio
 async def test_multisink_fans_out_and_isolates_failures() -> None:
     class _Boom:
-        async def write(self, row):
+        async def write(self, row: QueryTelemetryRow | IngestTelemetryRow) -> None:
             raise RuntimeError("boom")
 
-    captured = RecordingSink()
-    multi = MultiSink([_Boom(), captured])
+    captured = _CaptureTelemetry()
+    multi = MultiTelemetrySink(sinks=[_Boom(), captured])
     await multi.write(_make_query_row())
     assert len(captured.rows) == 1
 
 
 @pytest.mark.asyncio
-async def test_jsonl_stderr_emits_query_row(capsys) -> None:
-    sink = JsonlStderrSink()
+async def test_jsonl_stderr_emits_query_row(capsys: pytest.CaptureFixture[str]) -> None:
+    sink = JsonlStderrTelemetrySink()
     await sink.write(_make_query_row(knowledge_id="k", tokens_input=12))
     line = capsys.readouterr().err.strip().splitlines()[-1]
     parsed = json.loads(line)
@@ -88,7 +96,7 @@ async def test_jsonl_stderr_emits_query_row(capsys) -> None:
 @pytest.mark.asyncio
 async def test_jsonl_file_sink_appends(tmp_path) -> None:
     path = tmp_path / "tel.jsonl"
-    sink = JsonlFileSink(path)
+    sink = JsonlTelemetrySink(path=path)
     await sink.write(_make_query_row(query_id="a"))
     await sink.write(_make_ingest_row(source_id="b"))
     lines = path.read_text(encoding="utf-8").strip().splitlines()
@@ -98,9 +106,9 @@ async def test_jsonl_file_sink_appends(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_telemetry_default_sink_is_jsonl_stderr() -> None:
+async def test_telemetry_default_sink_is_null() -> None:
     tel = Telemetry()
-    assert isinstance(tel.sink, JsonlStderrSink)
+    assert isinstance(tel.sink, NullTelemetrySink)
 
 
 @pytest.mark.asyncio
@@ -186,7 +194,7 @@ async def test_sqlalchemy_telemetry_sink_persists(tmp_path) -> None:
     store = SQLAlchemyMetadataStore(f"sqlite:///{tmp_path}/m.db")
     await store.initialize()
     try:
-        sink = SqlAlchemyTelemetrySink(store)
+        sink = SqlAlchemyTelemetrySink(metadata_store=store)
         await sink.write(_make_query_row())
         await sink.write(_make_ingest_row())
         q_rows = await store.list_query_telemetry()
@@ -242,3 +250,9 @@ async def test_add_llm_usage_accumulates_on_ingest_row() -> None:
 @pytest.mark.asyncio
 async def test_add_llm_usage_no_op_outside_context() -> None:
     add_llm_usage("anthropic", "claude", {"tokens_input": 99})
+
+
+def test_telemetry_sink_protocol_runtime_check() -> None:
+    assert isinstance(NullTelemetrySink(), TelemetrySink)
+    assert isinstance(JsonlStderrTelemetrySink(), TelemetrySink)
+    assert isinstance(_CaptureTelemetry(), TelemetrySink)

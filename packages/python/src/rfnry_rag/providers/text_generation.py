@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import time
-import traceback as tb_module
 from collections.abc import AsyncIterator
 
 from rfnry_rag.exceptions import ConfigurationError
@@ -142,17 +141,18 @@ async def _emit_stream_call(*, provider: str, model: str, elapsed_ms: int, usage
     if obs is None:
         return
     await obs.emit(
-        "info",
         "provider.call",
         f"{provider}/{model} text_generation_stream ok",
-        provider=provider,
-        model=model,
-        operation="text_generation_stream",
-        duration_ms=elapsed_ms,
-        tokens_input=usage.get("tokens_input", 0),
-        tokens_output=usage.get("tokens_output", 0),
-        tokens_cache_creation=usage.get("tokens_cache_creation", 0),
-        tokens_cache_read=usage.get("tokens_cache_read", 0),
+        context={
+            "provider": provider,
+            "model": model,
+            "operation": "text_generation_stream",
+            "duration_ms": elapsed_ms,
+            "tokens_input": usage.get("tokens_input", 0),
+            "tokens_output": usage.get("tokens_output", 0),
+            "tokens_cache_creation": usage.get("tokens_cache_creation", 0),
+            "tokens_cache_read": usage.get("tokens_cache_read", 0),
+        },
     )
 
 
@@ -161,16 +161,16 @@ async def _emit_stream_error(*, provider: str, model: str, elapsed_ms: int, exc:
     if obs is None:
         return
     await obs.emit(
-        "error",
         "provider.error",
         f"{provider}/{model} text_generation_stream failed",
-        provider=provider,
-        model=model,
-        operation="text_generation_stream",
-        duration_ms=elapsed_ms,
-        error_type=type(exc).__name__,
-        error_message=str(exc),
-        traceback=tb_module.format_exc(),
+        level="error",
+        context={
+            "provider": provider,
+            "model": model,
+            "operation": "text_generation_stream",
+            "duration_ms": elapsed_ms,
+        },
+        error=exc,
     )
 
 

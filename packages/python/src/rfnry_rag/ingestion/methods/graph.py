@@ -125,13 +125,14 @@ class GraphIngestion:
             logger.info("%d entities extracted and stored in %dms", len(graph_entities), elapsed_ms)
             if obs is not None:
                 await obs.emit(
-                    "info",
                     "ingestion.method.success",
                     f"{self.name} ingest ok",
-                    method_name=self.name,
-                    duration_ms=elapsed_ms,
                     source_id=source_id,
-                    entities=len(graph_entities),
+                    context={
+                        "method_name": self.name,
+                        "duration_ms": elapsed_ms,
+                        "entities": len(graph_entities),
+                    },
                 )
 
         except Exception as exc:
@@ -147,14 +148,12 @@ class GraphIngestion:
                 ingest_row.graph_extraction_failed = True
             if obs is not None:
                 await obs.emit(
-                    "error",
                     "ingestion.method.error",
                     f"{self.name} ingest failed",
-                    method_name=self.name,
-                    duration_ms=elapsed_ms,
+                    level="error",
                     source_id=source_id,
-                    error_type=type(exc).__name__,
-                    error_message=str(exc),
+                    context={"method_name": self.name, "duration_ms": elapsed_ms},
+                    error=exc,
                 )
 
     async def delete(self, source_id: str) -> None:

@@ -1,15 +1,6 @@
-"""Provider-specific usage extraction + a uniform `instrument_call` wrapper.
-
-Every LLM call site emits a `provider.call` (or `provider.error`) record and
-accumulates token usage onto the active telemetry row. The shape of the
-provider response varies; the helpers here normalise to a single dict with
-the four fields the row schema cares about.
-"""
-
 from __future__ import annotations
 
 import time
-import traceback as tb_module
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -69,11 +60,6 @@ def extract_gemini_usage(response: Any) -> dict[str, int]:
 
 
 def extract_baml_usage(collector: baml_py.Collector) -> tuple[dict[str, int], str | None, str | None]:
-    """Pull the latest call's usage off a `baml_py.Collector`.
-
-    Returns `(usage_dict, provider, model)`. Provider/model are best-effort —
-    BAML exposes them through `LLMCall.client_name` / `LLMCall.provider`.
-    """
     last = collector.last
     if last is None:
         return {}, None, None
@@ -104,13 +90,6 @@ async def instrument_call[T](
     extract_usage: Callable[[Any], dict[str, int]],
     call: Callable[[], Awaitable[T]],
 ) -> T:
-    """Time `call()`, accumulate token usage, emit `provider.call` / `.error`.
-
-    The shape is shared across native SDK call sites (Anthropic / OpenAI /
-    Gemini for text generation, embeddings, vision, reranking, contextualize,
-    expand). The BAML path uses a dedicated wrapper because usage comes off a
-    Collector instead of the response object.
-    """
     obs = current_obs()
     start = time.perf_counter()
     try:
@@ -119,16 +98,16 @@ async def instrument_call[T](
         elapsed = int((time.perf_counter() - start) * 1000)
         if obs is not None:
             await obs.emit(
-                "error",
                 "provider.error",
                 f"{provider}/{model} {operation} failed",
-                provider=provider,
-                model=model,
-                operation=operation,
-                duration_ms=elapsed,
-                error_type=type(exc).__name__,
-                error_message=str(exc),
-                traceback=tb_module.format_exc(),
+                level="error",
+                context={
+                    "provider": provider,
+                    "model": model,
+                    "operation": operation,
+                    "duration_ms": elapsed,
+                },
+                error=exc,
             )
         raise
     elapsed = int((time.perf_counter() - start) * 1000)
@@ -136,17 +115,18 @@ async def instrument_call[T](
     add_llm_usage(provider, model, usage)
     if obs is not None:
         await obs.emit(
-            "info",
             "provider.call",
             f"{provider}/{model} {operation} ok",
-            provider=provider,
-            model=model,
-            operation=operation,
-            duration_ms=elapsed,
-            tokens_input=usage.get("tokens_input", 0),
-            tokens_output=usage.get("tokens_output", 0),
-            tokens_cache_creation=usage.get("tokens_cache_creation", 0),
-            tokens_cache_read=usage.get("tokens_cache_read", 0),
+            context={
+                "provider": provider,
+                "model": model,
+                "operation": operation,
+                "duration_ms": elapsed,
+                "tokens_input": usage.get("tokens_input", 0),
+                "tokens_output": usage.get("tokens_output", 0),
+                "tokens_cache_creation": usage.get("tokens_cache_creation", 0),
+                "tokens_cache_read": usage.get("tokens_cache_read", 0),
+            },
         )
     return response
 
@@ -158,7 +138,6 @@ async def instrument_baml_call[T](
     fallback_provider: str = "baml",
     fallback_model: str = "baml",
 ) -> T:
-    """Wrap a BAML call: pass a fresh `Collector` to `call`, then read usage off it."""
     collector = baml_py.Collector()
     obs = current_obs()
     start = time.perf_counter()
@@ -168,16 +147,16 @@ async def instrument_baml_call[T](
         elapsed = int((time.perf_counter() - start) * 1000)
         if obs is not None:
             await obs.emit(
-                "error",
                 "provider.error",
                 f"baml {operation} failed",
-                provider=fallback_provider,
-                model=fallback_model,
-                operation=operation,
-                duration_ms=elapsed,
-                error_type=type(exc).__name__,
-                error_message=str(exc),
-                traceback=tb_module.format_exc(),
+                level="error",
+                context={
+                    "provider": fallback_provider,
+                    "model": fallback_model,
+                    "operation": operation,
+                    "duration_ms": elapsed,
+                },
+                error=exc,
             )
         raise
     elapsed = int((time.perf_counter() - start) * 1000)
@@ -187,16 +166,17 @@ async def instrument_baml_call[T](
     add_llm_usage(provider, model, usage)
     if obs is not None:
         await obs.emit(
-            "info",
             "provider.call",
             f"baml {operation} ok",
-            provider=provider,
-            model=model,
-            operation=operation,
-            duration_ms=elapsed,
-            tokens_input=usage.get("tokens_input", 0),
-            tokens_output=usage.get("tokens_output", 0),
-            tokens_cache_creation=usage.get("tokens_cache_creation", 0),
-            tokens_cache_read=usage.get("tokens_cache_read", 0),
+            context={
+                "provider": provider,
+                "model": model,
+                "operation": operation,
+                "duration_ms": elapsed,
+                "tokens_input": usage.get("tokens_input", 0),
+                "tokens_output": usage.get("tokens_output", 0),
+                "tokens_cache_creation": usage.get("tokens_cache_creation", 0),
+                "tokens_cache_read": usage.get("tokens_cache_read", 0),
+            },
         )
     return response

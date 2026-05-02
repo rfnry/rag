@@ -37,14 +37,6 @@ def _reset_row(token: Token[TelemetryRow | None]) -> None:
 
 
 def add_llm_usage(provider: str, model: str, usage: dict[str, int]) -> None:
-    """Accumulate LLM token usage onto whichever row is currently active.
-
-    No-op when no row is active (e.g. user calls `LanguageModelClient.generate_text`
-    outside any RagEngine entry point). `provider` / `model` populate only on
-    `QueryTelemetryRow` — the ingest row carries no such fields because an ingest
-    can fan out across several providers (vision, embeddings, BAML) and naming
-    a single one would mislead.
-    """
     row = _row_var.get()
     if row is None:
         return
@@ -61,7 +53,6 @@ def add_llm_usage(provider: str, model: str, usage: dict[str, int]) -> None:
 
 
 def increment_ingest_field(field: str, n: int = 1) -> None:
-    """Add ``n`` to ``IngestTelemetryRow.<field>`` on the active row, or no-op."""
     row = current_ingest_row()
     if row is None:
         return
@@ -69,7 +60,6 @@ def increment_ingest_field(field: str, n: int = 1) -> None:
 
 
 def set_ingest_field(field: str, value: Any) -> None:
-    """Set ``IngestTelemetryRow.<field>`` on the active row, or no-op."""
     row = current_ingest_row()
     if row is None:
         return

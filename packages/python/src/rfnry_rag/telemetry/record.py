@@ -7,8 +7,6 @@ from pydantic import BaseModel, Field
 
 
 class QueryTelemetryRow(BaseModel):
-    """Row-per-query record. One row per `RagEngine.query()` invocation."""
-
     schema_version: int = 1
     at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     knowledge_id: str | None = None
@@ -46,8 +44,6 @@ class QueryTelemetryRow(BaseModel):
 
 
 class IngestTelemetryRow(BaseModel):
-    """Row-per-ingest record. One row per source ingest (file or text)."""
-
     schema_version: int = 1
     at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     knowledge_id: str | None = None

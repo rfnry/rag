@@ -7,8 +7,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from _recording import RecordingObservabilitySink as RecordingSink
 
-from rfnry_rag.observability import Observability, RecordingSink
+from rfnry_rag.observability import Observability
 from rfnry_rag.observability.context import _reset_obs, _set_obs
 from rfnry_rag.telemetry import QueryTelemetryRow
 from rfnry_rag.telemetry.context import _reset_row, _set_row, current_query_row

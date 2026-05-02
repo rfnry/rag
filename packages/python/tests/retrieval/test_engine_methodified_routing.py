@@ -143,7 +143,7 @@ async def test_engine_routing_uses_method_accepts_when_method_present() -> None:
 
     from rfnry_rag.observability import NullSink as _ObsNullSink
     from rfnry_rag.observability import Observability
-    from rfnry_rag.telemetry import NullSink as _TelNullSink
+    from rfnry_rag.telemetry import NullTelemetrySink as _TelNullSink
     from rfnry_rag.telemetry import Telemetry
 
     engine = RagEngine.__new__(RagEngine)

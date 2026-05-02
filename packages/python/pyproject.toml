@@ -77,7 +77,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF022"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 testpaths = ["tests"]
 addopts = "--import-mode=importlib"
 

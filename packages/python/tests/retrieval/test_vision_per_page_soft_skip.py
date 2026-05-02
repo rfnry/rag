@@ -198,7 +198,9 @@ async def test_vision_invalid_baml_output_writes_invalid_output_note(tmp_path) -
 
 
 async def test_vision_per_page_soft_skip_emits_vision_page_skipped_event(tmp_path) -> None:
-    from rfnry_rag.observability import Observability, RecordingSink
+    from _recording import RecordingObservabilitySink as RecordingSink
+
+    from rfnry_rag.observability import Observability
     from rfnry_rag.observability.context import _reset_obs, _set_obs
 
     svc = _make_service()

@@ -48,7 +48,7 @@ def _make_engine_for_query(retrieve_return: tuple[list[RetrievedChunk], Any]) ->
     config.routing = RoutingConfig()
     from rfnry_rag.observability import NullSink as _ObsNullSink
     from rfnry_rag.observability import Observability
-    from rfnry_rag.telemetry import NullSink as _TelNullSink
+    from rfnry_rag.telemetry import NullTelemetrySink as _TelNullSink
     from rfnry_rag.telemetry import Telemetry
 
     server = RagEngine.__new__(RagEngine)

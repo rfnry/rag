@@ -119,12 +119,13 @@ class VectorRetrieval:
                 row.chunks_retrieved += len(results)
             if obs is not None:
                 await obs.emit(
-                    "info",
                     "retrieval.method.success",
                     f"{self.name} retrieval ok",
-                    method_name=self.name,
-                    chunks=len(results),
-                    duration_ms=elapsed_ms,
+                    context={
+                        "method_name": self.name,
+                        "chunks": len(results),
+                        "duration_ms": elapsed_ms,
+                    },
                 )
             return results
         except Exception as exc:
@@ -135,13 +136,11 @@ class VectorRetrieval:
                 row.method_durations_ms[self.name] = elapsed_ms
             if obs is not None:
                 await obs.emit(
-                    "error",
                     "retrieval.method.error",
                     f"{self.name} retrieval failed",
-                    method_name=self.name,
-                    duration_ms=elapsed_ms,
-                    error_type=type(exc).__name__,
-                    error_message=str(exc),
+                    level="error",
+                    context={"method_name": self.name, "duration_ms": elapsed_ms},
+                    error=exc,
                 )
             return []
 

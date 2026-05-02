@@ -8,11 +8,12 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from _recording import RecordingObservabilitySink as RecordingSink
 
 from rfnry_rag.ingestion.methods.document import DocumentIngestion
 from rfnry_rag.ingestion.methods.vector import VectorIngestion
 from rfnry_rag.models import VectorResult
-from rfnry_rag.observability import Observability, RecordingSink
+from rfnry_rag.observability import Observability
 from rfnry_rag.observability.context import _reset_obs, _set_obs
 from rfnry_rag.retrieval.methods.document import DocumentRetrieval
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval

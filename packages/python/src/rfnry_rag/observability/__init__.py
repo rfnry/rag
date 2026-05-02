@@ -6,15 +6,16 @@ from rfnry_rag.observability.benchmark import (
     run_benchmark,
 )
 from rfnry_rag.observability.context import current_obs
-from rfnry_rag.observability.observability import Observability
-from rfnry_rag.observability.record import ObservabilityRecord
-from rfnry_rag.observability.sinks import (
+from rfnry_rag.observability.record import ObservabilityLevel, ObservabilityRecord
+from rfnry_rag.observability.runtime import Observability
+from rfnry_rag.observability.sink import (
     JsonlFileSink,
     JsonlStderrSink,
     MultiSink,
     NullSink,
-    RecordingSink,
-    Sink,
+    ObservabilitySink,
+    PrettyStderrSink,
+    default_observability_sink,
 )
 
 __all__ = [
@@ -27,9 +28,11 @@ __all__ = [
     "MultiSink",
     "NullSink",
     "Observability",
+    "ObservabilityLevel",
     "ObservabilityRecord",
-    "RecordingSink",
-    "Sink",
+    "ObservabilitySink",
+    "PrettyStderrSink",
     "current_obs",
+    "default_observability_sink",
     "run_benchmark",
 ]

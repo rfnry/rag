@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 
-from rfnry_rag.observability.observability import Observability
+from rfnry_rag.observability.runtime import Observability
 
 _obs_var: ContextVar[Observability | None] = ContextVar("rfnry_rag_observability", default=None)
 

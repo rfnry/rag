@@ -8,20 +8,26 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+from _recording import (
+    RecordingObservabilitySink as ObsRecordingSink,
+)
+from _recording import (
+    RecordingObservabilitySink as RecordingSink,
+)
+from _recording import (
+    RecordingTelemetrySink as TelRecordingSink,
+)
+
 from rfnry_rag.config import RagEngineConfig, RoutingConfig
 from rfnry_rag.config.routing import QueryMode
 from rfnry_rag.generation.models import Clarification, QueryResult
 from rfnry_rag.models import Source
-from rfnry_rag.observability import Observability, RecordingSink
-from rfnry_rag.observability import RecordingSink as ObsRecordingSink
+from rfnry_rag.observability import Observability
 from rfnry_rag.server import RagEngine
 from rfnry_rag.telemetry import (
     IngestTelemetryRow,
     QueryTelemetryRow,
     Telemetry,
-)
-from rfnry_rag.telemetry import (
-    RecordingSink as TelRecordingSink,
 )
 
 
@@ -387,7 +393,7 @@ async def test_telemetry_persists_via_metadata_store(tmp_path) -> None:
     await store.initialize()
     try:
         obs_sink = RecordingSink()
-        tel_sink = SqlAlchemyTelemetrySink(store)
+        tel_sink = SqlAlchemyTelemetrySink(metadata_store=store)
         engine = _build_engine(obs_sink=obs_sink, tel_sink=tel_sink)
 
         await engine.query("hello", knowledge_id="kx")

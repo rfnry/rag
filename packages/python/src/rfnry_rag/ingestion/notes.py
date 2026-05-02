@@ -1,6 +1,3 @@
-"""Soft-fail note recording: attach to ``Source.metadata["ingestion_notes"]``
-and emit a parallel structured event for live consumers."""
-
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -18,12 +15,6 @@ async def record_skip(
     reason: str,
     page_number: int | None = None,
 ) -> None:
-    """Append a ``<step>:<level>:<reason>`` note and emit a matching event.
-
-    Per-page failures (``page_number`` set) emit ``vision.page.skipped``; all
-    other soft-fails emit ``enrichment.skipped``. ``notes`` may be None when
-    the caller has no list to mutate.
-    """
     note = f"{step}:{level}:{reason}"
     if notes is not None:
         notes.append(note)
@@ -34,4 +25,4 @@ async def record_skip(
     ctx: dict[str, Any] = {"step": step, "reason": reason}
     if page_number is not None:
         ctx["page_number"] = page_number
-    await obs.emit(level, kind, note, **ctx)
+    await obs.emit(kind, note, level=level, context=ctx)

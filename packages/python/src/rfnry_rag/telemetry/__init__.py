@@ -5,28 +5,26 @@ from rfnry_rag.telemetry.context import (
     current_row,
 )
 from rfnry_rag.telemetry.record import IngestTelemetryRow, QueryTelemetryRow
-from rfnry_rag.telemetry.sinks import (
-    JsonlFileSink,
-    JsonlStderrSink,
-    MultiSink,
-    NullSink,
-    RecordingSink,
-    Sink,
+from rfnry_rag.telemetry.runtime import Telemetry
+from rfnry_rag.telemetry.sink import (
+    JsonlStderrTelemetrySink,
+    JsonlTelemetrySink,
+    MultiTelemetrySink,
+    NullTelemetrySink,
     SqlAlchemyTelemetrySink,
+    TelemetrySink,
 )
-from rfnry_rag.telemetry.telemetry import Telemetry
 
 __all__ = [
     "IngestTelemetryRow",
-    "JsonlFileSink",
-    "JsonlStderrSink",
-    "MultiSink",
-    "NullSink",
+    "JsonlStderrTelemetrySink",
+    "JsonlTelemetrySink",
+    "MultiTelemetrySink",
+    "NullTelemetrySink",
     "QueryTelemetryRow",
-    "RecordingSink",
-    "Sink",
     "SqlAlchemyTelemetrySink",
     "Telemetry",
+    "TelemetrySink",
     "add_llm_usage",
     "current_ingest_row",
     "current_query_row",

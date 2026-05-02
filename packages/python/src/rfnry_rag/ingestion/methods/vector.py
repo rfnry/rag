@@ -107,27 +107,26 @@ class VectorIngestion:
                 row.chunks_count = max(row.chunks_count, len(chunks))
             if obs is not None:
                 await obs.emit(
-                    "info",
                     "ingestion.method.success",
                     f"{self.name} ingest ok",
-                    method_name=self.name,
-                    chunks=len(chunks),
-                    duration_ms=elapsed_ms,
                     source_id=source_id,
+                    context={
+                        "method_name": self.name,
+                        "chunks": len(chunks),
+                        "duration_ms": elapsed_ms,
+                    },
                 )
         except Exception as exc:
             elapsed_ms = int((time.perf_counter() - start) * 1000)
             logger.warning("failed in %dms — %s", elapsed_ms, exc)
             if obs is not None:
                 await obs.emit(
-                    "error",
                     "ingestion.method.error",
                     f"{self.name} ingest failed",
-                    method_name=self.name,
-                    duration_ms=elapsed_ms,
+                    level="error",
                     source_id=source_id,
-                    error_type=type(exc).__name__,
-                    error_message=str(exc),
+                    context={"method_name": self.name, "duration_ms": elapsed_ms},
+                    error=exc,
                 )
             raise
 

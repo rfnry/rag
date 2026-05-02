@@ -12,7 +12,7 @@ from rfnry_rag.generation.models import QueryResult
 from rfnry_rag.observability import NullSink as _ObsNullSink
 from rfnry_rag.observability import Observability
 from rfnry_rag.server import RagEngine
-from rfnry_rag.telemetry import NullSink as _TelNullSink
+from rfnry_rag.telemetry import NullTelemetrySink as _TelNullSink
 from rfnry_rag.telemetry import Telemetry
 
 _UNSET: Any = object()
