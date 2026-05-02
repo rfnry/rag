@@ -11,7 +11,7 @@ from rfnry_rag.ingestion.vision.constants import (
     VISION_EXTRACTION_PROMPT,
 )
 from rfnry_rag.logging import get_logger
-from rfnry_rag.providers.provider import LanguageModel
+from rfnry_rag.providers.provider import GoogleModelProvider
 
 logger = get_logger(__name__)
 
@@ -19,14 +19,12 @@ logger = get_logger(__name__)
 class _GeminiVision:
     def __init__(
         self,
-        provider: LanguageModel,
+        provider: GoogleModelProvider,
         max_tokens: int = 4096,
         max_retries: int = 3,
     ) -> None:
-        # The google-genai SDK exposes retries via HttpOptions.retry_options.attempts
-        # rather than as a direct Client kwarg, so we wire it through there.
         http_options = types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=max_retries))
-        self._client = genai.Client(api_key=provider.api_key, http_options=http_options)
+        self._client = genai.Client(api_key=provider.api_key.get_secret_value(), http_options=http_options)
         self._model = provider.model
         self._max_tokens = max_tokens
 
@@ -70,7 +68,7 @@ class _GeminiVision:
                 metadata={
                     "source_type": "vision",
                     "vision_model": self._model,
-                    "vision_provider": "gemini",
+                    "vision_provider": "google",
                     "media_type": media_type,
                     "char_count": len(content),
                 },

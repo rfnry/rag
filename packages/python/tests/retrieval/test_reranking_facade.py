@@ -1,27 +1,29 @@
 import pytest
 
 from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.providers import LanguageModel, Reranking
+from rfnry_rag.providers import (
+    CohereModelProvider,
+    OpenAIModelProvider,
+    Reranking,
+    VoyageModelProvider,
+)
 from rfnry_rag.retrieval.search.reranking.cohere import _CohereReranking
 from rfnry_rag.retrieval.search.reranking.voyage import _VoyageReranking
 
 
 def test_reranking_with_cohere_provider_uses_dedicated_api():
-    provider = LanguageModel(provider="cohere", model="rerank-v3.5", api_key="co-test")
-    reranker = Reranking(provider)
+    reranker = Reranking(CohereModelProvider(api_key="co-test", model="rerank-v3.5"))
     assert isinstance(reranker._impl, _CohereReranking)
 
 
 def test_reranking_with_voyage_provider_uses_dedicated_api():
-    provider = LanguageModel(provider="voyage", model="rerank-2.5", api_key="vo-test")
-    reranker = Reranking(provider)
+    reranker = Reranking(VoyageModelProvider(api_key="vo-test", model="rerank-2.5"))
     assert isinstance(reranker._impl, _VoyageReranking)
 
 
 def test_reranking_with_unsupported_provider_raises():
-    provider = LanguageModel(provider="openai", model="gpt-4o", api_key="sk-test")
     with pytest.raises(ConfigurationError, match="no dedicated reranker API"):
-        Reranking(provider)
+        Reranking(OpenAIModelProvider(api_key="sk-test", model="gpt-4o"))
 
 
 def test_voyage_reranker_uses_async_client() -> None:
@@ -29,5 +31,5 @@ def test_voyage_reranker_uses_async_client() -> None:
 
     from rfnry_rag.retrieval.search.reranking.voyage import _VoyageReranking
 
-    rerank = _VoyageReranking(provider=LanguageModel(provider="voyage", model="rerank-2", api_key="sk-test"))
+    rerank = _VoyageReranking(provider=VoyageModelProvider(api_key="sk-test", model="rerank-2"))
     assert isinstance(rerank._client, voyageai.AsyncClient)

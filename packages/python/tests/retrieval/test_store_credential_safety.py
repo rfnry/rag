@@ -50,8 +50,8 @@ def test_neo4j_graph_store_rejects_empty_password():
         Neo4jGraphStore(uri="neo4j://x:7687", username="u", password="")
 
 
-def test_language_model_provider_repr_does_not_leak_api_key():
-    from rfnry_rag.providers import LanguageModel
+def test_provider_repr_does_not_leak_api_key():
+    from rfnry_rag.providers import OpenAIModelProvider
 
-    p = LanguageModel(provider="openai", model="m", api_key="sk-TOPSECRET")
-    assert "TOPSECRET" not in repr(p)
+    provider = OpenAIModelProvider(api_key="sk-TOPSECRET", model="m")
+    assert "TOPSECRET" not in repr(provider)

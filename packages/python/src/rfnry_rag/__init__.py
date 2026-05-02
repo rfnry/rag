@@ -59,11 +59,15 @@ from rfnry_rag.observability.models import MetricResult as MetricResult
 from rfnry_rag.observability.retrieval_metrics import RetrievalPrecision as RetrievalPrecision
 from rfnry_rag.observability.retrieval_metrics import RetrievalRecall as RetrievalRecall
 from rfnry_rag.observability.trace import RetrievalTrace as RetrievalTrace
+from rfnry_rag.providers import AnthropicModelProvider as AnthropicModelProvider
+from rfnry_rag.providers import CohereModelProvider as CohereModelProvider
 from rfnry_rag.providers import Embeddings as Embeddings
-from rfnry_rag.providers import LanguageModel as LanguageModel
-from rfnry_rag.providers import LanguageModelClient as LanguageModelClient
+from rfnry_rag.providers import GenerativeModelClient as GenerativeModelClient
+from rfnry_rag.providers import GoogleModelProvider as GoogleModelProvider
+from rfnry_rag.providers import OpenAIModelProvider as OpenAIModelProvider
 from rfnry_rag.providers import Reranking as Reranking
 from rfnry_rag.providers import Vision as Vision
+from rfnry_rag.providers import VoyageModelProvider as VoyageModelProvider
 from rfnry_rag.retrieval.base import BaseRetrievalMethod as BaseRetrievalMethod
 from rfnry_rag.retrieval.methods.document import DocumentRetrieval as DocumentRetrieval
 from rfnry_rag.retrieval.methods.enrich import StructuredRetrieval as StructuredRetrieval
@@ -84,12 +88,14 @@ from rfnry_rag.stores.vector.qdrant import QdrantVectorStore as QdrantVectorStor
 __all__ = [
     "DEFAULT_SYSTEM_PROMPT",
     "AnalyzedIngestion",
+    "AnthropicModelProvider",
     "BaseIngestionMethod",
     "BaseRetrievalMethod",
     "BenchmarkCase",
     "BenchmarkCaseResult",
     "BenchmarkConfig",
     "BenchmarkReport",
+    "CohereModelProvider",
     "ConfigurationError",
     "ContentMatch",
     "DocumentExpansionConfig",
@@ -107,6 +113,8 @@ __all__ = [
     "FilesystemDocumentStore",
     "GenerationConfig",
     "GenerationError",
+    "GenerativeModelClient",
+    "GoogleModelProvider",
     "GraphEntity",
     "GraphIngestion",
     "GraphIngestionConfig",
@@ -120,10 +128,9 @@ __all__ = [
     "IngestionService",
     "InputError",
     "LLMJudgment",
-    "LanguageModel",
-    "LanguageModelClient",
     "MetricResult",
     "Neo4jGraphStore",
+    "OpenAIModelProvider",
     "ParseError",
     "PostgresDocumentStore",
     "QdrantVectorStore",
@@ -152,4 +159,5 @@ __all__ = [
     "VectorIngestion",
     "VectorRetrieval",
     "Vision",
+    "VoyageModelProvider",
 ]

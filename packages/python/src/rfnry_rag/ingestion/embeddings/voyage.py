@@ -1,16 +1,13 @@
 import voyageai
 
-from rfnry_rag.providers.provider import LanguageModel
+from rfnry_rag.providers.provider import VoyageModelProvider
 
-# Maximum texts per single API call. Callers should use embed_batched() from
-# rfnry_rag.ingestion.embeddings.batching when sending more than this many texts — that
-# helper owns sub-batch chunking and concurrency.
 _VOYAGE_MAX_BATCH = 128
 
 
 class _VoyageEmbeddings:
-    def __init__(self, provider: LanguageModel) -> None:
-        self._client = voyageai.AsyncClient(api_key=provider.api_key)
+    def __init__(self, provider: VoyageModelProvider) -> None:
+        self._client = voyageai.AsyncClient(api_key=provider.api_key.get_secret_value())
         self._model = provider.model
         self._dimension: int | None = None
 
@@ -19,11 +16,6 @@ class _VoyageEmbeddings:
         return self._model
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
-        """Embed *texts* in a single API call.
-
-        Callers must ensure ``len(texts) <= _VOYAGE_MAX_BATCH``; use
-        ``embed_batched()`` from ``rfnry_rag.ingestion.embeddings.batching`` to chunk and
-        gather larger inputs automatically."""
         result = await self._client.embed(texts, model=self._model)
         return [[float(v) for v in vec] for vec in result.embeddings]
 

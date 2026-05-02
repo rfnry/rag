@@ -6,7 +6,7 @@ from rfnry_rag.generation.grounding import DEFAULT_ESCALATION, RelevanceGate, Sc
 from rfnry_rag.generation.models import Clarification, QueryResult, SourceReference, StreamEvent
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.providers import LanguageModelClient
+from rfnry_rag.providers import GenerativeModelClient
 from rfnry_rag.providers.text_generation import assemble_user_message
 
 logger = get_logger("generation")
@@ -15,13 +15,13 @@ logger = get_logger("generation")
 class GenerationService:
     def __init__(
         self,
-        lm_client: LanguageModelClient,
+        lm_client: GenerativeModelClient,
         system_prompt: str,
         grounding_enabled: bool = False,
         grounding_threshold: float = 0.5,
         relevance_gate_enabled: bool = False,
         guiding_enabled: bool = False,
-        relevance_gate_lm_client: LanguageModelClient | None = None,
+        relevance_gate_lm_client: GenerativeModelClient | None = None,
         chunk_ordering: ChunkOrdering = ChunkOrdering.SCORE_DESCENDING,
     ) -> None:
         self._lm_client = lm_client

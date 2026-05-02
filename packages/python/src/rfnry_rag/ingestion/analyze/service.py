@@ -29,7 +29,7 @@ from rfnry_rag.ingestion.page_range import parse_page_range
 from rfnry_rag.ingestion.vision.base import BaseVision
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import Source, VectorPoint
-from rfnry_rag.providers import LanguageModelClient, build_registry
+from rfnry_rag.providers import GenerativeModelClient, build_registry
 from rfnry_rag.stores.graph.base import BaseGraphStore
 from rfnry_rag.stores.graph.mapper import cross_refs_to_graph_relations, page_entities_to_graph
 from rfnry_rag.stores.metadata.base import BaseMetadataStore
@@ -54,7 +54,7 @@ class AnalyzedIngestionService:
         dpi: int = 300,
         source_type_weights: dict[str, float] | None = None,
         on_ingestion_complete: Callable[[str | None], Awaitable[None]] | None = None,
-        lm_client: LanguageModelClient | None = None,
+        lm_client: GenerativeModelClient | None = None,
         graph_store: BaseGraphStore | None = None,
         ingestion_methods: list | None = None,
         analyze_text_skip_threshold_chars: int = 300,
@@ -467,7 +467,7 @@ class AnalyzedIngestionService:
             raise ConfigurationError(
                 "AnalyzedIngestion.lm_client is required for structured PDF analysis "
                 "(used by AnalyzePage and SynthesizeDocument BAML functions). "
-                "Provide a LanguageModelClient with your LLM provider and API key."
+                "Provide a GenerativeModelClient with your LLM provider and API key."
             )
 
     async def _analyze_one(
@@ -574,7 +574,7 @@ class AnalyzedIngestionService:
             raise ConfigurationError(
                 "AnalyzedIngestion.lm_client is required for PDF synthesis "
                 "(used by SynthesizeDocument BAML function). "
-                "Provide a LanguageModelClient with your LLM provider and API key."
+                "Provide a GenerativeModelClient with your LLM provider and API key."
             )
 
         from rfnry_rag.baml.baml_client.async_client import b

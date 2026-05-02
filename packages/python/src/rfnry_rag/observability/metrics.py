@@ -6,7 +6,7 @@ from rfnry_rag.baml.baml_client.async_client import b
 from rfnry_rag.logging import get_logger
 from rfnry_rag.observability.models import MetricResult
 from rfnry_rag.observability.normalize import normalize_answer
-from rfnry_rag.providers import LanguageModelClient, build_registry
+from rfnry_rag.providers import GenerativeModelClient, build_registry
 from rfnry_rag.telemetry.usage import instrument_baml_call
 
 logger = get_logger("evaluation")
@@ -84,7 +84,7 @@ class LLMJudgment:
 
     name: str = "llm_judge"
 
-    def __init__(self, lm_client: LanguageModelClient) -> None:
+    def __init__(self, lm_client: GenerativeModelClient) -> None:
         self._lm_client = lm_client
 
     async def score(self, prediction: str, references: list[str], query: str = "") -> float:

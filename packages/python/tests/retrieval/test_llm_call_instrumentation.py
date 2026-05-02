@@ -275,8 +275,18 @@ async def test_instrument_call_no_op_on_active_row_absence() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _lm(provider: str) -> SimpleNamespace:
-    return SimpleNamespace(provider=provider, model=f"{provider}-model", api_key="key")
+def _provider(kind: str):
+    from rfnry_rag.providers import (
+        AnthropicModelProvider,
+        GoogleModelProvider,
+        OpenAIModelProvider,
+    )
+
+    if kind == "anthropic":
+        return AnthropicModelProvider(api_key="key", model=f"{kind}-model")
+    if kind == "openai":
+        return OpenAIModelProvider(api_key="key", model=f"{kind}-model")
+    return GoogleModelProvider(api_key="key", model=f"{kind}-model")
 
 
 @pytest.mark.asyncio
@@ -328,7 +338,7 @@ async def test_anthropic_stream_extracts_usage_from_final_message() -> None:
         with patch("anthropic.AsyncAnthropic", _FakeClient):
             collected: list[str] = []
             async for piece in _anthropic_stream(
-                lm=_lm("anthropic"),
+                provider=_provider("anthropic"),
                 system="sys",
                 user="usr",
                 max_tokens=100,
@@ -402,7 +412,7 @@ async def test_openai_stream_extracts_usage_from_last_chunk() -> None:
         with patch("openai.AsyncOpenAI", _FakeClient):
             collected: list[str] = []
             async for piece in _openai_stream(
-                lm=_lm("openai"),
+                provider=_provider("openai"),
                 system="sys",
                 user="usr",
                 max_tokens=100,
@@ -432,7 +442,7 @@ async def test_openai_stream_extracts_usage_from_last_chunk() -> None:
 async def test_gemini_stream_extracts_usage_from_last_chunk() -> None:
     from unittest.mock import patch
 
-    from rfnry_rag.providers.text_generation import _gemini_stream
+    from rfnry_rag.providers.text_generation import _google_stream
 
     obs_sink = RecordingSink()
     obs_token = _set_obs(Observability(sink=obs_sink))
@@ -469,8 +479,8 @@ async def test_gemini_stream_extracts_usage_from_last_chunk() -> None:
     try:
         with patch("google.genai.Client", _FakeClient):
             collected: list[str] = []
-            async for piece in _gemini_stream(
-                lm=_lm("gemini"),
+            async for piece in _google_stream(
+                provider=_provider("google"),
                 system="sys",
                 user="usr",
                 max_tokens=100,

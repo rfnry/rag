@@ -37,7 +37,7 @@ retry_policy Retry5 {
 // The model name is a sentinel so any unrouted call fails fast with a clear
 // provider error instead of silently proceeding on a specific model that may
 // be deprecated. Production code must always pass `client_registry` built via
-// `build_registry(LanguageModelClient)`.
+// `build_registry(GenerativeModelClient)`.
 client<llm> Default {
   provider openai
   retry_policy Retry3

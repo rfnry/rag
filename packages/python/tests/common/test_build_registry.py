@@ -1,29 +1,30 @@
-from rfnry_rag.providers import LanguageModel, LanguageModelClient, build_registry
+from rfnry_rag.providers import (
+    AnthropicModelProvider,
+    GenerativeModelClient,
+    OpenAIModelProvider,
+    build_registry,
+)
 from rfnry_rag.providers.registry import _build_client_options
 
 
+def _openai(api_key: str = "sk-test", model: str = "gpt-4o") -> OpenAIModelProvider:
+    return OpenAIModelProvider(api_key=api_key, model=model)
+
+
+def _anthropic(api_key: str = "ant-test", model: str = "claude-sonnet-4-20250514") -> AnthropicModelProvider:
+    return AnthropicModelProvider(api_key=api_key, model=model)
+
+
 def test_build_client_options_includes_generation_params():
-    provider = LanguageModel(provider="openai", model="gpt-4o", api_key="sk-test")
-    options = _build_client_options(provider, max_tokens=8192, temperature=0.7)
+    options = _build_client_options(_openai(), max_tokens=8192, temperature=0.7)
     assert options["model"] == "gpt-4o"
     assert options["max_tokens"] == 8192
     assert options["temperature"] == 0.7
     assert options["api_key"] == "sk-test"
 
 
-def test_build_client_options_omits_api_key_when_none():
-    provider = LanguageModel(provider="openai", model="gpt-4o", api_key=None)
-    options = _build_client_options(provider, max_tokens=4096, temperature=0.0)
-    assert "api_key" not in options
-    assert options["model"] == "gpt-4o"
-
-
 def test_build_registry_primary_only():
-    client = LanguageModelClient(
-        lm=LanguageModel(provider="openai", model="gpt-4o", api_key="sk-test"),
-        max_tokens=8192,
-        temperature=0.5,
-    )
+    client = GenerativeModelClient(provider=_openai(), max_tokens=8192, temperature=0.5)
     registry = build_registry(client)
     from baml_py import ClientRegistry
 
@@ -31,9 +32,9 @@ def test_build_registry_primary_only():
 
 
 def test_build_registry_with_fallback():
-    client = LanguageModelClient(
-        lm=LanguageModel(provider="anthropic", model="claude-sonnet-4-20250514", api_key="ant-test"),
-        fallback=LanguageModel(provider="openai", model="gpt-4o", api_key="oai-test"),
+    client = GenerativeModelClient(
+        provider=_anthropic(),
+        fallback=_openai(api_key="oai-test"),
         strategy="fallback",
         max_tokens=8192,
         temperature=0.3,
@@ -45,7 +46,6 @@ def test_build_registry_with_fallback():
 
 
 def test_build_registry_applies_same_generation_params_to_fallback(monkeypatch):
-    """Fallback provider should receive the SAME max_tokens/temperature as primary."""
     captured_options = []
 
     from rfnry_rag.providers import registry as lm_module
@@ -64,16 +64,15 @@ def test_build_registry_applies_same_generation_params_to_fallback(monkeypatch):
 
     monkeypatch.setattr(lm_module, "_build_client_options", spy)
 
-    client = LanguageModelClient(
-        lm=LanguageModel(provider="anthropic", model="claude-sonnet-4-20250514", api_key="ant-test"),
-        fallback=LanguageModel(provider="openai", model="gpt-4o", api_key="oai-test"),
+    client = GenerativeModelClient(
+        provider=_anthropic(),
+        fallback=_openai(api_key="oai-test"),
         strategy="fallback",
         max_tokens=9999,
         temperature=0.42,
     )
     build_registry(client)
 
-    # Both primary and fallback should have been built with max_tokens=9999, temperature=0.42
     assert len(captured_options) == 2
     assert captured_options[0]["provider_model"] == "claude-sonnet-4-20250514"
     assert captured_options[0]["max_tokens"] == 9999
@@ -83,31 +82,22 @@ def test_build_registry_applies_same_generation_params_to_fallback(monkeypatch):
     assert captured_options[1]["temperature"] == 0.42
 
 
-def test_language_model_client_default_timeout():
-    client = LanguageModelClient(
-        lm=LanguageModel(provider="openai", model="m", api_key="k"),
-    )
+def test_generative_model_client_default_timeout():
+    client = GenerativeModelClient(provider=_openai(api_key="k", model="m"))
     assert client.timeout_seconds == 60
 
 
-def test_language_model_client_rejects_non_positive_timeout():
+def test_generative_model_client_rejects_non_positive_timeout():
     import pytest
 
     from rfnry_rag.exceptions import ConfigurationError
 
     with pytest.raises(ConfigurationError, match="timeout"):
-        LanguageModelClient(
-            lm=LanguageModel(provider="openai", model="m", api_key="k"),
-            timeout_seconds=0,
-        )
+        GenerativeModelClient(provider=_openai(api_key="k", model="m"), timeout_seconds=0)
     with pytest.raises(ConfigurationError, match="timeout"):
-        LanguageModelClient(
-            lm=LanguageModel(provider="openai", model="m", api_key="k"),
-            timeout_seconds=-5,
-        )
+        GenerativeModelClient(provider=_openai(api_key="k", model="m"), timeout_seconds=-5)
 
 
 def test_build_client_options_includes_timeout():
-    provider = LanguageModel(provider="openai", model="gpt-4o", api_key="k")
-    options = _build_client_options(provider, max_tokens=4096, temperature=0.0, timeout_seconds=30)
+    options = _build_client_options(_openai(api_key="k"), max_tokens=4096, temperature=0.0, timeout_seconds=30)
     assert options.get("timeout") == 30 or options.get("request_timeout") == 30

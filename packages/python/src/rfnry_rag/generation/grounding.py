@@ -4,7 +4,7 @@ from rfnry_rag.baml.baml_client.async_client import b
 from rfnry_rag.generation.models import RelevanceResult
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.providers import LanguageModelClient, build_registry
+from rfnry_rag.providers import GenerativeModelClient, build_registry
 from rfnry_rag.telemetry.usage import instrument_baml_call
 
 logger = get_logger("generation/grounding")
@@ -38,7 +38,7 @@ class RelevanceGate:
     Falls back to ScoreGate on failure.
     """
 
-    def __init__(self, lm_client: LanguageModelClient, fallback_gate: ScoreGate) -> None:
+    def __init__(self, lm_client: GenerativeModelClient, fallback_gate: ScoreGate) -> None:
         self._registry = build_registry(lm_client)
         self._fallback = fallback_gate
 

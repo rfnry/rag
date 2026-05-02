@@ -129,11 +129,11 @@ async def test_document_store_logs_effective_pool_knobs(caplog) -> None:
 def test_build_registry_logs_lm_policy(caplog) -> None:
     import logging
 
-    from rfnry_rag.providers import LanguageModel, LanguageModelClient, build_registry
+    from rfnry_rag.providers import GenerativeModelClient, OpenAIModelProvider, build_registry
 
     caplog.set_level(logging.INFO, logger="rfnry_rag.providers.registry")
-    client = LanguageModelClient(
-        lm=LanguageModel(provider="openai", model="gpt-4o", api_key="sk-test"),
+    client = GenerativeModelClient(
+        provider=OpenAIModelProvider(api_key="sk-test", model="gpt-4o"),
         max_retries=2,
         timeout_seconds=30,
     )

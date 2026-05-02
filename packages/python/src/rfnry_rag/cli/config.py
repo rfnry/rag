@@ -4,6 +4,8 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+from pydantic import SecretStr
+
 from rfnry_rag.cli.constants import CONFIG_FILE, ENV_FILE, ConfigError, load_dotenv
 from rfnry_rag.cli.utils import get_api_key as _get_api_key
 from rfnry_rag.config import (
@@ -16,7 +18,17 @@ from rfnry_rag.config import (
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.embeddings.sparse.fastembed import FastEmbedSparseEmbeddings
 from rfnry_rag.ingestion.methods import VectorIngestion
-from rfnry_rag.providers import Embeddings, LanguageModel, LanguageModelClient, Reranking
+from rfnry_rag.providers import (
+    AnthropicModelProvider,
+    CohereModelProvider,
+    Embeddings,
+    GenerativeModelClient,
+    GoogleModelProvider,
+    ModelProvider,
+    OpenAIModelProvider,
+    Reranking,
+    VoyageModelProvider,
+)
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 from rfnry_rag.server import _derive_embedding_model_name
 from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
@@ -46,6 +58,21 @@ _EMBEDDINGS_DEFAULTS = {
 }
 
 
+def _make_provider(kind: str, api_key: str, model: str) -> ModelProvider:
+    secret = SecretStr(api_key)
+    if kind == "anthropic":
+        return AnthropicModelProvider(api_key=secret, model=model)
+    if kind == "openai":
+        return OpenAIModelProvider(api_key=secret, model=model)
+    if kind == "google" or kind == "gemini":
+        return GoogleModelProvider(api_key=secret, model=model)
+    if kind == "voyage":
+        return VoyageModelProvider(api_key=secret, model=model)
+    if kind == "cohere":
+        return CohereModelProvider(api_key=secret, model=model)
+    raise ConfigError(f"Unknown provider kind: {kind!r}")
+
+
 def _build_embeddings(cfg: dict[str, Any]) -> BaseEmbeddings:
     provider = cfg.get("embeddings", "openai")
     env_var = _EMBEDDINGS_KEYS.get(provider)
@@ -54,7 +81,7 @@ def _build_embeddings(cfg: dict[str, Any]) -> BaseEmbeddings:
     api_key = _get_api_key(env_var, provider)
     model = cfg.get("model", _EMBEDDINGS_DEFAULTS[provider])
 
-    return Embeddings(LanguageModel(provider=provider, model=model, api_key=api_key))
+    return Embeddings(_make_provider(provider, api_key, model))
 
 
 _RERANKER_KEYS = {
@@ -78,18 +105,20 @@ def _build_reranker(cfg: dict[str, Any]):
     api_key = _get_api_key(env_var, provider)
     model = cfg.get("reranker_model", _RERANKER_DEFAULTS[provider])
 
-    return Reranking(LanguageModel(provider=provider, model=model, api_key=api_key))
+    return Reranking(_make_provider(provider, api_key, model))
 
 
 _GENERATION_KEYS = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
+    "google": "GEMINI_API_KEY",
     "gemini": "GEMINI_API_KEY",
 }
 
 _GENERATION_DEFAULTS = {
     "anthropic": "claude-sonnet-4-20250514",
     "openai": "gpt-4o",
+    "google": "gemini-2.5-pro",
     "gemini": "gemini-2.5-pro",
 }
 
@@ -97,7 +126,7 @@ _GENERATION_DEFAULTS = {
 def _build_generation_config(cfg: dict[str, Any]) -> GenerationConfig:
     provider = cfg.get("provider")
     if not provider:
-        raise ConfigError("[generation] requires 'provider' (anthropic, openai, or gemini)")
+        raise ConfigError("[generation] requires 'provider' (anthropic, openai, or google)")
     env_var = _GENERATION_KEYS.get(provider)
     if env_var is None:
         raise ConfigError(f"Unknown generation provider: {provider!r}. Supported: {', '.join(_GENERATION_KEYS)}")
@@ -105,13 +134,7 @@ def _build_generation_config(cfg: dict[str, Any]) -> GenerationConfig:
     api_key = _get_api_key(env_var, provider)
     model = cfg.get("model", _GENERATION_DEFAULTS[provider])
 
-    lm_client = LanguageModelClient(
-        lm=LanguageModel(
-            provider=provider,
-            model=model,
-            api_key=api_key,
-        ),
-    )
+    lm_client = GenerativeModelClient(provider=_make_provider(provider, api_key, model))
 
     relevance_gate_lm = None
     if cfg.get("relevance_gate_enabled"):
@@ -121,8 +144,8 @@ def _build_generation_config(cfg: dict[str, Any]) -> GenerationConfig:
         if rg_env_var is None:
             raise ConfigError(f"Unknown relevance_gate_provider: {rg_provider!r}")
         rg_api_key = _get_api_key(rg_env_var, rg_provider)
-        relevance_gate_lm = LanguageModelClient(
-            lm=LanguageModel(provider=rg_provider, model=rg_model, api_key=rg_api_key),
+        relevance_gate_lm = GenerativeModelClient(
+            provider=_make_provider(rg_provider, rg_api_key, rg_model),
         )
 
     return GenerationConfig(
@@ -137,11 +160,6 @@ def _build_generation_config(cfg: dict[str, Any]) -> GenerationConfig:
 
 
 def _build_contextual_chunk_config(cfg: dict[str, Any]) -> ContextualChunkConfig:
-    """Build ``ContextualChunkConfig`` from ``[ingestion.contextual_chunk]``.
-
-    Provider/model/api_key follow the same env-var conventions as
-    ``[generation]``. Section absent → returns the default-disabled config.
-    """
     if not cfg:
         return ContextualChunkConfig()
     enabled = cfg.get("enabled", False)
@@ -157,9 +175,7 @@ def _build_contextual_chunk_config(cfg: dict[str, Any]) -> ContextualChunkConfig
             )
         api_key = _get_api_key(env_var, provider)
         model = cfg.get("model", _GENERATION_DEFAULTS[provider])
-        lm_client = LanguageModelClient(
-            lm=LanguageModel(provider=provider, model=model, api_key=api_key),
-        )
+        lm_client = GenerativeModelClient(provider=_make_provider(provider, api_key, model))
     return ContextualChunkConfig(
         enabled=enabled,
         lm_client=lm_client,
@@ -176,7 +192,6 @@ def _build_metadata_store(cfg: dict[str, Any]) -> SQLAlchemyMetadataStore:
 
 
 def load_config(config_path: str | None = None) -> RagEngineConfig:
-    """Load TOML config + .env, build RagEngineConfig."""
     return _load_config(config_path)
 
 
@@ -189,11 +204,6 @@ _ALLOWED_TOP_KEYS = {
 
 
 def _validate_toml_keys(toml: dict) -> None:
-    """Reject unknown top-level keys in config.toml to surface typos early.
-
-    Prior behavior silently ignored unknown keys, so a typo like
-    `grounding_treshold = 0.7` in [generation] would quietly fall back to
-    the default."""
     unknown = set(toml.keys()) - _ALLOWED_TOP_KEYS
     if unknown:
         raise ConfigError(

@@ -141,7 +141,7 @@ async def test_ingest_row_counts_contextual_chunk_calls() -> None:
     from rfnry_rag.config import ContextualChunkConfig
     from rfnry_rag.ingestion.chunk.contextualize import contextualize_chunks_with_llm
     from rfnry_rag.ingestion.models import ChunkedContent
-    from rfnry_rag.providers import LanguageModel, LanguageModelClient
+    from rfnry_rag.providers import AnthropicModelProvider, GenerativeModelClient
 
     obs_token = _set_obs(Observability(sink=RecordingSink()))
     row = _ingest_row()
@@ -156,7 +156,7 @@ async def test_ingest_row_counts_contextual_chunk_calls() -> None:
     ]
     cfg = ContextualChunkConfig(
         enabled=True,
-        lm_client=LanguageModelClient(lm=LanguageModel(provider="anthropic", model="m", api_key="k")),
+        lm_client=GenerativeModelClient(provider=AnthropicModelProvider(api_key="k", model="m")),
     )
 
     try:
@@ -183,7 +183,7 @@ async def test_ingest_row_marks_contextual_chunk_skipped_on_oversized() -> None:
     from rfnry_rag.config import ContextualChunkConfig, IngestionConfig
     from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
     from rfnry_rag.ingestion.chunk.service import IngestionService
-    from rfnry_rag.providers import LanguageModel, LanguageModelClient
+    from rfnry_rag.providers import AnthropicModelProvider, GenerativeModelClient
 
     obs_token = _set_obs(Observability(sink=RecordingSink()))
     row = _ingest_row()
@@ -194,8 +194,8 @@ async def test_ingest_row_marks_contextual_chunk_skipped_on_oversized() -> None:
 
     contextual_cfg = ContextualChunkConfig(
         enabled=True,
-        lm_client=LanguageModelClient(
-            lm=LanguageModel(provider="anthropic", model="m", api_key="k", context_size=32_000)
+        lm_client=GenerativeModelClient(
+            provider=AnthropicModelProvider(api_key="k", model="m", context_size=32_000),
         ),
         max_context_tokens=100,
     )
@@ -231,13 +231,13 @@ async def test_ingest_row_counts_document_expansion_calls_and_failures() -> None
     row = _ingest_row()
     row_token = _set_row(row)
 
-    from rfnry_rag.providers import LanguageModel, LanguageModelClient
+    from rfnry_rag.providers import AnthropicModelProvider, GenerativeModelClient
 
     fake_registry = object()
     cfg = DocumentExpansionConfig(
         enabled=True,
         num_queries=3,
-        lm_client=LanguageModelClient(lm=LanguageModel(provider="anthropic", model="m", api_key="k")),
+        lm_client=GenerativeModelClient(provider=AnthropicModelProvider(api_key="k", model="m")),
     )
 
     chunks = [ChunkedContent(content=f"p{i}", chunk_index=i) for i in range(4)]

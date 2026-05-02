@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.providers import LanguageModelClient
+from rfnry_rag.providers import GenerativeModelClient
 
 if TYPE_CHECKING:
     from rfnry_rag.ingestion.base import BaseIngestionMethod, PhasedIngestionMethod
@@ -25,7 +25,7 @@ class DocumentExpansionConfig:
 
     enabled: bool = False
     num_queries: int = 5
-    lm_client: LanguageModelClient | None = None
+    lm_client: GenerativeModelClient | None = None
     concurrency: int = 5
 
     def __post_init__(self) -> None:
@@ -35,7 +35,7 @@ class DocumentExpansionConfig:
             raise ConfigurationError(f"DocumentExpansionConfig.concurrency={self.concurrency} out of range [1, 100]")
         if self.enabled and self.lm_client is None:
             raise ConfigurationError(
-                "DocumentExpansionConfig.enabled=True requires lm_client — provide a LanguageModelClient "
+                "DocumentExpansionConfig.enabled=True requires lm_client — provide a GenerativeModelClient "
                 "(no opinionated default model; consumer chooses)."
             )
 
@@ -55,7 +55,7 @@ class ContextualChunkConfig:
     """
 
     enabled: bool = False
-    lm_client: LanguageModelClient | None = None
+    lm_client: GenerativeModelClient | None = None
     concurrency: int = 5
     max_context_tokens: int = 100
 
@@ -70,7 +70,7 @@ class ContextualChunkConfig:
             )
         if self.enabled and self.lm_client is None:
             raise ConfigurationError(
-                "ContextualChunkConfig.enabled=True requires lm_client — provide a LanguageModelClient "
+                "ContextualChunkConfig.enabled=True requires lm_client — provide a GenerativeModelClient "
                 "(no opinionated default model; consumer chooses)."
             )
 

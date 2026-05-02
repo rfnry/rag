@@ -4,14 +4,14 @@ import voyageai
 
 from rfnry_rag.logging import get_logger
 from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.providers.provider import LanguageModel
+from rfnry_rag.providers.provider import VoyageModelProvider
 
 logger = get_logger(__name__)
 
 
 class _VoyageReranking:
-    def __init__(self, provider: LanguageModel) -> None:
-        self._client = voyageai.AsyncClient(api_key=provider.api_key)
+    def __init__(self, provider: VoyageModelProvider) -> None:
+        self._client = voyageai.AsyncClient(api_key=provider.api_key.get_secret_value())
         self._model = provider.model
 
     async def rerank(self, query: str, results: list[RetrievedChunk], top_k: int = 5) -> list[RetrievedChunk]:

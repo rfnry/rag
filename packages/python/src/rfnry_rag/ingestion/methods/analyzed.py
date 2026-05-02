@@ -10,7 +10,7 @@ from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
 from rfnry_rag.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_rag.ingestion.vision.base import BaseVision
 from rfnry_rag.models import Source
-from rfnry_rag.providers import LanguageModelClient
+from rfnry_rag.providers import GenerativeModelClient
 from rfnry_rag.stores.graph.base import BaseGraphStore
 from rfnry_rag.stores.metadata.base import BaseMetadataStore
 from rfnry_rag.stores.vector.base import BaseVectorStore
@@ -26,7 +26,7 @@ class AnalyzedIngestion:
         store: BaseVectorStore,
         embeddings: BaseEmbeddings,
         vision: BaseVision | None = None,
-        lm_client: LanguageModelClient | None = None,
+        lm_client: GenerativeModelClient | None = None,
         graph_store: BaseGraphStore | None = None,
         metadata_store: BaseMetadataStore | None = None,
         embedding_model_name: str = "",

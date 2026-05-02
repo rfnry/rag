@@ -66,7 +66,7 @@ src/rfnry_rag/
 ├── logging.py           # get_logger, query_logging_enabled
 ├── concurrency.py       # run_concurrent
 ├── exceptions/          # one file per error family
-├── providers/           # LanguageModelClient, LanguageModel, registry, facades
+├── providers/           # GenerativeModelClient, ModelProvider union (Anthropic/OpenAI/Google/Voyage/Cohere), registry, facades
 ├── models/              # Source, Chunk, vector DTOs, retrieval results, stats
 ├── config/              # all config dataclasses, one place
 ├── ingestion/           # base + service + chunk/ + methods/ + drawing/
@@ -164,7 +164,7 @@ Concrete sink class names mirror the rfnry agent SDK (separate repo) so a future
 
 All LLM calls go through BAML for structured output parsing, retry/fallback, and observability. Edit `baml/baml_src/`; regenerate with `poe baml:generate`. Never edit `baml_client/`.
 
-`LanguageModelClient` (in `providers/client.py`) builds a BAML `ClientRegistry` with primary + optional fallback provider routing. `LanguageModel` (in `providers/provider.py`) configures a single endpoint (API key, base URL, model). Facades (`Embeddings`, `Vision`, `Reranking` in `providers/facades.py`) dispatch to the correct backend at runtime based on the configured provider.
+`GenerativeModelClient` (in `providers/client.py`) builds a BAML `ClientRegistry` with primary + optional fallback provider routing, wrapping a `ModelProvider`. `ModelProvider` (in `providers/provider.py`) is a Pydantic discriminated union of `AnthropicModelProvider`, `OpenAIModelProvider`, `GoogleModelProvider`, `VoyageModelProvider`, `CohereModelProvider`, each carrying that vendor's `api_key` (`SecretStr`), `model` name, optional `context_size`, and provider-specific kwargs (`base_url`, `organization`, `project`, etc.). The provider classes are passed directly to the facades (`Embeddings`, `Vision`, `Reranking` in `providers/facades.py`), which dispatch via `isinstance` to the correct backend at runtime.
 
 ### When to use BAML for a new feature
 
@@ -187,12 +187,12 @@ Before adding a new BAML function, answer all 5. **Two or more "no" → don't us
 - One no on #4 only → use BAML, but consider native JSON-mode first.
 - Two or more nos → don't use BAML. Either skip the structured shape (return text), or make it a Python-side regex / dataclass parse.
 
-**Removed BAML functions (do not add back without satisfying the checklist):** `JudgeRetrievalNecessity`, `GenerateReasoningStep`, `CompressRetrievedContext`, `AnalyzeQuery`, `GenerateQueryVariants`, `RerankChunks`, `GenerateAnswer` (replaced by native `LanguageModelClient.generate_text`). See `docs/plans/2026-04-30-baml-prune.md` for the per-function 7-question rationale.
+**Removed BAML functions (do not add back without satisfying the checklist):** `JudgeRetrievalNecessity`, `GenerateReasoningStep`, `CompressRetrievedContext`, `AnalyzeQuery`, `GenerateQueryVariants`, `RerankChunks`, `GenerateAnswer` (replaced by native `GenerativeModelClient.generate_text`). See `docs/plans/2026-04-30-baml-prune.md` for the per-function 7-question rationale.
 
 ## Key patterns
 
 - **Protocol-based abstraction.** No inheritance; `Protocol` classes define interfaces (`BaseEmbeddings`, `BaseRetrievalMethod`, `BaseIngestionMethod`, `BaseReranking`, etc.). Any conforming object works.
-- **Facade pattern.** `Embeddings(LanguageModel)`, `Vision(LanguageModel)`, `Reranking(LanguageModel | LanguageModelClient)` are public facades that select the correct private provider implementation at runtime.
+- **Facade pattern.** `Embeddings(ModelProvider)`, `Vision(ModelProvider)`, `Reranking(ModelProvider)` are public facades that select the correct private provider implementation at runtime via `isinstance` on the typed provider.
 - **Modular pipeline.** Services receive `list[BaseRetrievalMethod]` / `list[BaseIngestionMethod]` and dispatch generically. Per-method error isolation.
 - **Async-first.** All I/O is async. Services use `async def`; stores use asyncpg / aiosqlite.
 - **Service pattern.** Each module has a `Service` class with dependencies injected via `__init__`.
@@ -245,9 +245,9 @@ These act as regression guards — they enforce whole-class invariants:
 - `DrawingIngestionConfig.relation_vocabulary`: every target must be in `ALLOWED_RELATION_TYPES`.
 - `GraphIngestionConfig.entity_type_patterns`: regex strings compiled at `__post_init__`.
 - `GraphIngestionConfig.relationship_keyword_map`: all values must be in `ALLOWED_RELATION_TYPES`.
-- `LanguageModelClient.timeout_seconds`: `> 0`, default 60.
-- `LanguageModelClient.temperature`: `0.0 ≤ t ≤ 2.0`.
-- `LanguageModel.context_size`: `int | None`, default `None`. When set, must be `≥ 1`; declares the model's advertised input window. Used as a *safety cap*, not a routing threshold: `RagEngine.initialize()` refuses configs where `RoutingConfig.full_context_threshold + 16_000 (non-output reserve) + LanguageModelClient.max_tokens (output reserve)` exceeds it.
+- `GenerativeModelClient.timeout_seconds`: `> 0`, default 60.
+- `GenerativeModelClient.temperature`: `0.0 ≤ t ≤ 2.0`.
+- `ModelProvider.context_size`: `int | None`, default `None` (lives on each provider class). When set, must be `≥ 1`; declares the model's advertised input window. Used as a *safety cap*, not a routing threshold: `RagEngine.initialize()` refuses configs where `RoutingConfig.full_context_threshold + 16_000 (non-output reserve) + GenerativeModelClient.max_tokens (output reserve)` exceeds it.
 - `Neo4jGraphStore.password`: required.
 - Public-input bounds: query ≤ 32 000 chars, `ingest_text` ≤ 5 000 000 chars, metadata ≤ 50 keys × 8 000 chars.
 - `Source.ingestion_notes` (backed by `metadata["ingestion_notes"]`) records non-fatal pipeline events as `"<step>:<level>:<reason>"` strings. `Source.fully_ingested` is `True` iff that list is empty. Service code catches `EnrichmentSkipped` at the boundary and appends; ingest still completes.

@@ -11,7 +11,7 @@ from rfnry_rag.ingestion.vision.constants import (
     VISION_EXTRACTION_PROMPT,
 )
 from rfnry_rag.logging import get_logger
-from rfnry_rag.providers.provider import LanguageModel
+from rfnry_rag.providers.provider import OpenAIModelProvider
 
 logger = get_logger(__name__)
 
@@ -19,11 +19,17 @@ logger = get_logger(__name__)
 class _OpenAIVision:
     def __init__(
         self,
-        provider: LanguageModel,
+        provider: OpenAIModelProvider,
         max_tokens: int = 4096,
         max_retries: int = 3,
     ) -> None:
-        self._client = AsyncOpenAI(api_key=provider.api_key, max_retries=max_retries)
+        self._client = AsyncOpenAI(
+            api_key=provider.api_key.get_secret_value(),
+            base_url=provider.base_url,
+            organization=provider.organization,
+            project=provider.project,
+            max_retries=max_retries,
+        )
         self._model = provider.model
         self._max_tokens = max_tokens
 

@@ -33,7 +33,7 @@ class RoutingConfig:
     2023 ("Lost in the Middle") and Li et al. 2025 ("LaRA") both show that
     effective context is meaningfully lower than advertised, with U-shaped
     accuracy that worsens for weaker models. When a generation
-    ``LanguageModel.context_size`` is declared, RagEngine init asserts
+    ``GenerativeModel.context_size`` is declared, RagEngine init asserts
     that the threshold + reserve fits — see
     ``RagEngine._validate_full_context_fits_provider_window``.
     """

@@ -12,7 +12,7 @@ from rfnry_rag.ingestion.vision.constants import (
     VISION_EXTRACTION_PROMPT,
 )
 from rfnry_rag.logging import get_logger
-from rfnry_rag.providers.provider import LanguageModel
+from rfnry_rag.providers.provider import AnthropicModelProvider
 
 logger = get_logger(__name__)
 
@@ -20,11 +20,15 @@ logger = get_logger(__name__)
 class _AnthropicVision:
     def __init__(
         self,
-        provider: LanguageModel,
+        provider: AnthropicModelProvider,
         max_tokens: int = 4096,
         max_retries: int = 3,
     ) -> None:
-        self._client = AsyncAnthropic(api_key=provider.api_key, max_retries=max_retries)
+        self._client = AsyncAnthropic(
+            api_key=provider.api_key.get_secret_value(),
+            base_url=provider.base_url,
+            max_retries=max_retries,
+        )
         self._model = provider.model
         self._max_tokens = max_tokens
 

@@ -9,7 +9,7 @@ from rfnry_rag.ingestion.models import ChunkedContent, ParsedPage
 from rfnry_rag.ingestion.notes import record_skip
 from rfnry_rag.logging import get_logger
 from rfnry_rag.observability.context import current_obs
-from rfnry_rag.providers import LanguageModelClient, build_registry
+from rfnry_rag.providers import GenerativeModelClient, build_registry
 from rfnry_rag.stores.graph.base import BaseGraphStore
 from rfnry_rag.stores.graph.mapper import page_entities_to_graph
 from rfnry_rag.telemetry.context import current_ingest_row
@@ -43,7 +43,7 @@ class GraphIngestion:
     def __init__(
         self,
         store: BaseGraphStore,
-        lm_client: LanguageModelClient | None = None,
+        lm_client: GenerativeModelClient | None = None,
         graph_config: GraphIngestionConfig | None = None,
     ) -> None:
         self._store = store

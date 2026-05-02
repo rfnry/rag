@@ -1,43 +1,61 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, Field, SecretStr, field_validator
 
 from rfnry_rag.exceptions import ConfigurationError
 
 
-@dataclass
-class LanguageModel:
-    """Identity of a specific LLM: provider, model, auth key, advertised window.
-
-    Used directly by Embeddings/Vision/Reranking for dedicated provider APIs,
-    or wrapped by LanguageModelClient for BAML-routed LLM calls.
-
-    ``provider`` is the dispatch key — the SDK/API to call (e.g. ``"anthropic"``,
-    ``"openai"``, ``"gemini"``, ``"voyage"``, ``"cohere"``).
-
-    ``name`` is an optional stable identifier used as a fingerprint for
-    cross-process consistency checks (e.g. embedding-model migration). When
-    omitted it defaults to ``"{provider}:{model}"``.
-
-    ``context_size`` is the model's advertised input window in tokens. It is
-    a *safety cap*, not a routing threshold: when set, RagEngine init refuses
-    configurations where ``RoutingConfig.full_context_threshold`` plus a
-    reserve for the system prompt + history + question + max output tokens
-    would exceed it. Effective context (Lost-in-the-Middle, LaRA) is
-    typically lower than advertised; do not raise the routing threshold to
-    match the window. ``None`` disables the cap.
-    """
-
-    provider: str
+class _BaseModelProvider(BaseModel):
+    api_key: SecretStr
     model: str
-    api_key: str | None = field(default=None, repr=False)
-    name: str = ""
     context_size: int | None = None
 
-    def __post_init__(self) -> None:
-        if not self.name:
-            self.name = f"{self.provider}:{self.model}"
-        if self.context_size is not None and self.context_size < 1:
-            raise ConfigurationError(
-                f"LanguageModel.context_size={self.context_size} must be a positive integer or None"
-            )
+    model_config = {"frozen": True}
+
+    @field_validator("context_size")
+    @classmethod
+    def _validate_context_size(cls, v: int | None) -> int | None:
+        if v is not None and v < 1:
+            raise ConfigurationError(f"context_size={v} must be a positive integer or None")
+        return v
+
+    @property
+    def name(self) -> str:
+        kind = getattr(self, "kind", "")
+        return f"{kind}:{self.model}"
+
+
+class AnthropicModelProvider(_BaseModelProvider):
+    kind: Literal["anthropic"] = "anthropic"
+    base_url: str | None = None
+
+
+class OpenAIModelProvider(_BaseModelProvider):
+    kind: Literal["openai"] = "openai"
+    base_url: str | None = None
+    organization: str | None = None
+    project: str | None = None
+
+
+class GoogleModelProvider(_BaseModelProvider):
+    kind: Literal["google"] = "google"
+
+
+class VoyageModelProvider(_BaseModelProvider):
+    kind: Literal["voyage"] = "voyage"
+
+
+class CohereModelProvider(_BaseModelProvider):
+    kind: Literal["cohere"] = "cohere"
+
+
+ModelProvider = Annotated[
+    AnthropicModelProvider
+    | OpenAIModelProvider
+    | GoogleModelProvider
+    | VoyageModelProvider
+    | CohereModelProvider,
+    Field(discriminator="kind"),
+]

@@ -180,7 +180,7 @@ class TestLoadConfigProviders:
             os.environ.pop("GEMINI_API_KEY", None)
             cfg = load_config(path)
         assert cfg.generation.lm_client is not None
-        assert cfg.generation.lm_client.lm.provider == "gemini"
+        assert cfg.generation.lm_client.provider.kind == "google"
 
     def test_grounding_gates(self, tmp_path):
         path = _write_config(

@@ -12,7 +12,7 @@ import pytest
 from rfnry_rag.config.drawing import DrawingIngestionConfig
 from rfnry_rag.exceptions import IngestionError
 from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
-from rfnry_rag.providers import LanguageModel, LanguageModelClient
+from rfnry_rag.providers import GenerativeModelClient, OpenAIModelProvider
 
 
 class _InMemoryMetadataStore:
@@ -52,9 +52,7 @@ class _InMemoryMetadataStore:
 
 def _make_config_with_lm() -> DrawingIngestionConfig:
     # Minimal lm_client so DrawingIngestionService initializes a BAML ClientRegistry.
-    lm = LanguageModelClient(
-        lm=LanguageModel(provider="openai", api_key="sk-test", model="gpt-4o"),
-    )
+    lm = GenerativeModelClient(provider=OpenAIModelProvider(api_key="sk-test", model="gpt-4o"))
     return DrawingIngestionConfig(enabled=True, lm_client=lm)
 
 
@@ -196,9 +194,7 @@ async def test_extract_respects_analyze_concurrency() -> None:
     doc.save(pdf)
     doc.close()
 
-    lm = LanguageModelClient(
-        lm=LanguageModel(provider="openai", api_key="sk-test", model="gpt-4o"),
-    )
+    lm = GenerativeModelClient(provider=OpenAIModelProvider(api_key="sk-test", model="gpt-4o"))
     cfg = DrawingIngestionConfig(enabled=True, lm_client=lm, analyze_concurrency=2)
     metadata = _InMemoryMetadataStore()
     svc = _make_service(metadata, config=cfg)

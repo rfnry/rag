@@ -27,7 +27,7 @@ from rfnry_rag.config.graph import GraphIngestionConfig
 from rfnry_rag.ingestion.chunk.batch import BatchConfig
 from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
 from rfnry_rag.observability.benchmark import BenchmarkConfig
-from rfnry_rag.providers import LanguageModel, LanguageModelClient
+from rfnry_rag.providers import GenerativeModelClient
 from rfnry_rag.retrieval.methods.vector import VectorRetrieval
 
 _CONFIGS_TO_AUDIT: list[type] = [
@@ -36,8 +36,7 @@ _CONFIGS_TO_AUDIT: list[type] = [
     GenerationConfig,
     DrawingIngestionConfig,
     GraphIngestionConfig,
-    LanguageModelClient,
-    LanguageModel,
+    GenerativeModelClient,
     BatchConfig,
     ContextualChunkConfig,
     DocumentExpansionConfig,

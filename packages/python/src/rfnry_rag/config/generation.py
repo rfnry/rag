@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from rfnry_rag.exceptions import ConfigurationError
 from rfnry_rag.generation.formatting import ChunkOrdering
-from rfnry_rag.providers import LanguageModelClient
+from rfnry_rag.providers import GenerativeModelClient
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are a helpful assistant. Use only the provided context to answer questions. "
@@ -15,12 +15,12 @@ DEFAULT_SYSTEM_PROMPT = (
 
 @dataclass
 class GenerationConfig:
-    lm_client: LanguageModelClient | None = None
+    lm_client: GenerativeModelClient | None = None
     system_prompt: str = DEFAULT_SYSTEM_PROMPT
     grounding_enabled: bool = False
     grounding_threshold: float = 0.5
     relevance_gate_enabled: bool = False
-    relevance_gate_model: LanguageModelClient | None = None
+    relevance_gate_model: GenerativeModelClient | None = None
     guiding_enabled: bool = False
     chunk_ordering: ChunkOrdering = ChunkOrdering.SCORE_DESCENDING
 

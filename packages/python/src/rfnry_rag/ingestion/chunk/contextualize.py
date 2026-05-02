@@ -1,11 +1,3 @@
-"""LLM-driven situating context per chunk (Anthropic Contextual Retrieval).
-
-Sibling of ``expand.py``. Native SDK dispatch (no BAML); per-provider blocks
-mirror ``providers/text_generation.py``. The document body is sent as a
-stable cached prefix per provider so subsequent per-chunk calls hit the
-prompt cache.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -15,6 +7,12 @@ from rfnry_rag.exceptions import ConfigurationError, EnrichmentSkipped, Ingestio
 from rfnry_rag.ingestion.chunk.token_counter import count_tokens
 from rfnry_rag.ingestion.models import ChunkedContent
 from rfnry_rag.logging import get_logger
+from rfnry_rag.providers.provider import (
+    AnthropicModelProvider,
+    GoogleModelProvider,
+    ModelProvider,
+    OpenAIModelProvider,
+)
 from rfnry_rag.telemetry.context import increment_ingest_field
 from rfnry_rag.telemetry.usage import (
     extract_anthropic_usage,
@@ -25,7 +23,6 @@ from rfnry_rag.telemetry.usage import (
 
 if TYPE_CHECKING:
     from rfnry_rag.config.ingestion import ContextualChunkConfig
-    from rfnry_rag.providers.provider import LanguageModel
 
 logger = get_logger("ingestion.chunk.contextualize")
 
@@ -48,20 +45,12 @@ async def contextualize_chunks_with_llm(
     document_text: str,
     config: ContextualChunkConfig,
 ) -> list[ChunkedContent]:
-    """Attach LLM-generated situating context to each chunk.
-
-    Mutates each chunk's ``situating_context`` field in-place and refreshes
-    ``contextualized`` to fold it in alongside the structural header
-    (already on ``chunk.context``) and the original content. No-ops when
-    ``config.enabled`` is False or ``chunks`` is empty. Per-chunk failure
-    raises ``IngestionError`` carrying the chunk_index.
-    """
     if not config.enabled or not chunks:
         return chunks
     client = config.lm_client
-    assert client is not None  # __post_init__ guarantees this when enabled
+    assert client is not None
 
-    window = client.lm.context_size or DEFAULT_DOC_CAP
+    window = client.provider.context_size or DEFAULT_DOC_CAP
     cap = window - DOC_RESERVE_TOKENS - config.max_context_tokens
     doc_tokens = count_tokens(document_text)
     if doc_tokens > cap:
@@ -73,7 +62,7 @@ async def contextualize_chunks_with_llm(
     async def _situate_one(chunk: ChunkedContent) -> None:
         try:
             blob = await _generate_situating_context(
-                lm=client.lm,
+                provider=client.provider,
                 document=document_text,
                 chunk=chunk.content,
                 max_tokens=config.max_context_tokens,
@@ -105,7 +94,7 @@ def _fold(chunk: ChunkedContent) -> str:
 
 async def _generate_situating_context(
     *,
-    lm: LanguageModel,
+    provider: ModelProvider,
     document: str,
     chunk: str,
     max_tokens: int,
@@ -113,9 +102,9 @@ async def _generate_situating_context(
     timeout_seconds: int,
     temperature: float,
 ) -> str:
-    if lm.provider == "anthropic":
+    if isinstance(provider, AnthropicModelProvider):
         return await _anthropic_situate(
-            lm=lm,
+            provider=provider,
             document=document,
             chunk=chunk,
             max_tokens=max_tokens,
@@ -123,9 +112,9 @@ async def _generate_situating_context(
             timeout_seconds=timeout_seconds,
             temperature=temperature,
         )
-    if lm.provider == "openai":
+    if isinstance(provider, OpenAIModelProvider):
         return await _openai_situate(
-            lm=lm,
+            provider=provider,
             document=document,
             chunk=chunk,
             max_tokens=max_tokens,
@@ -133,9 +122,9 @@ async def _generate_situating_context(
             timeout_seconds=timeout_seconds,
             temperature=temperature,
         )
-    if lm.provider == "gemini":
-        return await _gemini_situate(
-            lm=lm,
+    if isinstance(provider, GoogleModelProvider):
+        return await _google_situate(
+            provider=provider,
             document=document,
             chunk=chunk,
             max_tokens=max_tokens,
@@ -144,19 +133,14 @@ async def _generate_situating_context(
             temperature=temperature,
         )
     raise ConfigurationError(
-        f"Unsupported provider for ContextualChunkConfig: {lm.provider!r}. "
-        f"Supported: anthropic, openai, gemini."
+        f"Unsupported provider for ContextualChunkConfig: {provider.kind!r}. "
+        f"Supported: anthropic, openai, google."
     )
-
-
-# ---------------------------------------------------------------------------
-# Anthropic
-# ---------------------------------------------------------------------------
 
 
 async def _anthropic_situate(
     *,
-    lm: LanguageModel,
+    provider: AnthropicModelProvider,
     document: str,
     chunk: str,
     max_tokens: int,
@@ -167,17 +151,20 @@ async def _anthropic_situate(
     from anthropic import AsyncAnthropic
     from anthropic.types import TextBlock
 
-    client = AsyncAnthropic(api_key=lm.api_key, max_retries=max_retries, timeout=timeout_seconds)
+    client = AsyncAnthropic(
+        api_key=provider.api_key.get_secret_value(),
+        base_url=provider.base_url,
+        max_retries=max_retries,
+        timeout=timeout_seconds,
+    )
     user_message = _PROMPT_TEMPLATE.format(chunk=chunk, max_tokens=max_tokens)
-    # The document body lives on the system parameter as a list-of-blocks
-    # so cache_control marks it as the stable prefix shared across chunks.
     response = await instrument_call(
         provider="anthropic",
-        model=lm.model,
+        model=provider.model,
         operation="contextualize",
         extract_usage=extract_anthropic_usage,
         call=lambda: client.messages.create(
-            model=lm.model,
+            model=provider.model,
             max_tokens=max_tokens,
             temperature=temperature,
             system=[
@@ -194,14 +181,9 @@ async def _anthropic_situate(
     return first_block.text if isinstance(first_block, TextBlock) else ""
 
 
-# ---------------------------------------------------------------------------
-# OpenAI
-# ---------------------------------------------------------------------------
-
-
 async def _openai_situate(
     *,
-    lm: LanguageModel,
+    provider: OpenAIModelProvider,
     document: str,
     chunk: str,
     max_tokens: int,
@@ -211,17 +193,22 @@ async def _openai_situate(
 ) -> str:
     from openai import AsyncOpenAI
 
-    client = AsyncOpenAI(api_key=lm.api_key, max_retries=max_retries, timeout=timeout_seconds)
+    client = AsyncOpenAI(
+        api_key=provider.api_key.get_secret_value(),
+        base_url=provider.base_url,
+        organization=provider.organization,
+        project=provider.project,
+        max_retries=max_retries,
+        timeout=timeout_seconds,
+    )
     user_message = _PROMPT_TEMPLATE.format(chunk=chunk, max_tokens=max_tokens)
-    # Stable system prefix → OpenAI's automatic prefix cache applies once
-    # the request crosses the provider's size threshold; no explicit knob.
     response = await instrument_call(
         provider="openai",
-        model=lm.model,
+        model=provider.model,
         operation="contextualize",
         extract_usage=extract_openai_usage,
         call=lambda: client.chat.completions.create(
-            model=lm.model,
+            model=provider.model,
             max_tokens=max_tokens,
             temperature=temperature,
             messages=[
@@ -234,14 +221,9 @@ async def _openai_situate(
     return content or ""
 
 
-# ---------------------------------------------------------------------------
-# Gemini
-# ---------------------------------------------------------------------------
-
-
-async def _gemini_situate(
+async def _google_situate(
     *,
-    lm: LanguageModel,
+    provider: GoogleModelProvider,
     document: str,
     chunk: str,
     max_tokens: int,
@@ -256,15 +238,15 @@ async def _gemini_situate(
         timeout=timeout_seconds * 1000,
         retry_options=types.HttpRetryOptions(attempts=max_retries),
     )
-    client = genai.Client(api_key=lm.api_key, http_options=http_options)
+    client = genai.Client(api_key=provider.api_key.get_secret_value(), http_options=http_options)
     user_message = _PROMPT_TEMPLATE.format(chunk=chunk, max_tokens=max_tokens)
     response = await instrument_call(
-        provider="gemini",
-        model=lm.model,
+        provider="google",
+        model=provider.model,
         operation="contextualize",
         extract_usage=extract_gemini_usage,
         call=lambda: client.aio.models.generate_content(
-            model=lm.model,
+            model=provider.model,
             contents=user_message,
             config=types.GenerateContentConfig(
                 system_instruction=f"<document>\n{document}\n</document>",

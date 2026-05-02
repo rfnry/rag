@@ -7,12 +7,11 @@ import pytest
 from rfnry_rag.exceptions import ParseError
 from rfnry_rag.ingestion.vision.constants import MAX_VISION_FILE_SIZE
 from rfnry_rag.ingestion.vision.gemini import _GeminiVision
-from rfnry_rag.providers import LanguageModel
+from rfnry_rag.providers import GoogleModelProvider
 
 
 def _make_vision() -> _GeminiVision:
-    provider = LanguageModel(provider="gemini", model="gemini-2.5-flash", api_key="x")
-    return _GeminiVision(provider)
+    return _GeminiVision(GoogleModelProvider(api_key="x", model="gemini-2.5-flash"))
 
 
 def _png_bytes() -> bytes:
@@ -94,4 +93,4 @@ async def test_gemini_vision_metadata_includes_provider_tag(tmp_path: Path) -> N
 
     pages = await vision.parse(str(img))
 
-    assert pages[0].metadata["vision_provider"] == "gemini"
+    assert pages[0].metadata["vision_provider"] == "google"

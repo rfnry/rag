@@ -21,7 +21,13 @@ from rfnry_rag.config import ContextualChunkConfig
 from rfnry_rag.exceptions import ConfigurationError, EnrichmentSkipped, IngestionError
 from rfnry_rag.ingestion.chunk.contextualize import contextualize_chunks_with_llm
 from rfnry_rag.ingestion.models import ChunkedContent
-from rfnry_rag.providers import LanguageModel, LanguageModelClient
+from rfnry_rag.providers import (
+    AnthropicModelProvider,
+    CohereModelProvider,
+    GenerativeModelClient,
+    GoogleModelProvider,
+    OpenAIModelProvider,
+)
 
 
 def _make_chunk(idx: int, content: str = "", context: str = "") -> ChunkedContent:
@@ -33,8 +39,19 @@ def _make_chunk(idx: int, content: str = "", context: str = "") -> ChunkedConten
     )
 
 
-def _make_client(provider: str = "anthropic") -> LanguageModelClient:
-    return LanguageModelClient(lm=LanguageModel(provider=provider, model="m1", api_key="k"))
+_PROVIDERS = {
+    "anthropic": lambda: AnthropicModelProvider(api_key="k", model="m1"),
+    "openai": lambda: OpenAIModelProvider(api_key="k", model="m1"),
+    "google": lambda: GoogleModelProvider(api_key="k", model="m1"),
+    "gemini": lambda: GoogleModelProvider(api_key="k", model="m1"),
+}
+
+
+def _make_client(provider: str = "anthropic") -> GenerativeModelClient:
+    builder = _PROVIDERS.get(provider)
+    if builder is None:
+        return GenerativeModelClient(provider=CohereModelProvider(api_key="k", model="m1"))
+    return GenerativeModelClient(provider=builder())
 
 
 # ---------------------------------------------------------------------------
@@ -90,13 +107,13 @@ async def test_unsupported_provider_raises() -> None:
     chunks = [_make_chunk(0)]
     cfg = ContextualChunkConfig(
         enabled=True,
-        lm_client=LanguageModelClient(lm=LanguageModel(provider="bedrock", model="m", api_key="k")),
+        lm_client=GenerativeModelClient(provider=CohereModelProvider(api_key="k", model="m")),
     )
     with pytest.raises(IngestionError, match="chunk_index=0") as exc_info:
         await contextualize_chunks_with_llm(chunks, document_text="doc", config=cfg)
     cause = exc_info.value.__cause__
     assert isinstance(cause, ConfigurationError)
-    assert "Supported: anthropic, openai, gemini" in str(cause)
+    assert "Supported: anthropic, openai, google" in str(cause)
 
 
 # ---------------------------------------------------------------------------
@@ -106,8 +123,8 @@ async def test_unsupported_provider_raises() -> None:
 
 async def test_oversized_document_raises_with_explicit_window() -> None:
     chunks = [_make_chunk(0, content="alpha")]
-    client = LanguageModelClient(
-        lm=LanguageModel(provider="anthropic", model="m", api_key="k", context_size=32_000),
+    client = GenerativeModelClient(
+        provider=AnthropicModelProvider(api_key="k", model="m", context_size=32_000),
     )
     cfg = ContextualChunkConfig(enabled=True, lm_client=client, max_context_tokens=100)
     huge_doc = "word " * 20_000

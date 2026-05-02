@@ -73,7 +73,7 @@ _MAX_METADATA_VALUE_CHARS = 8_000
 # validating that ``RoutingConfig.full_context_threshold`` fits in FULL_CONTEXT
 # mode. Covers system prompt (~2k) + chat history (~6k) + the public query cap
 # (~8k tokens for 32k chars). Output tokens are added separately from
-# ``LanguageModelClient.max_tokens``.
+# ``GenerativeModelClient.max_tokens``.
 _FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS = 16_000
 
 
@@ -298,7 +298,7 @@ class RagEngine:
         client = cfg.generation.lm_client
         if client is None:
             return
-        window = client.lm.context_size
+        window = client.provider.context_size
         if window is None:
             return
         threshold = cfg.routing.full_context_threshold
@@ -308,8 +308,8 @@ class RagEngine:
             raise ConfigurationError(
                 f"RoutingConfig.full_context_threshold={threshold} + reserve={total_reserve} "
                 f"({_FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS} non-output + {output_reserve} max_tokens output) "
-                f"exceeds LanguageModel.context_size={window} for "
-                f"{client.lm.name}. Lower full_context_threshold or raise context_size."
+                f"exceeds {client.provider.name}.context_size={window}. "
+                f"Lower full_context_threshold or raise context_size."
             )
 
     async def initialize(self) -> None:
