@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from rfnry_rag.stores.graph.models import GraphEntity, GraphRelation
+from rfnry_knowledge.stores.graph.models import GraphEntity, GraphRelation
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def mock_driver():
 
 
 async def test_compute_entity_id_deterministic():
-    from rfnry_rag.stores.graph.neo4j import _compute_entity_id
+    from rfnry_knowledge.stores.graph.neo4j import _compute_entity_id
 
     id1 = _compute_entity_id("Motor M1", "motor", "kb-1")
     id2 = _compute_entity_id("Motor M1", "motor", "kb-1")
@@ -36,7 +36,7 @@ async def test_compute_entity_id_deterministic():
 
 
 async def test_compute_entity_id_case_insensitive():
-    from rfnry_rag.stores.graph.neo4j import _compute_entity_id
+    from rfnry_knowledge.stores.graph.neo4j import _compute_entity_id
 
     id1 = _compute_entity_id("Motor M1", "motor", "kb-1")
     id2 = _compute_entity_id("motor m1", "Motor", "kb-1")
@@ -44,7 +44,7 @@ async def test_compute_entity_id_case_insensitive():
 
 
 async def test_compute_entity_id_whitespace_collapsed():
-    from rfnry_rag.stores.graph.neo4j import _compute_entity_id
+    from rfnry_knowledge.stores.graph.neo4j import _compute_entity_id
 
     id1 = _compute_entity_id("Motor M1", "motor", "kb-1")
     id2 = _compute_entity_id("Motor  M1", "motor", "kb-1")
@@ -52,7 +52,7 @@ async def test_compute_entity_id_whitespace_collapsed():
 
 
 async def test_compute_entity_id_different_knowledge_id():
-    from rfnry_rag.stores.graph.neo4j import _compute_entity_id
+    from rfnry_knowledge.stores.graph.neo4j import _compute_entity_id
 
     id1 = _compute_entity_id("Motor M1", "motor", "kb-1")
     id2 = _compute_entity_id("Motor M1", "motor", "kb-2")
@@ -60,7 +60,7 @@ async def test_compute_entity_id_different_knowledge_id():
 
 
 async def test_compute_entity_id_none_knowledge_id():
-    from rfnry_rag.stores.graph.neo4j import _compute_entity_id
+    from rfnry_knowledge.stores.graph.neo4j import _compute_entity_id
 
     id1 = _compute_entity_id("Motor M1", "motor", None)
     id2 = _compute_entity_id("Motor M1", "motor", None)
@@ -68,7 +68,7 @@ async def test_compute_entity_id_none_knowledge_id():
 
 
 async def test_validate_relation_type_known():
-    from rfnry_rag.stores.graph.neo4j import _validate_relation_type
+    from rfnry_knowledge.stores.graph.neo4j import _validate_relation_type
 
     assert _validate_relation_type("CONNECTS_TO") == "CONNECTS_TO"
     assert _validate_relation_type("POWERED_BY") == "POWERED_BY"
@@ -80,14 +80,14 @@ async def test_validate_relation_type_known():
 
 
 async def test_validate_relation_type_normalizes():
-    from rfnry_rag.stores.graph.neo4j import _validate_relation_type
+    from rfnry_knowledge.stores.graph.neo4j import _validate_relation_type
 
     assert _validate_relation_type("connects to") == "CONNECTS_TO"
     assert _validate_relation_type("powered by") == "POWERED_BY"
 
 
 async def test_validate_relation_type_unknown_raises():
-    from rfnry_rag.stores.graph.neo4j import _validate_relation_type
+    from rfnry_knowledge.stores.graph.neo4j import _validate_relation_type
 
     with pytest.raises(ValueError):
         _validate_relation_type("UNKNOWN_REL")
@@ -95,9 +95,9 @@ async def test_validate_relation_type_unknown_raises():
         _validate_relation_type("")
 
 
-@patch("rfnry_rag.stores.graph.neo4j.AsyncGraphDatabase")
+@patch("rfnry_knowledge.stores.graph.neo4j.AsyncGraphDatabase")
 async def test_initialize_creates_driver_and_indexes(mock_neo4j_module, mock_driver):
-    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_knowledge.stores.graph.neo4j import Neo4jGraphStore
 
     driver, session = mock_driver
     mock_neo4j_module.driver.return_value = driver
@@ -116,9 +116,9 @@ async def test_initialize_creates_driver_and_indexes(mock_neo4j_module, mock_dri
     assert session.run.call_count > 0
 
 
-@patch("rfnry_rag.stores.graph.neo4j.AsyncGraphDatabase")
+@patch("rfnry_knowledge.stores.graph.neo4j.AsyncGraphDatabase")
 async def test_add_entities_calls_merge(mock_neo4j_module, mock_driver):
-    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_knowledge.stores.graph.neo4j import Neo4jGraphStore
 
     driver, session = mock_driver
     mock_neo4j_module.driver.return_value = driver
@@ -136,9 +136,9 @@ async def test_add_entities_calls_merge(mock_neo4j_module, mock_driver):
     assert len(merge_calls) >= 2
 
 
-@patch("rfnry_rag.stores.graph.neo4j.AsyncGraphDatabase")
+@patch("rfnry_knowledge.stores.graph.neo4j.AsyncGraphDatabase")
 async def test_add_relations_calls_match_and_merge(mock_neo4j_module, mock_driver):
-    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_knowledge.stores.graph.neo4j import Neo4jGraphStore
 
     driver, session = mock_driver
     mock_neo4j_module.driver.return_value = driver
@@ -163,9 +163,9 @@ async def test_add_relations_calls_match_and_merge(mock_neo4j_module, mock_drive
     assert len(rel_calls) >= 1
 
 
-@patch("rfnry_rag.stores.graph.neo4j.AsyncGraphDatabase")
+@patch("rfnry_knowledge.stores.graph.neo4j.AsyncGraphDatabase")
 async def test_delete_by_source_runs_cleanup_in_transaction(mock_neo4j_module, mock_driver):
-    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_knowledge.stores.graph.neo4j import Neo4jGraphStore
 
     driver, session = mock_driver
     mock_neo4j_module.driver.return_value = driver
@@ -190,9 +190,9 @@ async def test_delete_by_source_runs_cleanup_in_transaction(mock_neo4j_module, m
     tx.__aexit__.assert_awaited_once()
 
 
-@patch("rfnry_rag.stores.graph.neo4j.AsyncGraphDatabase")
+@patch("rfnry_knowledge.stores.graph.neo4j.AsyncGraphDatabase")
 async def test_query_graph_returns_empty_on_no_seeds(mock_neo4j_module, mock_driver):
-    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_knowledge.stores.graph.neo4j import Neo4jGraphStore
 
     driver, session = mock_driver
     mock_neo4j_module.driver.return_value = driver
@@ -213,9 +213,9 @@ async def test_query_graph_returns_empty_on_no_seeds(mock_neo4j_module, mock_dri
     assert results == []
 
 
-@patch("rfnry_rag.stores.graph.neo4j.AsyncGraphDatabase")
+@patch("rfnry_knowledge.stores.graph.neo4j.AsyncGraphDatabase")
 async def test_shutdown_closes_driver(mock_neo4j_module, mock_driver):
-    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_knowledge.stores.graph.neo4j import Neo4jGraphStore
 
     driver, session = mock_driver
     mock_neo4j_module.driver.return_value = driver
@@ -227,9 +227,9 @@ async def test_shutdown_closes_driver(mock_neo4j_module, mock_driver):
     driver.close.assert_called_once()
 
 
-@patch("rfnry_rag.stores.graph.neo4j.AsyncGraphDatabase")
+@patch("rfnry_knowledge.stores.graph.neo4j.AsyncGraphDatabase")
 async def test_shutdown_noop_when_not_initialized(mock_neo4j_module):
-    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_knowledge.stores.graph.neo4j import Neo4jGraphStore
 
     store = Neo4jGraphStore(uri="bolt://localhost:7687", password="test-pw")
     await store.shutdown()
@@ -238,9 +238,9 @@ async def test_shutdown_noop_when_not_initialized(mock_neo4j_module):
 async def test_add_entities_empty_list_is_noop():
     from unittest.mock import patch as _patch
 
-    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_knowledge.stores.graph.neo4j import Neo4jGraphStore
 
-    with _patch("rfnry_rag.stores.graph.neo4j.AsyncGraphDatabase") as mock_neo4j_module:
+    with _patch("rfnry_knowledge.stores.graph.neo4j.AsyncGraphDatabase") as mock_neo4j_module:
         driver = AsyncMock()
         session = AsyncMock()
         ctx = MagicMock()

@@ -9,10 +9,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from rfnry_rag.config.drawing import DrawingIngestionConfig
-from rfnry_rag.exceptions import IngestionError
-from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
-from rfnry_rag.providers import GenerativeModelClient, OpenAIModelProvider
+from rfnry_knowledge.config.drawing import DrawingIngestionConfig
+from rfnry_knowledge.exceptions import IngestionError
+from rfnry_knowledge.ingestion.drawing.service import DrawingIngestionService
+from rfnry_knowledge.providers import LLMClient, OpenAIModelProvider
 
 
 class _InMemoryMetadataStore:
@@ -52,7 +52,7 @@ class _InMemoryMetadataStore:
 
 def _make_config_with_lm() -> DrawingIngestionConfig:
     # Minimal lm_client so DrawingIngestionService initializes a BAML ClientRegistry.
-    lm = GenerativeModelClient(provider=OpenAIModelProvider(api_key="sk-test", model="gpt-4o"))
+    lm = LLMClient(provider=OpenAIModelProvider(api_key="sk-test", model="gpt-4o"))
     return DrawingIngestionConfig(enabled=True, lm_client=lm)
 
 
@@ -104,7 +104,7 @@ async def test_extract_calls_analyze_drawing_page_per_page(sample_pdf: Path) -> 
 
     mock_analyze = AsyncMock(side_effect=lambda *a, **kw: _fake_drawing_result())
     with patch(
-        "rfnry_rag.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
+        "rfnry_knowledge.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
         mock_analyze,
     ):
         src = await svc.extract(src.source_id)
@@ -120,7 +120,7 @@ async def test_extract_passes_consumer_symbol_library(sample_pdf: Path) -> None:
 
     mock_analyze = AsyncMock(side_effect=lambda *a, **kw: _fake_drawing_result())
     with patch(
-        "rfnry_rag.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
+        "rfnry_knowledge.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
         mock_analyze,
     ):
         await svc.extract(src.source_id)
@@ -144,7 +144,7 @@ async def test_extract_reuses_cached_analyses_on_re_entry(sample_pdf: Path) -> N
 
     mock_analyze = AsyncMock(side_effect=lambda *a, **kw: _fake_drawing_result())
     with patch(
-        "rfnry_rag.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
+        "rfnry_knowledge.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
         mock_analyze,
     ):
         src = await svc.extract(src.source_id)
@@ -158,7 +158,7 @@ async def test_extract_reuses_cached_analyses_on_re_entry(sample_pdf: Path) -> N
 
 async def test_extract_requires_rendered_status(sample_pdf: Path) -> None:
     """Calling extract on a Source that hasn't been rendered yet is a hard error."""
-    from rfnry_rag.models import Source
+    from rfnry_knowledge.models import Source
 
     metadata = _InMemoryMetadataStore()
     svc = _make_service(metadata)
@@ -194,7 +194,7 @@ async def test_extract_respects_analyze_concurrency() -> None:
     doc.save(pdf)
     doc.close()
 
-    lm = GenerativeModelClient(provider=OpenAIModelProvider(api_key="sk-test", model="gpt-4o"))
+    lm = LLMClient(provider=OpenAIModelProvider(api_key="sk-test", model="gpt-4o"))
     cfg = DrawingIngestionConfig(enabled=True, lm_client=lm, analyze_concurrency=2)
     metadata = _InMemoryMetadataStore()
     svc = _make_service(metadata, config=cfg)
@@ -213,7 +213,7 @@ async def test_extract_respects_analyze_concurrency() -> None:
 
     mock_analyze = AsyncMock(side_effect=track)
     with patch(
-        "rfnry_rag.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
+        "rfnry_knowledge.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
         mock_analyze,
     ):
         await svc.extract(src.source_id)

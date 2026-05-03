@@ -1,7 +1,7 @@
 """RetrievalTrace dataclass + opt-in trace=True flag.
 
 These tests exercise the trace-collection plumbing at both the
-`RetrievalService.retrieve()` level and the `RagEngine.query()` level.
+`RetrievalService.retrieve()` level and the `KnowledgeEngine.query()` level.
 They specifically verify the `None` vs `[]` discipline that gates the
 failure-classification SCOPE_MISS / DRIFT verdicts — conflating "stage
 did not run" with "stage ran and produced no results" would erase the
@@ -12,11 +12,11 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from rfnry_rag.config import RagEngineConfig, RoutingConfig
-from rfnry_rag.generation.models import QueryResult
-from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.retrieval.search.service import RetrievalService
-from rfnry_rag.server import RagEngine
+from rfnry_knowledge.config import KnowledgeEngineConfig, RoutingConfig
+from rfnry_knowledge.generation.models import QueryResult
+from rfnry_knowledge.knowledge.engine import KnowledgeEngine
+from rfnry_knowledge.models import RetrievedChunk
+from rfnry_knowledge.retrieval.search.service import RetrievalService
 
 
 def _chunk(chunk_id: str, score: float = 0.9) -> RetrievedChunk:
@@ -36,22 +36,22 @@ def _query_result(answer: str = "an answer") -> QueryResult:
     return QueryResult(answer=answer, sources=[], grounded=True, confidence=0.85)
 
 
-def _make_engine_for_query(retrieve_return: tuple[list[RetrievedChunk], Any]) -> RagEngine:
-    """Build a minimally-wired RagEngine for query() tests.
+def _make_engine_for_query(retrieve_return: tuple[list[RetrievedChunk], Any]) -> KnowledgeEngine:
+    """Build a minimally-wired KnowledgeEngine for query() tests.
 
     Bypasses initialize() the same way test_server_query does. The
     `_retrieval_service.retrieve` mock returns the supplied tuple verbatim,
     so callers control whether trace is None or a populated RetrievalTrace.
     """
-    config = MagicMock(spec=RagEngineConfig)
+    config = MagicMock(spec=KnowledgeEngineConfig)
     config.retrieval = SimpleNamespace(history_window=3)
     config.routing = RoutingConfig()
-    from rfnry_rag.observability import NullSink as _ObsNullSink
-    from rfnry_rag.observability import Observability
-    from rfnry_rag.telemetry import NullTelemetrySink as _TelNullSink
-    from rfnry_rag.telemetry import Telemetry
+    from rfnry_knowledge.observability import NullSink as _ObsNullSink
+    from rfnry_knowledge.observability import Observability
+    from rfnry_knowledge.telemetry import NullTelemetrySink as _TelNullSink
+    from rfnry_knowledge.telemetry import Telemetry
 
-    server = RagEngine.__new__(RagEngine)
+    server = KnowledgeEngine.__new__(KnowledgeEngine)
     server._config = config
     server._observability = Observability(sink=_ObsNullSink())
     server._telemetry = Telemetry(sink=_TelNullSink())
@@ -81,7 +81,7 @@ async def test_retrieve_default_returns_no_trace() -> None:
 
 async def test_retrieve_with_trace_populates_query_field() -> None:
     """`engine.query(text, trace=True)` populates trace.query with the original text."""
-    from rfnry_rag.observability.trace import RetrievalTrace
+    from rfnry_knowledge.observability.trace import RetrievalTrace
 
     incoming_trace = RetrievalTrace(query="hello")
     server = _make_engine_for_query(([_chunk("c1")], incoming_trace))
@@ -157,13 +157,13 @@ async def test_retrieve_trace_routing_decision_is_none_placeholder() -> None:
     assert trace.routing_decision is None
 
 
-async def test_rag_engine_retrieve_with_trace_returns_trace_alongside_chunks() -> None:
+async def test_knwl_engine_retrieve_with_trace_returns_trace_alongside_chunks() -> None:
     """`engine.retrieve(text, trace=True)` returns (chunks, trace) with the
     raw-retrieval-trace shape: grounding_decision and confidence are None
     (no grounding stage runs), and final_results carries the chunks the
     caller actually receives.
     """
-    from rfnry_rag.observability.trace import RetrievalTrace
+    from rfnry_knowledge.observability.trace import RetrievalTrace
 
     incoming_chunks = [_chunk("c1")]
     incoming_trace = RetrievalTrace(query="query", final_results=list(incoming_chunks))

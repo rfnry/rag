@@ -1,0 +1,1 @@
+from rfnry_knowledge.providers.protocols import BaseEmbeddings as BaseEmbeddings

@@ -1,7 +1,7 @@
 import pytest
 
-from rfnry_rag.generation.formatting import ChunkOrdering, chunks_to_context
-from rfnry_rag.models import RetrievedChunk
+from rfnry_knowledge.generation.formatting import ChunkOrdering, chunks_to_context
+from rfnry_knowledge.models import RetrievedChunk
 
 
 def _make_chunk(index: int) -> RetrievedChunk:

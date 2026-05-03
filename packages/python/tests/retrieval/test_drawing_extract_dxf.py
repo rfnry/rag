@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from rfnry_rag.config.drawing import DrawingIngestionConfig
-from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
+from rfnry_knowledge.config.drawing import DrawingIngestionConfig
+from rfnry_knowledge.ingestion.drawing.service import DrawingIngestionService
 
 
 class _InMemoryMetadataStore:
@@ -107,7 +107,7 @@ async def test_extract_dxf_makes_zero_llm_calls(dxf_with_two_resistors: Path) ->
     src = await svc.render(str(dxf_with_two_resistors), knowledge_id="k1")
     mock_analyze = AsyncMock()
     with patch(
-        "rfnry_rag.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
+        "rfnry_knowledge.ingestion.drawing.extract_pdf.b.AnalyzeDrawingPage",
         mock_analyze,
     ):
         src = await svc.extract(src.source_id)

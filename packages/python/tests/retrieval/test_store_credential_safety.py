@@ -2,12 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from rfnry_rag.stores.document.postgres import PostgresDocumentStore
-from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_knowledge.stores.document.postgres import PostgresDocumentStore
+from rfnry_knowledge.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 TARGETS = [
-    Path("src/rfnry_rag/stores/metadata/sqlalchemy.py"),
-    Path("src/rfnry_rag/stores/document/postgres.py"),
+    Path("src/rfnry_knowledge/stores/metadata/sqlalchemy.py"),
+    Path("src/rfnry_knowledge/stores/document/postgres.py"),
 ]
 
 
@@ -36,22 +36,22 @@ def test_store_engine_url_hides_password_by_default(store_cls, url) -> None:
 
 
 def test_neo4j_graph_store_repr_does_not_leak_password():
-    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_knowledge.stores.graph.neo4j import Neo4jGraphStore
 
     store = Neo4jGraphStore(uri="neo4j://x:7687", username="u", password="TOPSECRET")
     assert "TOPSECRET" not in repr(store)
 
 
 def test_neo4j_graph_store_rejects_empty_password():
-    from rfnry_rag.exceptions import ConfigurationError
-    from rfnry_rag.stores.graph.neo4j import Neo4jGraphStore
+    from rfnry_knowledge.exceptions import ConfigurationError
+    from rfnry_knowledge.stores.graph.neo4j import Neo4jGraphStore
 
     with pytest.raises(ConfigurationError, match="password"):
         Neo4jGraphStore(uri="neo4j://x:7687", username="u", password="")
 
 
 def test_provider_repr_does_not_leak_api_key():
-    from rfnry_rag.providers import OpenAIModelProvider
+    from rfnry_knowledge.providers import OpenAIModelProvider
 
     provider = OpenAIModelProvider(api_key="sk-TOPSECRET", model="m")
     assert "TOPSECRET" not in repr(provider)

@@ -1,7 +1,7 @@
 """Benchmark harness unit tests.
 
 These exercise `run_benchmark` directly (the core orchestrator that
-`RagEngine.benchmark` wraps) so we can stub `query_fn` without standing
+`KnowledgeEngine.benchmark` wraps) so we can stub `query_fn` without standing
 up a full engine. The trace + failure-classification plumbing is exercised
 end-to-end: each case is run with `trace=True`, failures invoke
 `classify_failure`, and the report aggregates by `FailureType.name`.
@@ -17,16 +17,16 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.generation.models import QueryResult, SourceReference
-from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.observability import (
+from rfnry_knowledge.exceptions import ConfigurationError
+from rfnry_knowledge.generation.models import QueryResult, SourceReference
+from rfnry_knowledge.models import RetrievedChunk
+from rfnry_knowledge.observability import (
     BenchmarkCase,
     BenchmarkConfig,
     run_benchmark,
 )
-from rfnry_rag.observability.metrics import LLMJudgment
-from rfnry_rag.observability.trace import RetrievalTrace
+from rfnry_knowledge.observability.metrics import LLMJudgment
+from rfnry_knowledge.observability.trace import RetrievalTrace
 
 
 def _result(

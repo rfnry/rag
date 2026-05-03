@@ -1,6 +1,6 @@
 import pytest
 
-from rfnry_rag.stores.document.filesystem import FilesystemDocumentStore
+from rfnry_knowledge.stores.document.filesystem import FilesystemDocumentStore
 
 
 @pytest.fixture

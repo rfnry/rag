@@ -1,17 +1,17 @@
 """Preset factory tests — these cover the common pipeline shapes so users
-don't have to hand-assemble RagEngineConfig for simple cases."""
+don't have to hand-assemble KnowledgeEngineConfig for simple cases."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rfnry_rag.config import RagEngineConfig
-from rfnry_rag.ingestion.methods.document import DocumentIngestion
-from rfnry_rag.ingestion.methods.vector import VectorIngestion
-from rfnry_rag.retrieval.methods.document import DocumentRetrieval
-from rfnry_rag.retrieval.methods.graph import GraphRetrieval
-from rfnry_rag.retrieval.methods.vector import VectorRetrieval
-from rfnry_rag.server import RagEngine
+from rfnry_knowledge.config import KnowledgeEngineConfig
+from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
+from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.knowledge.engine import KnowledgeEngine
+from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval
+from rfnry_knowledge.retrieval.methods.graph import GraphRetrieval
+from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
 
 
 def _has(methods, cls) -> bool:
@@ -23,9 +23,9 @@ def test_vector_only_preset_yields_valid_config() -> None:
     embeddings = MagicMock()
     embeddings.model = "test-model"
 
-    config = RagEngine.vector_only(vector_store=vector_store, embeddings=embeddings)
+    config = KnowledgeEngine.vector_only(vector_store=vector_store, embeddings=embeddings)
 
-    assert isinstance(config, RagEngineConfig)
+    assert isinstance(config, KnowledgeEngineConfig)
     assert _has(config.ingestion.methods, VectorIngestion)
     assert _has(config.retrieval.methods, VectorRetrieval)
     assert not _has(config.ingestion.methods, DocumentIngestion)
@@ -34,7 +34,7 @@ def test_vector_only_preset_yields_valid_config() -> None:
 
 def test_vector_only_with_reranker_and_top_k() -> None:
     reranker = MagicMock()
-    config = RagEngine.vector_only(
+    config = KnowledgeEngine.vector_only(
         vector_store=MagicMock(),
         embeddings=MagicMock(model="m"),
         top_k=20,
@@ -46,7 +46,7 @@ def test_vector_only_with_reranker_and_top_k() -> None:
 
 def test_document_only_preset() -> None:
     document_store = MagicMock()
-    config = RagEngine.document_only(document_store=document_store)
+    config = KnowledgeEngine.document_only(document_store=document_store)
 
     assert _has(config.ingestion.methods, DocumentIngestion)
     assert _has(config.retrieval.methods, DocumentRetrieval)
@@ -60,7 +60,7 @@ def test_hybrid_preset_wires_all_stores() -> None:
     graph_store = MagicMock()
     reranker = MagicMock()
 
-    config = RagEngine.hybrid(
+    config = KnowledgeEngine.hybrid(
         vector_store=vector_store,
         embeddings=embeddings,
         document_store=document_store,
@@ -75,7 +75,7 @@ def test_hybrid_preset_wires_all_stores() -> None:
 
 
 def test_hybrid_preset_without_optional_stores() -> None:
-    config = RagEngine.hybrid(
+    config = KnowledgeEngine.hybrid(
         vector_store=MagicMock(),
         embeddings=MagicMock(model="m"),
     )
@@ -85,12 +85,12 @@ def test_hybrid_preset_without_optional_stores() -> None:
 
 
 def test_presets_return_usable_config_for_engine_construction() -> None:
-    """Smoke test: the preset configs must satisfy RagEngine._validate_config."""
-    config = RagEngine.vector_only(vector_store=MagicMock(), embeddings=MagicMock(model="m"))
-    RagEngine(config)._validate_config()
+    """Smoke test: the preset configs must satisfy KnowledgeEngine._validate_config."""
+    config = KnowledgeEngine.vector_only(vector_store=MagicMock(), embeddings=MagicMock(model="m"))
+    KnowledgeEngine(config)._validate_config()
 
-    config2 = RagEngine.document_only(document_store=MagicMock())
-    RagEngine(config2)._validate_config()
+    config2 = KnowledgeEngine.document_only(document_store=MagicMock())
+    KnowledgeEngine(config2)._validate_config()
 
 
 @pytest.mark.asyncio
@@ -104,8 +104,8 @@ async def test_vector_only_preset_initializes_without_generation() -> None:
     embeddings.model = "test"
     embeddings.embedding_dimension = AsyncMock(return_value=1536)
 
-    config = RagEngine.vector_only(vector_store=vector_store, embeddings=embeddings)
-    engine = RagEngine(config)
+    config = KnowledgeEngine.vector_only(vector_store=vector_store, embeddings=embeddings)
+    engine = KnowledgeEngine(config)
 
     await engine.initialize()
     assert engine._initialized

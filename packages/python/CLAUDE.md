@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-`rfnry-rag` is a Python retrieval toolkit. One SDK, one purpose: ingest documents, build modular retrieval pipelines (vector + document + graph), route between indexed retrieval and full-context generation based on corpus size, and stay out of the LLM's way.
+`rfnry-knowledge` is a Python retrieval toolkit. One SDK, one purpose: ingest documents, build modular retrieval pipelines (vector + document + graph), route between indexed retrieval and full-context generation based on corpus size, and stay out of the LLM's way.
 
 ## Development philosophy
 
@@ -60,13 +60,13 @@ Run a single test: `pytest tests/retrieval/test_methods.py::test_name -v`
 ### Package structure
 
 ```
-src/rfnry_rag/
+src/rfnry_knowledge/
 ├── __init__.py          # top-level re-exports
-├── server.py            # RagEngine — async context manager, dynamic pipeline assembly
+├── server.py            # KnowledgeEngine — async context manager, dynamic pipeline assembly
 ├── logging.py           # get_logger, query_logging_enabled
 ├── concurrency.py       # run_concurrent
 ├── exceptions/          # one file per error family
-├── providers/           # GenerativeModelClient, ModelProvider union (Anthropic/OpenAI/Google/Voyage/Cohere), registry, facades
+├── providers/           # LLMClient, ModelProvider union (Anthropic/OpenAI/Google/Voyage/Cohere), registry, facades
 ├── models/              # Source, Chunk, vector DTOs, retrieval results, stats
 ├── config/              # all config dataclasses, one place
 ├── ingestion/           # base + service + chunk/ + methods/ + drawing/
@@ -81,13 +81,13 @@ src/rfnry_rag/
 
 ### Entry points
 
-- **SDK:** `RagEngine` in `server.py` — async context manager. `async with RagEngine(config) as rag:`
-- **CLI:** `rfnry-rag <cmd>` (ingest, query, benchmark, knowledge).
-- **Imports:** `from rfnry_rag import RagEngine`. Errors via `from rfnry_rag.exceptions import RagError, IngestionError, ...`. Domain types via `from rfnry_rag.models import Source, Chunk, RetrievedChunk`.
+- **SDK:** `KnowledgeEngine` in `engine.py` — async context manager. `async with KnowledgeEngine(config) as engine:`
+- **CLI:** `rfnry-knowledge <cmd>` (ingest, query, benchmark, knowledge).
+- **Imports:** `from rfnry_knowledge import KnowledgeEngine`. Errors via `from rfnry_knowledge.exceptions import KnowledgeEngineError, IngestionError, ...`. Domain types via `from rfnry_knowledge.models import Source, Chunk, RetrievedChunk`.
 
 ### Retrieval pipeline
 
-`RagEngine.query()` runs:
+`KnowledgeEngine.query()` runs:
 
 0. **Index-time enrichment** (ingestion-side, not query-time). Chunks may be enriched at ingest time via `chunk_context_headers` (structural template), `DocumentExpansionConfig` (synthetic queries via LLM), and `ContextualChunkConfig` (Anthropic Contextual Retrieval — situating context via LLM, prepended into `contextualized` text used for embedding/BM25). Composes orthogonally; consumers opt in.
 1. **Routing.** `RoutingConfig.mode` selects between `INDEXED` (the standard pipeline below), `FULL_CONTEXT` (load the corpus into a prompt-cached prefix, skip retrieval), and `AUTO` (per-query corpus-token threshold dispatches between the two via `KnowledgeManager.get_corpus_tokens`).
@@ -102,7 +102,7 @@ Methods carry `weight` and `top_k` configuration. Per-method error isolation: ca
 
 ### Optional trace
 
-Pass `trace=True` to `RagEngine.query()` to receive a `RetrievalTrace` (in `observability/trace.py`) capturing per-stage state: `query`, `per_method_results` (keyed by `BaseRetrievalMethod.name`, includes empty-result methods), `fused_results`, `reranked_results`, `final_results`, `grounding_decision`, `routing_decision`, `timings`, `knowledge_id`. Default `trace=False` is byte-for-byte unchanged. The `None` vs `[]` distinction is load-bearing: `reranked_results is None` means "reranker not configured", `[]` means "ran with no input". `query_stream` does not collect a trace.
+Pass `trace=True` to `KnowledgeEngine.query()` to receive a `RetrievalTrace` (in `observability/trace.py`) capturing per-stage state: `query`, `per_method_results` (keyed by `BaseRetrievalMethod.name`, includes empty-result methods), `fused_results`, `reranked_results`, `final_results`, `grounding_decision`, `routing_decision`, `timings`, `knowledge_id`. Default `trace=False` is byte-for-byte unchanged. The `None` vs `[]` distinction is load-bearing: `reranked_results is None` means "reranker not configured", `[]` means "ran with no input". `query_stream` does not collect a trace.
 
 ### Drawing ingestion
 
@@ -116,7 +116,7 @@ Symbol vocabularies are consumer-configurable via `DrawingIngestionConfig` (ship
 
 ### Benchmark harness
 
-`RagEngine.benchmark(cases) -> BenchmarkReport` (and CLI `rfnry-rag benchmark cases.json -k <knowledge_id>`) aggregates `ExactMatch`, `F1Score`, `LLMJudgment`, `RetrievalRecall`, `RetrievalPrecision` across cases, with per-case traces in the report. `retrieval_recall` / `retrieval_precision` are `None` when at least one case omits `expected_source_ids` (N/A is distinct from 0.0). Failure rule: F1 < `failure_threshold` (default 0.5) OR `trace.grounding_decision == "ungrounded"`.
+`KnowledgeEngine.benchmark(cases) -> BenchmarkReport` (and CLI `rfnry-knowledge benchmark cases.json -k <knowledge_id>`) aggregates `ExactMatch`, `F1Score`, `LLMJudgment`, `RetrievalRecall`, `RetrievalPrecision` across cases, with per-case traces in the report. `retrieval_recall` / `retrieval_precision` are `None` when at least one case omits `expected_source_ids` (N/A is distinct from 0.0). Failure rule: F1 < `failure_threshold` (default 0.5) OR `trace.grounding_decision == "ungrounded"`.
 
 ### Modular pipeline
 
@@ -124,14 +124,14 @@ Retrieval and ingestion are protocol-based plugin architectures. No mandatory ve
 
 - **`BaseRetrievalMethod` / `BaseIngestionMethod`** — protocol interfaces in `retrieval/base.py` and `ingestion/base.py`.
 - **Method classes** — `VectorRetrieval`, `DocumentRetrieval`, `GraphRetrieval` (retrieval); `VectorIngestion`, `DocumentIngestion`, `GraphIngestion`, `AnalyzedIngestion`, `DrawingIngestion` (ingestion). Each is self-contained with error isolation and timing logs.
-- **Dynamic assembly** — `RagEngine.initialize()` builds method lists from config, validates cross-config constraints, assembles `RetrievalService` and `IngestionService` with method-list dispatch.
+- **Dynamic assembly** — `KnowledgeEngine.initialize()` builds method lists from config, validates cross-config constraints, assembles `RetrievalService` and `IngestionService` with method-list dispatch.
 - **`BaseIngestionMethod.required: bool`** is part of the protocol. `VectorIngestion` and `DocumentIngestion` default `required=True`; `GraphIngestion` defaults `required=False`. Required-method failures abort the ingest with `IngestionError` and skip the metadata commit.
 - **Graph ingestion is consumer-agnostic by default.** `GraphIngestionConfig` lets consumers supply their own entity-type regex patterns, relationship keyword map, and fallback edge type. Empty config → type inference falls through to `DiscoveredEntity.category.lower()`; cross-references with no keyword match become generic `MENTIONS` edges.
 
 ### Error hierarchy
 
 ```
-RagError (root, catch-all for SDK errors)
+KnowledgeEngineError (root, catch-all for SDK errors)
 ├── ConfigurationError
 ├── IngestionError
 │   ├── ParseError
@@ -144,17 +144,17 @@ RagError (root, catch-all for SDK errors)
 ├── StoreError
 │   ├── DuplicateSourceError
 │   └── SourceNotFoundError
-└── InputError(RagError, ValueError)
+└── InputError(KnowledgeEngineError, ValueError)
 ```
 
-`RagError` is the root — there is no separate `SdkBaseError`. Catch the specific subclasses, or `RagError` for the catch-all.
+`KnowledgeEngineError` is the root — there is no separate `SdkBaseError`. Catch the specific subclasses, or `KnowledgeEngineError` for the catch-all.
 
 ### Observability + Telemetry
 
-Two always-on first-class modules on `RagEngineConfig`:
+Two always-on first-class modules on `KnowledgeEngineConfig`:
 
-- **`rfnry_rag.observability.Observability`** — qualitative event stream. `await obs.emit(level, kind, message, **context)` builds an `ObservabilityRecord` (Pydantic) and dispatches via the configured `Sink`. Default sink is `JsonlStderrSink`. Library-defined `kind` vocabulary: `query.start`/`query.success`/`query.refused`/`query.error`, `ingest.start`/`ingest.success`/`ingest.partial`/`ingest.error`, `provider.call`/`provider.error`, `retrieval.method.success`/`retrieval.method.error`, `ingestion.method.success`/`ingestion.method.error`, `enrichment.skipped`, `vision.page.skipped`, `routing.decision`. Adding a kind is non-breaking; renaming/removing is breaking.
-- **`rfnry_rag.telemetry.Telemetry`** — row-per-transaction. Two row types: `QueryTelemetryRow`, `IngestTelemetryRow` (Pydantic). One row written per `RagEngine.query()` / `ingest()` / `ingest_text()` invocation; outcome / duration / token totals / per-method timings populate. Default sink `JsonlStderrSink`; `SqlAlchemyTelemetrySink` persists rows via `SQLAlchemyMetadataStore` (tables `rag_query_telemetry`, `rag_ingest_telemetry` auto-created on init).
+- **`rfnry_knowledge.observability.Observability`** — qualitative event stream. `await obs.emit(level, kind, message, **context)` builds an `ObservabilityRecord` (Pydantic) and dispatches via the configured `Sink`. Default sink is `JsonlStderrSink`. Library-defined `kind` vocabulary: `query.start`/`query.success`/`query.refused`/`query.error`, `ingest.start`/`ingest.success`/`ingest.partial`/`ingest.error`, `provider.call`/`provider.error`, `retrieval.method.success`/`retrieval.method.error`, `ingestion.method.success`/`ingestion.method.error`, `enrichment.skipped`, `vision.page.skipped`, `routing.decision`. Adding a kind is non-breaking; renaming/removing is breaking.
+- **`rfnry_knowledge.telemetry.Telemetry`** — row-per-transaction. Two row types: `QueryTelemetryRow`, `IngestTelemetryRow` (Pydantic). One row written per `KnowledgeEngine.query()` / `ingest()` / `ingest_text()` invocation; outcome / duration / token totals / per-method timings populate. Default sink `JsonlStderrSink`; `SqlAlchemyTelemetrySink` persists rows via `SQLAlchemyMetadataStore` (tables `knowledge_query_telemetry`, `knowledge_ingest_telemetry` auto-created on init).
 
 Both fields default to a stderr-emitting sink. Pass `Observability(sink=NullSink())` / `Telemetry(sink=NullSink())` to silence; `None` is not accepted. Cross-cutting access is via `contextvars.ContextVar` (`current_obs()`, `current_query_row()`, `current_ingest_row()`) — set at the entry-point boundary, propagated automatically through async tasks. The library emits raw token counts only; no pricing tables, no cost calculator.
 
@@ -164,7 +164,7 @@ Concrete sink class names mirror the rfnry agent SDK (separate repo) so a future
 
 All LLM calls go through BAML for structured output parsing, retry/fallback, and observability. Edit `baml/baml_src/`; regenerate with `poe baml:generate`. Never edit `baml_client/`.
 
-`GenerativeModelClient` (in `providers/client.py`) builds a BAML `ClientRegistry` with primary + optional fallback provider routing, wrapping a `ModelProvider`. `ModelProvider` (in `providers/provider.py`) is a Pydantic discriminated union of `AnthropicModelProvider`, `OpenAIModelProvider`, `GoogleModelProvider`, `VoyageModelProvider`, `CohereModelProvider`, each carrying that vendor's `api_key` (`SecretStr`), `model` name, optional `context_size`, and provider-specific kwargs (`base_url`, `organization`, `project`, etc.). The provider classes are passed directly to the facades (`Embeddings`, `Vision`, `Reranking` in `providers/facades.py`), which dispatch via `isinstance` to the correct backend at runtime.
+`LLMClient` (in `providers/client.py`) builds a BAML `ClientRegistry` with primary + optional fallback provider routing, wrapping a `ModelProvider`. `ModelProvider` (in `providers/provider.py`) is a Pydantic discriminated union of `AnthropicModelProvider`, `OpenAIModelProvider`, `GoogleModelProvider`, `VoyageModelProvider`, `CohereModelProvider`, each carrying that vendor's `api_key` (`SecretStr`), `model` name, optional `context_size`, and provider-specific kwargs (`base_url`, `organization`, `project`, etc.). The provider classes are passed directly to the facades (`Embeddings`, `Vision`, `Reranking` in `providers/facades.py`), which dispatch via `isinstance` to the correct backend at runtime.
 
 ### When to use BAML for a new feature
 
@@ -187,7 +187,7 @@ Before adding a new BAML function, answer all 5. **Two or more "no" → don't us
 - One no on #4 only → use BAML, but consider native JSON-mode first.
 - Two or more nos → don't use BAML. Either skip the structured shape (return text), or make it a Python-side regex / dataclass parse.
 
-**Removed BAML functions (do not add back without satisfying the checklist):** `JudgeRetrievalNecessity`, `GenerateReasoningStep`, `CompressRetrievedContext`, `AnalyzeQuery`, `GenerateQueryVariants`, `RerankChunks`, `GenerateAnswer` (replaced by native `GenerativeModelClient.generate_text`). See `docs/plans/2026-04-30-baml-prune.md` for the per-function 7-question rationale.
+**Removed BAML functions (do not add back without satisfying the checklist):** `JudgeRetrievalNecessity`, `GenerateReasoningStep`, `CompressRetrievedContext`, `AnalyzeQuery`, `GenerateQueryVariants`, `RerankChunks`, `GenerateAnswer` (replaced by native `LLMClient.generate_text`). See `docs/plans/2026-04-30-baml-prune.md` for the per-function 7-question rationale.
 
 ## Key patterns
 
@@ -245,18 +245,18 @@ These act as regression guards — they enforce whole-class invariants:
 - `DrawingIngestionConfig.relation_vocabulary`: every target must be in `ALLOWED_RELATION_TYPES`.
 - `GraphIngestionConfig.entity_type_patterns`: regex strings compiled at `__post_init__`.
 - `GraphIngestionConfig.relationship_keyword_map`: all values must be in `ALLOWED_RELATION_TYPES`.
-- `GenerativeModelClient.timeout_seconds`: `> 0`, default 60.
-- `GenerativeModelClient.temperature`: `0.0 ≤ t ≤ 2.0`.
-- `ModelProvider.context_size`: `int | None`, default `None` (lives on each provider class). When set, must be `≥ 1`; declares the model's advertised input window. Used as a *safety cap*, not a routing threshold: `RagEngine.initialize()` refuses configs where `RoutingConfig.full_context_threshold + 16_000 (non-output reserve) + GenerativeModelClient.max_tokens (output reserve)` exceeds it.
+- `LLMClient.timeout_seconds`: `> 0`, default 60.
+- `LLMClient.temperature`: `0.0 ≤ t ≤ 2.0`.
+- `ModelProvider.context_size`: `int | None`, default `None` (lives on each provider class). When set, must be `≥ 1`; declares the model's advertised input window. Used as a *safety cap*, not a routing threshold: `KnowledgeEngine.initialize()` refuses configs where `RoutingConfig.full_context_threshold + 16_000 (non-output reserve) + LLMClient.max_tokens (output reserve)` exceeds it.
 - `Neo4jGraphStore.password`: required.
 - Public-input bounds: query ≤ 32 000 chars, `ingest_text` ≤ 5 000 000 chars, metadata ≤ 50 keys × 8 000 chars.
 - `Source.ingestion_notes` (backed by `metadata["ingestion_notes"]`) records non-fatal pipeline events as `"<step>:<level>:<reason>"` strings. `Source.fully_ingested` is `True` iff that list is empty. Service code catches `EnrichmentSkipped` at the boundary and appends; ingest still completes.
 
 ## Environment variables
 
-- `RFNRY_RAG_LOG_ENABLED=true` / `RFNRY_RAG_LOG_LEVEL=DEBUG` — SDK logging.
-- `RFNRY_RAG_LOG_QUERIES=true` — include raw query text in logs (off by default; PII-safe). Use `rfnry_rag.logging.query_logging_enabled()` when adding new query-logging sites.
-- `RFNRY_RAG_BAML_LOG=info|warn|debug` — BAML runtime logging (SDK sets `BAML_LOG` from this).
+- `KNWL_LOG_ENABLED=true` / `KNWL_LOG_LEVEL=DEBUG` — SDK logging.
+- `KNWL_LOG_QUERIES=true` — include raw query text in logs (off by default; PII-safe). Use `rfnry_knowledge.common.logging.query_logging_enabled()` when adding new query-logging sites.
+- `KNWL_BAML_LOG=info|warn|debug` — BAML runtime logging (SDK sets `BAML_LOG` from this).
 - `BAML_LOG=info|warn|debug` — BAML runtime logging (direct override).
 - `BOUNDARY_API_KEY` — Boundary collector key, process-global.
-- Config lives at `~/.config/rfnry_rag/config.toml` + `.env`.
+- Config lives at `~/.config/rfnry_knowledge/config.toml` + `.env`.

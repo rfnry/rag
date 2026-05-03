@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from rfnry_rag.observability import ObservabilityRecord
-from rfnry_rag.telemetry import IngestTelemetryRow, QueryTelemetryRow
+from rfnry_knowledge.observability import ObservabilityRecord
+from rfnry_knowledge.telemetry import IngestTelemetryRow, QueryTelemetryRow
 
 
 class RecordingObservabilitySink:

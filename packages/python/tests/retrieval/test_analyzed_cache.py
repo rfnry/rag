@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from rfnry_rag.models import Source
-from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_knowledge.models import Source
+from rfnry_knowledge.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -97,7 +97,7 @@ async def fake_analyzed_service_pdf(tmp_path):
     BAML b.AnalyzePage is patched to return minimal results.
     compute_file_hash is patched to return a fixed file_hash so we control it.
     """
-    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
@@ -118,19 +118,19 @@ async def fake_analyzed_service_pdf(tmp_path):
 
     with (
         patch(
-            "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
             return_value=iter(pages),
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.compute_file_hash",
+            "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
             return_value="file_hash_abc",
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
-        patch("rfnry_rag.baml.baml_client.async_client.b", mock_b),
+        patch("rfnry_knowledge.baml.baml_client.async_client.b", mock_b),
     ):
         yield svc, mock_b
 
@@ -143,7 +143,7 @@ async def fake_analyzed_service_pdf_mutable(tmp_path):
 
     Allows per-page cache tests: call modify_page(2) to simulate page 2 changing.
     """
-    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
@@ -173,19 +173,19 @@ async def fake_analyzed_service_pdf_mutable(tmp_path):
 
     with (
         patch(
-            "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
             side_effect=lambda fp, **_kw: iter([dict(p) for p in pages]),
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.compute_file_hash",
+            "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
             side_effect=lambda fp: file_hash_state[0],
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
-        patch("rfnry_rag.baml.baml_client.async_client.b", mock_b),
+        patch("rfnry_knowledge.baml.baml_client.async_client.b", mock_b),
     ):
 
         def change_file_hash():
@@ -202,7 +202,7 @@ async def fake_analyzed_service_pdf_mutable(tmp_path):
 @pytest_asyncio.fixture
 async def fake_analyzed_service_pdf_partial(tmp_path):
     """Returns (service, mock_b) pre-seeded with a Source in status='analyzed'."""
-    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
@@ -275,15 +275,15 @@ async def fake_analyzed_service_pdf_partial(tmp_path):
 
     with (
         patch(
-            "rfnry_rag.ingestion.analyze.service.compute_file_hash",
+            "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
             return_value="file_hash_partial",
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
-        patch("rfnry_rag.baml.baml_client.async_client.b", mock_b),
+        patch("rfnry_knowledge.baml.baml_client.async_client.b", mock_b),
     ):
         yield svc, mock_b
 
@@ -336,7 +336,7 @@ async def test_page_level_cache_skips_unchanged_pages(
 
 @pytest.mark.asyncio
 async def test_page_hash_stored_on_each_row(fake_analyzed_service_pdf) -> None:
-    """After analyze, each rag_page_analyses row has a non-empty page_hash."""
+    """After analyze, each knowledge_page_analyses row has a non-empty page_hash."""
     svc, _ = fake_analyzed_service_pdf
     src = await svc.analyze("/tmp/doc.pdf", knowledge_id="k1")
     rows = await svc._metadata_store.get_page_analyses(src.source_id)

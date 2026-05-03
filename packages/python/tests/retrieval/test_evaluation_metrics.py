@@ -1,7 +1,7 @@
-from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.observability.metrics import ExactMatch, F1Score
-from rfnry_rag.observability.normalize import normalize_answer
-from rfnry_rag.observability.retrieval_metrics import RetrievalPrecision, RetrievalRecall
+from rfnry_knowledge.models import RetrievedChunk
+from rfnry_knowledge.observability.metrics import ExactMatch, F1Score
+from rfnry_knowledge.observability.normalize import normalize_answer
+from rfnry_knowledge.observability.retrieval_metrics import RetrievalPrecision, RetrievalRecall
 
 
 class TestNormalizeAnswer:

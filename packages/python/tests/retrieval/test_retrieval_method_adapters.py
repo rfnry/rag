@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.retrieval.methods.enrich import StructuredRetrieval
+from rfnry_knowledge.models import RetrievedChunk
+from rfnry_knowledge.retrieval.methods.enrich import StructuredRetrieval
 
 
 def _chunk(cid: str) -> RetrievedChunk:

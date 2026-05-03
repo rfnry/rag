@@ -1,11 +1,11 @@
-"""Metadata store: per-page analysis storage via rag_page_analyses table."""
+"""Metadata store: per-page analysis storage via knowledge_page_analyses table."""
 
 from datetime import UTC, datetime
 
 import pytest
 
-from rfnry_rag.models import Source
-from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_knowledge.models import Source
+from rfnry_knowledge.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 
 @pytest.fixture

@@ -1,8 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.retrieval.search.service import RetrievalService
+from rfnry_knowledge.models import RetrievedChunk
+from rfnry_knowledge.retrieval.search.service import RetrievalService
 
 
 def _mock_method(name: str, results: list[RetrievedChunk]) -> SimpleNamespace:
@@ -206,7 +206,7 @@ def test_retrieval_service_exposes_public_methods_iterator() -> None:
 def test_retrieval_service_methods_returns_configured_list() -> None:
     from unittest.mock import MagicMock
 
-    from rfnry_rag.retrieval.base import BaseRetrievalMethod
+    from rfnry_knowledge.retrieval.base import BaseRetrievalMethod
 
     method = MagicMock(spec=BaseRetrievalMethod)
     svc = RetrievalService(retrieval_methods=[method])

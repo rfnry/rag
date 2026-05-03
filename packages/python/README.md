@@ -1,4 +1,4 @@
-# rfnry-rag
+# rfnry-knowledge
 
 A modular retrieval toolkit for Python. Compose vector, document, and graph retrieval methods into one pipeline, fuse their results, and route between indexed retrieval and full-context generation based on corpus size — automatically. Built around a single principle: as language models grow stronger and contexts grow longer, the toolkit gets out of their way instead of working around them.
 
@@ -9,9 +9,9 @@ A modular retrieval toolkit for Python. Compose vector, document, and graph retr
 Install with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv add rfnry-rag                  # core SDK
-uv add "rfnry-rag[graph]"         # + Neo4j graph support
-uv add "rfnry-rag[cli]"           # + command-line interface
+uv add rfnry-knowledge                  # core SDK
+uv add "rfnry-knowledge[graph]"         # + Neo4j graph support
+uv add "rfnry-knowledge[cli]"           # + command-line interface
 ```
 
 A minimal vector + document retrieval pipeline:
@@ -20,20 +20,20 @@ A minimal vector + document retrieval pipeline:
 import asyncio
 import os
 
-from rfnry_rag import (
+from rfnry_knowledge import (
     AnthropicModelProvider,
     DocumentIngestion,
     DocumentRetrieval,
     Embeddings,
     GenerationConfig,
-    GenerativeModelClient,
+    LLMClient,
     IngestionConfig,
     OpenAIModelProvider,
     PostgresDocumentStore,
     QdrantVectorStore,
     QueryMode,
-    RagEngine,
-    RagEngineConfig,
+    KnowledgeEngine,
+    KnowledgeEngineConfig,
     RetrievalConfig,
     RoutingConfig,
     SQLAlchemyMetadataStore,
@@ -47,7 +47,7 @@ async def main() -> None:
         api_key=os.environ["OPENAI_API_KEY"],
         model="text-embedding-3-small",
     ))
-    generation = GenerativeModelClient(provider=AnthropicModelProvider(
+    generation = LLMClient(provider=AnthropicModelProvider(
         api_key=os.environ["ANTHROPIC_API_KEY"],
         model="claude-sonnet-4-5",
         context_size=200_000,
@@ -57,7 +57,7 @@ async def main() -> None:
     document_store = PostgresDocumentStore(url=os.environ["POSTGRES_URL"])
     metadata_store = SQLAlchemyMetadataStore(url=os.environ["POSTGRES_URL"])
 
-    config = RagEngineConfig(
+    config = KnowledgeEngineConfig(
         metadata_store=metadata_store,
         ingestion=IngestionConfig(
             methods=[
@@ -77,18 +77,18 @@ async def main() -> None:
         routing=RoutingConfig(mode=QueryMode.AUTO, full_context_threshold=150_000),
     )
 
-    async with RagEngine(config) as rag:
-        await rag.ingest("manual.pdf", knowledge_id="equipment")
-        result = await rag.query("how do I replace the filter?", knowledge_id="equipment")
+    async with KnowledgeEngine(config) as engine:
+        await engine.ingest("manual.pdf", knowledge_id="equipment")
+        result = await engine.query("how do I replace the filter?", knowledge_id="equipment")
         print(result.answer)
 
 
 asyncio.run(main())
 ```
 
-CLI mirrors the SDK surface (`rfnry-rag ingest …` / `rfnry-rag query …` / `rfnry-rag benchmark …` / `rfnry-rag knowledge inspect …`).
+CLI mirrors the SDK surface (`rfnry-knowledge ingest …` / `rfnry-knowledge query …` / `rfnry-knowledge benchmark …` / `rfnry-knowledge knowledge inspect …`).
 
-A complete factory-operations example with vector + document + graph + drawing ingestion lives at [`yard/examples/rfnry-rag/operation-assistant/`](../../yard/examples/rfnry-rag/operation-assistant/).
+A complete factory-operations example with vector + document + graph + drawing ingestion lives at [`yard/examples/rfnry-knowledge/operation-assistant/`](../../yard/examples/rfnry-knowledge/operation-assistant/).
 
 ---
 
@@ -123,19 +123,19 @@ A complete factory-operations example with vector + document + graph + drawing i
 
 ### Observability
 
-**Per-source health view.** `Source.fully_ingested` plus `Source.ingestion_notes: list[str]` (entries formatted `<step>:<level>:<reason>`) record any non-fatal degradation that happened during ingest — a contextualization skip on an oversized document, a vision page failure, a graph-extraction partial. `KnowledgeManager.health(source_id)` fuses these with `SourceStats` (retrieval hits, grounded vs ungrounded answer counts) and the `stale` flag (embedding-model migration). The CLI surfaces it as `rfnry-rag knowledge inspect <source_id>`.
+**Per-source health view.** `Source.fully_ingested` plus `Source.ingestion_notes: list[str]` (entries formatted `<step>:<level>:<reason>`) record any non-fatal degradation that happened during ingest — a contextualization skip on an oversized document, a vision page failure, a graph-extraction partial. `KnowledgeManager.health(source_id)` fuses these with `SourceStats` (retrieval hits, grounded vs ungrounded answer counts) and the `stale` flag (embedding-model migration). The CLI surfaces it as `rfnry-knowledge knowledge inspect <source_id>`.
 
 **Per-query trace.** Pass `trace=True` to receive a `RetrievalTrace` capturing rewritten queries, per-method results (keyed by method name, including empty-result methods), fusion output, reranking, grounding decision, routing decision, and per-stage timings. Default `trace=False` is byte-for-byte unchanged.
 
-**Benchmark harness.** Structured test cases run through `RagEngine.benchmark()` or the CLI. Aggregates exact match, F1, retrieval recall and precision (when expected source IDs are provided), and optional LLM-judge scores. Per-case traces are part of the report so individual failures are debuggable.
+**Benchmark harness.** Structured test cases run through `KnowledgeEngine.benchmark()` or the CLI. Aggregates exact match, F1, retrieval recall and precision (when expected source IDs are provided), and optional LLM-judge scores. Per-case traces are part of the report so individual failures are debuggable.
 
-**Structured event stream.** `Observability` on `RagEngineConfig` is always-on. Every entry point, every LLM call, and every retrieval / ingestion method emit a typed `ObservabilityRecord` (Pydantic, JSON-serializable) through the configured `Sink`. Default `JsonlStderrSink` writes one JSON line per record; swap to `JsonlFileSink`, `MultiSink`, or a custom `Sink` (an OTel adapter is ~25 lines) without touching pipeline code. `kind` discriminates events: `query.start`, `provider.call`, `retrieval.method.success`, etc. Pass `Observability(sink=NullSink())` to silence.
+**Structured event stream.** `Observability` on `KnowledgeEngineConfig` is always-on. Every entry point, every LLM call, and every retrieval / ingestion method emit a typed `ObservabilityRecord` (Pydantic, JSON-serializable) through the configured `Sink`. Default `JsonlStderrSink` writes one JSON line per record; swap to `JsonlFileSink`, `MultiSink`, or a custom `Sink` (an OTel adapter is ~25 lines) without touching pipeline code. `kind` discriminates events: `query.start`, `provider.call`, `retrieval.method.success`, etc. Pass `Observability(sink=NullSink())` to silence.
 
-**Row-per-transaction telemetry.** `Telemetry` writes one `QueryTelemetryRow` per query and one `IngestTelemetryRow` per ingest. Rows carry `outcome`, `duration_ms`, per-method timings, raw token counts (input / output / cache_creation / cache_read), and routing/grounding decisions. Default sink is stderr; use `SqlAlchemyTelemetrySink(metadata_store)` to persist into `rag_query_telemetry` / `rag_ingest_telemetry` tables for admin-UI consumption. Cost is the consumer's stack — the library emits raw token counts only.
+**Row-per-transaction telemetry.** `Telemetry` writes one `QueryTelemetryRow` per query and one `IngestTelemetryRow` per ingest. Rows carry `outcome`, `duration_ms`, per-method timings, raw token counts (input / output / cache_creation / cache_read), and routing/grounding decisions. Default sink is stderr; use `SqlAlchemyTelemetrySink(metadata_store)` to persist into `knowledge_query_telemetry` / `knowledge_ingest_telemetry` tables for admin-UI consumption. Cost is the consumer's stack — the library emits raw token counts only.
 
 ### Providers
 
-**Provider-agnostic facades.** `Embeddings`, `Vision`, `Reranking`, and `GenerativeModelClient` dispatch to the correct backend at runtime — Anthropic, OpenAI, Google, Voyage, Cohere — based on the typed `ModelProvider` passed in (e.g. `AnthropicModelProvider`, `OpenAIModelProvider`). The retrieval pipeline looks identical regardless of which model is wired in; swapping providers is a configuration change, not a code change.
+**Provider-agnostic facades.** `Embeddings`, `Vision`, `Reranking`, and `LLMClient` dispatch to the correct backend at runtime — Anthropic, OpenAI, Google, Voyage, Cohere — based on the typed `ModelProvider` passed in (e.g. `AnthropicModelProvider`, `OpenAIModelProvider`). The retrieval pipeline looks identical regardless of which model is wired in; swapping providers is a configuration change, not a code change.
 
 **Native SDK + BAML hybrid.** Plain text generation and streaming go through native provider SDKs in `providers/text_generation.py` (per-backend dispatch with prompt-cache-aware blocks for Anthropic). Structured-output calls — vision page analysis, entity extraction, document synthesis, the answer-quality judge — go through BAML for schema-typed parsing, retry policies, and primary-plus-fallback provider routing.
 

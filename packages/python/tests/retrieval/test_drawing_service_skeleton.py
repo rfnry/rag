@@ -2,7 +2,7 @@
 
 import inspect
 
-from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
+from rfnry_knowledge.ingestion.drawing.service import DrawingIngestionService
 
 
 def test_service_exposes_four_phase_async_methods() -> None:
@@ -13,7 +13,7 @@ def test_service_exposes_four_phase_async_methods() -> None:
 
 def test_service_module_exports_supported_extensions() -> None:
     """SUPPORTED_DRAWING_EXTENSIONS is the public contract for extension routing."""
-    from rfnry_rag.ingestion.drawing.service import (
+    from rfnry_knowledge.ingestion.drawing.service import (
         SUPPORTED_DRAWING_EXTENSIONS,
     )
 
@@ -23,7 +23,7 @@ def test_service_module_exports_supported_extensions() -> None:
 
 def test_models_roundtrip_drawing_page_analysis() -> None:
     """DrawingPageAnalysis dataclass must have from_dict and to_dict converters."""
-    from rfnry_rag.ingestion.drawing.models import (
+    from rfnry_knowledge.ingestion.drawing.models import (
         DetectedComponent,
         DetectedConnection,
         DrawingPageAnalysis,
@@ -63,7 +63,7 @@ def test_models_roundtrip_drawing_page_analysis() -> None:
 
 
 def test_models_roundtrip_handles_optional_fields() -> None:
-    from rfnry_rag.ingestion.drawing.models import (
+    from rfnry_knowledge.ingestion.drawing.models import (
         DetectedComponent,
         DetectedConnection,
         DrawingPageAnalysis,

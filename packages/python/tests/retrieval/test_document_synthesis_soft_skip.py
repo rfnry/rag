@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from rfnry_rag.ingestion.analyze.models import DocumentSynthesis
-from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
-from rfnry_rag.models import Source
+from rfnry_knowledge.ingestion.analyze.models import DocumentSynthesis
+from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+from rfnry_knowledge.models import Source
 
 _PAGE_ROWS = [
     {
@@ -76,7 +76,7 @@ async def test_synthesis_failure_records_note_continues() -> None:
     svc._metadata_store.get_source = AsyncMock(return_value=_analyzed_source())
     svc._metadata_store.update_source = AsyncMock()
 
-    with patch("rfnry_rag.baml.baml_client.async_client.b") as mock_b:
+    with patch("rfnry_knowledge.baml.baml_client.async_client.b") as mock_b:
         mock_b.SynthesizeDocument = AsyncMock(side_effect=RuntimeError("LLM down"))
         await svc.synthesize("s1")
 
@@ -98,7 +98,7 @@ async def test_synthesis_clean_no_notes() -> None:
     fake_result.page_clusters = []
     fake_result.document_summary = "summary"
 
-    with patch("rfnry_rag.baml.baml_client.async_client.b") as mock_b:
+    with patch("rfnry_knowledge.baml.baml_client.async_client.b") as mock_b:
         mock_b.SynthesizeDocument = AsyncMock(return_value=fake_result)
         await svc.synthesize("s1")
 
@@ -116,7 +116,7 @@ async def test_synthesis_consumer_tolerates_empty_synthesis() -> None:
     source = _analyzed_source()
     source.status = "synthesized"
     # Empty synthesis path: serialize an empty DocumentSynthesis into metadata.
-    from rfnry_rag.ingestion.analyze.service import _serialize_synthesis
+    from rfnry_knowledge.ingestion.analyze.service import _serialize_synthesis
 
     source.metadata["synthesis"] = _serialize_synthesis(DocumentSynthesis())
     source.metadata["ingestion_notes"] = ["document_synthesis:warn:RuntimeError(boom)"]

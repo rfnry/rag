@@ -6,8 +6,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from rfnry_rag.knowledge.manager import KnowledgeManager
-from rfnry_rag.models import HealthSummary, RetrievalHealth, Source, SourceStats
+from rfnry_knowledge.knowledge.manager import KnowledgeManager
+from rfnry_knowledge.models import HealthSummary, RetrievalHealth, Source, SourceStats
 
 
 def _source(

@@ -1,4 +1,4 @@
-from rfnry_rag.ingestion.chunk.splitter import RecursiveTextSplitter
+from rfnry_knowledge.ingestion.chunk.splitter import RecursiveTextSplitter
 
 
 class TestBasicSplitting:

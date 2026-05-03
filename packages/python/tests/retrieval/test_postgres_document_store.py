@@ -2,7 +2,7 @@ import inspect
 
 import pytest
 
-from rfnry_rag.stores.document.postgres import PostgresDocumentStore
+from rfnry_knowledge.stores.document.postgres import PostgresDocumentStore
 
 
 @pytest.fixture

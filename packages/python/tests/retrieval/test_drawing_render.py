@@ -8,10 +8,10 @@ from typing import Any
 
 import pytest
 
-from rfnry_rag.config.drawing import DrawingIngestionConfig
-from rfnry_rag.exceptions import IngestionError
-from rfnry_rag.ingestion.drawing.render import render_dxf
-from rfnry_rag.ingestion.drawing.service import DrawingIngestionService
+from rfnry_knowledge.config.drawing import DrawingIngestionConfig
+from rfnry_knowledge.exceptions import IngestionError
+from rfnry_knowledge.ingestion.drawing.render import render_dxf
+from rfnry_knowledge.ingestion.drawing.service import DrawingIngestionService
 
 
 class _InMemoryMetadataStore:

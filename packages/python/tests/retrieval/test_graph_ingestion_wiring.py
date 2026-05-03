@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from rfnry_rag.config.graph import GraphIngestionConfig
+from rfnry_knowledge.config.graph import GraphIngestionConfig
 
 
 def test_analyzed_service_stores_graph_config() -> None:
-    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 
     cfg = GraphIngestionConfig(unclassified_relation_default="MENTIONS")
     svc = AnalyzedIngestionService(
@@ -22,7 +22,7 @@ def test_analyzed_service_stores_graph_config() -> None:
 
 
 def test_graph_ingestion_method_stores_graph_config() -> None:
-    from rfnry_rag.ingestion.methods.graph import GraphIngestion
+    from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
 
     cfg = GraphIngestionConfig()
     svc = GraphIngestion(store=SimpleNamespace(), lm_client=None, graph_config=cfg)
@@ -32,7 +32,7 @@ def test_graph_ingestion_method_stores_graph_config() -> None:
 def test_analyzed_service_defaults_graph_config_to_agnostic_empty() -> None:
     """When no config is passed, the service builds a default empty one
     (agnostic — category-fallback type inference + MENTIONS xref default)."""
-    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 
     svc = AnalyzedIngestionService(
         embeddings=SimpleNamespace(),
@@ -46,7 +46,7 @@ def test_analyzed_service_defaults_graph_config_to_agnostic_empty() -> None:
 
 
 def test_graph_ingestion_method_defaults_to_agnostic_empty() -> None:
-    from rfnry_rag.ingestion.methods.graph import GraphIngestion
+    from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
 
     svc = GraphIngestion(store=SimpleNamespace(), lm_client=None)
     assert isinstance(svc._graph_config, GraphIngestionConfig)

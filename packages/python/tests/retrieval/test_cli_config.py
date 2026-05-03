@@ -3,8 +3,8 @@ from unittest.mock import patch
 
 import pytest
 
-from rfnry_rag.cli.config import ConfigError, load_config
-from rfnry_rag.cli.constants import load_dotenv
+from rfnry_knowledge.cli.config import ConfigError, load_config
+from rfnry_knowledge.cli.constants import load_dotenv
 
 _BASE_CONFIG = """\
 [persistence]
@@ -137,7 +137,7 @@ class TestLoadConfigProviders:
                 load_config(path)
 
     def test_sparse_embeddings_enabled(self, tmp_path):
-        from rfnry_rag.ingestion.methods.vector import VectorIngestion
+        from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
 
         path = _write_config(tmp_path, "sparse_embeddings = true\n")
         with patch.dict(os.environ, {}, clear=False):
@@ -147,7 +147,7 @@ class TestLoadConfigProviders:
         assert vector._sparse is not None
 
     def test_sparse_embeddings_disabled_by_default(self, tmp_path):
-        from rfnry_rag.ingestion.methods.vector import VectorIngestion
+        from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
 
         path = _write_config(tmp_path)
         with patch.dict(os.environ, {}, clear=False):

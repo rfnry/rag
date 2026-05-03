@@ -7,19 +7,19 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from rfnry_rag.ingestion.embeddings.cohere import (
+from rfnry_knowledge.ingestion.embeddings.cohere import (
     _COHERE_MAX_BATCH,
     _CohereEmbeddings,
 )
-from rfnry_rag.ingestion.embeddings.openai import (
+from rfnry_knowledge.ingestion.embeddings.openai import (
     _OPENAI_MAX_BATCH,
     _OpenAIEmbeddings,
 )
-from rfnry_rag.ingestion.embeddings.voyage import (
+from rfnry_knowledge.ingestion.embeddings.voyage import (
     _VOYAGE_MAX_BATCH,
     _VoyageEmbeddings,
 )
-from rfnry_rag.providers import CohereModelProvider, OpenAIModelProvider, VoyageModelProvider
+from rfnry_knowledge.providers import CohereModelProvider, OpenAIModelProvider, VoyageModelProvider
 
 # ---------------------------------------------------------------------------
 # OpenAI — single-call provider behaviour
@@ -35,7 +35,7 @@ async def test_openai_embeddings_single_call() -> None:
         calls.append(n)
         return SimpleNamespace(data=[SimpleNamespace(embedding=[0.0]) for _ in range(n)])
 
-    with patch("rfnry_rag.ingestion.embeddings.openai.AsyncOpenAI") as mock_cls:
+    with patch("rfnry_knowledge.ingestion.embeddings.openai.AsyncOpenAI") as mock_cls:
         fake_client = MagicMock()
         fake_client.embeddings.create = AsyncMock(side_effect=fake_create)
         mock_cls.return_value = fake_client
@@ -57,7 +57,7 @@ async def test_openai_embeddings_within_limit_single_call() -> None:
         calls.append(n)
         return SimpleNamespace(data=[SimpleNamespace(embedding=[0.0]) for _ in range(n)])
 
-    with patch("rfnry_rag.ingestion.embeddings.openai.AsyncOpenAI") as mock_cls:
+    with patch("rfnry_knowledge.ingestion.embeddings.openai.AsyncOpenAI") as mock_cls:
         fake_client = MagicMock()
         fake_client.embeddings.create = AsyncMock(side_effect=fake_create)
         mock_cls.return_value = fake_client
@@ -83,7 +83,7 @@ async def test_voyage_embeddings_single_call() -> None:
         calls.append(len(texts))
         return SimpleNamespace(embeddings=[[0.0] for _ in texts])
 
-    with patch("rfnry_rag.ingestion.embeddings.voyage.voyageai") as mock_voyageai:
+    with patch("rfnry_knowledge.ingestion.embeddings.voyage.voyageai") as mock_voyageai:
         fake_client = MagicMock()
         fake_client.embed = AsyncMock(side_effect=fake_embed)
         mock_voyageai.AsyncClient.return_value = fake_client
@@ -104,7 +104,7 @@ async def test_voyage_embeddings_within_limit_single_call() -> None:
         calls.append(len(texts))
         return SimpleNamespace(embeddings=[[0.0] for _ in texts])
 
-    with patch("rfnry_rag.ingestion.embeddings.voyage.voyageai") as mock_voyageai:
+    with patch("rfnry_knowledge.ingestion.embeddings.voyage.voyageai") as mock_voyageai:
         fake_client = MagicMock()
         fake_client.embed = AsyncMock(side_effect=fake_embed)
         mock_voyageai.AsyncClient.return_value = fake_client
@@ -132,7 +132,7 @@ async def test_cohere_embeddings_single_call() -> None:
         embeddings_ns = SimpleNamespace(float_=[[0.0] for _ in range(n)])
         return SimpleNamespace(embeddings=embeddings_ns)
 
-    with patch("rfnry_rag.ingestion.embeddings.cohere.cohere") as mock_cohere:
+    with patch("rfnry_knowledge.ingestion.embeddings.cohere.cohere") as mock_cohere:
         fake_client = MagicMock()
         fake_client.embed = AsyncMock(side_effect=fake_embed)
         mock_cohere.AsyncClientV2.return_value = fake_client
@@ -155,7 +155,7 @@ async def test_cohere_embeddings_within_limit_single_call() -> None:
         embeddings_ns = SimpleNamespace(float_=[[0.0] for _ in range(n)])
         return SimpleNamespace(embeddings=embeddings_ns)
 
-    with patch("rfnry_rag.ingestion.embeddings.cohere.cohere") as mock_cohere:
+    with patch("rfnry_knowledge.ingestion.embeddings.cohere.cohere") as mock_cohere:
         fake_client = MagicMock()
         fake_client.embed = AsyncMock(side_effect=fake_embed)
         mock_cohere.AsyncClientV2.return_value = fake_client
@@ -187,7 +187,7 @@ async def test_embed_batched_chunks_large_input() -> None:
         async def embedding_dimension(self) -> int:
             return 1
 
-    from rfnry_rag.ingestion.embeddings.batching import embed_batched
+    from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
 
     result = await embed_batched(Fake(), ["x"] * 500, batch_size=100)
     assert len(result) == 500
@@ -215,7 +215,7 @@ async def test_embed_batched_overlaps_sub_batches() -> None:
         async def embedding_dimension(self) -> int:
             return 1
 
-    from rfnry_rag.ingestion.embeddings.batching import embed_batched
+    from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
 
     result = await embed_batched(Fake(), ["x"] * 500, batch_size=100)
     assert len(result) == 500
@@ -237,7 +237,7 @@ async def test_embed_batched_empty_input() -> None:
         async def embedding_dimension(self) -> int:
             return 1
 
-    from rfnry_rag.ingestion.embeddings.batching import embed_batched
+    from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
 
     result = await embed_batched(Fake(), [], batch_size=100)
     assert result == []
@@ -259,7 +259,7 @@ async def test_embed_batched_within_batch_size_single_call() -> None:
         async def embedding_dimension(self) -> int:
             return 1
 
-    from rfnry_rag.ingestion.embeddings.batching import embed_batched
+    from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
 
     result = await embed_batched(Fake(), ["x"] * 50, batch_size=100)
     assert len(result) == 50
@@ -279,7 +279,7 @@ async def test_embed_batched_invalid_batch_size() -> None:
         async def embedding_dimension(self) -> int:
             return 1
 
-    from rfnry_rag.ingestion.embeddings.batching import embed_batched
+    from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
 
     with pytest.raises(ValueError, match="batch_size"):
         await embed_batched(Fake(), ["x"], batch_size=0)

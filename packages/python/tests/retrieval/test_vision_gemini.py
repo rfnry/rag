@@ -4,10 +4,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.exceptions import ParseError
-from rfnry_rag.ingestion.vision.constants import MAX_VISION_FILE_SIZE
-from rfnry_rag.ingestion.vision.gemini import _GeminiVision
-from rfnry_rag.providers import GoogleModelProvider
+from rfnry_knowledge.exceptions import ParseError
+from rfnry_knowledge.ingestion.vision.constants import MAX_VISION_FILE_SIZE
+from rfnry_knowledge.ingestion.vision.gemini import _GeminiVision
+from rfnry_knowledge.providers import GoogleModelProvider
 
 
 def _make_vision() -> _GeminiVision:

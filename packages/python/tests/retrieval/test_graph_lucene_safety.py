@@ -1,6 +1,6 @@
 import pytest
 
-from rfnry_rag.stores.graph.neo4j import _escape_lucene_query
+from rfnry_knowledge.stores.graph.neo4j import _escape_lucene_query
 
 
 class TestLuceneEscape:

@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
 
 
 @pytest.mark.asyncio

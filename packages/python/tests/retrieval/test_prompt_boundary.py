@@ -1,4 +1,4 @@
-from rfnry_rag.providers.text_generation import assemble_user_message
+from rfnry_knowledge.providers.text_generation import assemble_user_message
 
 
 def test_native_user_message_has_content_boundary() -> None:

@@ -16,8 +16,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from baml_py import errors as baml_errors
 
-from rfnry_rag.exceptions import IngestionError
-from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
+from rfnry_knowledge.exceptions import IngestionError
+from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 
 
 def _baml_result(page_num: int) -> SimpleNamespace:
@@ -103,19 +103,19 @@ async def test_vision_one_bad_page_among_many_soft_skips(tmp_path) -> None:
 
     with (
         patch(
-            "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
             return_value=iter(pages),
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.compute_file_hash",
+            "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
             return_value="hash",
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
-        patch("rfnry_rag.baml.baml_client.async_client.b") as mock_b,
+        patch("rfnry_knowledge.baml.baml_client.async_client.b") as mock_b,
     ):
         mock_b.AnalyzePage = AsyncMock(side_effect=selective_baml)
         source = await svc.analyze(file_path=pdf)
@@ -136,19 +136,19 @@ async def test_vision_all_pages_fail_raises(tmp_path) -> None:
 
     with (
         patch(
-            "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
             return_value=iter(pages),
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.compute_file_hash",
+            "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
             return_value="hash2",
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
-        patch("rfnry_rag.baml.baml_client.async_client.b") as mock_b,
+        patch("rfnry_knowledge.baml.baml_client.async_client.b") as mock_b,
     ):
         mock_b.AnalyzePage = AsyncMock(side_effect=RuntimeError("everything broken"))
         with pytest.raises(IngestionError, match="all pages"):
@@ -166,9 +166,7 @@ async def test_vision_invalid_baml_output_writes_invalid_output_note(tmp_path) -
     async def selective_baml(image, *, baml_options=None):
         call_count["n"] += 1
         if call_count["n"] == 1:
-            raise baml_errors.BamlValidationError(
-                "AnalyzePage", "missing required field", "", "field 'X' missing"
-            )
+            raise baml_errors.BamlValidationError("AnalyzePage", "missing required field", "", "field 'X' missing")
         return _baml_result(call_count["n"])
 
     pdf = tmp_path / "doc.pdf"
@@ -176,19 +174,19 @@ async def test_vision_invalid_baml_output_writes_invalid_output_note(tmp_path) -
 
     with (
         patch(
-            "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
             return_value=iter(pages),
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.compute_file_hash",
+            "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
             return_value="hash3",
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
-        patch("rfnry_rag.baml.baml_client.async_client.b") as mock_b,
+        patch("rfnry_knowledge.baml.baml_client.async_client.b") as mock_b,
     ):
         mock_b.AnalyzePage = AsyncMock(side_effect=selective_baml)
         source = await svc.analyze(file_path=pdf)
@@ -200,8 +198,8 @@ async def test_vision_invalid_baml_output_writes_invalid_output_note(tmp_path) -
 async def test_vision_per_page_soft_skip_emits_vision_page_skipped_event(tmp_path) -> None:
     from _recording import RecordingObservabilitySink as RecordingSink
 
-    from rfnry_rag.observability import Observability
-    from rfnry_rag.observability.context import _reset_obs, _set_obs
+    from rfnry_knowledge.observability import Observability
+    from rfnry_knowledge.observability.context import _reset_obs, _set_obs
 
     svc = _make_service()
     pages = _pages(3)
@@ -222,19 +220,19 @@ async def test_vision_per_page_soft_skip_emits_vision_page_skipped_event(tmp_pat
     try:
         with (
             patch(
-                "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
+                "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
                 return_value=iter(pages),
             ),
             patch(
-                "rfnry_rag.ingestion.analyze.service.compute_file_hash",
+                "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
                 return_value="hash5",
             ),
             patch(
-                "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
+                "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
                 new_callable=AsyncMock,
                 side_effect=lambda fn, *args: fn(*args),
             ),
-            patch("rfnry_rag.baml.baml_client.async_client.b") as mock_b,
+            patch("rfnry_knowledge.baml.baml_client.async_client.b") as mock_b,
         ):
             mock_b.AnalyzePage = AsyncMock(side_effect=selective_baml)
             await svc.analyze(file_path=pdf)
@@ -256,19 +254,19 @@ async def test_vision_clean_no_notes(tmp_path) -> None:
 
     with (
         patch(
-            "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
             return_value=iter(pages),
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.compute_file_hash",
+            "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
             return_value="hash4",
         ),
         patch(
-            "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
-        patch("rfnry_rag.baml.baml_client.async_client.b") as mock_b,
+        patch("rfnry_knowledge.baml.baml_client.async_client.b") as mock_b,
     ):
         mock_b.AnalyzePage = AsyncMock(side_effect=lambda image, **kw: _baml_result(1))
         source = await svc.analyze(file_path=pdf)

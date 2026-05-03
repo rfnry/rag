@@ -8,8 +8,8 @@ stay at 1.
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-from rfnry_rag.retrieval.methods.vector import VectorRetrieval
-from rfnry_rag.retrieval.search.keyword import KeywordSearch
+from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.retrieval.search.keyword import KeywordSearch
 
 
 async def test_bm25_build_does_not_hold_lock_across_scroll() -> None:

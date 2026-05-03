@@ -1,8 +1,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from rfnry_rag.config.drawing import DrawingIngestionConfig
-from rfnry_rag.ingestion.methods.drawing import DrawingIngestion
+from rfnry_knowledge.config.drawing import DrawingIngestionConfig
+from rfnry_knowledge.ingestion.methods.drawing import DrawingIngestion
 
 
 def test_drawing_method_exposes_protocol_attrs():

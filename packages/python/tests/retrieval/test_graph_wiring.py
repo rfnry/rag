@@ -20,8 +20,8 @@ def _mock_graph_store():
 
 
 async def test_knowledge_manager_remove_calls_graph_store():
-    from rfnry_rag.knowledge.manager import KnowledgeManager
-    from rfnry_rag.models import Source
+    from rfnry_knowledge.knowledge.manager import KnowledgeManager
+    from rfnry_knowledge.models import Source
 
     vector_store = _mock_vector_store()
     vector_store.delete = AsyncMock(return_value=5)
@@ -44,8 +44,8 @@ async def test_knowledge_manager_remove_calls_graph_store():
 
 
 async def test_knowledge_manager_remove_without_graph_store():
-    from rfnry_rag.knowledge.manager import KnowledgeManager
-    from rfnry_rag.models import Source
+    from rfnry_knowledge.knowledge.manager import KnowledgeManager
+    from rfnry_knowledge.models import Source
 
     vector_store = _mock_vector_store()
     vector_store.delete = AsyncMock(return_value=3)

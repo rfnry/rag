@@ -7,13 +7,13 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rfnry_rag.config import RagEngineConfig
-from rfnry_rag.generation.models import QueryResult
-from rfnry_rag.observability import NullSink as _ObsNullSink
-from rfnry_rag.observability import Observability
-from rfnry_rag.server import RagEngine
-from rfnry_rag.telemetry import NullTelemetrySink as _TelNullSink
-from rfnry_rag.telemetry import Telemetry
+from rfnry_knowledge.config import KnowledgeEngineConfig
+from rfnry_knowledge.generation.models import QueryResult
+from rfnry_knowledge.knowledge.engine import KnowledgeEngine
+from rfnry_knowledge.observability import NullSink as _ObsNullSink
+from rfnry_knowledge.observability import Observability
+from rfnry_knowledge.telemetry import NullTelemetrySink as _TelNullSink
+from rfnry_knowledge.telemetry import Telemetry
 
 _UNSET: Any = object()
 
@@ -24,7 +24,7 @@ def _default_query_result(answer: str = "an answer") -> QueryResult:
 
 @pytest.fixture
 def make_engine() -> Any:
-    """Factory fixture: builds a minimally-wired ``RagEngine`` for unit tests."""
+    """Factory fixture: builds a minimally-wired ``KnowledgeEngine`` for unit tests."""
 
     def _factory(
         *,
@@ -45,7 +45,7 @@ def make_engine() -> Any:
         ingestion_namespace: Any = _UNSET,
     ) -> Any:
         if config is _UNSET:
-            built: Any = MagicMock(spec=RagEngineConfig)
+            built: Any = MagicMock(spec=KnowledgeEngineConfig)
             if retrieval is not _UNSET:
                 built.retrieval = retrieval
             if routing is not _UNSET:
@@ -60,7 +60,7 @@ def make_engine() -> Any:
         else:
             cfg = config
 
-        engine = RagEngine.__new__(RagEngine)
+        engine = KnowledgeEngine.__new__(KnowledgeEngine)
         engine._config = cfg
         engine._observability = Observability(sink=_ObsNullSink())
         engine._telemetry = Telemetry(sink=_TelNullSink())

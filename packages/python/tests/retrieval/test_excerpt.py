@@ -1,4 +1,4 @@
-from rfnry_rag.stores.document.excerpt import extract_window
+from rfnry_knowledge.stores.document.excerpt import extract_window
 
 
 def test_extract_window_centers_on_match():

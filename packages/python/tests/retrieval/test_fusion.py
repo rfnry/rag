@@ -1,5 +1,5 @@
-from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.retrieval.search.fusion import reciprocal_rank_fusion
+from rfnry_knowledge.models import RetrievedChunk
+from rfnry_knowledge.retrieval.search.fusion import reciprocal_rank_fusion
 
 
 def _chunk(chunk_id: str, score: float = 0.0, source_weight: float = 1.0) -> RetrievedChunk:
@@ -80,7 +80,7 @@ class TestMergeRetrievalResults:
     unstructured result is at or near the top of merged output."""
 
     def test_rank1_unstructured_competes_with_rank1_structured(self):
-        from rfnry_rag.server import RagEngine
+        from rfnry_knowledge.knowledge.engine import KnowledgeEngine
 
         # Unstructured top result has RRF score 0.04 (realistic value);
         # structured top has cosine 0.3. Raw-score sort would put structured first.
@@ -93,33 +93,33 @@ class TestMergeRetrievalResults:
             _chunk("struct_mid", score=0.15),
         ]
 
-        merged = RagEngine._merge_retrieval_results(unstructured, structured)
+        merged = KnowledgeEngine._merge_retrieval_results(unstructured, structured)
         top_two = {merged[0].chunk_id, merged[1].chunk_id}
         # Both lists' rank-1 must be in the top two — not structured dominating on scale
         assert "unstr_top" in top_two
         assert "struct_top" in top_two
 
     def test_dedup_by_chunk_id(self):
-        from rfnry_rag.server import RagEngine
+        from rfnry_knowledge.knowledge.engine import KnowledgeEngine
 
         shared = _chunk("shared", score=0.05)
         unstructured = [shared, _chunk("only_u", score=0.02)]
         structured = [_chunk("shared", score=0.3), _chunk("only_s", score=0.1)]
 
-        merged = RagEngine._merge_retrieval_results(unstructured, structured)
+        merged = KnowledgeEngine._merge_retrieval_results(unstructured, structured)
         ids = [c.chunk_id for c in merged]
         assert ids.count("shared") == 1
 
     def test_empty_structured_returns_unstructured_as_is(self):
-        from rfnry_rag.server import RagEngine
+        from rfnry_knowledge.knowledge.engine import KnowledgeEngine
 
         unstructured = [_chunk("a", score=0.04)]
-        merged = RagEngine._merge_retrieval_results(unstructured, [])
+        merged = KnowledgeEngine._merge_retrieval_results(unstructured, [])
         assert merged == unstructured
 
     def test_empty_unstructured_returns_structured_as_is(self):
-        from rfnry_rag.server import RagEngine
+        from rfnry_knowledge.knowledge.engine import KnowledgeEngine
 
         structured = [_chunk("a", score=0.3)]
-        merged = RagEngine._merge_retrieval_results([], structured)
+        merged = KnowledgeEngine._merge_retrieval_results([], structured)
         assert merged == structured

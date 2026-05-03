@@ -1,9 +1,9 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from rfnry_rag.models import ContentMatch, RetrievedChunk
-from rfnry_rag.retrieval.methods.document import DocumentRetrieval
-from rfnry_rag.retrieval.search.service import RetrievalService
+from rfnry_knowledge.models import ContentMatch, RetrievedChunk
+from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval
+from rfnry_knowledge.retrieval.search.service import RetrievalService
 
 
 async def test_search_converts_matches():

@@ -1,10 +1,10 @@
 import pytest
 
-from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.ingestion.embeddings.cohere import _CohereEmbeddings
-from rfnry_rag.ingestion.embeddings.openai import _OpenAIEmbeddings
-from rfnry_rag.ingestion.embeddings.voyage import _VoyageEmbeddings
-from rfnry_rag.providers import (
+from rfnry_knowledge.exceptions import ConfigurationError
+from rfnry_knowledge.ingestion.embeddings.cohere import _CohereEmbeddings
+from rfnry_knowledge.ingestion.embeddings.openai import _OpenAIEmbeddings
+from rfnry_knowledge.ingestion.embeddings.voyage import _VoyageEmbeddings
+from rfnry_knowledge.providers import (
     AnthropicModelProvider,
     CohereModelProvider,
     Embeddings,

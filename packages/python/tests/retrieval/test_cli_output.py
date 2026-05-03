@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
-from rfnry_rag.cli.output import OutputMode, get_output_mode, print_health, print_json
-from rfnry_rag.models import HealthSummary, RetrievalHealth, Source
+from rfnry_knowledge.cli.output import OutputMode, get_output_mode, print_health, print_json
+from rfnry_knowledge.models import HealthSummary, RetrievalHealth, Source
 
 
 class TestGetOutputMode:
@@ -12,12 +12,12 @@ class TestGetOutputMode:
         assert get_output_mode("pretty") == OutputMode.PRETTY
 
     def test_tty_returns_pretty(self):
-        with patch("rfnry_rag.cli.output.sys.stdout") as mock_stdout:
+        with patch("rfnry_knowledge.cli.output.sys.stdout") as mock_stdout:
             mock_stdout.isatty.return_value = True
             assert get_output_mode(None) == OutputMode.PRETTY
 
     def test_pipe_returns_json(self):
-        with patch("rfnry_rag.cli.output.sys.stdout") as mock_stdout:
+        with patch("rfnry_knowledge.cli.output.sys.stdout") as mock_stdout:
             mock_stdout.isatty.return_value = False
             assert get_output_mode(None) == OutputMode.JSON
 

@@ -3,9 +3,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.models import SparseVector, VectorResult
-from rfnry_rag.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.exceptions import ConfigurationError
+from rfnry_knowledge.models import SparseVector, VectorResult
+from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
 
 
 async def test_dense_search():

@@ -9,11 +9,11 @@ from types import SimpleNamespace
 import pytest
 from _recording import RecordingObservabilitySink as RecordingSink
 
-from rfnry_rag.observability import Observability
-from rfnry_rag.observability.context import _reset_obs, _set_obs
-from rfnry_rag.telemetry import QueryTelemetryRow
-from rfnry_rag.telemetry.context import _reset_row, _set_row, current_query_row
-from rfnry_rag.telemetry.usage import (
+from rfnry_knowledge.observability import Observability
+from rfnry_knowledge.observability.context import _reset_obs, _set_obs
+from rfnry_knowledge.telemetry import QueryTelemetryRow
+from rfnry_knowledge.telemetry.context import _reset_row, _set_row, current_query_row
+from rfnry_knowledge.telemetry.usage import (
     extract_anthropic_usage,
     extract_baml_usage,
     extract_gemini_usage,
@@ -276,7 +276,7 @@ async def test_instrument_call_no_op_on_active_row_absence() -> None:
 
 
 def _provider(kind: str):
-    from rfnry_rag.providers import (
+    from rfnry_knowledge.providers import (
         AnthropicModelProvider,
         GoogleModelProvider,
         OpenAIModelProvider,
@@ -293,7 +293,7 @@ def _provider(kind: str):
 async def test_anthropic_stream_extracts_usage_from_final_message() -> None:
     from unittest.mock import patch
 
-    from rfnry_rag.providers.text_generation import _anthropic_stream
+    from rfnry_knowledge.providers.text_generation import _anthropic_stream
 
     obs_sink = RecordingSink()
     obs_token = _set_obs(Observability(sink=obs_sink))
@@ -367,7 +367,7 @@ async def test_anthropic_stream_extracts_usage_from_final_message() -> None:
 async def test_openai_stream_extracts_usage_from_last_chunk() -> None:
     from unittest.mock import patch
 
-    from rfnry_rag.providers.text_generation import _openai_stream
+    from rfnry_knowledge.providers.text_generation import _openai_stream
 
     obs_sink = RecordingSink()
     obs_token = _set_obs(Observability(sink=obs_sink))
@@ -442,7 +442,7 @@ async def test_openai_stream_extracts_usage_from_last_chunk() -> None:
 async def test_gemini_stream_extracts_usage_from_last_chunk() -> None:
     from unittest.mock import patch
 
-    from rfnry_rag.providers.text_generation import _google_stream
+    from rfnry_knowledge.providers.text_generation import _google_stream
 
     obs_sink = RecordingSink()
     obs_token = _set_obs(Observability(sink=obs_sink))

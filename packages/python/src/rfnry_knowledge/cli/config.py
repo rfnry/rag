@@ -1,0 +1,286 @@
+from __future__ import annotations
+
+import tomllib
+from pathlib import Path
+from typing import Any
+
+from pydantic import SecretStr
+
+from rfnry_knowledge.cli.constants import CONFIG_FILE, ENV_FILE, ConfigError, load_dotenv
+from rfnry_knowledge.cli.utils import get_api_key as _get_api_key
+from rfnry_knowledge.config import (
+    ContextualChunkConfig,
+    GenerationConfig,
+    IngestionConfig,
+    KnowledgeEngineConfig,
+    RetrievalConfig,
+)
+from rfnry_knowledge.ingestion.embeddings.base import BaseEmbeddings
+from rfnry_knowledge.ingestion.embeddings.sparse.fastembed import FastEmbedSparseEmbeddings
+from rfnry_knowledge.ingestion.methods import VectorIngestion
+from rfnry_knowledge.knowledge.engine import _derive_embedding_model_name
+from rfnry_knowledge.providers import (
+    AnthropicModelProvider,
+    CohereModelProvider,
+    Embeddings,
+    GoogleModelProvider,
+    LLMClient,
+    ModelProvider,
+    OpenAIModelProvider,
+    Reranking,
+    VoyageModelProvider,
+)
+from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_knowledge.stores.vector.qdrant import QdrantVectorStore
+
+
+def _build_vector_store(cfg: dict[str, Any]) -> QdrantVectorStore:
+    provider = cfg.get("vector_store", "qdrant")
+    if provider != "qdrant":
+        raise ConfigError(f"Unknown vector store: {provider!r}. Supported: qdrant")
+    return QdrantVectorStore(
+        url=cfg.get("url", "http://localhost:6333"),
+        collection=cfg.get("collection", "knowledge"),
+    )
+
+
+_EMBEDDINGS_KEYS = {
+    "openai": "OPENAI_API_KEY",
+    "voyage": "VOYAGE_API_KEY",
+    "cohere": "COHERE_API_KEY",
+}
+
+_EMBEDDINGS_DEFAULTS = {
+    "openai": "text-embedding-3-small",
+    "voyage": "voyage-3",
+    "cohere": "embed-english-v3.0",
+}
+
+
+def _make_provider(kind: str, api_key: str, model: str) -> ModelProvider:
+    secret = SecretStr(api_key)
+    if kind == "anthropic":
+        return AnthropicModelProvider(api_key=secret, model=model)
+    if kind == "openai":
+        return OpenAIModelProvider(api_key=secret, model=model)
+    if kind == "google" or kind == "gemini":
+        return GoogleModelProvider(api_key=secret, model=model)
+    if kind == "voyage":
+        return VoyageModelProvider(api_key=secret, model=model)
+    if kind == "cohere":
+        return CohereModelProvider(api_key=secret, model=model)
+    raise ConfigError(f"Unknown provider kind: {kind!r}")
+
+
+def _build_embeddings(cfg: dict[str, Any]) -> BaseEmbeddings:
+    provider = cfg.get("embeddings", "openai")
+    env_var = _EMBEDDINGS_KEYS.get(provider)
+    if env_var is None:
+        raise ConfigError(f"Unknown embeddings provider: {provider!r}. Supported: {', '.join(_EMBEDDINGS_KEYS)}")
+    api_key = _get_api_key(env_var, provider)
+    model = cfg.get("model", _EMBEDDINGS_DEFAULTS[provider])
+
+    return Embeddings(_make_provider(provider, api_key, model))
+
+
+_RERANKER_KEYS = {
+    "voyage": "VOYAGE_API_KEY",
+    "cohere": "COHERE_API_KEY",
+}
+
+_RERANKER_DEFAULTS = {
+    "voyage": "rerank-2.5-lite",
+    "cohere": "rerank-english-v3.0",
+}
+
+
+def _build_reranker(cfg: dict[str, Any]):
+    provider = cfg.get("reranker")
+    if not provider:
+        return None
+    env_var = _RERANKER_KEYS.get(provider)
+    if env_var is None:
+        raise ConfigError(f"Unknown reranker: {provider!r}. Supported: {', '.join(_RERANKER_KEYS)}")
+    api_key = _get_api_key(env_var, provider)
+    model = cfg.get("reranker_model", _RERANKER_DEFAULTS[provider])
+
+    return Reranking(_make_provider(provider, api_key, model))
+
+
+_GENERATION_KEYS = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "google": "GEMINI_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+}
+
+_GENERATION_DEFAULTS = {
+    "anthropic": "claude-sonnet-4-20250514",
+    "openai": "gpt-4o",
+    "google": "gemini-2.5-pro",
+    "gemini": "gemini-2.5-pro",
+}
+
+
+def _build_generation_config(cfg: dict[str, Any]) -> GenerationConfig:
+    provider = cfg.get("provider")
+    if not provider:
+        raise ConfigError("[generation] requires 'provider' (anthropic, openai, or google)")
+    env_var = _GENERATION_KEYS.get(provider)
+    if env_var is None:
+        raise ConfigError(f"Unknown generation provider: {provider!r}. Supported: {', '.join(_GENERATION_KEYS)}")
+
+    api_key = _get_api_key(env_var, provider)
+    model = cfg.get("model", _GENERATION_DEFAULTS[provider])
+
+    lm_client = LLMClient(provider=_make_provider(provider, api_key, model))
+
+    relevance_gate_lm = None
+    if cfg.get("relevance_gate_enabled"):
+        rg_provider = cfg.get("relevance_gate_provider", provider)
+        rg_model = cfg.get("relevance_gate_model", model)
+        rg_env_var = _GENERATION_KEYS.get(rg_provider)
+        if rg_env_var is None:
+            raise ConfigError(f"Unknown relevance_gate_provider: {rg_provider!r}")
+        rg_api_key = _get_api_key(rg_env_var, rg_provider)
+        relevance_gate_lm = LLMClient(
+            provider=_make_provider(rg_provider, rg_api_key, rg_model),
+        )
+
+    return GenerationConfig(
+        lm_client=lm_client,
+        system_prompt=cfg.get("system_prompt", GenerationConfig.system_prompt),
+        grounding_enabled=cfg.get("grounding_enabled", False),
+        grounding_threshold=cfg.get("grounding_threshold", 0.5),
+        relevance_gate_enabled=cfg.get("relevance_gate_enabled", False),
+        relevance_gate_model=relevance_gate_lm,
+        guiding_enabled=cfg.get("guiding_enabled", False),
+    )
+
+
+def _build_contextual_chunk_config(cfg: dict[str, Any]) -> ContextualChunkConfig:
+    if not cfg:
+        return ContextualChunkConfig()
+    enabled = cfg.get("enabled", False)
+    lm_client = None
+    if enabled:
+        provider = cfg.get("provider")
+        if not provider:
+            raise ConfigError("[ingestion.contextual_chunk] enabled=true requires 'provider'")
+        env_var = _GENERATION_KEYS.get(provider)
+        if env_var is None:
+            raise ConfigError(
+                f"Unknown contextual_chunk provider: {provider!r}. Supported: {', '.join(_GENERATION_KEYS)}"
+            )
+        api_key = _get_api_key(env_var, provider)
+        model = cfg.get("model", _GENERATION_DEFAULTS[provider])
+        lm_client = LLMClient(provider=_make_provider(provider, api_key, model))
+    return ContextualChunkConfig(
+        enabled=enabled,
+        lm_client=lm_client,
+        concurrency=cfg.get("concurrency", 5),
+        max_context_tokens=cfg.get("max_context_tokens", 100),
+    )
+
+
+def _build_metadata_store(cfg: dict[str, Any]) -> SQLAlchemyMetadataStore:
+    url = cfg.get("url")
+    if not url:
+        raise ConfigError("[persistence.metadata] requires 'url'")
+    return SQLAlchemyMetadataStore(url=url)
+
+
+def load_config(config_path: str | None = None) -> KnowledgeEngineConfig:
+    return _load_config(config_path)
+
+
+_ALLOWED_TOP_KEYS = {
+    "persistence",
+    "ingestion",
+    "retrieval",
+    "generation",
+}
+
+
+def _validate_toml_keys(toml: dict) -> None:
+    unknown = set(toml.keys()) - _ALLOWED_TOP_KEYS
+    if unknown:
+        raise ConfigError(
+            f"Unknown top-level key(s) in config.toml: {sorted(unknown)}. Allowed keys: {sorted(_ALLOWED_TOP_KEYS)}"
+        )
+
+
+def _load_config(config_path: str | Path | None) -> KnowledgeEngineConfig:
+    path = Path(config_path) if config_path else CONFIG_FILE
+    if not path.exists():
+        raise ConfigError(f"Config not found: {path}\nRun 'rfnry-knowledge retrieval init' to create it.")
+
+    env_path = path.parent / ".env" if config_path else ENV_FILE
+    load_dotenv(env_path)
+
+    with open(path, "rb") as f:
+        toml = tomllib.load(f)
+
+    _validate_toml_keys(toml)
+
+    persistence_cfg = toml.get("persistence", {})
+    if not persistence_cfg:
+        raise ConfigError("[persistence] section required in config.toml")
+
+    vector_store = _build_vector_store(persistence_cfg)
+    metadata_store = None
+    if "metadata" in persistence_cfg:
+        metadata_store = _build_metadata_store(persistence_cfg["metadata"])
+
+    ingestion_cfg = toml.get("ingestion", {})
+    if not ingestion_cfg:
+        raise ConfigError("[ingestion] section required in config.toml")
+
+    embeddings = _build_embeddings(ingestion_cfg)
+    sparse_embeddings = FastEmbedSparseEmbeddings() if ingestion_cfg.get("sparse_embeddings") else None
+
+    chunk_context_headers = ingestion_cfg.get("chunk_context_headers", True)
+    embedding_model_name = _derive_embedding_model_name(embeddings)
+    contextual_chunk = _build_contextual_chunk_config(ingestion_cfg.get("contextual_chunk", {}))
+    ingestion = IngestionConfig(
+        methods=[
+            VectorIngestion(
+                store=vector_store,
+                embeddings=embeddings,
+                embedding_model_name=embedding_model_name,
+                sparse_embeddings=sparse_embeddings,
+            )
+        ],
+        chunk_size=ingestion_cfg.get("chunk_size", 500),
+        chunk_overlap=ingestion_cfg.get("chunk_overlap", 50),
+        parent_chunk_size=ingestion_cfg.get("parent_chunk_size", 0),
+        parent_chunk_overlap=ingestion_cfg.get("parent_chunk_overlap", 200),
+        chunk_context_headers=chunk_context_headers,
+        contextual_chunk=contextual_chunk,
+    )
+
+    retrieval_cfg = toml.get("retrieval", {})
+    bm25_enabled = retrieval_cfg.get("bm25_enabled", False)
+    retrieval = RetrievalConfig(
+        methods=[
+            VectorRetrieval(
+                store=vector_store,
+                embeddings=embeddings,
+                sparse_embeddings=sparse_embeddings,
+                bm25_enabled=bm25_enabled,
+            )
+        ],
+        top_k=retrieval_cfg.get("top_k", 5),
+        reranker=_build_reranker(retrieval_cfg),
+    )
+
+    generation_cfg = toml.get("generation")
+    generation = _build_generation_config(generation_cfg) if generation_cfg else GenerationConfig()
+
+    return KnowledgeEngineConfig(
+        metadata_store=metadata_store,
+        ingestion=ingestion,
+        retrieval=retrieval,
+        generation=generation,
+    )

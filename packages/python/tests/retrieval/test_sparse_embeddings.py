@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
-from rfnry_rag.ingestion.embeddings.sparse.fastembed import FastEmbedSparseEmbeddings
-from rfnry_rag.models import SparseVector
+from rfnry_knowledge.ingestion.embeddings.sparse.fastembed import FastEmbedSparseEmbeddings
+from rfnry_knowledge.models import SparseVector
 
 
 def test_sparse_vector_creation():

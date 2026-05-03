@@ -2,12 +2,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from rfnry_rag.exceptions import GenerationError
-from rfnry_rag.generation.grounding import DEFAULT_ESCALATION
-from rfnry_rag.generation.models import RelevanceResult
-from rfnry_rag.generation.service import GenerationService
-from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.providers import GenerativeModelClient, OpenAIModelProvider
+from rfnry_knowledge.exceptions import GenerationError
+from rfnry_knowledge.generation.grounding import DEFAULT_ESCALATION
+from rfnry_knowledge.generation.models import RelevanceResult
+from rfnry_knowledge.generation.service import GenerationService
+from rfnry_knowledge.models import RetrievedChunk
+from rfnry_knowledge.providers import LLMClient, OpenAIModelProvider
 
 
 def _chunk(chunk_id: str = "c1", score: float = 0.9) -> RetrievedChunk:
@@ -21,8 +21,8 @@ def _chunk(chunk_id: str = "c1", score: float = 0.9) -> RetrievedChunk:
     )
 
 
-def _lm_client() -> GenerativeModelClient:
-    return GenerativeModelClient(provider=OpenAIModelProvider(api_key="k", model="gpt-4o-mini"))
+def _lm_client() -> LLMClient:
+    return LLMClient(provider=OpenAIModelProvider(api_key="k", model="gpt-4o-mini"))
 
 
 def _make_service(
@@ -46,7 +46,7 @@ def _make_service(
 
 
 def _patch_generate(answer="The MERV 13 filter is rated for fine particles."):
-    return patch.object(GenerativeModelClient, "generate_text", new_callable=AsyncMock, return_value=answer)
+    return patch.object(LLMClient, "generate_text", new_callable=AsyncMock, return_value=answer)
 
 
 class _FakeStream:
@@ -63,7 +63,7 @@ class _FakeStream:
 
 def _patch_stream():
     return patch.object(
-        GenerativeModelClient,
+        LLMClient,
         "generate_text_stream",
         return_value=_FakeStream(["The ", "answer ", "is ", "42."]),
     )

@@ -1,4 +1,4 @@
-"""AnalyzedIngestionService now stores page_analyses in the dedicated rag_page_analyses table."""
+"""AnalyzedIngestionService now stores page_analyses in the dedicated knowledge_page_analyses table."""
 
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -6,16 +6,16 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 
-from rfnry_rag.ingestion.analyze.models import (
+from rfnry_knowledge.ingestion.analyze.models import (
     DiscoveredEntity,
     PageAnalysis,
 )
-from rfnry_rag.ingestion.analyze.service import (
+from rfnry_knowledge.ingestion.analyze.service import (
     AnalyzedIngestionService,
     _serialize_analysis,
 )
-from rfnry_rag.models import Source
-from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_knowledge.models import Source
+from rfnry_knowledge.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -198,7 +198,7 @@ async def fake_analyzed_service_ingestable(tmp_path):
 
 @pytest.mark.asyncio
 async def test_analyze_writes_to_page_analyses_table(fake_analyzed_service_from_multi_vector) -> None:
-    """After analyze phase, page data lives in rag_page_analyses, NOT source.metadata['page_analyses']."""
+    """After analyze phase, page data lives in knowledge_page_analyses, NOT source.metadata['page_analyses']."""
     svc, _captured = fake_analyzed_service_from_multi_vector
 
     source = await svc._metadata_store.get_source(svc._post_analyze_source_id)
@@ -206,11 +206,11 @@ async def test_analyze_writes_to_page_analyses_table(fake_analyzed_service_from_
 
     # source.metadata must NOT contain the page_analyses key
     assert "page_analyses" not in source.metadata, (
-        "analyze() must not write page_analyses into source.metadata; use rag_page_analyses table"
+        "analyze() must not write page_analyses into source.metadata; use knowledge_page_analyses table"
     )
     # The dedicated table holds them
     rows = await svc._metadata_store.get_page_analyses(source.source_id)
-    assert len(rows) >= 1, "analyze() must write at least 1 row to rag_page_analyses"
+    assert len(rows) >= 1, "analyze() must write at least 1 row to knowledge_page_analyses"
 
 
 @pytest.mark.asyncio

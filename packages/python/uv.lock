@@ -2755,7 +2755,7 @@ wheels = [
 ]
 
 [[package]]
-name = "rfnry-rag"
+name = "rfnry-knowledge"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

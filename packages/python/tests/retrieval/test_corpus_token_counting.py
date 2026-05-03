@@ -7,10 +7,10 @@ Plumbing for routing modes. No user-facing behavior change when
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from rfnry_rag.ingestion.chunk.service import IngestionService
-from rfnry_rag.ingestion.chunk.token_counter import count_tokens
-from rfnry_rag.knowledge.manager import KnowledgeManager
-from rfnry_rag.models import Source, VectorResult
+from rfnry_knowledge.ingestion.chunk.service import IngestionService
+from rfnry_knowledge.ingestion.chunk.token_counter import count_tokens
+from rfnry_knowledge.knowledge.manager import KnowledgeManager
+from rfnry_knowledge.models import Source, VectorResult
 
 
 def _mock_method(name: str, required: bool = True) -> SimpleNamespace:
@@ -133,7 +133,7 @@ async def test_get_corpus_tokens_lazy_computes_for_legacy_sources() -> None:
 
 
 async def test_load_full_corpus_prefers_document_store_over_vector_scroll() -> None:
-    from rfnry_rag.server import RagEngine
+    from rfnry_knowledge.knowledge.engine import KnowledgeEngine
 
     sources = [Source(source_id="source_a", knowledge_id="kb-1", metadata={"name": "doc_a"})]
     metadata_store = SimpleNamespace(list_sources=AsyncMock(return_value=sources))
@@ -147,7 +147,7 @@ async def test_load_full_corpus_prefers_document_store_over_vector_scroll() -> N
         )
     )
 
-    engine = RagEngine.__new__(RagEngine)
+    engine = KnowledgeEngine.__new__(KnowledgeEngine)
     engine._config = SimpleNamespace(metadata_store=metadata_store)  # type: ignore[assignment]
     engine._document_store = document_store  # type: ignore[assignment]
     engine._vector_store = vector_store  # type: ignore[assignment]
@@ -174,13 +174,13 @@ async def test_get_corpus_tokens_returns_zero_for_empty_knowledge_scope() -> Non
 
 
 async def test_load_full_corpus_returns_empty_string_for_empty_knowledge_scope() -> None:
-    from rfnry_rag.server import RagEngine
+    from rfnry_knowledge.knowledge.engine import KnowledgeEngine
 
     metadata_store = SimpleNamespace(list_sources=AsyncMock(return_value=[]))
     document_store = SimpleNamespace(get=AsyncMock())
     vector_store = SimpleNamespace(scroll=AsyncMock())
 
-    engine = RagEngine.__new__(RagEngine)
+    engine = KnowledgeEngine.__new__(KnowledgeEngine)
     engine._config = SimpleNamespace(metadata_store=metadata_store)  # type: ignore[assignment]
     engine._document_store = document_store  # type: ignore[assignment]
     engine._vector_store = vector_store  # type: ignore[assignment]

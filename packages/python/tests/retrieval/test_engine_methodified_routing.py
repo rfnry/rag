@@ -1,4 +1,4 @@
-"""RagEngine routes drawing/analyzed via cfg.ingestion.methods isinstance lookup."""
+"""KnowledgeEngine routes drawing/analyzed via cfg.ingestion.methods isinstance lookup."""
 
 from __future__ import annotations
 
@@ -8,15 +8,15 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rfnry_rag.config.drawing import DrawingIngestionConfig
-from rfnry_rag.config.engine import RagEngineConfig
-from rfnry_rag.config.ingestion import IngestionConfig
-from rfnry_rag.config.retrieval import RetrievalConfig
-from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
-from rfnry_rag.ingestion.methods.drawing import DrawingIngestion
-from rfnry_rag.ingestion.methods.vector import VectorIngestion
-from rfnry_rag.retrieval.methods.vector import VectorRetrieval
-from rfnry_rag.server import RagEngine
+from rfnry_knowledge.config.drawing import DrawingIngestionConfig
+from rfnry_knowledge.config.engine import KnowledgeEngineConfig
+from rfnry_knowledge.config.ingestion import IngestionConfig
+from rfnry_knowledge.config.retrieval import RetrievalConfig
+from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
+from rfnry_knowledge.ingestion.methods.drawing import DrawingIngestion
+from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.knowledge.engine import KnowledgeEngine
+from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
 
 
 def _make_metadata_store() -> MagicMock:
@@ -50,8 +50,8 @@ def _engine_config(
     vector_store: Any,
     embeddings: Any,
     ingestion_methods: list[Any],
-) -> RagEngineConfig:
-    return RagEngineConfig(
+) -> KnowledgeEngineConfig:
+    return KnowledgeEngineConfig(
         metadata_store=metadata_store,
         ingestion=IngestionConfig(methods=ingestion_methods),
         retrieval=RetrievalConfig(
@@ -82,7 +82,7 @@ async def test_engine_picks_up_analyzed_method_from_methods_list() -> None:
             analyzed,
         ],
     )
-    engine = RagEngine(cfg)
+    engine = KnowledgeEngine(cfg)
     await engine.initialize()
     try:
         assert engine._structured_ingestion is analyzed._service_ref()
@@ -114,7 +114,7 @@ async def test_engine_picks_up_drawing_method_from_methods_list() -> None:
             drawing,
         ],
     )
-    engine = RagEngine(cfg)
+    engine = KnowledgeEngine(cfg)
     await engine.initialize()
     try:
         assert engine._drawing_ingestion is drawing._service_ref()
@@ -141,12 +141,12 @@ async def test_engine_routing_uses_method_accepts_when_method_present() -> None:
 
     fast_ingest = AsyncMock(side_effect=_async_source_factory(status="completed"))
 
-    from rfnry_rag.observability import NullSink as _ObsNullSink
-    from rfnry_rag.observability import Observability
-    from rfnry_rag.telemetry import NullTelemetrySink as _TelNullSink
-    from rfnry_rag.telemetry import Telemetry
+    from rfnry_knowledge.observability import NullSink as _ObsNullSink
+    from rfnry_knowledge.observability import Observability
+    from rfnry_knowledge.telemetry import NullTelemetrySink as _TelNullSink
+    from rfnry_knowledge.telemetry import Telemetry
 
-    engine = RagEngine.__new__(RagEngine)
+    engine = KnowledgeEngine.__new__(KnowledgeEngine)
     engine._initialized = True  # type: ignore[attr-defined]
     engine._drawing_ingestion = drawing_service  # type: ignore[attr-defined]
     engine._drawing_method = drawing_method  # type: ignore[attr-defined]
@@ -168,7 +168,7 @@ async def test_engine_routing_uses_method_accepts_when_method_present() -> None:
 
 
 def _async_source_factory(*, status: str, source_id: str = "src-1", file_hash: str = "h"):
-    from rfnry_rag.models import Source
+    from rfnry_knowledge.models import Source
 
     async def _return(*args: Any, **kwargs: Any) -> Source:
         sid = args[0] if args and isinstance(args[0], str) and not args[0].startswith("/") else source_id

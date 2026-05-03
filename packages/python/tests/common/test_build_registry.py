@@ -1,10 +1,10 @@
-from rfnry_rag.providers import (
+from rfnry_knowledge.providers import (
     AnthropicModelProvider,
-    GenerativeModelClient,
+    LLMClient,
     OpenAIModelProvider,
     build_registry,
 )
-from rfnry_rag.providers.registry import _build_client_options
+from rfnry_knowledge.providers.registry import _build_client_options
 
 
 def _openai(api_key: str = "sk-test", model: str = "gpt-4o") -> OpenAIModelProvider:
@@ -24,7 +24,7 @@ def test_build_client_options_includes_generation_params():
 
 
 def test_build_registry_primary_only():
-    client = GenerativeModelClient(provider=_openai(), max_tokens=8192, temperature=0.5)
+    client = LLMClient(provider=_openai(), max_tokens=8192, temperature=0.5)
     registry = build_registry(client)
     from baml_py import ClientRegistry
 
@@ -32,7 +32,7 @@ def test_build_registry_primary_only():
 
 
 def test_build_registry_with_fallback():
-    client = GenerativeModelClient(
+    client = LLMClient(
         provider=_anthropic(),
         fallback=_openai(api_key="oai-test"),
         strategy="fallback",
@@ -48,7 +48,7 @@ def test_build_registry_with_fallback():
 def test_build_registry_applies_same_generation_params_to_fallback(monkeypatch):
     captured_options = []
 
-    from rfnry_rag.providers import registry as lm_module
+    from rfnry_knowledge.providers import registry as lm_module
 
     original = lm_module._build_client_options
 
@@ -64,7 +64,7 @@ def test_build_registry_applies_same_generation_params_to_fallback(monkeypatch):
 
     monkeypatch.setattr(lm_module, "_build_client_options", spy)
 
-    client = GenerativeModelClient(
+    client = LLMClient(
         provider=_anthropic(),
         fallback=_openai(api_key="oai-test"),
         strategy="fallback",
@@ -83,19 +83,19 @@ def test_build_registry_applies_same_generation_params_to_fallback(monkeypatch):
 
 
 def test_generative_model_client_default_timeout():
-    client = GenerativeModelClient(provider=_openai(api_key="k", model="m"))
+    client = LLMClient(provider=_openai(api_key="k", model="m"))
     assert client.timeout_seconds == 60
 
 
 def test_generative_model_client_rejects_non_positive_timeout():
     import pytest
 
-    from rfnry_rag.exceptions import ConfigurationError
+    from rfnry_knowledge.exceptions import ConfigurationError
 
     with pytest.raises(ConfigurationError, match="timeout"):
-        GenerativeModelClient(provider=_openai(api_key="k", model="m"), timeout_seconds=0)
+        LLMClient(provider=_openai(api_key="k", model="m"), timeout_seconds=0)
     with pytest.raises(ConfigurationError, match="timeout"):
-        GenerativeModelClient(provider=_openai(api_key="k", model="m"), timeout_seconds=-5)
+        LLMClient(provider=_openai(api_key="k", model="m"), timeout_seconds=-5)
 
 
 def test_build_client_options_includes_timeout():

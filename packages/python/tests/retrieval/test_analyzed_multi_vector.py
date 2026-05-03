@@ -6,12 +6,12 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 
-from rfnry_rag.ingestion.analyze.models import (
+from rfnry_knowledge.ingestion.analyze.models import (
     DiscoveredEntity,
     DiscoveredTable,
     PageAnalysis,
 )
-from rfnry_rag.models import Source
+from rfnry_knowledge.models import Source
 
 
 def _serialize_page_for_test(pa: PageAnalysis) -> dict:
@@ -38,8 +38,8 @@ async def fake_analyzed_service(tmp_path):
     Seeds 2 pages of PageAnalysis: page 1 has a table with 3 rows + raw_text
     "RAW_PAGE_1_CONTENT", page 2 has raw_text "RAW_PAGE_2_CONTENT".
     """
-    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
-    from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
     captured: dict = {"upserts": [], "method_calls": []}
 
@@ -131,7 +131,7 @@ async def fake_analyzed_service(tmp_path):
         },
     )
     await store.create_source(source)
-    # Seed page analyses into rag_page_analyses table
+    # Seed page analyses into knowledge_page_analyses table
     await store.upsert_page_analyses(
         source_id,
         [{"page_number": pa.page_number, "data": _serialize_page_for_test(pa)} for pa in page_analyses],

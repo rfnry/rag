@@ -18,13 +18,13 @@ from _recording import (
     RecordingTelemetrySink as TelRecordingSink,
 )
 
-from rfnry_rag.config import RagEngineConfig, RoutingConfig
-from rfnry_rag.config.routing import QueryMode
-from rfnry_rag.generation.models import Clarification, QueryResult
-from rfnry_rag.models import Source
-from rfnry_rag.observability import Observability
-from rfnry_rag.server import RagEngine
-from rfnry_rag.telemetry import (
+from rfnry_knowledge.config import KnowledgeEngineConfig, RoutingConfig
+from rfnry_knowledge.config.routing import QueryMode
+from rfnry_knowledge.generation.models import Clarification, QueryResult
+from rfnry_knowledge.knowledge.engine import KnowledgeEngine
+from rfnry_knowledge.models import Source
+from rfnry_knowledge.observability import Observability
+from rfnry_knowledge.telemetry import (
     IngestTelemetryRow,
     QueryTelemetryRow,
     Telemetry,
@@ -44,11 +44,11 @@ def _build_engine(
     routing: RoutingConfig | None = None,
     query_result: QueryResult | None = None,
     raise_exc: BaseException | None = None,
-) -> RagEngine:
-    config = MagicMock(spec=RagEngineConfig)
+) -> KnowledgeEngine:
+    config = MagicMock(spec=KnowledgeEngineConfig)
     config.retrieval = SimpleNamespace(history_window=3)
     config.routing = routing or RoutingConfig(mode=QueryMode.INDEXED)
-    engine = RagEngine.__new__(RagEngine)
+    engine = KnowledgeEngine.__new__(KnowledgeEngine)
     engine._config = config
     engine._observability = Observability(sink=obs_sink)
     engine._telemetry = Telemetry(sink=tel_sink)
@@ -327,8 +327,8 @@ async def test_auto_mode_emits_routing_decision_event_indexed() -> None:
 
 
 async def test_record_skip_emits_enrichment_skipped_event() -> None:
-    from rfnry_rag.ingestion.notes import record_skip
-    from rfnry_rag.observability.context import _reset_obs, _set_obs
+    from rfnry_knowledge.ingestion.notes import record_skip
+    from rfnry_knowledge.observability.context import _reset_obs, _set_obs
 
     obs_sink = RecordingSink()
     obs_token = _set_obs(Observability(sink=obs_sink))
@@ -353,8 +353,8 @@ async def test_record_skip_emits_enrichment_skipped_event() -> None:
 
 
 async def test_record_skip_emits_vision_page_skipped_when_page_number_set() -> None:
-    from rfnry_rag.ingestion.notes import record_skip
-    from rfnry_rag.observability.context import _reset_obs, _set_obs
+    from rfnry_knowledge.ingestion.notes import record_skip
+    from rfnry_knowledge.observability.context import _reset_obs, _set_obs
 
     obs_sink = RecordingSink()
     obs_token = _set_obs(Observability(sink=obs_sink))
@@ -378,7 +378,7 @@ async def test_record_skip_emits_vision_page_skipped_when_page_number_set() -> N
 
 
 async def test_record_skip_no_op_outside_obs_context() -> None:
-    from rfnry_rag.ingestion.notes import record_skip
+    from rfnry_knowledge.ingestion.notes import record_skip
 
     notes: list[str] = []
     await record_skip(notes, step="x", level="info", reason="y")
@@ -386,8 +386,8 @@ async def test_record_skip_no_op_outside_obs_context() -> None:
 
 
 async def test_telemetry_persists_via_metadata_store(tmp_path) -> None:
-    from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
-    from rfnry_rag.telemetry import SqlAlchemyTelemetrySink
+    from rfnry_knowledge.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+    from rfnry_knowledge.telemetry import SqlAlchemyTelemetrySink
 
     store = SQLAlchemyMetadataStore(f"sqlite:///{tmp_path}/m.db")
     await store.initialize()

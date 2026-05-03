@@ -5,8 +5,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
-from rfnry_rag.telemetry import (
+from rfnry_knowledge.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_knowledge.telemetry import (
     IngestTelemetryRow,
     JsonlStderrTelemetrySink,
     JsonlTelemetrySink,
@@ -17,7 +17,7 @@ from rfnry_rag.telemetry import (
     Telemetry,
     TelemetrySink,
 )
-from rfnry_rag.telemetry.context import (
+from rfnry_knowledge.telemetry.context import (
     _reset_row,
     _set_row,
     add_llm_usage,

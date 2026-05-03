@@ -9,14 +9,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from rfnry_rag.config import IngestionConfig, RagEngineConfig, RetrievalConfig
-from rfnry_rag.ingestion.methods.document import DocumentIngestion
-from rfnry_rag.ingestion.methods.graph import GraphIngestion
-from rfnry_rag.ingestion.methods.vector import VectorIngestion
-from rfnry_rag.retrieval.methods.document import DocumentRetrieval
-from rfnry_rag.retrieval.methods.graph import GraphRetrieval
-from rfnry_rag.retrieval.methods.vector import VectorRetrieval
-from rfnry_rag.server import RagEngine
+from rfnry_knowledge.config import IngestionConfig, KnowledgeEngineConfig, RetrievalConfig
+from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
+from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
+from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.knowledge.engine import KnowledgeEngine
+from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval
+from rfnry_knowledge.retrieval.methods.graph import GraphRetrieval
+from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
 
 
 def _make_vector_store(collections: list[str]) -> MagicMock:
@@ -43,8 +43,8 @@ def _make_embeddings() -> MagicMock:
     return embeddings
 
 
-def _vector_only_config(vector_store, embeddings) -> RagEngineConfig:
-    return RagEngineConfig(
+def _vector_only_config(vector_store, embeddings) -> KnowledgeEngineConfig:
+    return KnowledgeEngineConfig(
         ingestion=IngestionConfig(
             methods=[VectorIngestion(store=vector_store, embeddings=embeddings)],
         ),
@@ -56,7 +56,7 @@ def _vector_only_config(vector_store, embeddings) -> RagEngineConfig:
 async def test_initialize_populates_both_maps_for_every_collection():
     vector_store = _make_vector_store(["a", "b", "c"])
     embeddings = _make_embeddings()
-    engine = RagEngine(_vector_only_config(vector_store, embeddings))
+    engine = KnowledgeEngine(_vector_only_config(vector_store, embeddings))
     await engine.initialize()
 
     assert set(engine._retrieval_by_collection.keys()) == {"a", "b", "c"}
@@ -67,7 +67,7 @@ async def test_initialize_populates_both_maps_for_every_collection():
 async def test_get_ingestion_raises_on_unknown_collection():
     vector_store = _make_vector_store(["a"])
     embeddings = _make_embeddings()
-    engine = RagEngine(_vector_only_config(vector_store, embeddings))
+    engine = KnowledgeEngine(_vector_only_config(vector_store, embeddings))
     await engine.initialize()
 
     with pytest.raises(ValueError, match="unknown collection"):
@@ -78,7 +78,7 @@ async def test_get_ingestion_raises_on_unknown_collection():
 async def test_get_retrieval_raises_on_unknown_collection():
     vector_store = _make_vector_store(["a"])
     embeddings = _make_embeddings()
-    engine = RagEngine(_vector_only_config(vector_store, embeddings))
+    engine = KnowledgeEngine(_vector_only_config(vector_store, embeddings))
     await engine.initialize()
 
     with pytest.raises(ValueError, match="unknown collection"):
@@ -89,7 +89,7 @@ async def test_get_retrieval_raises_on_unknown_collection():
 async def test_non_default_collection_uses_scoped_store():
     vector_store = _make_vector_store(["a", "b"])
     embeddings = _make_embeddings()
-    engine = RagEngine(_vector_only_config(vector_store, embeddings))
+    engine = KnowledgeEngine(_vector_only_config(vector_store, embeddings))
     await engine.initialize()
 
     vector_store.scoped.assert_called_with("b")
@@ -99,7 +99,7 @@ async def test_non_default_collection_uses_scoped_store():
 async def test_default_collection_uses_unscoped_default_services():
     vector_store = _make_vector_store(["a"])
     embeddings = _make_embeddings()
-    engine = RagEngine(_vector_only_config(vector_store, embeddings))
+    engine = KnowledgeEngine(_vector_only_config(vector_store, embeddings))
     await engine.initialize()
 
     assert engine._ingestion_by_collection["a"] is engine._ingestion_service
@@ -111,7 +111,7 @@ async def test_cache_invalidation_fans_out_to_all_scoped_collections():
     caches on every scoped collection, not just the default."""
     vector_store = _make_vector_store(["a", "b", "c"])
     embeddings = _make_embeddings()
-    engine = RagEngine(_vector_only_config(vector_store, embeddings))
+    engine = KnowledgeEngine(_vector_only_config(vector_store, embeddings))
     await engine.initialize()
 
     invalidated: list[tuple[int, str | None]] = []
@@ -141,15 +141,15 @@ def _make_metadata_store() -> MagicMock:
     return store
 
 
-async def _build_multi_collection_engine() -> RagEngine:
+async def _build_multi_collection_engine() -> KnowledgeEngine:
     vector_store = _make_vector_store(["primary", "secondary"])
     embeddings = _make_embeddings()
     metadata_store = _make_metadata_store()
 
-    from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
+    from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
 
-    engine = RagEngine(
-        RagEngineConfig(
+    engine = KnowledgeEngine(
+        KnowledgeEngineConfig(
             metadata_store=metadata_store,
             ingestion=IngestionConfig(
                 methods=[
@@ -165,21 +165,21 @@ async def _build_multi_collection_engine() -> RagEngine:
 
 
 async def test_ingest_structured_path_rejects_non_default_collection(tmp_path) -> None:
-    rag = await _build_multi_collection_engine()
+    engine = await _build_multi_collection_engine()
     xml_file = tmp_path / "sample.xml"
     xml_file.write_text("<root/>")
     with pytest.raises(ValueError, match="structured ingestion does not support collection routing"):
-        await rag.ingest(xml_file, collection="secondary")
-    await rag.shutdown()
+        await engine.ingest(xml_file, collection="secondary")
+    await engine.shutdown()
 
 
 async def test_analyze_rejects_non_default_collection(tmp_path) -> None:
-    rag = await _build_multi_collection_engine()
+    engine = await _build_multi_collection_engine()
     xml_file = tmp_path / "sample.xml"
     xml_file.write_text("<root/>")
     with pytest.raises(ValueError, match="structured ingestion does not support collection routing"):
-        await rag.analyze(xml_file, collection="secondary")
-    await rag.shutdown()
+        await engine.analyze(xml_file, collection="secondary")
+    await engine.shutdown()
 
 
 def _make_graph_store() -> MagicMock:
@@ -193,7 +193,7 @@ def _make_graph_store() -> MagicMock:
     return store
 
 
-async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
+async def _build_engine_with_all_methods(collections: list[str]) -> KnowledgeEngine:
     vector_store = _make_vector_store(collections)
     embeddings = _make_embeddings()
     metadata_store = _make_metadata_store()
@@ -204,15 +204,15 @@ async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
     lm_client = MagicMock()
 
     _patches = [
-        patch("rfnry_rag.ingestion.methods.graph.build_registry", return_value=MagicMock()),
-        patch("rfnry_rag.ingestion.analyze.service.build_registry", return_value=MagicMock()),
-        patch("rfnry_rag.server.build_registry", return_value=MagicMock()),
+        patch("rfnry_knowledge.ingestion.methods.graph.build_registry", return_value=MagicMock()),
+        patch("rfnry_knowledge.ingestion.analyze.service.build_registry", return_value=MagicMock()),
+        patch("rfnry_knowledge.knowledge.engine.build_registry", return_value=MagicMock()),
     ]
     for p in _patches:
         p.start()
 
-    engine = RagEngine(
-        RagEngineConfig(
+    engine = KnowledgeEngine(
+        KnowledgeEngineConfig(
             metadata_store=metadata_store,
             ingestion=IngestionConfig(
                 methods=[
@@ -240,10 +240,10 @@ async def _build_engine_with_all_methods(collections: list[str]) -> RagEngine:
 
 async def test_scoped_ingestion_pipeline_includes_graph(tmp_path) -> None:
     """Non-default collection must get GraphIngestion when configured."""
-    rag = await _build_engine_with_all_methods(collections=["primary", "secondary"])
-    secondary_svc = rag._ingestion_by_collection["secondary"]
+    engine = await _build_engine_with_all_methods(collections=["primary", "secondary"])
+    secondary_svc = engine._ingestion_by_collection["secondary"]
     method_types = {type(m).__name__ for m in secondary_svc._ingestion_methods}
     assert "VectorIngestion" in method_types
     assert "DocumentIngestion" in method_types
     assert "GraphIngestion" in method_types
-    await rag.shutdown()
+    await engine.shutdown()

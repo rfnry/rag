@@ -1,6 +1,6 @@
 import pytest
 
-from rfnry_rag.concurrency import run_concurrent
+from rfnry_knowledge.common.concurrency import run_concurrent
 
 
 async def test_run_concurrent_rejects_out_of_range_concurrency() -> None:

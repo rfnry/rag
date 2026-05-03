@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
+from rfnry_knowledge.exceptions import ConfigurationError
+from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
 
 
 def test_wrapper_default_is_5() -> None:
@@ -51,7 +51,7 @@ def test_wrapper_dpi_accepts_boundary_values() -> None:
 
 def test_service_stores_configured_concurrency() -> None:
     """AnalyzedIngestionService.__init__ exposes _analyze_concurrency matching the arg."""
-    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 
     svc = AnalyzedIngestionService(
         embeddings=AsyncMock(),
@@ -64,7 +64,7 @@ def test_service_stores_configured_concurrency() -> None:
 
 
 def test_service_default_concurrency_is_5() -> None:
-    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 
     svc = AnalyzedIngestionService(
         embeddings=AsyncMock(),

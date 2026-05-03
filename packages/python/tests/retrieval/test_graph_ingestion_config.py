@@ -2,8 +2,8 @@
 
 import pytest
 
-from rfnry_rag.config.graph import GraphIngestionConfig
-from rfnry_rag.exceptions import ConfigurationError
+from rfnry_knowledge.config.graph import GraphIngestionConfig
+from rfnry_knowledge.exceptions import ConfigurationError
 
 
 def test_default_config_has_empty_vocabularies() -> None:
@@ -54,8 +54,8 @@ def test_entity_type_patterns_must_be_compilable_regex() -> None:
 def test_graph_config_carried_by_analyzed_method_in_ingestion_config() -> None:
     from unittest.mock import MagicMock
 
-    from rfnry_rag.config import IngestionConfig
-    from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
+    from rfnry_knowledge.config import IngestionConfig
+    from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
 
     method = AnalyzedIngestion(
         store=MagicMock(),
@@ -74,7 +74,7 @@ def test_graph_config_carried_by_analyzed_method_in_ingestion_config() -> None:
 def test_analyzed_method_graph_config_unset_by_default() -> None:
     from unittest.mock import MagicMock
 
-    from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
+    from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
 
     method = AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock())
     assert method._graph_config is None  # opt-in

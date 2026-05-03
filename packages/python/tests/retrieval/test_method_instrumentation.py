@@ -10,15 +10,15 @@ from unittest.mock import AsyncMock
 import pytest
 from _recording import RecordingObservabilitySink as RecordingSink
 
-from rfnry_rag.ingestion.methods.document import DocumentIngestion
-from rfnry_rag.ingestion.methods.vector import VectorIngestion
-from rfnry_rag.models import VectorResult
-from rfnry_rag.observability import Observability
-from rfnry_rag.observability.context import _reset_obs, _set_obs
-from rfnry_rag.retrieval.methods.document import DocumentRetrieval
-from rfnry_rag.retrieval.methods.vector import VectorRetrieval
-from rfnry_rag.telemetry import IngestTelemetryRow, QueryTelemetryRow
-from rfnry_rag.telemetry.context import _reset_row, _set_row
+from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
+from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.models import VectorResult
+from rfnry_knowledge.observability import Observability
+from rfnry_knowledge.observability.context import _reset_obs, _set_obs
+from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval
+from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.telemetry import IngestTelemetryRow, QueryTelemetryRow
+from rfnry_knowledge.telemetry.context import _reset_row, _set_row
 
 
 def _query_row() -> QueryTelemetryRow:
@@ -138,10 +138,10 @@ async def test_document_ingestion_emits_method_success() -> None:
 async def test_ingest_row_counts_contextual_chunk_calls() -> None:
     from unittest.mock import patch
 
-    from rfnry_rag.config import ContextualChunkConfig
-    from rfnry_rag.ingestion.chunk.contextualize import contextualize_chunks_with_llm
-    from rfnry_rag.ingestion.models import ChunkedContent
-    from rfnry_rag.providers import AnthropicModelProvider, GenerativeModelClient
+    from rfnry_knowledge.config import ContextualChunkConfig
+    from rfnry_knowledge.ingestion.chunk.contextualize import contextualize_chunks_with_llm
+    from rfnry_knowledge.ingestion.models import ChunkedContent
+    from rfnry_knowledge.providers import AnthropicModelProvider, LLMClient
 
     obs_token = _set_obs(Observability(sink=RecordingSink()))
     row = _ingest_row()
@@ -150,13 +150,10 @@ async def test_ingest_row_counts_contextual_chunk_calls() -> None:
     async def fake_create(**_kwargs):
         return SimpleNamespace(content=[SimpleNamespace(text="ctx")])
 
-    chunks = [
-        ChunkedContent(content=f"passage_{i}", chunk_index=i, contextualized=f"passage_{i}")
-        for i in range(3)
-    ]
+    chunks = [ChunkedContent(content=f"passage_{i}", chunk_index=i, contextualized=f"passage_{i}") for i in range(3)]
     cfg = ContextualChunkConfig(
         enabled=True,
-        lm_client=GenerativeModelClient(provider=AnthropicModelProvider(api_key="k", model="m")),
+        lm_client=LLMClient(provider=AnthropicModelProvider(api_key="k", model="m")),
     )
 
     try:
@@ -164,9 +161,7 @@ async def test_ingest_row_counts_contextual_chunk_calls() -> None:
             patch("anthropic.AsyncAnthropic") as mock_cls,
             patch("anthropic.types.TextBlock", new=SimpleNamespace),
         ):
-            fake_client = SimpleNamespace(
-                messages=SimpleNamespace(create=AsyncMock(side_effect=fake_create))
-            )
+            fake_client = SimpleNamespace(messages=SimpleNamespace(create=AsyncMock(side_effect=fake_create)))
             mock_cls.return_value = fake_client
             await contextualize_chunks_with_llm(chunks, document_text="doc", config=cfg)
         assert row.contextual_chunk_calls == 3
@@ -180,10 +175,10 @@ async def test_ingest_row_counts_contextual_chunk_calls() -> None:
 async def test_ingest_row_marks_contextual_chunk_skipped_on_oversized() -> None:
     from unittest.mock import patch
 
-    from rfnry_rag.config import ContextualChunkConfig, IngestionConfig
-    from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
-    from rfnry_rag.ingestion.chunk.service import IngestionService
-    from rfnry_rag.providers import AnthropicModelProvider, GenerativeModelClient
+    from rfnry_knowledge.config import ContextualChunkConfig, IngestionConfig
+    from rfnry_knowledge.ingestion.chunk.chunker import SemanticChunker
+    from rfnry_knowledge.ingestion.chunk.service import IngestionService
+    from rfnry_knowledge.providers import AnthropicModelProvider, LLMClient
 
     obs_token = _set_obs(Observability(sink=RecordingSink()))
     row = _ingest_row()
@@ -194,7 +189,7 @@ async def test_ingest_row_marks_contextual_chunk_skipped_on_oversized() -> None:
 
     contextual_cfg = ContextualChunkConfig(
         enabled=True,
-        lm_client=GenerativeModelClient(
+        lm_client=LLMClient(
             provider=AnthropicModelProvider(api_key="k", model="m", context_size=32_000),
         ),
         max_context_tokens=100,
@@ -223,21 +218,21 @@ async def test_ingest_row_marks_contextual_chunk_skipped_on_oversized() -> None:
 async def test_ingest_row_counts_document_expansion_calls_and_failures() -> None:
     from unittest.mock import patch
 
-    from rfnry_rag.config import DocumentExpansionConfig
-    from rfnry_rag.ingestion.chunk.expand import expand_chunks
-    from rfnry_rag.ingestion.models import ChunkedContent
+    from rfnry_knowledge.config import DocumentExpansionConfig
+    from rfnry_knowledge.ingestion.chunk.expand import expand_chunks
+    from rfnry_knowledge.ingestion.models import ChunkedContent
 
     obs_token = _set_obs(Observability(sink=RecordingSink()))
     row = _ingest_row()
     row_token = _set_row(row)
 
-    from rfnry_rag.providers import AnthropicModelProvider, GenerativeModelClient
+    from rfnry_knowledge.providers import AnthropicModelProvider, LLMClient
 
     fake_registry = object()
     cfg = DocumentExpansionConfig(
         enabled=True,
         num_queries=3,
-        lm_client=GenerativeModelClient(provider=AnthropicModelProvider(api_key="k", model="m")),
+        lm_client=LLMClient(provider=AnthropicModelProvider(api_key="k", model="m")),
     )
 
     chunks = [ChunkedContent(content=f"p{i}", chunk_index=i) for i in range(4)]
@@ -250,7 +245,7 @@ async def test_ingest_row_counts_document_expansion_calls_and_failures() -> None
         return SimpleNamespace(queries=[f"q{call_count['n']}_a", f"q{call_count['n']}_b"])
 
     try:
-        with patch("rfnry_rag.ingestion.chunk.expand.instrument_baml_call", side_effect=selective_baml):
+        with patch("rfnry_knowledge.ingestion.chunk.expand.instrument_baml_call", side_effect=selective_baml):
             await expand_chunks(chunks, cfg, fake_registry, notes=[])  # type: ignore[arg-type]
         assert row.document_expansion_calls == 3
         assert row.document_expansion_chunk_failures == 1
@@ -263,7 +258,7 @@ async def test_ingest_row_counts_document_expansion_calls_and_failures() -> None
 async def test_ingest_row_counts_vision_pages_analyzed_and_skipped(tmp_path) -> None:
     from unittest.mock import patch
 
-    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 
     obs_token = _set_obs(Observability(sink=RecordingSink()))
     row = _ingest_row()
@@ -335,19 +330,19 @@ async def test_ingest_row_counts_vision_pages_analyzed_and_skipped(tmp_path) -> 
     try:
         with (
             patch(
-                "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
+                "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
                 return_value=iter(pages),
             ),
             patch(
-                "rfnry_rag.ingestion.analyze.service.compute_file_hash",
+                "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
                 return_value="hashv",
             ),
             patch(
-                "rfnry_rag.ingestion.analyze.service.asyncio.to_thread",
+                "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
                 new_callable=AsyncMock,
                 side_effect=lambda fn, *args: fn(*args),
             ),
-            patch("rfnry_rag.baml.baml_client.async_client.b") as mock_b,
+            patch("rfnry_knowledge.baml.baml_client.async_client.b") as mock_b,
         ):
             mock_b.AnalyzePage = AsyncMock(side_effect=selective_baml)
             await svc.analyze(file_path=pdf)
@@ -362,7 +357,7 @@ async def test_ingest_row_counts_vision_pages_analyzed_and_skipped(tmp_path) -> 
 async def test_ingest_row_marks_graph_extraction_failed() -> None:
     from unittest.mock import patch
 
-    from rfnry_rag.ingestion.methods.graph import GraphIngestion
+    from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
 
     obs_token = _set_obs(Observability(sink=RecordingSink()))
     row = _ingest_row()
@@ -376,7 +371,7 @@ async def test_ingest_row_marks_graph_extraction_failed() -> None:
         raise RuntimeError("graph_extraction_blew_up")
 
     try:
-        with patch("rfnry_rag.ingestion.methods.graph.instrument_baml_call", side_effect=boom):
+        with patch("rfnry_knowledge.ingestion.methods.graph.instrument_baml_call", side_effect=boom):
             await method.ingest(
                 source_id="s",
                 knowledge_id="k",
@@ -412,7 +407,7 @@ async def test_vector_ingestion_emits_method_event_and_records_duration() -> Non
         model="m",
     )
 
-    from rfnry_rag.ingestion.models import ChunkedContent
+    from rfnry_knowledge.ingestion.models import ChunkedContent
 
     chunk = ChunkedContent(content="body", chunk_index=0)
 

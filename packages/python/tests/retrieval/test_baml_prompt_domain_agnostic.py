@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-_RETRIEVAL_BAML_ROOT = Path("src/rfnry_rag/baml/baml_src")
-_REASONING_BAML_ROOT = Path("src/rfnry_rag/reasoning/baml/baml_src")
+_RETRIEVAL_BAML_ROOT = Path("src/rfnry_knowledge/baml/baml_src")
+_REASONING_BAML_ROOT = Path("src/rfnry_knowledge/reasoning/baml/baml_src")
 _BAML_ROOTS: list[Path] = [_RETRIEVAL_BAML_ROOT, _REASONING_BAML_ROOT]
 
 # Files excluded from the domain-agnostic scan.

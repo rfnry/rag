@@ -3,8 +3,8 @@ a helpful error, not silently ignored."""
 
 import pytest
 
-from rfnry_rag.cli.config import _validate_toml_keys
-from rfnry_rag.cli.constants import ConfigError
+from rfnry_knowledge.cli.config import _validate_toml_keys
+from rfnry_knowledge.cli.constants import ConfigError
 
 
 def test_validate_toml_keys_accepts_known_keys() -> None:

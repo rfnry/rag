@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
 
 
 def _result(point_id: str, content: str = "content") -> SimpleNamespace:

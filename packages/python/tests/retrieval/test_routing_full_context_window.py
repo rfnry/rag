@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from rfnry_rag.config import GenerationConfig, RagEngineConfig, RetrievalConfig, RoutingConfig
-from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.providers import AnthropicModelProvider, GenerativeModelClient
-from rfnry_rag.server import (
+from rfnry_knowledge.config import GenerationConfig, KnowledgeEngineConfig, RetrievalConfig, RoutingConfig
+from rfnry_knowledge.exceptions import ConfigurationError
+from rfnry_knowledge.knowledge.engine import (
     _FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS,
-    RagEngine,
+    KnowledgeEngine,
 )
+from rfnry_knowledge.providers import AnthropicModelProvider, LLMClient
 
 
 def _make_engine_for_validation(
@@ -17,11 +17,9 @@ def _make_engine_for_validation(
     full_context_threshold: int,
     max_tokens: int = 4096,
     has_lm_client: bool = True,
-) -> RagEngine:
+) -> KnowledgeEngine:
     provider = AnthropicModelProvider(api_key="k", model="claude-test", context_size=context_size)
-    lm_client: GenerativeModelClient | None = (
-        GenerativeModelClient(provider=provider, max_tokens=max_tokens) if has_lm_client else None
-    )
+    lm_client: LLMClient | None = LLMClient(provider=provider, max_tokens=max_tokens) if has_lm_client else None
     generation = GenerationConfig(lm_client=lm_client, grounding_enabled=False)
 
     class _StubRetrievalMethod:
@@ -30,8 +28,8 @@ def _make_engine_for_validation(
 
     retrieval = RetrievalConfig(methods=[_StubRetrievalMethod()])  # type: ignore[list-item]
     routing = RoutingConfig(full_context_threshold=full_context_threshold)
-    cfg = RagEngineConfig(retrieval=retrieval, generation=generation, routing=routing)
-    return RagEngine(cfg)
+    cfg = KnowledgeEngineConfig(retrieval=retrieval, generation=generation, routing=routing)
+    return KnowledgeEngine(cfg)
 
 
 def test_provider_context_size_must_be_positive_when_set() -> None:

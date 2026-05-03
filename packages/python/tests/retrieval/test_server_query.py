@@ -3,14 +3,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rfnry_rag.config import RagEngineConfig, RoutingConfig
-from rfnry_rag.generation.models import QueryResult, StreamEvent
-from rfnry_rag.models import RetrievedChunk
-from rfnry_rag.observability import NullSink as _ObsNullSink
-from rfnry_rag.observability import Observability
-from rfnry_rag.server import RagEngine
-from rfnry_rag.telemetry import NullTelemetrySink as _TelNullSink
-from rfnry_rag.telemetry import Telemetry
+from rfnry_knowledge.config import KnowledgeEngineConfig, RoutingConfig
+from rfnry_knowledge.generation.models import QueryResult, StreamEvent
+from rfnry_knowledge.knowledge.engine import KnowledgeEngine
+from rfnry_knowledge.models import RetrievedChunk
+from rfnry_knowledge.observability import NullSink as _ObsNullSink
+from rfnry_knowledge.observability import Observability
+from rfnry_knowledge.telemetry import NullTelemetrySink as _TelNullSink
+from rfnry_knowledge.telemetry import Telemetry
 
 
 def _chunk(chunk_id: str, score: float = 0.9) -> RetrievedChunk:
@@ -21,11 +21,11 @@ def _query_result(answer: str = "The answer is 42.") -> QueryResult:
     return QueryResult(answer=answer, sources=[], grounded=True, confidence=0.9)
 
 
-def _make_server() -> RagEngine:
-    config = MagicMock(spec=RagEngineConfig)
+def _make_server() -> KnowledgeEngine:
+    config = MagicMock(spec=KnowledgeEngineConfig)
     config.retrieval = SimpleNamespace(history_window=3)
     config.routing = RoutingConfig()
-    server = RagEngine.__new__(RagEngine)
+    server = KnowledgeEngine.__new__(KnowledgeEngine)
     server._config = config
     server._observability = Observability(sink=_ObsNullSink())
     server._telemetry = Telemetry(sink=_TelNullSink())
@@ -69,7 +69,7 @@ class TestServerQuery:
         assert "what is X?" in retrieval_query
 
     async def test_query_without_generation_raises(self):
-        from rfnry_rag.exceptions import ConfigurationError
+        from rfnry_knowledge.exceptions import ConfigurationError
 
         server = _make_server()
         server._generation_service = None
@@ -162,7 +162,7 @@ class TestServerQueryStream:
         assert events[1].type == "sources"
 
     async def test_query_stream_without_generation_raises(self):
-        from rfnry_rag.exceptions import ConfigurationError
+        from rfnry_knowledge.exceptions import ConfigurationError
 
         server = _make_server()
         server._generation_service = None
@@ -227,14 +227,14 @@ class TestMergeRetrievalResults:
     semantics (RRF) are exercised in test_fusion.py::TestMergeRetrievalResults."""
 
     def test_dedup_by_chunk_id(self):
-        merged = RagEngine._merge_retrieval_results(
+        merged = KnowledgeEngine._merge_retrieval_results(
             [_chunk("a", 0.9)],
             [_chunk("a", 0.5)],
         )
         assert len(merged) == 1
 
     def test_returns_all_unique_chunks(self):
-        merged = RagEngine._merge_retrieval_results(
+        merged = KnowledgeEngine._merge_retrieval_results(
             [_chunk("a", 0.04)],
             [_chunk("b", 0.9)],
         )

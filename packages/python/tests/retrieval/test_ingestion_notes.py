@@ -15,17 +15,15 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from rfnry_rag.ingestion.chunk.service import IngestionService
-from rfnry_rag.ingestion.methods.graph import GraphIngestion
-from rfnry_rag.ingestion.models import ChunkedContent
+from rfnry_knowledge.ingestion.chunk.service import IngestionService
+from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
+from rfnry_knowledge.ingestion.models import ChunkedContent
 
 
 def _service_chunker(contents: list[str]) -> MagicMock:
     chunker = MagicMock()
     chunker.chunk = MagicMock(
-        return_value=[
-            ChunkedContent(content=c, page_number=1, chunk_index=i) for i, c in enumerate(contents)
-        ]
+        return_value=[ChunkedContent(content=c, page_number=1, chunk_index=i) for i, c in enumerate(contents)]
     )
     return chunker
 
@@ -43,8 +41,8 @@ async def test_graph_ingestion_soft_fail_writes_note() -> None:
     lm_client = MagicMock()
     notes: list[str] = []
     with (
-        patch("rfnry_rag.ingestion.methods.graph.b") as mock_b,
-        patch("rfnry_rag.ingestion.methods.graph.build_registry") as mock_registry,
+        patch("rfnry_knowledge.ingestion.methods.graph.b") as mock_b,
+        patch("rfnry_knowledge.ingestion.methods.graph.build_registry") as mock_registry,
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(side_effect=RuntimeError("LLM down"))
         mock_registry.return_value = MagicMock()
@@ -70,8 +68,8 @@ async def test_graph_ingestion_no_note_when_notes_is_none() -> None:
     store = AsyncMock()
     lm_client = MagicMock()
     with (
-        patch("rfnry_rag.ingestion.methods.graph.b") as mock_b,
-        patch("rfnry_rag.ingestion.methods.graph.build_registry") as mock_registry,
+        patch("rfnry_knowledge.ingestion.methods.graph.b") as mock_b,
+        patch("rfnry_knowledge.ingestion.methods.graph.build_registry") as mock_registry,
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(side_effect=RuntimeError("LLM down"))
         mock_registry.return_value = MagicMock()
@@ -106,8 +104,8 @@ async def test_graph_clean_run_no_note() -> None:
     mock_result.page_type = "text"
     notes: list[str] = []
     with (
-        patch("rfnry_rag.ingestion.methods.graph.b") as mock_b,
-        patch("rfnry_rag.ingestion.methods.graph.build_registry") as mock_registry,
+        patch("rfnry_knowledge.ingestion.methods.graph.b") as mock_b,
+        patch("rfnry_knowledge.ingestion.methods.graph.build_registry") as mock_registry,
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(return_value=mock_result)
         mock_registry.return_value = MagicMock()
@@ -170,8 +168,8 @@ async def test_analyzed_method_soft_fail_writes_method_failed_note() -> None:
     """When a delegate method raises during the analyzed-pipeline ingest phase,
     the service catches the error, logs a warning, and appends a
     ``<method>:warn:method_failed(...)`` note to source.metadata."""
-    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
-    from rfnry_rag.models import Source
+    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.models import Source
 
     page_rows = [
         {
@@ -234,8 +232,8 @@ async def test_analyzed_method_soft_fail_writes_method_failed_note() -> None:
 
 async def test_analyzed_clean_pipeline_no_notes_no_metadata_write() -> None:
     """Clean analyzed ingest finishes without writing metadata (pre-Phase-A behavior)."""
-    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
-    from rfnry_rag.models import Source
+    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.models import Source
 
     page_rows = [
         {

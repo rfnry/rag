@@ -4,7 +4,7 @@ from sqlalchemy.dialects import sqlite
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.schema import ColumnDefault
 
-from rfnry_rag.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
+from rfnry_knowledge.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
 
 def test_render_default_literal_quotes_single_quote_string() -> None:
@@ -88,7 +88,7 @@ def test_migrate_source_does_not_contain_unquoted_fstring_default() -> None:
     not contain that raw pattern anymore."""
     from pathlib import Path
 
-    src = Path("src/rfnry_rag/stores/metadata/sqlalchemy.py").read_text()
+    src = Path("src/rfnry_knowledge/stores/metadata/sqlalchemy.py").read_text()
     # The old, unsafe pattern used bare interpolation inside literal quotes
     assert "f\" DEFAULT '{val}'\"" not in src
     assert "f\" DEFAULT '{val}'\"" not in src
@@ -96,14 +96,14 @@ def test_migrate_source_does_not_contain_unquoted_fstring_default() -> None:
 
 @pytest.mark.asyncio
 async def test_schema_version_table_populated_on_initialize(tmp_path) -> None:
-    """After initialize, rag_schema_meta contains the current version."""
-    from rfnry_rag.stores.metadata.sqlalchemy import _SCHEMA_VERSION
+    """After initialize, knowledge_schema_meta contains the current version."""
+    from rfnry_knowledge.stores.metadata.sqlalchemy import _SCHEMA_VERSION
 
     store = SQLAlchemyMetadataStore(f"sqlite:///{tmp_path}/m.db")
     await store.initialize()
 
     async with store._engine.connect() as conn:
-        result = await conn.execute(text("SELECT value FROM rag_schema_meta WHERE key = 'schema_version'"))
+        result = await conn.execute(text("SELECT value FROM knowledge_schema_meta WHERE key = 'schema_version'"))
         row = result.fetchone()
         assert row is not None
         assert row[0] == _SCHEMA_VERSION
@@ -114,14 +114,14 @@ async def test_schema_version_table_populated_on_initialize(tmp_path) -> None:
 @pytest.mark.asyncio
 async def test_schema_version_refuses_downgrade(tmp_path) -> None:
     """If the DB has a higher schema_version than code, initialize() must refuse."""
-    from rfnry_rag.stores.metadata.sqlalchemy import _SCHEMA_VERSION
+    from rfnry_knowledge.stores.metadata.sqlalchemy import _SCHEMA_VERSION
 
     store = SQLAlchemyMetadataStore(f"sqlite:///{tmp_path}/m.db")
     await store.initialize()
     # Poison the version row with a future value
     async with store._engine.begin() as conn:
         await conn.execute(
-            text("UPDATE rag_schema_meta SET value = :v WHERE key = 'schema_version'"),
+            text("UPDATE knowledge_schema_meta SET value = :v WHERE key = 'schema_version'"),
             {"v": _SCHEMA_VERSION + 99},
         )
     await store.shutdown()

@@ -1,7 +1,7 @@
 [project]
-name = "rfnry-rag"
+name = "rfnry-knowledge"
 version = "0.1.0"
-description = "rfnry/rag - retrieval-augmented generation"
+description = "rfnry/knowledge - retrieval-augmented generation"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
@@ -32,7 +32,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/rfnry/rag"
+Repository = "https://github.com/rfnry/knowledge"
 
 [project.optional-dependencies]
 dev = [
@@ -51,29 +51,29 @@ cli = [
 ]
 
 [project.scripts]
-rfnry-rag = "rfnry_rag.cli:main"
+rfnry-knowledge = "rfnry_knowledge.cli:main"
 
 [tool.mypy]
 python_version = "3.12"
 mypy_path = "src"
-exclude = ["src/rfnry_rag/baml/baml_client"]
+exclude = ["src/rfnry_knowledge/baml/baml_client"]
 ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-exclude = ["src/rfnry_rag/baml/baml_client"]
+exclude = ["src/rfnry_knowledge/baml/baml_client"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF022"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/rfnry_rag/__init__.py" = ["E402", "F401", "F403", "F811"]
-"src/rfnry_rag/cli.py" = ["F401"]
-"src/rfnry_rag/retrieval/__init__.py" = ["E402"]
-"src/rfnry_rag/retrieval/cli/__init__.py" = ["F401"]
-"src/rfnry_rag/reasoning/__init__.py" = ["E402"]
-"src/rfnry_rag/reasoning/cli/__init__.py" = ["F401"]
+"src/rfnry_knowledge/__init__.py" = ["E402", "F401", "F403", "F811"]
+"src/rfnry_knowledge/cli.py" = ["F401"]
+"src/rfnry_knowledge/retrieval/__init__.py" = ["E402"]
+"src/rfnry_knowledge/retrieval/cli/__init__.py" = ["F401"]
+"src/rfnry_knowledge/reasoning/__init__.py" = ["E402"]
+"src/rfnry_knowledge/reasoning/cli/__init__.py" = ["F401"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -87,16 +87,16 @@ check = "ruff check ."
 "check:fix" = "ruff check . --fix"
 typecheck = "mypy src/"
 test = "pytest"
-"test:cov" = "pytest --cov=rfnry_rag --cov-report=term-missing"
-"baml:generate" = "baml-cli generate --from src/rfnry_rag/baml/baml_src"
-"baml:test" = "baml test --from src/rfnry_rag/baml/baml_src"
+"test:cov" = "pytest --cov=rfnry_knowledge --cov-report=term-missing"
+"baml:generate" = "baml-cli generate --from src/rfnry_knowledge/baml/baml_src"
+"baml:test" = "baml test --from src/rfnry_knowledge/baml/baml_src"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/rfnry_rag"]
+packages = ["src/rfnry_knowledge"]
 
 [tool.hatch.build]
 exclude = ["**/test_*.py", "**/__pycache__", "**/*.pyc"]

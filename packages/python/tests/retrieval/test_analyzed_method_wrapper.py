@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
+from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
 
 
 def test_analyzed_method_exposes_protocol_attrs():

@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from rfnry_rag.retrieval.namespace import MethodNamespace
+from rfnry_knowledge.retrieval.namespace import MethodNamespace
 
 
 def _method(name: str) -> SimpleNamespace:

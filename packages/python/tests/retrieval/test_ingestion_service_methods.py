@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rfnry_rag.ingestion.chunk.service import IngestionService
+from rfnry_knowledge.ingestion.chunk.service import IngestionService
 
 
 def _mock_method(name: str, required: bool = True) -> SimpleNamespace:
@@ -125,7 +125,7 @@ async def test_ingest_text_empty_chunks_raises():
         chunker=chunker,
         ingestion_methods=[],
     )
-    from rfnry_rag.exceptions import EmptyDocumentError
+    from rfnry_knowledge.exceptions import EmptyDocumentError
 
     with pytest.raises(EmptyDocumentError):
         await service.ingest_text(content="Hello world")
@@ -210,7 +210,7 @@ async def test_ingest_without_methods(tmp_path):
 
 async def test_structured_ingestion_has_document_method():
     """AnalyzedIngestionService stores document method in ingestion_methods."""
-    from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 
     doc_method = SimpleNamespace(name="document", ingest=AsyncMock(), delete=AsyncMock())
     metadata_store = AsyncMock()

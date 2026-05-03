@@ -1,7 +1,7 @@
 """Structure-aware chunking: code blocks and tables survive as atomic units; headings populate section."""
 
-from rfnry_rag.ingestion.chunk.chunker import SemanticChunker
-from rfnry_rag.ingestion.models import ParsedPage
+from rfnry_knowledge.ingestion.chunk.chunker import SemanticChunker
+from rfnry_knowledge.ingestion.models import ParsedPage
 
 
 def test_code_fence_survives_as_single_chunk_when_under_size() -> None:

@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from rfnry_rag.observability import (
+from rfnry_knowledge.observability import (
     JsonlFileSink,
     JsonlStderrSink,
     MultiSink,
@@ -150,12 +150,12 @@ async def test_observability_default_sink_is_jsonl_stderr_under_pytest() -> None
 
 @pytest.mark.asyncio
 async def test_default_sink_factory_honors_format_env(monkeypatch) -> None:
-    monkeypatch.setenv("RFNRY_RAG_OBSERVABILITY_FORMAT", "pretty")
+    monkeypatch.setenv("KNWL_OBSERVABILITY_FORMAT", "pretty")
     monkeypatch.delenv("NO_COLOR", raising=False)
     sink = default_observability_sink()
     assert isinstance(sink, PrettyStderrSink)
 
-    monkeypatch.setenv("RFNRY_RAG_OBSERVABILITY_FORMAT", "json")
+    monkeypatch.setenv("KNWL_OBSERVABILITY_FORMAT", "json")
     assert isinstance(default_observability_sink(), JsonlStderrSink)
 
 

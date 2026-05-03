@@ -6,14 +6,14 @@ Shutdown order (correct): vector -> graph -> document -> metadata
 
 from unittest.mock import AsyncMock, MagicMock
 
-from rfnry_rag.config import IngestionConfig, RagEngineConfig, RetrievalConfig
-from rfnry_rag.ingestion.methods.document import DocumentIngestion
-from rfnry_rag.ingestion.methods.graph import GraphIngestion
-from rfnry_rag.ingestion.methods.vector import VectorIngestion
-from rfnry_rag.retrieval.methods.document import DocumentRetrieval
-from rfnry_rag.retrieval.methods.graph import GraphRetrieval
-from rfnry_rag.retrieval.methods.vector import VectorRetrieval
-from rfnry_rag.server import RagEngine
+from rfnry_knowledge.config import IngestionConfig, KnowledgeEngineConfig, RetrievalConfig
+from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
+from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
+from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.knowledge.engine import KnowledgeEngine
+from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval
+from rfnry_knowledge.retrieval.methods.graph import GraphRetrieval
+from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
 
 
 async def test_shutdown_tears_down_in_reverse_init_order() -> None:
@@ -41,7 +41,7 @@ async def test_shutdown_tears_down_in_reverse_init_order() -> None:
     embeddings.model = "test"
     embeddings.embedding_dimension = AsyncMock(return_value=128)
 
-    cfg = RagEngineConfig(
+    cfg = KnowledgeEngineConfig(
         metadata_store=metadata,
         ingestion=IngestionConfig(
             methods=[
@@ -58,7 +58,7 @@ async def test_shutdown_tears_down_in_reverse_init_order() -> None:
             ],
         ),
     )
-    engine = RagEngine(cfg)
+    engine = KnowledgeEngine(cfg)
     await engine.initialize()
     await engine.shutdown()
 
@@ -70,11 +70,11 @@ async def test_shutdown_clears_service_refs() -> None:
     document.initialize = AsyncMock()
     document.shutdown = AsyncMock()
 
-    cfg = RagEngineConfig(
+    cfg = KnowledgeEngineConfig(
         ingestion=IngestionConfig(methods=[DocumentIngestion(store=document)]),
         retrieval=RetrievalConfig(methods=[DocumentRetrieval(store=document)]),
     )
-    engine = RagEngine(cfg)
+    engine = KnowledgeEngine(cfg)
     await engine.initialize()
     await engine.shutdown()
 
@@ -102,7 +102,7 @@ async def test_shutdown_is_idempotent() -> None:
     embeddings.model = "test"
     embeddings.embedding_dimension = AsyncMock(return_value=128)
 
-    cfg = RagEngineConfig(
+    cfg = KnowledgeEngineConfig(
         metadata_store=metadata,
         ingestion=IngestionConfig(
             methods=[VectorIngestion(store=vector, embeddings=embeddings)],
@@ -111,7 +111,7 @@ async def test_shutdown_is_idempotent() -> None:
             methods=[VectorRetrieval(store=vector, embeddings=embeddings)],
         ),
     )
-    engine = RagEngine(cfg)
+    engine = KnowledgeEngine(cfg)
     await engine.initialize()
 
     await engine.shutdown()

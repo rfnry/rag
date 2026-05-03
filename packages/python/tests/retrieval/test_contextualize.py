@@ -17,15 +17,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from rfnry_rag.config import ContextualChunkConfig
-from rfnry_rag.exceptions import ConfigurationError, EnrichmentSkipped, IngestionError
-from rfnry_rag.ingestion.chunk.contextualize import contextualize_chunks_with_llm
-from rfnry_rag.ingestion.models import ChunkedContent
-from rfnry_rag.providers import (
+from rfnry_knowledge.config import ContextualChunkConfig
+from rfnry_knowledge.exceptions import ConfigurationError, EnrichmentSkipped, IngestionError
+from rfnry_knowledge.ingestion.chunk.contextualize import contextualize_chunks_with_llm
+from rfnry_knowledge.ingestion.models import ChunkedContent
+from rfnry_knowledge.providers import (
     AnthropicModelProvider,
     CohereModelProvider,
-    GenerativeModelClient,
     GoogleModelProvider,
+    LLMClient,
     OpenAIModelProvider,
 )
 
@@ -47,11 +47,11 @@ _PROVIDERS = {
 }
 
 
-def _make_client(provider: str = "anthropic") -> GenerativeModelClient:
+def _make_client(provider: str = "anthropic") -> LLMClient:
     builder = _PROVIDERS.get(provider)
     if builder is None:
-        return GenerativeModelClient(provider=CohereModelProvider(api_key="k", model="m1"))
-    return GenerativeModelClient(provider=builder())
+        return LLMClient(provider=CohereModelProvider(api_key="k", model="m1"))
+    return LLMClient(provider=builder())
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +107,7 @@ async def test_unsupported_provider_raises() -> None:
     chunks = [_make_chunk(0)]
     cfg = ContextualChunkConfig(
         enabled=True,
-        lm_client=GenerativeModelClient(provider=CohereModelProvider(api_key="k", model="m")),
+        lm_client=LLMClient(provider=CohereModelProvider(api_key="k", model="m")),
     )
     with pytest.raises(IngestionError, match="chunk_index=0") as exc_info:
         await contextualize_chunks_with_llm(chunks, document_text="doc", config=cfg)
@@ -123,7 +123,7 @@ async def test_unsupported_provider_raises() -> None:
 
 async def test_oversized_document_raises_with_explicit_window() -> None:
     chunks = [_make_chunk(0, content="alpha")]
-    client = GenerativeModelClient(
+    client = LLMClient(
         provider=AnthropicModelProvider(api_key="k", model="m", context_size=32_000),
     )
     cfg = ContextualChunkConfig(enabled=True, lm_client=client, max_context_tokens=100)
@@ -152,9 +152,7 @@ async def test_within_cap_proceeds_normally() -> None:
     async def fake_create(**kwargs: object) -> object:
         return SimpleNamespace(content=[SimpleNamespace(text="ok")])
 
-    with patch("anthropic.AsyncAnthropic") as mock_cls, patch(
-        "anthropic.types.TextBlock", new=SimpleNamespace
-    ):
+    with patch("anthropic.AsyncAnthropic") as mock_cls, patch("anthropic.types.TextBlock", new=SimpleNamespace):
         fake_client = MagicMock()
         fake_client.messages.create = AsyncMock(side_effect=fake_create)
         mock_cls.return_value = fake_client
@@ -178,9 +176,7 @@ async def test_anthropic_dispatch_structure() -> None:
         captured.update(kwargs)
         return SimpleNamespace(content=[SimpleNamespace(text="situated")])
 
-    with patch("anthropic.AsyncAnthropic") as mock_cls, patch(
-        "anthropic.types.TextBlock", new=SimpleNamespace
-    ):
+    with patch("anthropic.AsyncAnthropic") as mock_cls, patch("anthropic.types.TextBlock", new=SimpleNamespace):
         fake_client = MagicMock()
         fake_client.messages.create = AsyncMock(side_effect=fake_create)
         mock_cls.return_value = fake_client
@@ -216,9 +212,7 @@ async def test_openai_dispatch_structure() -> None:
 
     async def fake_create(**kwargs: object) -> object:
         captured.update(kwargs)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="situated_openai"))]
-        )
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="situated_openai"))])
 
     with patch("openai.AsyncOpenAI") as mock_cls:
         fake_client = MagicMock()
@@ -317,9 +311,7 @@ async def test_concurrency_cap_respected() -> None:
             in_flight -= 1
         return SimpleNamespace(content=[SimpleNamespace(text="x")])
 
-    with patch("anthropic.AsyncAnthropic") as mock_cls, patch(
-        "anthropic.types.TextBlock", new=SimpleNamespace
-    ):
+    with patch("anthropic.AsyncAnthropic") as mock_cls, patch("anthropic.types.TextBlock", new=SimpleNamespace):
         fake_client = MagicMock()
         fake_client.messages.create = AsyncMock(side_effect=fake_create)
         mock_cls.return_value = fake_client
@@ -346,9 +338,7 @@ async def test_situating_context_is_folded_into_contextualized() -> None:
     async def fake_create(**kwargs: object) -> object:
         return SimpleNamespace(content=[SimpleNamespace(text="SITUATED_BLOB")])
 
-    with patch("anthropic.AsyncAnthropic") as mock_cls, patch(
-        "anthropic.types.TextBlock", new=SimpleNamespace
-    ):
+    with patch("anthropic.AsyncAnthropic") as mock_cls, patch("anthropic.types.TextBlock", new=SimpleNamespace):
         fake_client = MagicMock()
         fake_client.messages.create = AsyncMock(side_effect=fake_create)
         mock_cls.return_value = fake_client
@@ -370,9 +360,7 @@ async def test_fold_skips_empty_structural_header() -> None:
     async def fake_create(**kwargs: object) -> object:
         return SimpleNamespace(content=[SimpleNamespace(text="BLOB")])
 
-    with patch("anthropic.AsyncAnthropic") as mock_cls, patch(
-        "anthropic.types.TextBlock", new=SimpleNamespace
-    ):
+    with patch("anthropic.AsyncAnthropic") as mock_cls, patch("anthropic.types.TextBlock", new=SimpleNamespace):
         fake_client = MagicMock()
         fake_client.messages.create = AsyncMock(side_effect=fake_create)
         mock_cls.return_value = fake_client
@@ -392,9 +380,7 @@ async def test_fold_skips_empty_structural_header() -> None:
 def _service_chunker(contents: list[str]) -> MagicMock:
     chunker = MagicMock()
     chunker.chunk = MagicMock(
-        return_value=[
-            ChunkedContent(content=c, page_number=1, chunk_index=i) for i, c in enumerate(contents)
-        ]
+        return_value=[ChunkedContent(content=c, page_number=1, chunk_index=i) for i, c in enumerate(contents)]
     )
     return chunker
 
@@ -404,7 +390,7 @@ def _ingest_method() -> SimpleNamespace:
 
 
 async def test_ingestion_service_skips_llm_when_disabled() -> None:
-    from rfnry_rag.ingestion.chunk.service import IngestionService
+    from rfnry_knowledge.ingestion.chunk.service import IngestionService
 
     method = _ingest_method()
     service = IngestionService(
@@ -422,7 +408,7 @@ async def test_ingestion_service_skips_llm_when_disabled() -> None:
 
 
 async def test_ingestion_service_invokes_llm_when_enabled() -> None:
-    from rfnry_rag.ingestion.chunk.service import IngestionService
+    from rfnry_knowledge.ingestion.chunk.service import IngestionService
 
     captured_docs: list[str] = []
 
@@ -442,9 +428,7 @@ async def test_ingestion_service_invokes_llm_when_enabled() -> None:
         ),
     )
 
-    with patch("anthropic.AsyncAnthropic") as mock_cls, patch(
-        "anthropic.types.TextBlock", new=SimpleNamespace
-    ):
+    with patch("anthropic.AsyncAnthropic") as mock_cls, patch("anthropic.types.TextBlock", new=SimpleNamespace):
         fake_client = MagicMock()
         fake_client.messages.create = AsyncMock(side_effect=fake_create)
         mock_cls.return_value = fake_client
@@ -461,7 +445,7 @@ async def test_ingestion_service_invokes_llm_when_enabled() -> None:
 async def test_oversized_document_records_ingestion_note_and_continues() -> None:
     import re
 
-    from rfnry_rag.ingestion.chunk.service import IngestionService
+    from rfnry_knowledge.ingestion.chunk.service import IngestionService
 
     method = _ingest_method()
     service = IngestionService(
@@ -478,7 +462,7 @@ async def test_oversized_document_records_ingestion_note_and_continues() -> None
         raise EnrichmentSkipped("contextual_chunk", "document_too_large(450000>134000_cap)")
 
     with patch(
-        "rfnry_rag.ingestion.chunk.service.contextualize_chunks_with_llm",
+        "rfnry_knowledge.ingestion.chunk.service.contextualize_chunks_with_llm",
         new=AsyncMock(side_effect=raise_skipped),
     ):
         source = await service.ingest_text(content="DOCBODY", metadata={"name": "src"})
@@ -491,7 +475,7 @@ async def test_oversized_document_records_ingestion_note_and_continues() -> None
 
 
 async def test_clean_ingest_has_empty_ingestion_notes() -> None:
-    from rfnry_rag.ingestion.chunk.service import IngestionService
+    from rfnry_knowledge.ingestion.chunk.service import IngestionService
 
     async def fake_create(**kwargs: object) -> object:
         return SimpleNamespace(content=[SimpleNamespace(text="SITUATED")])
@@ -507,9 +491,7 @@ async def test_clean_ingest_has_empty_ingestion_notes() -> None:
         ),
     )
 
-    with patch("anthropic.AsyncAnthropic") as mock_cls, patch(
-        "anthropic.types.TextBlock", new=SimpleNamespace
-    ):
+    with patch("anthropic.AsyncAnthropic") as mock_cls, patch("anthropic.types.TextBlock", new=SimpleNamespace):
         fake_client = MagicMock()
         fake_client.messages.create = AsyncMock(side_effect=fake_create)
         mock_cls.return_value = fake_client

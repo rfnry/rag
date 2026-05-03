@@ -5,8 +5,8 @@ from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from rfnry_rag.ingestion.methods.vector import VectorIngestion
-from rfnry_rag.ingestion.models import ChunkedContent
+from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.ingestion.models import ChunkedContent
 
 
 def _make_chunk(text: str = "hello world") -> MagicMock:
@@ -56,7 +56,7 @@ async def test_vector_ingestion_gathers_dense_and_sparse_embeddings() -> None:
         sparse_embeddings=sparse_provider,
     )
     chunks = cast(list[ChunkedContent], [_make_chunk("chunk text")])
-    with patch("rfnry_rag.ingestion.methods.vector.embed_batched", new=dense_mock):
+    with patch("rfnry_knowledge.ingestion.methods.vector.embed_batched", new=dense_mock):
         await vi.ingest(
             source_id="src-1",
             knowledge_id="kb-1",
@@ -86,7 +86,7 @@ async def test_vector_ingestion_sparse_none_skips_gather() -> None:
         store=vector_store, embeddings=MagicMock(), embedding_model_name="test-model", sparse_embeddings=None
     )
     chunks = cast(list[ChunkedContent], [_make_chunk("chunk text")])
-    with patch("rfnry_rag.ingestion.methods.vector.embed_batched", new=dense_mock):
+    with patch("rfnry_knowledge.ingestion.methods.vector.embed_batched", new=dense_mock):
         await vi.ingest(
             source_id="src-2",
             knowledge_id=None,
@@ -117,7 +117,7 @@ async def test_vector_ingestion_sparse_failure_preserved() -> None:
         store=vector_store, embeddings=MagicMock(), embedding_model_name="test-model", sparse_embeddings=failing_sparse
     )
     chunks = cast(list[ChunkedContent], [_make_chunk("chunk text")])
-    with patch("rfnry_rag.ingestion.methods.vector.embed_batched", new=dense_mock):
+    with patch("rfnry_knowledge.ingestion.methods.vector.embed_batched", new=dense_mock):
         await vi.ingest(
             source_id="src-3",
             knowledge_id=None,

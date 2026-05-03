@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from rfnry_rag.ingestion.chunk.parsers.pdf import (
+from rfnry_knowledge.ingestion.chunk.parsers.pdf import (
     _MAX_PDF_BYTES,
     _MAX_PDF_PAGES,
     PDFParser,
@@ -33,7 +33,7 @@ def test_pdf_parser_rejects_too_many_pages(tmp_path: Path) -> None:
 
     with (
         patch(
-            "rfnry_rag.ingestion.chunk.parsers.pdf.pymupdf.open",
+            "rfnry_knowledge.ingestion.chunk.parsers.pdf.pymupdf.open",
             return_value=fake_doc,
         ),
         pytest.raises(ValueError, match="exceeds cap"),

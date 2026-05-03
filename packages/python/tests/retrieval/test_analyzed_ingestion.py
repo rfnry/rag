@@ -1,9 +1,9 @@
 from unittest.mock import AsyncMock, MagicMock
 
-from rfnry_rag.ingestion.analyze.service import AnalyzedIngestionService
-from rfnry_rag.models import Source
+from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+from rfnry_knowledge.models import Source
 
-# Serialised page-analysis rows stored in rag_page_analyses (keyed by "data")
+# Serialised page-analysis rows stored in knowledge_page_analyses (keyed by "data")
 _PAGE_ANALYSES_ROWS = [
     {
         "page_number": 1,
@@ -78,7 +78,7 @@ def _make_service(graph_store=None, ingestion_methods=None):
 
 
 def _make_source_with_analysis() -> Source:
-    """Source in 'synthesized' state. page_analyses live in rag_page_analyses, NOT metadata."""
+    """Source in 'synthesized' state. page_analyses live in knowledge_page_analyses, NOT metadata."""
     return Source(
         source_id="src-1",
         knowledge_id="kb-1",
@@ -159,7 +159,7 @@ async def test_analyzed_ingestion_writes_document_store_exactly_once(tmp_path) -
     """The ingest phase must be the single authoritative document write."""
     from unittest.mock import AsyncMock, MagicMock
 
-    from rfnry_rag.ingestion.methods.document import DocumentIngestion
+    from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
 
     doc_method = MagicMock(spec=DocumentIngestion)
     doc_method.name = "document"
@@ -234,11 +234,11 @@ async def test_analyze_pdf_runs_pages_concurrently(tmp_path) -> None:
 
     with (
         patch(
-            "rfnry_rag.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
             return_value=iter(fake_pages),
         ),
         patch(
-            "rfnry_rag.baml.baml_client.async_client.b.AnalyzePage",
+            "rfnry_knowledge.baml.baml_client.async_client.b.AnalyzePage",
             new=slow_analyze_page,
         ),
     ):
@@ -257,7 +257,7 @@ async def test_analyze_pdf_runs_pages_concurrently(tmp_path) -> None:
 
 async def test_analyzed_ingestion_identifies_document_method_by_type_not_name() -> None:
     """If DocumentIngestion.name is renamed, document storage must still route correctly."""
-    from rfnry_rag.ingestion.methods.document import DocumentIngestion
+    from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
 
     # DocumentIngestion instance whose .name attr has drifted.
     doc_method = MagicMock(spec=DocumentIngestion)
@@ -279,8 +279,8 @@ async def test_analyzed_ingestion_identifies_document_method_by_type_not_name() 
 
 def test_synthesize_shared_entities_caps_cross_refs_per_entity() -> None:
     """Entity appearing on 50+ pages must not produce O(n^2) cross-refs."""
-    from rfnry_rag.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
-    from rfnry_rag.ingestion.analyze.service import _MAX_PAGES_PER_ENTITY, AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
+    from rfnry_knowledge.ingestion.analyze.service import _MAX_PAGES_PER_ENTITY, AnalyzedIngestionService
 
     # Build 50 pages all sharing one entity — uncapped this would produce
     # 50*49/2 = 1225 cross-refs; capped at _MAX_PAGES_PER_ENTITY it must be

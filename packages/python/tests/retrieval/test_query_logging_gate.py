@@ -1,16 +1,16 @@
-"""User query text logging must be gated behind RFNRY_RAG_LOG_QUERIES=true."""
+"""User query text logging must be gated behind KNWL_LOG_QUERIES=true."""
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.retrieval.search.service import RetrievalService
+from rfnry_knowledge.retrieval.search.service import RetrievalService
 
 
 @pytest.fixture(autouse=True)
 def _reset_query_log_env(monkeypatch):
-    monkeypatch.delenv("RFNRY_RAG_LOG_QUERIES", raising=False)
+    monkeypatch.delenv("KNWL_LOG_QUERIES", raising=False)
     yield
 
 
@@ -25,7 +25,7 @@ async def test_query_text_not_logged_without_opt_in(monkeypatch) -> None:
         captured.append(fmt % args if args else fmt)
 
     monkeypatch.setattr(
-        "rfnry_rag.retrieval.search.service.logger",
+        "rfnry_knowledge.retrieval.search.service.logger",
         SimpleNamespace(info=fake_info, exception=lambda *a, **k: None, warning=lambda *a, **k: None),
     )
 
@@ -38,7 +38,7 @@ async def test_query_text_not_logged_without_opt_in(monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_query_text_logged_when_opted_in(monkeypatch) -> None:
-    monkeypatch.setenv("RFNRY_RAG_LOG_QUERIES", "true")
+    monkeypatch.setenv("KNWL_LOG_QUERIES", "true")
 
     captured: list[str] = []
     method = SimpleNamespace(name="m", weight=1.0, top_k=None, search=AsyncMock(return_value=[]))
@@ -48,7 +48,7 @@ async def test_query_text_logged_when_opted_in(monkeypatch) -> None:
         captured.append(fmt % args if args else fmt)
 
     monkeypatch.setattr(
-        "rfnry_rag.retrieval.search.service.logger",
+        "rfnry_knowledge.retrieval.search.service.logger",
         SimpleNamespace(info=fake_info, exception=lambda *a, **k: None, warning=lambda *a, **k: None),
     )
 

@@ -16,10 +16,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from rfnry_rag.config import DocumentExpansionConfig
-from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.ingestion.chunk.expand import expand_chunks
-from rfnry_rag.ingestion.models import ChunkedContent
+from rfnry_knowledge.config import DocumentExpansionConfig
+from rfnry_knowledge.exceptions import ConfigurationError
+from rfnry_knowledge.ingestion.chunk.expand import expand_chunks
+from rfnry_knowledge.ingestion.models import ChunkedContent
 
 # ---------------------------------------------------------------------------
 # DocumentExpansionConfig — bounds + invariants
@@ -114,7 +114,7 @@ async def test_expand_chunks_calls_llm_per_chunk_with_concurrency_bound() -> Non
     chunks = [_make_chunk(i) for i in range(10)]
     registry = MagicMock()
 
-    with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
+    with patch("rfnry_knowledge.ingestion.chunk.expand.b") as mock_b:
         mock_b.GenerateSyntheticQueries = AsyncMock(side_effect=fake_generate)
         await expand_chunks(chunks, cfg, registry)
 
@@ -133,7 +133,7 @@ async def test_expand_chunks_attaches_queries_to_chunk_dataclass() -> None:
     chunks = [_make_chunk(0)]
     registry = MagicMock()
 
-    with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
+    with patch("rfnry_knowledge.ingestion.chunk.expand.b") as mock_b:
         mock_b.GenerateSyntheticQueries = AsyncMock(
             return_value=SimpleNamespace(queries=["a", "b", "c"]),
         )
@@ -153,7 +153,7 @@ async def test_expand_chunks_lm_failure_soft_skips_with_note() -> None:
     registry = MagicMock()
     notes: list[str] = []
 
-    with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
+    with patch("rfnry_knowledge.ingestion.chunk.expand.b") as mock_b:
         mock_b.GenerateSyntheticQueries = AsyncMock(side_effect=RuntimeError("boom"))
         result = await expand_chunks(chunks, cfg, registry, notes=notes)
 
@@ -178,7 +178,7 @@ async def test_expansion_one_chunk_fails_others_succeed() -> None:
             raise RuntimeError("rate limited")
         return SimpleNamespace(queries=[f"q_for_{passage}"])
 
-    with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
+    with patch("rfnry_knowledge.ingestion.chunk.expand.b") as mock_b:
         mock_b.GenerateSyntheticQueries = AsyncMock(side_effect=selective)
         await expand_chunks(chunks, cfg, registry, notes=notes)
 
@@ -208,7 +208,7 @@ async def test_expansion_majority_failure_writes_summary() -> None:
             raise RuntimeError("boom")
         return SimpleNamespace(queries=[f"q{idx}"])
 
-    with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
+    with patch("rfnry_knowledge.ingestion.chunk.expand.b") as mock_b:
         mock_b.GenerateSyntheticQueries = AsyncMock(side_effect=fail_first_six)
         await expand_chunks(chunks, cfg, registry, notes=notes)
 
@@ -229,7 +229,7 @@ async def test_expansion_clean_no_notes() -> None:
     registry = MagicMock()
     notes: list[str] = []
 
-    with patch("rfnry_rag.ingestion.chunk.expand.b") as mock_b:
+    with patch("rfnry_knowledge.ingestion.chunk.expand.b") as mock_b:
         mock_b.GenerateSyntheticQueries = AsyncMock(
             return_value=SimpleNamespace(queries=["q"]),
         )

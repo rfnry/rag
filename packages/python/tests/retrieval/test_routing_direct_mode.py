@@ -12,10 +12,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_rag.config import QueryMode, RoutingConfig
-from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.generation.models import QueryResult
-from rfnry_rag.observability.trace import RetrievalTrace
+from rfnry_knowledge.config import QueryMode, RoutingConfig
+from rfnry_knowledge.exceptions import ConfigurationError
+from rfnry_knowledge.generation.models import QueryResult
+from rfnry_knowledge.observability.trace import RetrievalTrace
 
 
 def test_routing_config_default_mode_is_retrieval() -> None:

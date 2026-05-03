@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-_BAML_SRC = Path("src/rfnry_rag/baml/baml_src/ingestion/drawing.baml")
+_BAML_SRC = Path("src/rfnry_knowledge/baml/baml_src/ingestion/drawing.baml")
 
 
 def test_drawing_baml_file_exists() -> None:

@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
-from rfnry_rag.ingestion.methods.vector import VectorIngestion
-from rfnry_rag.models import SparseVector
+from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.models import SparseVector
 
 
 def _make_chunks(n=1):

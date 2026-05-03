@@ -1,4 +1,4 @@
-"""RagEngine drawing routing: .dxf always; .pdf only with source_type='drawing'."""
+"""KnowledgeEngine drawing routing: .dxf always; .pdf only with source_type='drawing'."""
 
 from __future__ import annotations
 
@@ -9,16 +9,16 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from rfnry_rag.config.drawing import DrawingIngestionConfig
-from rfnry_rag.config.engine import RagEngineConfig
-from rfnry_rag.config.ingestion import IngestionConfig
-from rfnry_rag.config.retrieval import RetrievalConfig
-from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.ingestion.methods.analyzed import AnalyzedIngestion
-from rfnry_rag.ingestion.methods.drawing import DrawingIngestion
-from rfnry_rag.ingestion.methods.vector import VectorIngestion
-from rfnry_rag.retrieval.methods.vector import VectorRetrieval
-from rfnry_rag.server import RagEngine
+from rfnry_knowledge.config.drawing import DrawingIngestionConfig
+from rfnry_knowledge.config.engine import KnowledgeEngineConfig
+from rfnry_knowledge.config.ingestion import IngestionConfig
+from rfnry_knowledge.config.retrieval import RetrievalConfig
+from rfnry_knowledge.exceptions import ConfigurationError
+from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
+from rfnry_knowledge.ingestion.methods.drawing import DrawingIngestion
+from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.knowledge.engine import KnowledgeEngine
+from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
 
 
 def test_drawing_extensions_allowlist_is_dxf_only() -> None:
@@ -37,10 +37,10 @@ def test_drawing_extensions_allowlist_is_dxf_only() -> None:
 
 def test_engine_exposes_stepped_drawing_methods() -> None:
     """Stepped API mirrors analyzed service: render/extract/link/complete_ingestion."""
-    assert hasattr(RagEngine, "render_drawing")
-    assert hasattr(RagEngine, "extract_drawing")
-    assert hasattr(RagEngine, "link_drawing")
-    assert hasattr(RagEngine, "complete_drawing_ingestion")
+    assert hasattr(KnowledgeEngine, "render_drawing")
+    assert hasattr(KnowledgeEngine, "extract_drawing")
+    assert hasattr(KnowledgeEngine, "link_drawing")
+    assert hasattr(KnowledgeEngine, "complete_drawing_ingestion")
 
 
 class _StubDrawingService:
@@ -84,8 +84,8 @@ def _engine_config(
     vector_store: Any,
     embeddings: Any,
     ingestion_methods: list[Any],
-) -> RagEngineConfig:
-    return RagEngineConfig(
+) -> KnowledgeEngineConfig:
+    return KnowledgeEngineConfig(
         metadata_store=metadata_store,
         ingestion=IngestionConfig(methods=ingestion_methods),
         retrieval=RetrievalConfig(
@@ -94,8 +94,8 @@ def _engine_config(
     )
 
 
-async def _make_engine_with_drawing_stub(stub: _StubDrawingService) -> RagEngine:
-    """Build a real RagEngine wired with a DrawingIngestion method, then swap
+async def _make_engine_with_drawing_stub(stub: _StubDrawingService) -> KnowledgeEngine:
+    """Build a real KnowledgeEngine wired with a DrawingIngestion method, then swap
     the engine's cached drawing service for a phase-call stub."""
     metadata_store = _make_metadata_store()
     vector_store = _make_vector_store()
@@ -115,13 +115,13 @@ async def _make_engine_with_drawing_stub(stub: _StubDrawingService) -> RagEngine
             drawing,
         ],
     )
-    engine = RagEngine(cfg)
+    engine = KnowledgeEngine(cfg)
     await engine.initialize()
     engine._drawing_ingestion = stub  # type: ignore[assignment]
     return engine
 
 
-async def _make_engine_without_drawing() -> RagEngine:
+async def _make_engine_without_drawing() -> KnowledgeEngine:
     metadata_store = _make_metadata_store()
     vector_store = _make_vector_store()
     embeddings = _make_embeddings()
@@ -131,7 +131,7 @@ async def _make_engine_without_drawing() -> RagEngine:
         embeddings=embeddings,
         ingestion_methods=[VectorIngestion(store=vector_store, embeddings=embeddings)],
     )
-    engine = RagEngine(cfg)
+    engine = KnowledgeEngine(cfg)
     await engine.initialize()
     return engine
 
@@ -231,7 +231,7 @@ async def test_ingest_drawing_rejects_collection_argument(tmp_path: Any) -> None
 
 
 def _async_source_factory(*, status: str, source_id: str = "src-1", file_hash: str = "h"):
-    from rfnry_rag.models import Source
+    from rfnry_knowledge.models import Source
 
     async def _return(*args: Any, **kwargs: Any) -> Source:
         sid = args[0] if args and isinstance(args[0], str) and not args[0].startswith("/") else source_id

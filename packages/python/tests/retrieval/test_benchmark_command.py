@@ -1,6 +1,6 @@
-"""CLI smoke test for `rfnry-rag benchmark`.
+"""CLI smoke test for `rfnry-knowledge benchmark`.
 
-Stubs `RagEngine` (the async context manager) and `load_config` so the
+Stubs `KnowledgeEngine` (the async context manager) and `load_config` so the
 test exercises the command's plumbing — argument parsing, JSON loading,
 report formatting, exit code — without standing up real stores. Asserts
 exit code 0 and that the summary appears in stdout.
@@ -15,8 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from click.testing import CliRunner
 
-from rfnry_rag.cli import cli
-from rfnry_rag.observability.benchmark import BenchmarkReport
+from rfnry_knowledge.cli import cli
+from rfnry_knowledge.observability.benchmark import BenchmarkReport
 
 
 def test_benchmark_command_invokes_engine_and_prints_summary(tmp_path: Path) -> None:
@@ -46,18 +46,18 @@ def test_benchmark_command_invokes_engine_and_prints_summary(tmp_path: Path) -> 
     fake_engine.__aenter__ = AsyncMock(return_value=fake_engine)
     fake_engine.__aexit__ = AsyncMock(return_value=None)
 
-    # `import rfnry_rag.cli.commands.benchmark` registers the
+    # `import rfnry_knowledge.cli.commands.benchmark` registers the
     # `benchmark` subcommand on the shared `cli` group; once imported, the
     # CliRunner can invoke it by name.
-    import rfnry_rag.cli.commands.benchmark  # noqa: F401
+    import rfnry_knowledge.cli.commands.benchmark  # noqa: F401
 
     with (
         patch(
-            "rfnry_rag.cli.commands.benchmark.load_config",
+            "rfnry_knowledge.cli.commands.benchmark.load_config",
             return_value=SimpleNamespace(),
         ),
         patch(
-            "rfnry_rag.server.RagEngine",
+            "rfnry_knowledge.knowledge.engine.KnowledgeEngine",
             return_value=fake_engine,
         ),
     ):

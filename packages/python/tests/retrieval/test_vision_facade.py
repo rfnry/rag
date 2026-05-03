@@ -1,10 +1,10 @@
 import pytest
 
-from rfnry_rag.exceptions import ConfigurationError
-from rfnry_rag.ingestion.vision.anthropic import _AnthropicVision
-from rfnry_rag.ingestion.vision.gemini import _GeminiVision
-from rfnry_rag.ingestion.vision.openai import _OpenAIVision
-from rfnry_rag.providers import (
+from rfnry_knowledge.exceptions import ConfigurationError
+from rfnry_knowledge.ingestion.vision.anthropic import _AnthropicVision
+from rfnry_knowledge.ingestion.vision.gemini import _GeminiVision
+from rfnry_knowledge.ingestion.vision.openai import _OpenAIVision
+from rfnry_knowledge.providers import (
     AnthropicModelProvider,
     CohereModelProvider,
     GoogleModelProvider,
