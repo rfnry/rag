@@ -5,9 +5,9 @@ from typing import Any
 
 from rfnry_knowledge.common.logging import get_logger
 from rfnry_knowledge.config.entity import EntityIngestionConfig
-from rfnry_knowledge.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
 from rfnry_knowledge.ingestion.models import ChunkedContent, ParsedPage
 from rfnry_knowledge.ingestion.notes import record_skip
+from rfnry_knowledge.ingestion.structured.models import DiscoveredEntity, PageAnalysis
 from rfnry_knowledge.observability.context import current_obs
 from rfnry_knowledge.providers import ProviderClient, build_registry
 from rfnry_knowledge.stores.graph.base import BaseGraphStore

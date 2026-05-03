@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from rfnry_knowledge.config.entity import EntityIngestionConfig
-from rfnry_knowledge.ingestion.analyze.models import (
+from rfnry_knowledge.ingestion.structured.models import (
     CrossReference,
     DiscoveredEntity,
     DocumentSynthesis,

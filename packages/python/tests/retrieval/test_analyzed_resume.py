@@ -10,9 +10,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
-from rfnry_knowledge.ingestion.analyze.models import PageAnalysis
-from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 from rfnry_knowledge.ingestion.hashing import file_hash as compute_file_hash
+from rfnry_knowledge.ingestion.structured.models import PageAnalysis
+from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
 from rfnry_knowledge.models import Source
 from rfnry_knowledge.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
@@ -72,7 +72,7 @@ class _MinimalEngine:
 
     def __init__(
         self,
-        structured_ingestion: AnalyzedIngestionService,
+        structured_ingestion: StructuredIngestionService,
         metadata_store: SQLAlchemyMetadataStore,
     ) -> None:
         self._structured_ingestion = structured_ingestion
@@ -128,10 +128,10 @@ _FAKE_FILE_HASH = "file_hash_resume_abc"
 async def resume_knwl_engine_pdf(tmp_path):
     """Returns (engine, mock_b).
 
-    - engine._structured_ingestion is a real AnalyzedIngestionService backed
+    - engine._structured_ingestion is a real StructuredIngestionService backed
       by SQLite.
     - engine.ingest() uses the same status-based routing as server.py.
-    - mock_b.AnalyzePage / mock_b.SynthesizeDocument are available for call-count
+    - mock_b.AnalyzeStructuredPage / mock_b.SynthesizeDocument are available for call-count
       assertions (never fired for .xml; counts remain 0 throughout).
     - compute_file_hash is patched to return a fixed value; parse_xml returns 3
       deterministic PageAnalysis objects so no real XML I/O is needed.
@@ -139,7 +139,7 @@ async def resume_knwl_engine_pdf(tmp_path):
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
 
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=_FakeEmbeddings(),
         vector_store=_FakeVectorStore(),
         metadata_store=store,
@@ -149,26 +149,26 @@ async def resume_knwl_engine_pdf(tmp_path):
     svc._registry = MagicMock()
 
     mock_b = MagicMock()
-    mock_b.AnalyzePage = AsyncMock()
+    mock_b.AnalyzeStructuredPage = AsyncMock()
     mock_b.SynthesizeDocument = AsyncMock()
 
     engine = _MinimalEngine(structured_ingestion=svc, metadata_store=store)
 
     with (
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.is_l5x",
+            "rfnry_knowledge.ingestion.structured.service.is_l5x",
             return_value=False,
         ),
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.parse_xml",
+            "rfnry_knowledge.ingestion.structured.service.parse_xml",
             return_value=_make_xml_page_analyses(),
         ),
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
+            "rfnry_knowledge.ingestion.structured.service.compute_file_hash",
             return_value=_FAKE_FILE_HASH,
         ),
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_knowledge.ingestion.structured.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
@@ -198,7 +198,7 @@ async def resume_knwl_engine_pdf_with_vector_capture(tmp_path):
     captured: dict[str, list] = {"upserts": []}
     vec_store = _CapturingVectorStore(captured)
 
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=_FakeEmbeddings(),
         vector_store=vec_store,
         metadata_store=store,
@@ -208,26 +208,26 @@ async def resume_knwl_engine_pdf_with_vector_capture(tmp_path):
     svc._registry = MagicMock()
 
     mock_b = MagicMock()
-    mock_b.AnalyzePage = AsyncMock()
+    mock_b.AnalyzeStructuredPage = AsyncMock()
     mock_b.SynthesizeDocument = AsyncMock()
 
     engine = _MinimalEngine(structured_ingestion=svc, metadata_store=store)
 
     with (
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.is_l5x",
+            "rfnry_knowledge.ingestion.structured.service.is_l5x",
             return_value=False,
         ),
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.parse_xml",
+            "rfnry_knowledge.ingestion.structured.service.parse_xml",
             return_value=_make_xml_page_analyses(),
         ),
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
+            "rfnry_knowledge.ingestion.structured.service.compute_file_hash",
             return_value=_FAKE_FILE_HASH,
         ),
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_knowledge.ingestion.structured.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
@@ -259,11 +259,11 @@ async def test_resume_from_analyzed_skips_phase_1(resume_knwl_engine_pdf) -> Non
     # Prime: run just the analyze phase via the stepped API
     src = await engine._structured_ingestion.analyze("/tmp/doc.xml", knowledge_id="k1")
     assert src.status == "analyzed"
-    analyze_calls_before = mock_baml.AnalyzePage.call_count
+    analyze_calls_before = mock_baml.AnalyzeStructuredPage.call_count
 
-    # Full engine.ingest() on the same file — must NOT rerun AnalyzePage
+    # Full engine.ingest() on the same file — must NOT rerun AnalyzeStructuredPage
     result = await engine.ingest("/tmp/doc.xml", knowledge_id="k1")
-    assert mock_baml.AnalyzePage.call_count == analyze_calls_before
+    assert mock_baml.AnalyzeStructuredPage.call_count == analyze_calls_before
     assert result.status == "completed"
 
 
@@ -274,11 +274,11 @@ async def test_resume_from_synthesized_skips_phases_1_and_2(resume_knwl_engine_p
     src = await engine._structured_ingestion.analyze("/tmp/doc.xml", knowledge_id="k1")
     src = await engine._structured_ingestion.synthesize(src.source_id)
     assert src.status == "synthesized"
-    analyze_count = mock_baml.AnalyzePage.call_count
+    analyze_count = mock_baml.AnalyzeStructuredPage.call_count
     synth_count = mock_baml.SynthesizeDocument.call_count
 
     result = await engine.ingest("/tmp/doc.xml", knowledge_id="k1")
-    assert mock_baml.AnalyzePage.call_count == analyze_count
+    assert mock_baml.AnalyzeStructuredPage.call_count == analyze_count
     assert mock_baml.SynthesizeDocument.call_count == synth_count
     assert result.status == "completed"
 
@@ -289,11 +289,11 @@ async def test_resume_from_completed_returns_existing_source(resume_knwl_engine_
     engine, mock_baml = resume_knwl_engine_pdf
     first = await engine.ingest("/tmp/doc.xml", knowledge_id="k1")
     assert first.status == "completed"
-    total_calls = mock_baml.AnalyzePage.call_count + mock_baml.SynthesizeDocument.call_count
+    total_calls = mock_baml.AnalyzeStructuredPage.call_count + mock_baml.SynthesizeDocument.call_count
 
     result = await engine.ingest("/tmp/doc.xml", knowledge_id="k1")
     # No additional LLM calls at all
-    assert mock_baml.AnalyzePage.call_count + mock_baml.SynthesizeDocument.call_count == total_calls
+    assert mock_baml.AnalyzeStructuredPage.call_count + mock_baml.SynthesizeDocument.call_count == total_calls
     assert result.source_id == first.source_id
 
 

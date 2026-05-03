@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from rfnry_knowledge.ingestion.analyze.models import DocumentSynthesis
-from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+from rfnry_knowledge.ingestion.structured.models import DocumentSynthesis
+from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
 from rfnry_knowledge.models import Source
 
 _PAGE_ROWS = [
@@ -50,7 +50,7 @@ def _make_service():
     vector_store = AsyncMock()
     metadata_store = AsyncMock()
     metadata_store.get_page_analyses = AsyncMock(return_value=_PAGE_ROWS)
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=embeddings,
         vector_store=vector_store,
         metadata_store=metadata_store,
@@ -116,7 +116,7 @@ async def test_synthesis_consumer_tolerates_empty_synthesis() -> None:
     source = _analyzed_source()
     source.status = "synthesized"
     # Empty synthesis path: serialize an empty DocumentSynthesis into metadata.
-    from rfnry_knowledge.ingestion.analyze.service import _serialize_synthesis
+    from rfnry_knowledge.ingestion.structured.service import _serialize_synthesis
 
     source.metadata["synthesis"] = _serialize_synthesis(DocumentSynthesis())
     source.metadata["ingestion_notes"] = ["document_synthesis:warn:RuntimeError(boom)"]

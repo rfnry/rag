@@ -6,8 +6,8 @@ from typing import Any
 
 from rfnry_knowledge.config.entity import EntityIngestionConfig
 from rfnry_knowledge.exceptions import ConfigurationError
-from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 from rfnry_knowledge.ingestion.embeddings.base import BaseEmbeddings
+from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
 from rfnry_knowledge.ingestion.vision.base import BaseVision
 from rfnry_knowledge.models import Source
 from rfnry_knowledge.providers import ProviderClient
@@ -16,8 +16,8 @@ from rfnry_knowledge.stores.metadata.base import BaseMetadataStore
 from rfnry_knowledge.stores.vector.base import BaseVectorStore
 
 
-class AnalyzedIngestion:
-    """Method wrapper around AnalyzedIngestionService."""
+class StructuredIngestion:
+    """Method wrapper around StructuredIngestionService."""
 
     required: bool = True
 
@@ -39,14 +39,14 @@ class AnalyzedIngestion:
         delegate_methods: list[Any] | None = None,
     ) -> None:
         if not (72 <= dpi <= 600):
-            raise ConfigurationError(f"AnalyzedIngestion.dpi={dpi} out of range [72, 600]")
+            raise ConfigurationError(f"StructuredIngestion.dpi={dpi} out of range [72, 600]")
         if not (1 <= analyze_concurrency <= 100):
             raise ConfigurationError(
-                f"AnalyzedIngestion.analyze_concurrency={analyze_concurrency} out of range [1, 100]"
+                f"StructuredIngestion.analyze_concurrency={analyze_concurrency} out of range [1, 100]"
             )
         if not (0 <= analyze_text_skip_threshold_chars <= 100_000):
             raise ConfigurationError(
-                f"AnalyzedIngestion.analyze_text_skip_threshold_chars={analyze_text_skip_threshold_chars} "
+                f"StructuredIngestion.analyze_text_skip_threshold_chars={analyze_text_skip_threshold_chars} "
                 "out of range [0, 100_000]"
             )
         self._store = store
@@ -65,7 +65,7 @@ class AnalyzedIngestion:
         self._source_type_weights = source_type_weights or {}
         self._on_ingestion_complete = on_ingestion_complete
         self._delegate_methods = list(delegate_methods or [])
-        self._service: AnalyzedIngestionService | None = None
+        self._service: StructuredIngestionService | None = None
 
     @property
     def name(self) -> str:
@@ -74,8 +74,8 @@ class AnalyzedIngestion:
     def accepts(self, file_path: Path, source_type: str | None) -> bool:
         return file_path.suffix.lower() in {".pdf", ".xml", ".l5x"}
 
-    def clone_for_store(self, store: BaseVectorStore) -> AnalyzedIngestion:
-        return AnalyzedIngestion(
+    def clone_for_store(self, store: BaseVectorStore) -> StructuredIngestion:
+        return StructuredIngestion(
             store=store,
             embeddings=self._embeddings,
             vision=self._vision,
@@ -105,10 +105,10 @@ class AnalyzedIngestion:
         self._source_type_weights = dict(source_type_weights)
         self._service = None
 
-    def _build_service(self) -> AnalyzedIngestionService:
+    def _build_service(self) -> StructuredIngestionService:
         if self._metadata_store is None:
-            raise RuntimeError("AnalyzedIngestion not bound — call bind() first")
-        return AnalyzedIngestionService(
+            raise RuntimeError("StructuredIngestion not bound — call bind() first")
+        return StructuredIngestionService(
             embeddings=self._embeddings,
             vector_store=self._store,
             metadata_store=self._metadata_store,
@@ -125,7 +125,7 @@ class AnalyzedIngestion:
             graph_config=self._graph_config,
         )
 
-    def _service_ref(self) -> AnalyzedIngestionService:
+    def _service_ref(self) -> StructuredIngestionService:
         if self._service is None:
             self._service = self._build_service()
         return self._service

@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
-from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
 from rfnry_knowledge.models import Source
 
 # Serialised page-analysis rows stored in knowledge_page_analyses (keyed by "data")
@@ -67,7 +67,7 @@ def _make_service(graph_store=None, ingestion_methods=None):
     # New table-based reads — return the page analyses rows by default
     metadata_store.get_page_analyses = AsyncMock(return_value=_PAGE_ANALYSES_ROWS)
 
-    return AnalyzedIngestionService(
+    return StructuredIngestionService(
         embeddings=embeddings,
         vector_store=vector_store,
         metadata_store=metadata_store,
@@ -234,11 +234,11 @@ async def test_analyze_pdf_runs_pages_concurrently(tmp_path) -> None:
 
     with (
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_knowledge.ingestion.structured.service.iter_pdf_page_images",
             return_value=iter(fake_pages),
         ),
         patch(
-            "rfnry_knowledge.baml.baml_client.async_client.b.AnalyzePage",
+            "rfnry_knowledge.baml.baml_client.async_client.b.AnalyzeStructuredPage",
             new=slow_analyze_page,
         ),
     ):
@@ -251,7 +251,7 @@ async def test_analyze_pdf_runs_pages_concurrently(tmp_path) -> None:
     # With bounded gather (semaphore=5) over 8 pages, max_concurrent must be > 1.
     assert max_concurrent >= 2, (
         f"max_concurrent={max_concurrent}: page analysis appears to be running serially. "
-        "Expected at least 2 concurrent AnalyzePage calls with bounded gather."
+        "Expected at least 2 concurrent AnalyzeStructuredPage calls with bounded gather."
     )
 
 
@@ -279,8 +279,8 @@ async def test_analyzed_ingestion_identifies_document_method_by_type_not_name() 
 
 def test_synthesize_shared_entities_caps_cross_refs_per_entity() -> None:
     """Entity appearing on 50+ pages must not produce O(n^2) cross-refs."""
-    from rfnry_knowledge.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
-    from rfnry_knowledge.ingestion.analyze.service import _MAX_PAGES_PER_ENTITY, AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.structured.models import DiscoveredEntity, PageAnalysis
+    from rfnry_knowledge.ingestion.structured.service import _MAX_PAGES_PER_ENTITY, StructuredIngestionService
 
     # Build 50 pages all sharing one entity — uncapped this would produce
     # 50*49/2 = 1225 cross-refs; capped at _MAX_PAGES_PER_ENTITY it must be
@@ -295,7 +295,7 @@ def test_synthesize_shared_entities_caps_cross_refs_per_entity() -> None:
         for i in range(n_pages)
     ]
 
-    xrefs = AnalyzedIngestionService._synthesize_shared_entities(pages)
+    xrefs = StructuredIngestionService._synthesize_shared_entities(pages)
     max_expected = _MAX_PAGES_PER_ENTITY * (_MAX_PAGES_PER_ENTITY - 1) // 2
     assert len(xrefs) <= max_expected, (
         f"got {len(xrefs)} cross-refs for {n_pages} pages sharing one entity; "

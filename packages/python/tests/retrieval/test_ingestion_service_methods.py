@@ -218,15 +218,15 @@ async def test_ingest_without_methods(tmp_path):
 
 
 async def test_structured_ingestion_has_document_method():
-    """AnalyzedIngestionService stores document method in ingestion_methods."""
-    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    """StructuredIngestionService stores document method in ingestion_methods."""
+    from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
 
     doc_method = SimpleNamespace(name="keyword", ingest=AsyncMock(), delete=AsyncMock())
     metadata_store = AsyncMock()
     embeddings = AsyncMock()
     embeddings.model = "test-model"
 
-    service = AnalyzedIngestionService(
+    service = StructuredIngestionService(
         embeddings=embeddings,
         vector_store=AsyncMock(),
         metadata_store=metadata_store,

@@ -4,7 +4,7 @@ from pathlib import Path
 from lxml import etree
 
 from rfnry_knowledge.common.logging import get_logger
-from rfnry_knowledge.ingestion.analyze.parsers.l5x.models import (
+from rfnry_knowledge.ingestion.structured.parsers.l5x.models import (
     AoiEntity,
     AoiParameter,
     ControllerEntity,
@@ -17,7 +17,7 @@ from rfnry_knowledge.ingestion.analyze.parsers.l5x.models import (
     UdtEntity,
     UdtMember,
 )
-from rfnry_knowledge.ingestion.analyze.parsers.l5x.renderers import (
+from rfnry_knowledge.ingestion.structured.parsers.l5x.renderers import (
     render_aoi,
     render_controller,
     render_module_group,

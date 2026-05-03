@@ -277,7 +277,7 @@ async def test_ingest_row_counts_document_expansion_calls_and_failures() -> None
 async def test_ingest_row_counts_vision_pages_analyzed_and_skipped(tmp_path) -> None:
     from unittest.mock import patch
 
-    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
 
     obs_token = _set_obs(Observability(sink=RecordingSink()))
     row = _ingest_row()
@@ -307,7 +307,7 @@ async def test_ingest_row_counts_vision_pages_analyzed_and_skipped(tmp_path) -> 
         async def upsert(self, points) -> None:
             pass
 
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=_FakeEmbeddings(),
         vector_store=_FakeVectorStore(),
         metadata_store=metadata_store,
@@ -349,21 +349,21 @@ async def test_ingest_row_counts_vision_pages_analyzed_and_skipped(tmp_path) -> 
     try:
         with (
             patch(
-                "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
+                "rfnry_knowledge.ingestion.structured.service.iter_pdf_page_images",
                 return_value=iter(pages),
             ),
             patch(
-                "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
+                "rfnry_knowledge.ingestion.structured.service.compute_file_hash",
                 return_value="hashv",
             ),
             patch(
-                "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
+                "rfnry_knowledge.ingestion.structured.service.asyncio.to_thread",
                 new_callable=AsyncMock,
                 side_effect=lambda fn, *args: fn(*args),
             ),
             patch("rfnry_knowledge.baml.baml_client.async_client.b") as mock_b,
         ):
-            mock_b.AnalyzePage = AsyncMock(side_effect=selective_baml)
+            mock_b.AnalyzeStructuredPage = AsyncMock(side_effect=selective_baml)
             await svc.analyze(file_path=pdf)
         assert row.vision_pages_analyzed == 2
         assert row.vision_pages_skipped == 1

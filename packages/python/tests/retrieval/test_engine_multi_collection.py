@@ -151,7 +151,7 @@ async def _build_multi_collection_engine() -> KnowledgeEngine:
     embeddings = _make_embeddings()
     metadata_store = _make_metadata_store()
 
-    from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
+    from rfnry_knowledge.ingestion.methods.structured import StructuredIngestion
 
     engine = KnowledgeEngine(
         KnowledgeEngineConfig(
@@ -159,7 +159,7 @@ async def _build_multi_collection_engine() -> KnowledgeEngine:
             ingestion=IngestionConfig(
                 methods=[
                     SemanticIngestion(store=vector_store, embeddings=embeddings),
-                    AnalyzedIngestion(store=vector_store, embeddings=embeddings, vision=MagicMock()),
+                    StructuredIngestion(store=vector_store, embeddings=embeddings, vision=MagicMock()),
                 ],
             ),
             retrieval=RetrievalConfig(methods=[SemanticRetrieval(store=vector_store, embeddings=embeddings)]),
@@ -210,7 +210,7 @@ async def _build_engine_with_all_methods(collections: list[str]) -> KnowledgeEng
 
     _patches = [
         patch("rfnry_knowledge.ingestion.methods.entity.build_registry", return_value=MagicMock()),
-        patch("rfnry_knowledge.ingestion.analyze.service.build_registry", return_value=MagicMock()),
+        patch("rfnry_knowledge.ingestion.structured.service.build_registry", return_value=MagicMock()),
         patch("rfnry_knowledge.knowledge.engine.build_registry", return_value=MagicMock()),
     ]
     for p in _patches:

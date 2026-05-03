@@ -7,7 +7,7 @@ import types
 import pymupdf
 import pytest
 
-from rfnry_knowledge.ingestion.analyze.pdf_splitter import iter_pdf_page_images
+from rfnry_knowledge.ingestion.structured.pdf_splitter import iter_pdf_page_images
 
 
 @pytest.fixture

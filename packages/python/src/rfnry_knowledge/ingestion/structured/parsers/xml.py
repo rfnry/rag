@@ -3,7 +3,7 @@ from pathlib import Path
 from lxml import etree
 
 from rfnry_knowledge.common.logging import get_logger
-from rfnry_knowledge.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
+from rfnry_knowledge.ingestion.structured.models import DiscoveredEntity, PageAnalysis
 
 logger = get_logger("analyze/ingestion/analyze/xml")
 

@@ -35,7 +35,7 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     # ---- retrieval / evaluation ----
     "JudgeAnswerQuality": ["query", "prediction", "reference"],
     # ---- retrieval / ingestion ----
-    "AnalyzePage": [],
+    "AnalyzeStructuredPage": [],
     "ExtractEntitiesFromText": ["text"],
     "GenerateSyntheticQueries": ["passage", "num_queries"],
     "AnalyzeDrawingPage": ["symbol_library", "off_page_patterns"],

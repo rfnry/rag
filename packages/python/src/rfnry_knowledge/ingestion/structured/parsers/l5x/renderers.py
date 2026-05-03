@@ -1,4 +1,4 @@
-from rfnry_knowledge.ingestion.analyze.parsers.l5x.models import (
+from rfnry_knowledge.ingestion.structured.parsers.l5x.models import (
     AoiEntity,
     ControllerEntity,
     ModuleEntity,

@@ -1,4 +1,4 @@
-function AnalyzePage(page_image: image) -> PageAnalysis {
+function AnalyzeStructuredPage(page_image: image) -> PageAnalysis {
   client Default
   prompt #"
     You are a document analyst. Analyze this page image and extract all structured information.

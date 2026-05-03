@@ -55,9 +55,9 @@ def test_graph_config_carried_by_analyzed_method_in_ingestion_config() -> None:
     from unittest.mock import MagicMock
 
     from rfnry_knowledge.config import IngestionConfig
-    from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
+    from rfnry_knowledge.ingestion.methods.structured import StructuredIngestion
 
-    method = AnalyzedIngestion(
+    method = StructuredIngestion(
         store=MagicMock(),
         embeddings=MagicMock(),
         graph_config=EntityIngestionConfig(
@@ -65,7 +65,7 @@ def test_graph_config_carried_by_analyzed_method_in_ingestion_config() -> None:
         ),
     )
     cfg = IngestionConfig(methods=[method])
-    analyzed_methods = [m for m in cfg.methods if isinstance(m, AnalyzedIngestion)]
+    analyzed_methods = [m for m in cfg.methods if isinstance(m, StructuredIngestion)]
     assert len(analyzed_methods) == 1
     assert analyzed_methods[0]._graph_config is not None
     assert len(analyzed_methods[0]._graph_config.entity_type_patterns) == 1
@@ -74,9 +74,9 @@ def test_graph_config_carried_by_analyzed_method_in_ingestion_config() -> None:
 def test_analyzed_method_graph_config_unset_by_default() -> None:
     from unittest.mock import MagicMock
 
-    from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
+    from rfnry_knowledge.ingestion.methods.structured import StructuredIngestion
 
-    method = AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock())
+    method = StructuredIngestion(store=MagicMock(), embeddings=MagicMock())
     assert method._graph_config is None  # opt-in
 
 

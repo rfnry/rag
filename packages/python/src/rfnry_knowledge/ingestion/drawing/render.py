@@ -9,7 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-from rfnry_knowledge.ingestion.analyze.pdf_splitter import iter_pdf_page_images
+from rfnry_knowledge.ingestion.structured.pdf_splitter import iter_pdf_page_images
 
 
 def render_pdf_pages(file_path: Path, dpi: int) -> Iterator[dict]:

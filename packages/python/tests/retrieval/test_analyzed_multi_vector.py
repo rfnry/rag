@@ -1,4 +1,4 @@
-"""AnalyzedIngestionService: multi-vector per page + raw OCR reaches BM25."""
+"""StructuredIngestionService: multi-vector per page + raw OCR reaches BM25."""
 
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 
-from rfnry_knowledge.ingestion.analyze.models import (
+from rfnry_knowledge.ingestion.structured.models import (
     DiscoveredEntity,
     DiscoveredTable,
     PageAnalysis,
@@ -38,7 +38,7 @@ async def fake_analyzed_service(tmp_path):
     Seeds 2 pages of PageAnalysis: page 1 has a table with 3 rows + raw_text
     "RAW_PAGE_1_CONTENT", page 2 has raw_text "RAW_PAGE_2_CONTENT".
     """
-    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
     from rfnry_knowledge.stores.metadata.sqlalchemy import SQLAlchemyMetadataStore
 
     captured: dict = {"upserts": [], "method_calls": []}
@@ -70,7 +70,7 @@ async def fake_analyzed_service(tmp_path):
         async def ingest(self, **kwargs) -> None:
             captured["method_calls"].append(kwargs)
 
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=FakeEmbeddings(),
         vector_store=FakeVectorStore(),
         metadata_store=store,

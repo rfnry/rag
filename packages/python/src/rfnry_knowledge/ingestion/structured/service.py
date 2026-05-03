@@ -11,7 +11,12 @@ from baml_py import errors as baml_errors
 from rfnry_knowledge.common.logging import get_logger
 from rfnry_knowledge.config.entity import EntityIngestionConfig
 from rfnry_knowledge.exceptions import ConfigurationError, IngestionError
-from rfnry_knowledge.ingestion.analyze.models import (
+from rfnry_knowledge.ingestion.embeddings.base import BaseEmbeddings
+from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
+from rfnry_knowledge.ingestion.hashing import file_hash as compute_file_hash
+from rfnry_knowledge.ingestion.notes import record_skip
+from rfnry_knowledge.ingestion.page_range import parse_page_range
+from rfnry_knowledge.ingestion.structured.models import (
     CrossReference,
     DiscoveredEntity,
     DiscoveredTable,
@@ -19,14 +24,9 @@ from rfnry_knowledge.ingestion.analyze.models import (
     PageAnalysis,
     PageCluster,
 )
-from rfnry_knowledge.ingestion.analyze.parsers.l5x import parse_l5x
-from rfnry_knowledge.ingestion.analyze.parsers.xml import is_l5x, parse_xml
-from rfnry_knowledge.ingestion.analyze.pdf_splitter import iter_pdf_page_images
-from rfnry_knowledge.ingestion.embeddings.base import BaseEmbeddings
-from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
-from rfnry_knowledge.ingestion.hashing import file_hash as compute_file_hash
-from rfnry_knowledge.ingestion.notes import record_skip
-from rfnry_knowledge.ingestion.page_range import parse_page_range
+from rfnry_knowledge.ingestion.structured.parsers.l5x import parse_l5x
+from rfnry_knowledge.ingestion.structured.parsers.xml import is_l5x, parse_xml
+from rfnry_knowledge.ingestion.structured.pdf_splitter import iter_pdf_page_images
 from rfnry_knowledge.ingestion.vision.base import BaseVision
 from rfnry_knowledge.models import Source, VectorPoint
 from rfnry_knowledge.providers import ProviderClient, build_registry
@@ -43,7 +43,7 @@ STRUCTURED_EXTENSIONS = {".pdf", ".xml", ".l5x"}
 _MAX_PAGES_PER_ENTITY = 20  # caps pairwise cross-ref expansion to 190 refs per entity (20*19/2)
 
 
-class AnalyzedIngestionService:
+class StructuredIngestionService:
     def __init__(
         self,
         embeddings: BaseEmbeddings,
@@ -422,7 +422,7 @@ class AnalyzedIngestionService:
                 if f is not None:
                     fresh_by_num[f.page_number] = f
             if not fresh_by_num and not text_only_pages:
-                raise IngestionError("AnalyzePage failed on all pages — no document content extracted")
+                raise IngestionError("AnalyzeStructuredPage failed on all pages — no document content extracted")
 
         # Build PageAnalysis for text-only pages directly from raw text.
         for p in text_only_pages:
@@ -459,8 +459,8 @@ class AnalyzedIngestionService:
             raise ConfigurationError("vision provider required for structured PDF analysis")
         if not self._registry:
             raise ConfigurationError(
-                "AnalyzedIngestion.provider_client is required for structured PDF analysis "
-                "(used by AnalyzePage and SynthesizeDocument BAML functions). "
+                "StructuredIngestion.provider_client is required for structured PDF analysis "
+                "(used by AnalyzeStructuredPage and SynthesizeDocument BAML functions). "
                 "Provide a ProviderClient with your LLM provider and API key."
             )
 
@@ -470,7 +470,7 @@ class AnalyzedIngestionService:
         sem: asyncio.Semaphore,
         notes: list[str] | None = None,
     ) -> PageAnalysis | None:
-        """Analyze a single page image via BAML AnalyzePage.
+        """Analyze a single page image via BAML AnalyzeStructuredPage.
 
         Per-page failures soft-skip: returns None and appends a note to the
         caller-supplied list. The caller decides whether the surviving page
@@ -489,13 +489,13 @@ class AnalyzedIngestionService:
             try:
                 result = await instrument_baml_call(
                     operation="analyze_page",
-                    call=lambda collector: b.AnalyzePage(
+                    call=lambda collector: b.AnalyzeStructuredPage(
                         baml_image,
                         baml_options={"client_registry": registry, "collector": collector},
                     ),
                 )
             except baml_errors.BamlValidationError as exc:
-                logger.warning("AnalyzePage invalid output on page %d: %s", page_number, exc)
+                logger.warning("AnalyzeStructuredPage invalid output on page %d: %s", page_number, exc)
                 increment_ingest_field("vision_pages_skipped")
                 await record_skip(
                     notes,
@@ -506,7 +506,7 @@ class AnalyzedIngestionService:
                 )
                 return None
             except Exception as exc:
-                logger.warning("AnalyzePage failed on page %d: %s", page_number, exc)
+                logger.warning("AnalyzeStructuredPage failed on page %d: %s", page_number, exc)
                 increment_ingest_field("vision_pages_skipped")
                 await record_skip(
                     notes,
@@ -566,7 +566,7 @@ class AnalyzedIngestionService:
         """
         if not self._registry:
             raise ConfigurationError(
-                "AnalyzedIngestion.provider_client is required for PDF synthesis "
+                "StructuredIngestion.provider_client is required for PDF synthesis "
                 "(used by SynthesizeDocument BAML function). "
                 "Provide a ProviderClient with your LLM provider and API key."
             )

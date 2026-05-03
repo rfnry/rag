@@ -1,4 +1,4 @@
-"""AnalyzedIngestionService now stores page_analyses in the dedicated knowledge_page_analyses table."""
+"""StructuredIngestionService now stores page_analyses in the dedicated knowledge_page_analyses table."""
 
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -6,12 +6,12 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 
-from rfnry_knowledge.ingestion.analyze.models import (
+from rfnry_knowledge.ingestion.structured.models import (
     DiscoveredEntity,
     PageAnalysis,
 )
-from rfnry_knowledge.ingestion.analyze.service import (
-    AnalyzedIngestionService,
+from rfnry_knowledge.ingestion.structured.service import (
+    StructuredIngestionService,
     _serialize_analysis,
 )
 from rfnry_knowledge.models import Source
@@ -81,7 +81,7 @@ async def fake_analyzed_service_from_multi_vector(tmp_path):
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
 
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=FakeEmbeddings(),
         vector_store=FakeVectorStore(captured),
         metadata_store=store,
@@ -105,7 +105,7 @@ async def fake_analyzed_service_synthesizable(tmp_path):
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
 
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=FakeEmbeddings(),
         vector_store=FakeVectorStore({}),
         metadata_store=store,
@@ -148,7 +148,7 @@ async def fake_analyzed_service_ingestable(tmp_path):
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
 
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=FakeEmbeddings(),
         vector_store=FakeVectorStore(captured),
         metadata_store=store,

@@ -1,4 +1,4 @@
-"""DrawingIngestionService - sibling of AnalyzedIngestionService for drawing-first docs.
+"""DrawingIngestionService - sibling of StructuredIngestionService for drawing-first docs.
 
 4 phases:
 - render:  produce page images (PDF: rasterise; DXF: render to PNG via ezdxf)
@@ -9,7 +9,7 @@
 
 Phase bodies are ``NotImplementedError`` stubs for C3 and are filled in across
 C4-C10. The service intentionally lives outside ``MethodNamespace`` so it can
-own the 4-phase lifecycle the way ``AnalyzedIngestionService`` owns its 3
+own the 4-phase lifecycle the way ``StructuredIngestionService`` owns its 3
 phases.
 """
 

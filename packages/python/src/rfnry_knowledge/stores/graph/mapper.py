@@ -12,7 +12,7 @@ import re
 
 from rfnry_knowledge.common.logging import get_logger
 from rfnry_knowledge.config.entity import EntityIngestionConfig
-from rfnry_knowledge.ingestion.analyze.models import DocumentSynthesis, PageAnalysis
+from rfnry_knowledge.ingestion.structured.models import DocumentSynthesis, PageAnalysis
 from rfnry_knowledge.stores.graph.models import GraphEntity, GraphRelation
 
 logger = get_logger(__name__)

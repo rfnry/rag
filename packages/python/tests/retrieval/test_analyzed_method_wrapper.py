@@ -1,11 +1,11 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
+from rfnry_knowledge.ingestion.methods.structured import StructuredIngestion
 
 
 def test_analyzed_method_exposes_protocol_attrs():
-    method = AnalyzedIngestion(
+    method = StructuredIngestion(
         store=MagicMock(),
         embeddings=MagicMock(name="emb"),
         vision=MagicMock(),
@@ -20,7 +20,7 @@ def test_analyzed_method_exposes_protocol_attrs():
 
 
 def test_analyzed_method_accepts_structured_extensions():
-    method = AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock())
+    method = StructuredIngestion(store=MagicMock(), embeddings=MagicMock())
     assert method.accepts(Path("doc.pdf"), None) is True
     assert method.accepts(Path("doc.xml"), None) is True
     assert method.accepts(Path("doc.l5x"), None) is True
@@ -43,7 +43,7 @@ def test_analyzed_method_clone_for_store_round_trips_full_state():
         "metadata_store": MagicMock(name="metadata"),
         "graph_config": MagicMock(name="gcfg"),
     }
-    method = AnalyzedIngestion(
+    method = StructuredIngestion(
         store=MagicMock(),
         embeddings=sentinels["embeddings"],
         vision=sentinels["vision"],

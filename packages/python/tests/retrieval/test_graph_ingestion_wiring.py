@@ -8,10 +8,10 @@ from rfnry_knowledge.config.entity import EntityIngestionConfig
 
 
 def test_analyzed_service_stores_graph_config() -> None:
-    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
 
     cfg = EntityIngestionConfig(unclassified_relation_default="MENTIONS")
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=SimpleNamespace(),
         vector_store=SimpleNamespace(),
         metadata_store=SimpleNamespace(),
@@ -32,9 +32,9 @@ def test_graph_ingestion_method_stores_graph_config() -> None:
 def test_analyzed_service_defaults_graph_config_to_agnostic_empty() -> None:
     """When no config is passed, the service builds a default empty one
     (agnostic — category-fallback type inference + MENTIONS xref default)."""
-    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
 
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=SimpleNamespace(),
         vector_store=SimpleNamespace(),
         metadata_store=SimpleNamespace(),

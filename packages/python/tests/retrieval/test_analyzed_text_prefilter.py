@@ -110,12 +110,12 @@ async def fake_analyzed_service_mixed_pdf(tmp_path):
     Default threshold is 300 chars (the service default). Vision should only
     fire on pages 1 and 3.
     """
-    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
 
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
 
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=_FakeEmbeddings(),
         vector_store=_FakeVectorStore(),
         metadata_store=store,
@@ -126,7 +126,7 @@ async def fake_analyzed_service_mixed_pdf(tmp_path):
     svc._registry = MagicMock()
 
     mock_b = MagicMock()
-    mock_b.AnalyzePage = AsyncMock(
+    mock_b.AnalyzeStructuredPage = AsyncMock(
         side_effect=lambda img, **kw: _make_fake_baml_result(0),
     )
 
@@ -134,15 +134,15 @@ async def fake_analyzed_service_mixed_pdf(tmp_path):
 
     with (
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_knowledge.ingestion.structured.service.iter_pdf_page_images",
             return_value=iter(pages),
         ),
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
+            "rfnry_knowledge.ingestion.structured.service.compute_file_hash",
             return_value="file_hash_mixed",
         ),
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_knowledge.ingestion.structured.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
@@ -156,12 +156,12 @@ async def fake_analyzed_service_mixed_pdf(tmp_path):
 @pytest_asyncio.fixture
 async def fake_analyzed_service_mixed_pdf_thresh0(tmp_path):
     """Same 3-page PDF but with threshold=0 (pre-filter disabled)."""
-    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
 
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
 
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=_FakeEmbeddings(),
         vector_store=_FakeVectorStore(),
         metadata_store=store,
@@ -172,7 +172,7 @@ async def fake_analyzed_service_mixed_pdf_thresh0(tmp_path):
     svc._registry = MagicMock()
 
     mock_b = MagicMock()
-    mock_b.AnalyzePage = AsyncMock(
+    mock_b.AnalyzeStructuredPage = AsyncMock(
         side_effect=lambda img, **kw: _make_fake_baml_result(0),
     )
 
@@ -180,15 +180,15 @@ async def fake_analyzed_service_mixed_pdf_thresh0(tmp_path):
 
     with (
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_knowledge.ingestion.structured.service.iter_pdf_page_images",
             return_value=iter(pages),
         ),
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
+            "rfnry_knowledge.ingestion.structured.service.compute_file_hash",
             return_value="file_hash_mixed_thresh0",
         ),
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_knowledge.ingestion.structured.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
@@ -202,12 +202,12 @@ async def fake_analyzed_service_mixed_pdf_thresh0(tmp_path):
 @pytest_asyncio.fixture
 async def fake_analyzed_service_text_with_images(tmp_path):
     """1-page PDF: 500 chars of text but also embedded images — vision must still fire."""
-    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
 
     store = SQLAlchemyMetadataStore(url=f"sqlite+aiosqlite:///{tmp_path}/meta.db")
     await store.initialize()
 
-    svc = AnalyzedIngestionService(
+    svc = StructuredIngestionService(
         embeddings=_FakeEmbeddings(),
         vector_store=_FakeVectorStore(),
         metadata_store=store,
@@ -218,7 +218,7 @@ async def fake_analyzed_service_text_with_images(tmp_path):
     svc._registry = MagicMock()
 
     mock_b = MagicMock()
-    mock_b.AnalyzePage = AsyncMock(
+    mock_b.AnalyzeStructuredPage = AsyncMock(
         side_effect=lambda img, **kw: _make_fake_baml_result(0),
     )
 
@@ -226,15 +226,15 @@ async def fake_analyzed_service_text_with_images(tmp_path):
 
     with (
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.iter_pdf_page_images",
+            "rfnry_knowledge.ingestion.structured.service.iter_pdf_page_images",
             return_value=iter(pages),
         ),
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.compute_file_hash",
+            "rfnry_knowledge.ingestion.structured.service.compute_file_hash",
             return_value="file_hash_text_img",
         ),
         patch(
-            "rfnry_knowledge.ingestion.analyze.service.asyncio.to_thread",
+            "rfnry_knowledge.ingestion.structured.service.asyncio.to_thread",
             new_callable=AsyncMock,
             side_effect=lambda fn, *args: fn(*args),
         ),
@@ -255,7 +255,7 @@ async def test_text_heavy_page_skips_vision(fake_analyzed_service_mixed_pdf) -> 
     """Fixture: 3-page PDF where page 2 is text-only (no images). Vision only fires on pages 1 and 3."""
     svc, mock_baml = fake_analyzed_service_mixed_pdf
     await svc.analyze("/tmp/mixed.pdf", knowledge_id="k1")
-    assert mock_baml.AnalyzePage.call_count == 2  # only pages 1 and 3, not page 2
+    assert mock_baml.AnalyzeStructuredPage.call_count == 2  # only pages 1 and 3, not page 2
 
 
 @pytest.mark.asyncio
@@ -276,7 +276,7 @@ async def test_threshold_zero_disables_prefilter(fake_analyzed_service_mixed_pdf
     """When analyze_text_skip_threshold_chars=0, all pages go to vision (pre-filter off)."""
     svc, mock_baml = fake_analyzed_service_mixed_pdf_thresh0
     await svc.analyze("/tmp/mixed.pdf", knowledge_id="k1")
-    assert mock_baml.AnalyzePage.call_count == 3  # all pages, none skipped
+    assert mock_baml.AnalyzeStructuredPage.call_count == 3  # all pages, none skipped
 
 
 @pytest.mark.asyncio
@@ -286,16 +286,16 @@ async def test_page_with_images_does_not_skip_vision(fake_analyzed_service_text_
     svc, mock_baml = fake_analyzed_service_text_with_images
     # Fixture: 1-page PDF where the page has 500 chars text + 1 embedded image
     await svc.analyze("/tmp/text_with_img.pdf", knowledge_id="k1")
-    assert mock_baml.AnalyzePage.call_count == 1  # vision still fires
+    assert mock_baml.AnalyzeStructuredPage.call_count == 1  # vision still fires
 
 
 def test_wrapper_bounds_rejected() -> None:
     from unittest.mock import MagicMock
 
     from rfnry_knowledge.exceptions import ConfigurationError
-    from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
+    from rfnry_knowledge.ingestion.methods.structured import StructuredIngestion
 
     with pytest.raises(ConfigurationError):
-        AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock(), analyze_text_skip_threshold_chars=-1)
+        StructuredIngestion(store=MagicMock(), embeddings=MagicMock(), analyze_text_skip_threshold_chars=-1)
     with pytest.raises(ConfigurationError):
-        AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock(), analyze_text_skip_threshold_chars=100_001)
+        StructuredIngestion(store=MagicMock(), embeddings=MagicMock(), analyze_text_skip_threshold_chars=100_001)

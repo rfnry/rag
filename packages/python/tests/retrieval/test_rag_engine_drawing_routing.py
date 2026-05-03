@@ -14,9 +14,9 @@ from rfnry_knowledge.config.engine import KnowledgeEngineConfig
 from rfnry_knowledge.config.ingestion import IngestionConfig
 from rfnry_knowledge.config.retrieval import RetrievalConfig
 from rfnry_knowledge.exceptions import ConfigurationError
-from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
 from rfnry_knowledge.ingestion.methods.drawing import DrawingIngestion
 from rfnry_knowledge.ingestion.methods.semantic import SemanticIngestion
+from rfnry_knowledge.ingestion.methods.structured import StructuredIngestion
 from rfnry_knowledge.knowledge.engine import KnowledgeEngine
 from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 
@@ -28,7 +28,7 @@ def test_drawing_extensions_allowlist_is_dxf_only() -> None:
     assert drawing.accepts(Path("x.pdf"), None) is False
     assert drawing.accepts(Path("x.pdf"), "drawing") is True
 
-    analyzed = AnalyzedIngestion(store=MagicMock(), embeddings=MagicMock())
+    analyzed = StructuredIngestion(store=MagicMock(), embeddings=MagicMock())
     assert analyzed.accepts(Path("x.xml"), None) is True
     assert analyzed.accepts(Path("x.l5x"), None) is True
     assert analyzed.accepts(Path("x.pdf"), None) is True

@@ -168,7 +168,7 @@ async def test_analyzed_method_soft_fail_writes_method_failed_note() -> None:
     """When a delegate method raises during the analyzed-pipeline ingest phase,
     the service catches the error, logs a warning, and appends a
     ``<method>:warn:method_failed(...)`` note to source.metadata."""
-    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
     from rfnry_knowledge.models import Source
 
     page_rows = [
@@ -193,7 +193,7 @@ async def test_analyzed_method_soft_fail_writes_method_failed_note() -> None:
     metadata_store = AsyncMock()
     metadata_store.get_page_analyses = AsyncMock(return_value=page_rows)
 
-    service = AnalyzedIngestionService(
+    service = StructuredIngestionService(
         embeddings=embeddings,
         vector_store=vector_store,
         metadata_store=metadata_store,
@@ -232,7 +232,7 @@ async def test_analyzed_method_soft_fail_writes_method_failed_note() -> None:
 
 async def test_analyzed_clean_pipeline_no_notes_no_metadata_write() -> None:
     """Clean analyzed ingest finishes without writing metadata (pre-Phase-A behavior)."""
-    from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
+    from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
     from rfnry_knowledge.models import Source
 
     page_rows = [
@@ -257,7 +257,7 @@ async def test_analyzed_clean_pipeline_no_notes_no_metadata_write() -> None:
     metadata_store = AsyncMock()
     metadata_store.get_page_analyses = AsyncMock(return_value=page_rows)
 
-    service = AnalyzedIngestionService(
+    service = StructuredIngestionService(
         embeddings=embeddings,
         vector_store=vector_store,
         metadata_store=metadata_store,

@@ -15,7 +15,6 @@ from rfnry_knowledge.config.routing import QueryMode
 from rfnry_knowledge.exceptions import ConfigurationError, InputError
 from rfnry_knowledge.generation.models import QueryResult, StreamEvent
 from rfnry_knowledge.generation.service import GenerationService
-from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 from rfnry_knowledge.ingestion.base import BaseIngestionMethod
 from rfnry_knowledge.ingestion.chunk.chunker import SemanticChunker
 from rfnry_knowledge.ingestion.chunk.service import IngestionService
@@ -25,12 +24,13 @@ from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
 from rfnry_knowledge.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
 from rfnry_knowledge.ingestion.hashing import file_hash as compute_file_hash
 from rfnry_knowledge.ingestion.methods import (
-    AnalyzedIngestion,
     DrawingIngestion,
     EntityIngestion,
     KeywordIngestion,
     SemanticIngestion,
+    StructuredIngestion,
 )
+from rfnry_knowledge.ingestion.structured.service import StructuredIngestionService
 from rfnry_knowledge.ingestion.vision.base import BaseVision
 from rfnry_knowledge.knowledge.manager import KnowledgeManager
 from rfnry_knowledge.knowledge.migration import check_embedding_migration
@@ -205,9 +205,9 @@ class KnowledgeEngine:
         self._stores_opened = False  # set True before first store.initialize(); guards re-entrant shutdown
 
         self._ingestion_service: IngestionService | None = None
-        self._structured_ingestion: AnalyzedIngestionService | None = None
+        self._structured_ingestion: StructuredIngestionService | None = None
         self._drawing_ingestion: DrawingIngestionService | None = None
-        self._analyzed_method: AnalyzedIngestion | None = None
+        self._analyzed_method: StructuredIngestion | None = None
         self._drawing_method: DrawingIngestion | None = None
         self._retrieval_service: RetrievalService | None = None
         self._generation_service: GenerationService | None = None
@@ -362,11 +362,11 @@ class KnowledgeEngine:
         # fan-out. Excluding the phased wrappers prevents double-running them
         # on plain ingest paths.
         standard_methods: list[Any] = [
-            m for m in ingestion_methods if not isinstance(m, AnalyzedIngestion | DrawingIngestion)
+            m for m in ingestion_methods if not isinstance(m, StructuredIngestion | DrawingIngestion)
         ]
 
         # Vector store init: walk the methods list for an instance carrying an
-        # ``_embeddings`` reference (SemanticIngestion / AnalyzedIngestion /
+        # ``_embeddings`` reference (SemanticIngestion / StructuredIngestion /
         # DrawingIngestion all expose it) and ask it for the embedding
         # dimension to pre-create the store collection.
         embeddings_for_dim: BaseEmbeddings | None = next(
@@ -410,7 +410,7 @@ class KnowledgeEngine:
         )
 
         # Phased pipelines: method-list dispatch.
-        analyzed_method = next((m for m in ingestion_methods if isinstance(m, AnalyzedIngestion)), None)
+        analyzed_method = next((m for m in ingestion_methods if isinstance(m, StructuredIngestion)), None)
         drawing_method = next((m for m in ingestion_methods if isinstance(m, DrawingIngestion)), None)
 
         # Build services. ``vision_parser`` is optional and only used by the
@@ -441,7 +441,7 @@ class KnowledgeEngine:
             document_delegates = [m for m in standard_methods if isinstance(m, KeywordIngestion)]
             if not document_delegates:
                 logger.warning(
-                    "AnalyzedIngestion configured but no KeywordIngestion in methods — "
+                    "StructuredIngestion configured but no KeywordIngestion in methods — "
                     "phase 3 will skip document storage"
                 )
             analyzed_method.bind(
@@ -453,7 +453,7 @@ class KnowledgeEngine:
             self._structured_ingestion = analyzed_method._service_ref()
             self._analyzed_method = analyzed_method
             if analyzed_method._vision is None:
-                logger.warning("no vision provider on AnalyzedIngestion — structured PDF analysis disabled")
+                logger.warning("no vision provider on StructuredIngestion — structured PDF analysis disabled")
 
         if drawing_method is not None and metadata_store is not None:
             drawing_method.bind(
@@ -1239,7 +1239,7 @@ class KnowledgeEngine:
 
     def _embeddings_from_methods(self) -> BaseEmbeddings | None:
         """Walk the configured ingestion methods and return the first
-        embeddings instance found (SemanticIngestion / AnalyzedIngestion /
+        embeddings instance found (SemanticIngestion / StructuredIngestion /
         DrawingIngestion all expose ``_embeddings``)."""
         return next(
             (m._embeddings for m in self._config.ingestion.methods if hasattr(m, "_embeddings")),
@@ -1434,7 +1434,7 @@ class KnowledgeEngine:
                 methods.append(m.clone_for_store(vector_store))
             else:
                 methods.append(m)
-            if vision_parser is None and isinstance(m, AnalyzedIngestion | DrawingIngestion):
+            if vision_parser is None and isinstance(m, StructuredIngestion | DrawingIngestion):
                 vision_parser = m._vision
 
         return IngestionService(

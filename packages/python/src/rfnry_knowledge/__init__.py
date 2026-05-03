@@ -37,11 +37,11 @@ from rfnry_knowledge.generation.models import StreamEvent as StreamEvent
 from rfnry_knowledge.ingestion.base import BaseIngestionMethod as BaseIngestionMethod
 from rfnry_knowledge.ingestion.chunk.chunker import SemanticChunker as SemanticChunker
 from rfnry_knowledge.ingestion.chunk.service import IngestionService as IngestionService
-from rfnry_knowledge.ingestion.methods import AnalyzedIngestion as AnalyzedIngestion
 from rfnry_knowledge.ingestion.methods import DrawingIngestion as DrawingIngestion
 from rfnry_knowledge.ingestion.methods import EntityIngestion as EntityIngestion
 from rfnry_knowledge.ingestion.methods import KeywordIngestion as KeywordIngestion
 from rfnry_knowledge.ingestion.methods import SemanticIngestion as SemanticIngestion
+from rfnry_knowledge.ingestion.methods import StructuredIngestion as StructuredIngestion
 from rfnry_knowledge.knowledge.engine import KnowledgeEngine as KnowledgeEngine
 from rfnry_knowledge.models import ContentMatch as ContentMatch
 from rfnry_knowledge.models import RetrievedChunk as RetrievedChunk
@@ -84,7 +84,6 @@ from rfnry_knowledge.stores.vector.qdrant import QdrantVectorStore as QdrantVect
 
 __all__ = [
     "DEFAULT_SYSTEM_PROMPT",
-    "AnalyzedIngestion",
     "BaseEmbeddings",
     "BaseIngestionMethod",
     "BaseReranking",
@@ -153,6 +152,7 @@ __all__ = [
     "SparseVector",
     "StoreError",
     "StreamEvent",
+    "StructuredIngestion",
     "TokenCounter",
     "TokenUsage",
     "build_registry",

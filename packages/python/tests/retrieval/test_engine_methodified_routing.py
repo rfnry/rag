@@ -12,9 +12,9 @@ from rfnry_knowledge.config.drawing import DrawingIngestionConfig
 from rfnry_knowledge.config.engine import KnowledgeEngineConfig
 from rfnry_knowledge.config.ingestion import IngestionConfig
 from rfnry_knowledge.config.retrieval import RetrievalConfig
-from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
 from rfnry_knowledge.ingestion.methods.drawing import DrawingIngestion
 from rfnry_knowledge.ingestion.methods.semantic import SemanticIngestion
+from rfnry_knowledge.ingestion.methods.structured import StructuredIngestion
 from rfnry_knowledge.knowledge.engine import KnowledgeEngine
 from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 
@@ -62,13 +62,13 @@ def _engine_config(
 
 @pytest.mark.asyncio
 async def test_engine_picks_up_analyzed_method_from_methods_list() -> None:
-    """When cfg.ingestion.methods carries AnalyzedIngestion, the engine wires
+    """When cfg.ingestion.methods carries StructuredIngestion, the engine wires
     its inner service as ``self._structured_ingestion``."""
     metadata_store = _make_metadata_store()
     vector_store = _make_vector_store()
     embeddings = _make_embeddings()
 
-    analyzed = AnalyzedIngestion(
+    analyzed = StructuredIngestion(
         store=vector_store,
         embeddings=embeddings,
         vision=MagicMock(),

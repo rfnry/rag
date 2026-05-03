@@ -29,10 +29,10 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzeDrawingPage", llm_response=llm_response, mode="request")
         return typing.cast(types.DrawingPageAnalysis, __result__)
 
-    def AnalyzePage(
+    def AnalyzeStructuredPage(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> types.PageAnalysis:
-        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzePage", llm_response=llm_response, mode="request")
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzeStructuredPage", llm_response=llm_response, mode="request")
         return typing.cast(types.PageAnalysis, __result__)
 
     def CheckRelevance(
@@ -91,10 +91,10 @@ class LlmStreamParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzeDrawingPage", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.DrawingPageAnalysis, __result__)
 
-    def AnalyzePage(
+    def AnalyzeStructuredPage(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> stream_types.PageAnalysis:
-        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzePage", llm_response=llm_response, mode="stream")
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="AnalyzeStructuredPage", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.PageAnalysis, __result__)
 
     def CheckRelevance(
