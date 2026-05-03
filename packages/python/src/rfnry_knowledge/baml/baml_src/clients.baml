@@ -33,13 +33,8 @@ retry_policy Retry5 {
   }
 }
 
-// Fallback client used only if no ClientRegistry override is supplied.
-// The model name is a sentinel so any unrouted call fails fast with a clear
-// provider error instead of silently proceeding on a specific model that may
-// be deprecated. Production code must always pass `client_registry` built via
-// `build_registry(LLMClient)`.
 client<llm> Default {
-  provider openai
+  provider anthropic
   retry_policy Retry3
   options {
     model "UNCONFIGURED-route-through-build-registry"

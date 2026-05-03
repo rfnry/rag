@@ -49,7 +49,7 @@ function AnalyzeDrawingPage(
   symbol_library: string,
   off_page_patterns: string,
 ) -> DrawingPageAnalysis {
-  client "openai/gpt-4o"
+  client Default
   prompt #"
     You are a technical-drawing analyst. Extract the structural content of this sheet.
 
@@ -83,4 +83,3 @@ function AnalyzeDrawingPage(
     {{ ctx.output_format }}
   "#
 }
-
