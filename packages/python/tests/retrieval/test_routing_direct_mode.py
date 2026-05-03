@@ -21,7 +21,7 @@ from rfnry_knowledge.observability.trace import RetrievalTrace
 def test_routing_config_default_mode_is_retrieval() -> None:
     """`RoutingConfig()` default mode is RETRIEVAL (backward compat)."""
     config = RoutingConfig()
-    assert config.mode == QueryMode.INDEXED
+    assert config.mode == QueryMode.RETRIEVAL
 
 
 def test_routing_config_full_context_threshold_bounded() -> None:
@@ -40,7 +40,7 @@ async def test_query_mode_retrieval_uses_existing_pipeline(make_engine: Any) -> 
     """`mode=RETRIEVAL` goes through `_retrieve_chunks` + generation."""
     engine = make_engine(
         retrieval=SimpleNamespace(history_window=3),
-        routing=RoutingConfig(mode=QueryMode.INDEXED),
+        routing=RoutingConfig(mode=QueryMode.RETRIEVAL),
     )
     engine._load_full_corpus = AsyncMock(return_value="should not be called")  # type: ignore[method-assign]
 
@@ -58,7 +58,7 @@ async def test_query_mode_direct_skips_retrieval_and_loads_full_corpus(
     """`mode=DIRECT` skips retrieval and calls `_load_full_corpus(knowledge_id)`."""
     engine = make_engine(
         retrieval=SimpleNamespace(history_window=3),
-        routing=RoutingConfig(mode=QueryMode.FULL_CONTEXT),
+        routing=RoutingConfig(mode=QueryMode.DIRECT),
     )
     engine._load_full_corpus = AsyncMock(return_value="full corpus body")  # type: ignore[method-assign]
 
@@ -76,23 +76,23 @@ async def test_query_mode_direct_sets_routing_decision_in_trace(
     """DIRECT populates `trace.routing_decision = "direct"`; RETRIEVAL sets `"retrieval"`."""
     direct = make_engine(
         retrieval=SimpleNamespace(history_window=3),
-        routing=RoutingConfig(mode=QueryMode.FULL_CONTEXT),
+        routing=RoutingConfig(mode=QueryMode.DIRECT),
     )
     direct._load_full_corpus = AsyncMock(return_value="corpus")  # type: ignore[method-assign]
     direct_result = await direct.query("q1", knowledge_id="kb-1", trace=True)
     assert direct_result.trace is not None
-    assert direct_result.trace.routing_decision == "full_context"
+    assert direct_result.trace.routing_decision == "direct"
 
     retrieval = make_engine(
         retrieval=SimpleNamespace(history_window=3),
-        routing=RoutingConfig(mode=QueryMode.INDEXED),
+        routing=RoutingConfig(mode=QueryMode.RETRIEVAL),
     )
     retrieval._retrieval_service.retrieve = AsyncMock(
         return_value=([], RetrievalTrace(query="q1", knowledge_id="kb-1"))
     )
     retrieval_result = await retrieval.query("q1", knowledge_id="kb-1", trace=True)
     assert retrieval_result.trace is not None
-    assert retrieval_result.trace.routing_decision == "indexed"
+    assert retrieval_result.trace.routing_decision == "retrieval"
 
 
 async def test_query_mode_direct_returns_query_result_shape_unchanged(
@@ -101,7 +101,7 @@ async def test_query_mode_direct_returns_query_result_shape_unchanged(
     """DIRECT returns a `QueryResult` with `answer` populated and trace shape honest."""
     engine = make_engine(
         retrieval=SimpleNamespace(history_window=3),
-        routing=RoutingConfig(mode=QueryMode.FULL_CONTEXT),
+        routing=RoutingConfig(mode=QueryMode.DIRECT),
     )
     engine._load_full_corpus = AsyncMock(return_value="corpus")  # type: ignore[method-assign]
 

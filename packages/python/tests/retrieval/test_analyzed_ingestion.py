@@ -159,9 +159,9 @@ async def test_analyzed_ingestion_writes_document_store_exactly_once(tmp_path) -
     """The ingest phase must be the single authoritative document write."""
     from unittest.mock import AsyncMock, MagicMock
 
-    from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
+    from rfnry_knowledge.ingestion.methods.keyword import KeywordIngestion
 
-    doc_method = MagicMock(spec=DocumentIngestion)
+    doc_method = MagicMock(spec=KeywordIngestion)
     doc_method.name = "document"
     doc_method.required = True
     doc_method.ingest = AsyncMock()
@@ -256,11 +256,11 @@ async def test_analyze_pdf_runs_pages_concurrently(tmp_path) -> None:
 
 
 async def test_analyzed_ingestion_identifies_document_method_by_type_not_name() -> None:
-    """If DocumentIngestion.name is renamed, document storage must still route correctly."""
-    from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
+    """If KeywordIngestion.name is renamed, document storage must still route correctly."""
+    from rfnry_knowledge.ingestion.methods.keyword import KeywordIngestion
 
-    # DocumentIngestion instance whose .name attr has drifted.
-    doc_method = MagicMock(spec=DocumentIngestion)
+    # KeywordIngestion instance whose .name attr has drifted.
+    doc_method = MagicMock(spec=KeywordIngestion)
     doc_method.name = "doc"  # simulate rename
     doc_method.required = True
     doc_method.ingest = AsyncMock()
@@ -271,9 +271,9 @@ async def test_analyzed_ingestion_identifies_document_method_by_type_not_name() 
     other.required = True
     other.ingest = AsyncMock()
 
-    # The filter must pick only the DocumentIngestion instance.
+    # The filter must pick only the KeywordIngestion instance.
     methods = [doc_method, other]
-    filtered = [m for m in methods if isinstance(m, DocumentIngestion)]
+    filtered = [m for m in methods if isinstance(m, KeywordIngestion)]
     assert filtered == [doc_method]
 
 

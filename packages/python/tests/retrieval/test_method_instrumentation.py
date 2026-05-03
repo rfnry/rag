@@ -10,19 +10,19 @@ from unittest.mock import AsyncMock
 import pytest
 from _recording import RecordingObservabilitySink as RecordingSink
 
-from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
-from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.ingestion.methods.keyword import KeywordIngestion
+from rfnry_knowledge.ingestion.methods.semantic import SemanticIngestion
 from rfnry_knowledge.models import VectorResult
 from rfnry_knowledge.observability import Observability
 from rfnry_knowledge.observability.context import _reset_obs, _set_obs
-from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval
-from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.retrieval.methods.keyword import KeywordRetrieval
+from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 from rfnry_knowledge.telemetry import IngestTelemetryRow, QueryTelemetryRow
 from rfnry_knowledge.telemetry.context import _reset_row, _set_row
 
 
 def _query_row() -> QueryTelemetryRow:
-    return QueryTelemetryRow(query_id="q-1", mode="indexed", routing_decision="indexed", outcome="success")
+    return QueryTelemetryRow(query_id="q-1", mode="retrieval", routing_decision="retrieval", outcome="success")
 
 
 def _ingest_row() -> IngestTelemetryRow:
@@ -43,13 +43,13 @@ async def test_vector_retrieval_records_method_duration_and_event() -> None:
     fake_embeddings = AsyncMock()
     fake_embeddings.embed = AsyncMock(return_value=[[0.0]])
 
-    retriever = VectorRetrieval(store=fake_store, embeddings=fake_embeddings)
+    retriever = SemanticRetrieval(store=fake_store, embeddings=fake_embeddings)
     try:
         results = await retriever.search("q", top_k=5)
         assert len(results) == 1
-        assert "vector" in row.methods_used
-        assert "vector" in row.method_durations_ms
-        assert row.method_durations_ms["vector"] >= 0
+        assert "semantic" in row.methods_used
+        assert "semantic" in row.method_durations_ms
+        assert row.method_durations_ms["semantic"] >= 0
         assert row.chunks_retrieved == 1
         kinds = [r.kind for r in obs_sink.records]
         assert "retrieval.method.success" in kinds
@@ -70,7 +70,7 @@ async def test_vector_retrieval_failure_increments_method_errors() -> None:
     fake_embeddings = AsyncMock()
     fake_embeddings.embed = AsyncMock(return_value=[[0.0]])
 
-    retriever = VectorRetrieval(store=fake_store, embeddings=fake_embeddings)
+    retriever = SemanticRetrieval(store=fake_store, embeddings=fake_embeddings)
     try:
         results = await retriever.search("q", top_k=5)
         assert results == []  # error-isolated
@@ -92,10 +92,10 @@ async def test_document_retrieval_records_method_duration_and_event() -> None:
     fake_store = AsyncMock()
     fake_store.search_content = AsyncMock(return_value=[])
 
-    retriever = DocumentRetrieval(store=fake_store)
+    retriever = KeywordRetrieval(backend="postgres_fts", document_store=fake_store)
     try:
         await retriever.search("q")
-        assert "document" in row.method_durations_ms
+        assert "keyword" in row.method_durations_ms
         kinds = [r.kind for r in obs_sink.records]
         assert "retrieval.method.success" in kinds
     finally:
@@ -113,7 +113,7 @@ async def test_document_ingestion_emits_method_success() -> None:
     fake_store = AsyncMock()
     fake_store.store_content = AsyncMock(return_value=None)
 
-    ing = DocumentIngestion(store=fake_store)
+    ing = KeywordIngestion(store=fake_store)
     try:
         await ing.ingest(
             source_id="s-1",
@@ -207,9 +207,7 @@ async def test_ingest_row_marks_contextual_chunk_skipped_on_oversized() -> None:
 
     contextual_cfg = ContextualChunkConfig(
         enabled=True,
-        provider_client=ProviderClient(
-            name="anthropic", model="m", api_key=SecretStr("k"), context_size=32_000
-        ),
+        provider_client=ProviderClient(name="anthropic", model="m", api_key=SecretStr("k"), context_size=32_000),
         token_counter=counter,
         max_context_tokens=100,
     )
@@ -378,21 +376,21 @@ async def test_ingest_row_counts_vision_pages_analyzed_and_skipped(tmp_path) -> 
 async def test_ingest_row_marks_graph_extraction_failed() -> None:
     from unittest.mock import patch
 
-    from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
+    from rfnry_knowledge.ingestion.methods.entity import EntityIngestion
 
     obs_token = _set_obs(Observability(sink=RecordingSink()))
     row = _ingest_row()
     row_token = _set_row(row)
 
     fake_store = AsyncMock()
-    method = GraphIngestion(store=fake_store)
+    method = EntityIngestion(store=fake_store)
     method._registry = SimpleNamespace()  # truthy bypasses early return
 
     async def boom(*, operation, call):
         raise RuntimeError("graph_extraction_blew_up")
 
     try:
-        with patch("rfnry_knowledge.ingestion.methods.graph.instrument_baml_call", side_effect=boom):
+        with patch("rfnry_knowledge.ingestion.methods.entity.instrument_baml_call", side_effect=boom):
             await method.ingest(
                 source_id="s",
                 knowledge_id="k",
@@ -432,7 +430,7 @@ async def test_vector_ingestion_emits_method_event_and_records_duration() -> Non
 
     chunk = ChunkedContent(content="body", chunk_index=0)
 
-    ing = VectorIngestion(store=fake_store, embeddings=fake_embeddings, embedding_model_name="x")
+    ing = SemanticIngestion(store=fake_store, embeddings=fake_embeddings, embedding_model_name="x")
     try:
         await ing.ingest(
             source_id="s-1",

@@ -221,7 +221,7 @@ async def test_structured_ingestion_has_document_method():
     """AnalyzedIngestionService stores document method in ingestion_methods."""
     from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 
-    doc_method = SimpleNamespace(name="document", ingest=AsyncMock(), delete=AsyncMock())
+    doc_method = SimpleNamespace(name="keyword", ingest=AsyncMock(), delete=AsyncMock())
     metadata_store = AsyncMock()
     embeddings = AsyncMock()
     embeddings.model = "test-model"
@@ -234,7 +234,7 @@ async def test_structured_ingestion_has_document_method():
         ingestion_methods=[doc_method],
     )
     assert doc_method in service._ingestion_methods
-    assert any(m.name == "document" for m in service._ingestion_methods)
+    assert any(m.name == "keyword" for m in service._ingestion_methods)
 
 
 # --- Tests merged from test_ingestion_advanced.py ---

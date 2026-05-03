@@ -23,19 +23,19 @@ from rfnry_knowledge.config import (
     RoutingConfig,
 )
 from rfnry_knowledge.config.drawing import DrawingIngestionConfig
-from rfnry_knowledge.config.graph import GraphIngestionConfig
+from rfnry_knowledge.config.entity import EntityIngestionConfig
 from rfnry_knowledge.ingestion.chunk.batch import BatchConfig
 from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
 from rfnry_knowledge.observability.benchmark import BenchmarkConfig
 from rfnry_knowledge.providers import ProviderClient
-from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 
 _CONFIGS_TO_AUDIT: list[type] = [
     IngestionConfig,
     RetrievalConfig,
     GenerationConfig,
     DrawingIngestionConfig,
-    GraphIngestionConfig,
+    EntityIngestionConfig,
     ProviderClient,
     BatchConfig,
     ContextualChunkConfig,
@@ -49,7 +49,7 @@ _CONFIGS_TO_AUDIT: list[type] = [
 # ``dataclasses.fields()`` does not reach them.
 _INIT_PARAM_BOUNDED_CLASSES: list[type] = [
     AnalyzedIngestion,
-    VectorRetrieval,
+    SemanticRetrieval,
 ]
 
 

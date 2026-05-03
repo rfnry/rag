@@ -2,7 +2,7 @@
 
 Pins the contract that:
 
-- ``GraphIngestion.ingest()`` writes a ``graph:warn:extraction_failed(...)`` note
+- ``EntityIngestion.ingest()`` writes a ``graph:warn:extraction_failed(...)`` note
   to the caller-supplied ``notes`` list when the BAML call raises.
 - ``IngestionService`` instantiates a fresh notes list per ingest, threads it
   through ``_dispatch_methods``, and merges the result into
@@ -16,7 +16,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from rfnry_knowledge.ingestion.chunk.service import IngestionService
-from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
+from rfnry_knowledge.ingestion.methods.entity import EntityIngestion
 from rfnry_knowledge.ingestion.models import ChunkedContent
 
 
@@ -41,12 +41,12 @@ async def test_graph_ingestion_soft_fail_writes_note() -> None:
     lm_client = MagicMock()
     notes: list[str] = []
     with (
-        patch("rfnry_knowledge.ingestion.methods.graph.b") as mock_b,
-        patch("rfnry_knowledge.ingestion.methods.graph.build_registry") as mock_registry,
+        patch("rfnry_knowledge.ingestion.methods.entity.b") as mock_b,
+        patch("rfnry_knowledge.ingestion.methods.entity.build_registry") as mock_registry,
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(side_effect=RuntimeError("LLM down"))
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, provider_client=lm_client)
+        method = EntityIngestion(store=store, provider_client=lm_client)
         await method.ingest(
             source_id="src-1",
             knowledge_id=None,
@@ -68,12 +68,12 @@ async def test_graph_ingestion_no_note_when_notes_is_none() -> None:
     store = AsyncMock()
     lm_client = MagicMock()
     with (
-        patch("rfnry_knowledge.ingestion.methods.graph.b") as mock_b,
-        patch("rfnry_knowledge.ingestion.methods.graph.build_registry") as mock_registry,
+        patch("rfnry_knowledge.ingestion.methods.entity.b") as mock_b,
+        patch("rfnry_knowledge.ingestion.methods.entity.build_registry") as mock_registry,
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(side_effect=RuntimeError("LLM down"))
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, provider_client=lm_client)
+        method = EntityIngestion(store=store, provider_client=lm_client)
         await method.ingest(
             source_id="src-1",
             knowledge_id=None,
@@ -104,12 +104,12 @@ async def test_graph_clean_run_no_note() -> None:
     mock_result.page_type = "text"
     notes: list[str] = []
     with (
-        patch("rfnry_knowledge.ingestion.methods.graph.b") as mock_b,
-        patch("rfnry_knowledge.ingestion.methods.graph.build_registry") as mock_registry,
+        patch("rfnry_knowledge.ingestion.methods.entity.b") as mock_b,
+        patch("rfnry_knowledge.ingestion.methods.entity.build_registry") as mock_registry,
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(return_value=mock_result)
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, provider_client=lm_client)
+        method = EntityIngestion(store=store, provider_client=lm_client)
         await method.ingest(
             source_id="src-1",
             knowledge_id=None,

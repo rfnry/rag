@@ -100,9 +100,7 @@ async def test_oversized_document_skips() -> None:
     counter = _Counter()
     cfg = ContextualChunkConfig(
         enabled=True,
-        provider_client=ProviderClient(
-            name="anthropic", model="m", api_key=SecretStr("k"), context_size=1_000
-        ),
+        provider_client=ProviderClient(name="anthropic", model="m", api_key=SecretStr("k"), context_size=1_000),
         token_counter=counter,
         max_context_tokens=100,
     )
@@ -126,8 +124,11 @@ async def test_situates_chunk_via_baml() -> None:
 async def test_failure_raises_ingestion_error() -> None:
     cfg = _config(enabled=True)
     chunk = _make_chunk(0)
-    with patch(
-        "rfnry_knowledge.ingestion.chunk.contextualize.instrument_baml_call",
-        new=AsyncMock(side_effect=RuntimeError("boom")),
-    ), pytest.raises(IngestionError):
+    with (
+        patch(
+            "rfnry_knowledge.ingestion.chunk.contextualize.instrument_baml_call",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ),
+        pytest.raises(IngestionError),
+    ):
         await contextualize_chunks_with_llm([chunk], document_text="doc", config=cfg)

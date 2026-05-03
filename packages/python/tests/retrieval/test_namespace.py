@@ -10,22 +10,22 @@ def _method(name: str) -> SimpleNamespace:
 
 
 def test_attribute_access():
-    ns = MethodNamespace([_method("vector"), _method("document")])
-    assert ns.vector.name == "vector"
-    assert ns.document.name == "document"
+    ns = MethodNamespace([_method("semantic"), _method("keyword")])
+    assert ns.semantic.name == "semantic"
+    assert ns.keyword.name == "keyword"
 
 
 def test_attribute_access_missing_raises():
-    ns = MethodNamespace([_method("vector")])
-    with pytest.raises(AttributeError, match="No method 'graph' configured"):
-        _ = ns.graph
+    ns = MethodNamespace([_method("semantic")])
+    with pytest.raises(AttributeError, match="No method 'entity' configured"):
+        _ = ns.entity
 
 
 def test_iteration():
-    methods = [_method("vector"), _method("document")]
+    methods = [_method("semantic"), _method("keyword")]
     ns = MethodNamespace(methods)
     names = [m.name for m in ns]
-    assert names == ["vector", "document"]
+    assert names == ["semantic", "keyword"]
 
 
 def test_len():
@@ -34,9 +34,9 @@ def test_len():
 
 
 def test_contains():
-    ns = MethodNamespace([_method("vector")])
-    assert "vector" in ns
-    assert "graph" not in ns
+    ns = MethodNamespace([_method("semantic")])
+    assert "semantic" in ns
+    assert "entity" not in ns
 
 
 def test_empty():

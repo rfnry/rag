@@ -76,7 +76,7 @@ src/rfnry_knowledge/
 ├── models/                  # Source, Chunk, vector DTOs, retrieval results, stats
 ├── config/                  # all config dataclasses, one place
 ├── ingestion/               # base + service + chunk/ + methods/ + drawing/
-├── retrieval/               # base + service + fusion + methods/ + reranking/ (Protocol only) + routing
+├── retrieval/               # base + service + fusion + methods/{semantic,keyword,entity} + reranking/ (Protocol only)
 ├── generation/              # service + grounding + formatting + models
 ├── stores/                  # vector/ + document/ + graph/ + metadata/
 ├── observability/           # trace + benchmark + metrics
@@ -103,14 +103,16 @@ No `cli/` directory. The library is SDK-only; the host owns transport.
 
 ### Retrieval pipeline
 
+The library is organized around three peer pillars — **Semantic**, **Keyword**, **Entity** — that run in parallel inside `QueryMode.RETRIEVAL` and merge via reciprocal rank fusion. RAG is one approach among many; the engine itself doesn't gravitate around it.
+
 `KnowledgeEngine.query()` runs:
 
 0. **Index-time enrichment** (ingestion-side, not query-time). Chunks may be enriched at ingest time via `chunk_context_headers`, `DocumentExpansionConfig` (BAML `GenerateSyntheticQueries`), and `ContextualChunkConfig` (BAML `SituateChunk`). Composes orthogonally; consumers opt in.
-1. **Routing.** `RoutingConfig.mode` selects between `INDEXED`, `FULL_CONTEXT`, and `AUTO` (per-query corpus-token threshold via `KnowledgeManager.get_corpus_tokens`).
-2. **Multi-path retrieval.** Configured methods run concurrently; results merge via reciprocal rank fusion with per-method weights:
-   - `VectorRetrieval` — dense + BM25 fused internally.
-   - `DocumentRetrieval` — Postgres FTS + substring (requires document store).
-   - `GraphRetrieval` — entity lookup + N-hop traversal (requires graph store).
+1. **Routing.** `RoutingConfig.mode` selects between `RETRIEVAL`, `DIRECT`, and `AUTO` (per-query corpus-token threshold via `KnowledgeManager.get_corpus_tokens`).
+2. **Three-pillar retrieval.** Configured methods run concurrently; results merge via reciprocal rank fusion with per-method weights:
+   - `SemanticRetrieval` — dense embeddings + optional sparse hybrid (vector store).
+   - `KeywordRetrieval` — `backend="bm25"` (in-memory over the vector store) or `backend="postgres_fts"` (Postgres FTS + substring on the document store).
+   - `EntityRetrieval` — entity lookup + N-hop traversal (graph store).
 3. **Reranking** (optional). Cross-encoder against the original query. Consumer-supplied `BaseReranking` impl.
 4. **Generation.** Grounding gate (BAML `CheckRelevance`) → context assembly → BAML `GenerateText`.
 
@@ -136,13 +138,13 @@ Symbol vocabularies are consumer-configurable via `DrawingIngestionConfig`.
 
 ### Modular pipeline
 
-Retrieval and ingestion are protocol-based plugin architectures. No mandatory vector DB or embeddings — at least one retrieval path (vector, document, or graph) must be configured.
+Retrieval and ingestion are protocol-based plugin architectures. No mandatory vector DB or embeddings — at least one retrieval pillar (`SemanticRetrieval`, `KeywordRetrieval`, or `EntityRetrieval`) must be configured.
 
 - **`BaseRetrievalMethod` / `BaseIngestionMethod`** — protocol interfaces in `retrieval/base.py` and `ingestion/base.py`.
-- **Method classes** — `VectorRetrieval`, `DocumentRetrieval`, `GraphRetrieval` (retrieval); `VectorIngestion`, `DocumentIngestion`, `GraphIngestion`, `AnalyzedIngestion`, `DrawingIngestion` (ingestion). Each is self-contained with error isolation and timing logs.
+- **Method classes** — `SemanticRetrieval`, `KeywordRetrieval`, `EntityRetrieval` (retrieval); `SemanticIngestion`, `KeywordIngestion`, `EntityIngestion`, `AnalyzedIngestion`, `DrawingIngestion` (ingestion). Each is self-contained with error isolation and timing logs.
 - **Dynamic assembly** — `KnowledgeEngine.initialize()` builds method lists from config, validates cross-config constraints, assembles `RetrievalService` and `IngestionService`.
 - **`BaseIngestionMethod.required: bool`** is part of the protocol. Required-method failures abort the ingest with `IngestionError`.
-- **Graph ingestion is consumer-agnostic by default.** `GraphIngestionConfig` lets consumers supply their own entity-type regex patterns, relationship keyword map, and fallback edge type.
+- **Entity ingestion is consumer-agnostic by default.** `EntityIngestionConfig` lets consumers supply their own entity-type regex patterns, relationship keyword map, and fallback edge type.
 
 ### Error hierarchy
 
@@ -244,7 +246,7 @@ These act as regression guards — they enforce whole-class invariants:
 - `BenchmarkConfig.concurrency`: `1 ≤ n ≤ 20`, default 1.
 - `DrawingIngestionConfig.dpi`: `150 ≤ dpi ≤ 600`, default 400.
 - `DrawingIngestionConfig.relation_vocabulary`: every target must be in `ALLOWED_RELATION_TYPES`.
-- `GraphIngestionConfig.entity_type_patterns`: regex strings compiled at `__post_init__`.
+- `EntityIngestionConfig.entity_type_patterns`: regex strings compiled at `__post_init__`.
 - `ProviderClient.timeout_seconds`: `> 0`, default 60.
 - `ProviderClient.temperature`: `0.0 ≤ t ≤ 2.0`.
 - `ProviderClient.max_retries`: `0 ≤ n ≤ 5`, default 3.

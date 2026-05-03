@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.ingestion.methods.semantic import SemanticIngestion
 from rfnry_knowledge.ingestion.models import ChunkedContent
 
 
@@ -49,14 +49,14 @@ async def test_vector_ingestion_gathers_dense_and_sparse_embeddings() -> None:
     vector_store = MagicMock()
     vector_store.upsert = AsyncMock()
     embeddings_provider = MagicMock()
-    vi = VectorIngestion(
+    vi = SemanticIngestion(
         store=vector_store,
         embeddings=embeddings_provider,
         embedding_model_name="test-model",
         sparse_embeddings=sparse_provider,
     )
     chunks = cast(list[ChunkedContent], [_make_chunk("chunk text")])
-    with patch("rfnry_knowledge.ingestion.methods.vector.embed_batched", new=dense_mock):
+    with patch("rfnry_knowledge.ingestion.methods.semantic.embed_batched", new=dense_mock):
         await vi.ingest(
             source_id="src-1",
             knowledge_id="kb-1",
@@ -82,11 +82,11 @@ async def test_vector_ingestion_sparse_none_skips_gather() -> None:
     dense_mock = AsyncMock(return_value=[[0.1, 0.2, 0.3]])
     vector_store = MagicMock()
     vector_store.upsert = AsyncMock()
-    vi = VectorIngestion(
+    vi = SemanticIngestion(
         store=vector_store, embeddings=MagicMock(), embedding_model_name="test-model", sparse_embeddings=None
     )
     chunks = cast(list[ChunkedContent], [_make_chunk("chunk text")])
-    with patch("rfnry_knowledge.ingestion.methods.vector.embed_batched", new=dense_mock):
+    with patch("rfnry_knowledge.ingestion.methods.semantic.embed_batched", new=dense_mock):
         await vi.ingest(
             source_id="src-2",
             knowledge_id=None,
@@ -113,11 +113,11 @@ async def test_vector_ingestion_sparse_failure_preserved() -> None:
     failing_sparse.embed_sparse = AsyncMock(side_effect=RuntimeError("sparse boom"))
     vector_store = MagicMock()
     vector_store.upsert = AsyncMock()
-    vi = VectorIngestion(
+    vi = SemanticIngestion(
         store=vector_store, embeddings=MagicMock(), embedding_model_name="test-model", sparse_embeddings=failing_sparse
     )
     chunks = cast(list[ChunkedContent], [_make_chunk("chunk text")])
-    with patch("rfnry_knowledge.ingestion.methods.vector.embed_batched", new=dense_mock):
+    with patch("rfnry_knowledge.ingestion.methods.semantic.embed_batched", new=dense_mock):
         await vi.ingest(
             source_id="src-3",
             knowledge_id=None,

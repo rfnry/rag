@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from rfnry_knowledge.config.graph import GraphIngestionConfig
+from rfnry_knowledge.config.entity import EntityIngestionConfig
 
 
 def test_analyzed_service_stores_graph_config() -> None:
     from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 
-    cfg = GraphIngestionConfig(unclassified_relation_default="MENTIONS")
+    cfg = EntityIngestionConfig(unclassified_relation_default="MENTIONS")
     svc = AnalyzedIngestionService(
         embeddings=SimpleNamespace(),
         vector_store=SimpleNamespace(),
@@ -22,10 +22,10 @@ def test_analyzed_service_stores_graph_config() -> None:
 
 
 def test_graph_ingestion_method_stores_graph_config() -> None:
-    from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
+    from rfnry_knowledge.ingestion.methods.entity import EntityIngestion
 
-    cfg = GraphIngestionConfig()
-    svc = GraphIngestion(store=SimpleNamespace(), provider_client=None, graph_config=cfg)
+    cfg = EntityIngestionConfig()
+    svc = EntityIngestion(store=SimpleNamespace(), provider_client=None, graph_config=cfg)
     assert svc._graph_config is cfg
 
 
@@ -40,15 +40,15 @@ def test_analyzed_service_defaults_graph_config_to_agnostic_empty() -> None:
         metadata_store=SimpleNamespace(),
         embedding_model_name="e",
     )
-    assert isinstance(svc._graph_config, GraphIngestionConfig)
+    assert isinstance(svc._graph_config, EntityIngestionConfig)
     assert svc._graph_config.entity_type_patterns == []
     assert svc._graph_config.unclassified_relation_default == "MENTIONS"
 
 
 def test_graph_ingestion_method_defaults_to_agnostic_empty() -> None:
-    from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
+    from rfnry_knowledge.ingestion.methods.entity import EntityIngestion
 
-    svc = GraphIngestion(store=SimpleNamespace(), provider_client=None)
-    assert isinstance(svc._graph_config, GraphIngestionConfig)
+    svc = EntityIngestion(store=SimpleNamespace(), provider_client=None)
+    assert isinstance(svc._graph_config, EntityIngestionConfig)
     assert svc._graph_config.entity_type_patterns == []
     assert svc._graph_config.unclassified_relation_default == "MENTIONS"

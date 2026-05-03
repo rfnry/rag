@@ -166,11 +166,7 @@ class KnowledgeManager:
             text = ""
             if self._document_store is not None:
                 text = await self._document_store.get(source.source_id) or ""
-            token_count = (
-                self._token_counter.count(text)
-                if text and self._token_counter is not None
-                else 0
-            )
+            token_count = self._token_counter.count(text) if text and self._token_counter is not None else 0
             # Only writeback when we actually computed something. Writing a
             # zero would poison the cache forever — `cached is not None` above
             # would short-circuit subsequent calls even after a document store

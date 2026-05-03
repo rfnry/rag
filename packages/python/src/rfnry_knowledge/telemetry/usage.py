@@ -26,12 +26,8 @@ def normalize_usage(usage: TokenUsage | dict[str, int] | None) -> dict[str, int]
     return {
         "tokens_input": _coerce_int(usage.get("input", usage.get("tokens_input", 0))),
         "tokens_output": _coerce_int(usage.get("output", usage.get("tokens_output", 0))),
-        "tokens_cache_creation": _coerce_int(
-            usage.get("cache_creation", usage.get("tokens_cache_creation", 0))
-        ),
-        "tokens_cache_read": _coerce_int(
-            usage.get("cache_read", usage.get("tokens_cache_read", 0))
-        ),
+        "tokens_cache_creation": _coerce_int(usage.get("cache_creation", usage.get("tokens_cache_creation", 0))),
+        "tokens_cache_read": _coerce_int(usage.get("cache_read", usage.get("tokens_cache_read", 0))),
     }
 
 

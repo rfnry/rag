@@ -37,8 +37,8 @@ class _CaptureTelemetry:
 def _make_query_row(**overrides: object) -> QueryTelemetryRow:
     base: dict[str, object] = {
         "query_id": "q-1",
-        "mode": "indexed",
-        "routing_decision": "indexed",
+        "mode": "retrieval",
+        "routing_decision": "retrieval",
         "outcome": "success",
     }
     base.update(overrides)
@@ -89,7 +89,7 @@ async def test_jsonl_stderr_emits_query_row(capsys: pytest.CaptureFixture[str]) 
     await sink.write(_make_query_row(knowledge_id="k", tokens_input=12))
     line = capsys.readouterr().err.strip().splitlines()[-1]
     parsed = json.loads(line)
-    assert parsed["mode"] == "indexed"
+    assert parsed["mode"] == "retrieval"
     assert parsed["tokens_input"] == 12
 
 

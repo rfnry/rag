@@ -15,10 +15,10 @@ from rfnry_knowledge.observability.context import current_obs
 from rfnry_knowledge.stores.vector.base import BaseVectorStore
 from rfnry_knowledge.telemetry.context import current_ingest_row
 
-logger = get_logger("ingestion.methods.vector")
+logger = get_logger("ingestion.methods.semantic")
 
 
-class VectorIngestion:
+class SemanticIngestion:
     """Embed chunks and store as vector points."""
 
     required: bool = True
@@ -41,8 +41,8 @@ class VectorIngestion:
         self._include_synthetic_in_embeddings = include_synthetic_in_embeddings
         self._include_synthetic_in_bm25 = include_synthetic_in_bm25
 
-    def clone_for_store(self, store: BaseVectorStore) -> VectorIngestion:
-        return VectorIngestion(
+    def clone_for_store(self, store: BaseVectorStore) -> SemanticIngestion:
+        return SemanticIngestion(
             store=store,
             embeddings=self._embeddings,
             embedding_model_name=self._embedding_model_name,
@@ -53,7 +53,7 @@ class VectorIngestion:
 
     @property
     def name(self) -> str:
-        return "vector"
+        return "semantic"
 
     async def ingest(
         self,

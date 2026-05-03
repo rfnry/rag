@@ -10,11 +10,16 @@ from rfnry_knowledge.stores.graph.base import BaseGraphStore
 from rfnry_knowledge.stores.graph.models import GraphPath, GraphResult
 from rfnry_knowledge.telemetry.context import current_query_row
 
-logger = get_logger("retrieval.methods.graph")
+logger = get_logger("retrieval.methods.entity")
 
 
-class GraphRetrieval:
-    """Entity lookup + N-hop graph traversal via the graph store."""
+class EntityRetrieval:
+    """Entity lookup + N-hop graph traversal — the entity pillar.
+
+    Returns one RetrievedChunk per matched entity, with the chunk's content
+    flattening the entity, its connected entities, and the traversal paths
+    so the model can reason over typed connections.
+    """
 
     def __init__(
         self,
@@ -26,12 +31,12 @@ class GraphRetrieval:
         self._weight = weight
         self._top_k = top_k
 
-    def clone_for_store(self, store: BaseGraphStore) -> GraphRetrieval:
-        return GraphRetrieval(store=store, weight=self._weight, top_k=self._top_k)
+    def clone_for_store(self, store: BaseGraphStore) -> EntityRetrieval:
+        return EntityRetrieval(store=store, weight=self._weight, top_k=self._top_k)
 
     @property
     def name(self) -> str:
-        return "graph"
+        return "entity"
 
     @property
     def weight(self) -> float:
@@ -74,7 +79,7 @@ class GraphRetrieval:
             return chunks
         except Exception as exc:
             elapsed_ms = int((time.perf_counter() - start) * 1000)
-            logger.warning("failed in %dms — %s", elapsed_ms, exc)
+            logger.warning("entity retrieval failed in %dms — %s", elapsed_ms, exc)
             if row is not None:
                 row.method_errors += 1
                 row.method_durations_ms[self.name] = elapsed_ms
@@ -95,19 +100,15 @@ class GraphRetrieval:
         relation_types: list[str] | None = None,
         knowledge_id: str | None = None,
     ) -> list[GraphPath]:
-        """Traverse the knowledge graph from entity_name, returning all matching paths.
+        """Traverse the knowledge graph from ``entity_name``, returning all matching paths.
 
-        This is a thin wrapper around the graph store's query_graph() + N-hop
-        traversal. Unlike search(), it returns GraphPath objects directly so
-        callers can inspect the actual connectivity subgraph without re-parsing
-        a RetrievedChunk.description string.
+        Thin wrapper around the graph store's ``query_graph`` + N-hop traversal.
+        Unlike ``search``, returns ``GraphPath`` objects directly so callers can
+        inspect the connectivity subgraph without re-parsing a chunk.
 
-        When relation_types is provided, only paths whose every edge is in the
-        list are returned (strict AND filter).
-
-        max_hops bounds the traversal depth and is passed through to the store.
-        Errors from the store are treated the same way search() treats them:
-        logged at warning level and converted to an empty result list.
+        When ``relation_types`` is provided, only paths whose every edge is in
+        the list are returned (strict AND filter). ``max_hops`` bounds depth.
+        Store errors are converted to an empty list, like ``search``.
         """
         start = time.perf_counter()
         try:
@@ -153,12 +154,12 @@ class GraphRetrieval:
 
             chunks.append(
                 RetrievedChunk(
-                    chunk_id=f"graph:{result.entity.name}:{result.entity.entity_type}",
+                    chunk_id=f"entity:{result.entity.name}:{result.entity.entity_type}",
                     source_id=result.entity.properties.get("source_id", ""),
                     content="\n".join(lines),
                     score=result.relevance_score,
                     source_metadata={
-                        "retrieval_type": "graph",
+                        "retrieval_type": "entity",
                         "entity_name": result.entity.name,
                         "entity_type": result.entity.entity_type,
                         "connected_count": len(result.connected_entities),

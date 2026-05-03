@@ -1,13 +1,13 @@
 from unittest.mock import AsyncMock
 
-from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
+from rfnry_knowledge.ingestion.methods.keyword import KeywordIngestion
 
 
 async def test_ingest_stores_content():
     store = AsyncMock()
     store.store_content = AsyncMock()
-    method = DocumentIngestion(store=store)
-    assert method.name == "document"
+    method = KeywordIngestion(store=store)
+    assert method.name == "keyword"
     await method.ingest(
         source_id="src-1",
         knowledge_id="kb-1",
@@ -31,6 +31,6 @@ async def test_ingest_stores_content():
 async def test_delete():
     store = AsyncMock()
     store.delete_content = AsyncMock()
-    method = DocumentIngestion(store=store)
+    method = KeywordIngestion(store=store)
     await method.delete("src-1")
     store.delete_content.assert_called_once_with("src-1")

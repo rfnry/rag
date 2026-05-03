@@ -7,13 +7,13 @@ Shutdown order (correct): vector -> graph -> document -> metadata
 from unittest.mock import AsyncMock, MagicMock
 
 from rfnry_knowledge.config import IngestionConfig, KnowledgeEngineConfig, RetrievalConfig
-from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
-from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
-from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.ingestion.methods.entity import EntityIngestion
+from rfnry_knowledge.ingestion.methods.keyword import KeywordIngestion
+from rfnry_knowledge.ingestion.methods.semantic import SemanticIngestion
 from rfnry_knowledge.knowledge.engine import KnowledgeEngine
-from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval
-from rfnry_knowledge.retrieval.methods.graph import GraphRetrieval
-from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.retrieval.methods.entity import EntityRetrieval
+from rfnry_knowledge.retrieval.methods.keyword import KeywordRetrieval
+from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 
 
 async def test_shutdown_tears_down_in_reverse_init_order() -> None:
@@ -45,16 +45,16 @@ async def test_shutdown_tears_down_in_reverse_init_order() -> None:
         metadata_store=metadata,
         ingestion=IngestionConfig(
             methods=[
-                VectorIngestion(store=vector, embeddings=embeddings),
-                DocumentIngestion(store=document),
-                GraphIngestion(store=graph),
+                SemanticIngestion(store=vector, embeddings=embeddings),
+                KeywordIngestion(store=document),
+                EntityIngestion(store=graph),
             ],
         ),
         retrieval=RetrievalConfig(
             methods=[
-                VectorRetrieval(store=vector, embeddings=embeddings),
-                DocumentRetrieval(store=document),
-                GraphRetrieval(store=graph),
+                SemanticRetrieval(store=vector, embeddings=embeddings),
+                KeywordRetrieval(backend="postgres_fts", document_store=document),
+                EntityRetrieval(store=graph),
             ],
         ),
     )
@@ -71,8 +71,8 @@ async def test_shutdown_clears_service_refs() -> None:
     document.shutdown = AsyncMock()
 
     cfg = KnowledgeEngineConfig(
-        ingestion=IngestionConfig(methods=[DocumentIngestion(store=document)]),
-        retrieval=RetrievalConfig(methods=[DocumentRetrieval(store=document)]),
+        ingestion=IngestionConfig(methods=[KeywordIngestion(store=document)]),
+        retrieval=RetrievalConfig(methods=[KeywordRetrieval(backend="postgres_fts", document_store=document)]),
     )
     engine = KnowledgeEngine(cfg)
     await engine.initialize()
@@ -105,10 +105,10 @@ async def test_shutdown_is_idempotent() -> None:
     cfg = KnowledgeEngineConfig(
         metadata_store=metadata,
         ingestion=IngestionConfig(
-            methods=[VectorIngestion(store=vector, embeddings=embeddings)],
+            methods=[SemanticIngestion(store=vector, embeddings=embeddings)],
         ),
         retrieval=RetrievalConfig(
-            methods=[VectorRetrieval(store=vector, embeddings=embeddings)],
+            methods=[SemanticRetrieval(store=vector, embeddings=embeddings)],
         ),
     )
     engine = KnowledgeEngine(cfg)

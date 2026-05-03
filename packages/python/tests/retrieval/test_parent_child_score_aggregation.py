@@ -21,7 +21,7 @@ def _make_child(parent_id: str, score: float, point_id: str, idx: int) -> Vector
 def test_expand_parents_sums_child_scores_when_shared_parent() -> None:
     """Three children all sharing parent P1 collapse to one parent result,
     scored by the sum of child scores."""
-    from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+    from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 
     children = [
         _make_child("P1", 0.8, "c1", 1),
@@ -37,7 +37,7 @@ def test_expand_parents_sums_child_scores_when_shared_parent() -> None:
         }
     }
 
-    expanded = VectorRetrieval._merge_children_into_parents(children, fake_parent_lookup)
+    expanded = SemanticRetrieval._merge_children_into_parents(children, fake_parent_lookup)
 
     assert len(expanded) == 1
     assert expanded[0].score == pytest.approx(2.1)
@@ -47,7 +47,7 @@ def test_expand_parents_sums_child_scores_when_shared_parent() -> None:
 
 def test_expand_parents_with_distinct_parents_preserves_individual_scores() -> None:
     """Two children with DIFFERENT parents produce two distinct expanded results."""
-    from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+    from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 
     children = [
         _make_child("P1", 0.9, "c1", 1),
@@ -58,7 +58,7 @@ def test_expand_parents_with_distinct_parents_preserves_individual_scores() -> N
         "P2": {"chunk_type": "parent", "parent_id": "P2", "content": "PARENT-2"},
     }
 
-    expanded = VectorRetrieval._merge_children_into_parents(children, fake_parent_lookup)
+    expanded = SemanticRetrieval._merge_children_into_parents(children, fake_parent_lookup)
 
     assert len(expanded) == 2
     by_score = sorted(expanded, key=lambda r: -r.score)
@@ -69,7 +69,7 @@ def test_expand_parents_with_distinct_parents_preserves_individual_scores() -> N
 
 def test_expand_parents_without_matching_parent_in_lookup_is_skipped() -> None:
     """A child whose parent_id has no entry in parent_lookup is dropped silently."""
-    from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+    from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 
     children = [
         _make_child("P1", 0.9, "c1", 1),  # P1 in lookup
@@ -77,7 +77,7 @@ def test_expand_parents_without_matching_parent_in_lookup_is_skipped() -> None:
     ]
     fake_parent_lookup = {"P1": {"chunk_type": "parent", "parent_id": "P1", "content": "PARENT-1"}}
 
-    expanded = VectorRetrieval._merge_children_into_parents(children, fake_parent_lookup)
+    expanded = SemanticRetrieval._merge_children_into_parents(children, fake_parent_lookup)
 
     assert len(expanded) == 1
     assert expanded[0].payload.get("content") == "PARENT-1"

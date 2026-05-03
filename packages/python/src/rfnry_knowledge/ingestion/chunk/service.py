@@ -280,9 +280,7 @@ class IngestionService:
         # per-page counts (not count_tokens(full_text)) so the page-marker
         # decoration we added above doesn't inflate the number.
         metadata["estimated_tokens"] = (
-            sum(self._token_counter.count(p.content) for p in pages)
-            if self._token_counter is not None
-            else 0
+            sum(self._token_counter.count(p.content) for p in pages) if self._token_counter is not None else 0
         )
 
         await self._dispatch_methods(
@@ -375,9 +373,7 @@ class IngestionService:
         source_id = str(uuid4())
         title = metadata.get("name", "text-input")
 
-        metadata["estimated_tokens"] = (
-            self._token_counter.count(content) if self._token_counter is not None else 0
-        )
+        metadata["estimated_tokens"] = self._token_counter.count(content) if self._token_counter is not None else 0
 
         await self._dispatch_methods(
             source_id=source_id,

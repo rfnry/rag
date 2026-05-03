@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.retrieval.methods.keyword import KeywordRetrieval
 
 
 def _result(point_id: str, content: str = "content") -> SimpleNamespace:
@@ -26,28 +26,23 @@ def _result(point_id: str, content: str = "content") -> SimpleNamespace:
 
 @pytest.mark.asyncio
 async def test_bm25_scroll_stops_at_cap() -> None:
-    """A store with many pages of results should only be scrolled up to the cap,
-    not iterated to completion."""
     page = [_result(f"p{i}") for i in range(500)]
     store = SimpleNamespace(scroll=AsyncMock(return_value=(page, "next")))
-    embeddings = SimpleNamespace()
-    retr = VectorRetrieval(store=store, embeddings=embeddings, bm25_enabled=True, bm25_max_chunks=1000)
+    retr = KeywordRetrieval(backend="bm25", vector_store=store, bm25_max_chunks=1000)
     await retr._build_bm25_index(knowledge_id=None)
     assert store.scroll.await_count == 2
 
 
 @pytest.mark.asyncio
 async def test_bm25_under_cap_reads_to_end() -> None:
-    """When corpus is smaller than the cap, scrolling proceeds normally to None."""
     page = [_result(f"p{i}") for i in range(100)]
     store = SimpleNamespace(scroll=AsyncMock(side_effect=[(page, "next"), (page, None)]))
-    embeddings = SimpleNamespace()
-    retr = VectorRetrieval(store=store, embeddings=embeddings, bm25_enabled=True, bm25_max_chunks=10000)
+    retr = KeywordRetrieval(backend="bm25", vector_store=store, bm25_max_chunks=10000)
     await retr._build_bm25_index(knowledge_id=None)
     assert store.scroll.await_count == 2
 
 
-def test_vector_retrieval_default_bm25_max_chunks() -> None:
-    """BM25 sizing knobs are per-VectorRetrieval; no longer on RetrievalConfig."""
-    method = VectorRetrieval(store=SimpleNamespace(), embeddings=SimpleNamespace())
+def test_keyword_retrieval_default_bm25_max_chunks() -> None:
+    """BM25 sizing knobs live on KeywordRetrieval, not RetrievalConfig."""
+    method = KeywordRetrieval(backend="bm25", vector_store=SimpleNamespace())
     assert method._bm25_max_chunks == 50_000

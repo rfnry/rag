@@ -48,12 +48,8 @@ def add_llm_usage(provider: str, model: str, usage: dict[str, int]) -> None:
             row.model = model
     row.tokens_input += int(usage.get("input", usage.get("tokens_input", 0)) or 0)
     row.tokens_output += int(usage.get("output", usage.get("tokens_output", 0)) or 0)
-    row.tokens_cache_creation += int(
-        usage.get("cache_creation", usage.get("tokens_cache_creation", 0)) or 0
-    )
-    row.tokens_cache_read += int(
-        usage.get("cache_read", usage.get("tokens_cache_read", 0)) or 0
-    )
+    row.tokens_cache_creation += int(usage.get("cache_creation", usage.get("tokens_cache_creation", 0)) or 0)
+    row.tokens_cache_read += int(usage.get("cache_read", usage.get("tokens_cache_read", 0)) or 0)
 
 
 def increment_ingest_field(field: str, n: int = 1) -> None:

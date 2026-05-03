@@ -6,12 +6,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from rfnry_knowledge.config import KnowledgeEngineConfig
-from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
-from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.ingestion.methods.keyword import KeywordIngestion
+from rfnry_knowledge.ingestion.methods.semantic import SemanticIngestion
 from rfnry_knowledge.knowledge.engine import KnowledgeEngine
-from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval
-from rfnry_knowledge.retrieval.methods.graph import GraphRetrieval
-from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.retrieval.methods.entity import EntityRetrieval
+from rfnry_knowledge.retrieval.methods.keyword import KeywordRetrieval
+from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 
 
 def _has(methods, cls) -> bool:
@@ -26,9 +26,9 @@ def test_vector_only_preset_yields_valid_config() -> None:
     config = KnowledgeEngine.vector_only(vector_store=vector_store, embeddings=embeddings)
 
     assert isinstance(config, KnowledgeEngineConfig)
-    assert _has(config.ingestion.methods, VectorIngestion)
-    assert _has(config.retrieval.methods, VectorRetrieval)
-    assert not _has(config.ingestion.methods, DocumentIngestion)
+    assert _has(config.ingestion.methods, SemanticIngestion)
+    assert _has(config.retrieval.methods, SemanticRetrieval)
+    assert not _has(config.ingestion.methods, KeywordIngestion)
     assert config.metadata_store is None
 
 
@@ -48,9 +48,9 @@ def test_document_only_preset() -> None:
     document_store = MagicMock()
     config = KnowledgeEngine.document_only(document_store=document_store)
 
-    assert _has(config.ingestion.methods, DocumentIngestion)
-    assert _has(config.retrieval.methods, DocumentRetrieval)
-    assert not _has(config.ingestion.methods, VectorIngestion)
+    assert _has(config.ingestion.methods, KeywordIngestion)
+    assert _has(config.retrieval.methods, KeywordRetrieval)
+    assert not _has(config.ingestion.methods, SemanticIngestion)
 
 
 def test_hybrid_preset_wires_all_stores() -> None:
@@ -68,9 +68,9 @@ def test_hybrid_preset_wires_all_stores() -> None:
         reranker=reranker,
     )
 
-    assert _has(config.ingestion.methods, VectorIngestion)
-    assert _has(config.ingestion.methods, DocumentIngestion)
-    assert _has(config.retrieval.methods, GraphRetrieval)
+    assert _has(config.ingestion.methods, SemanticIngestion)
+    assert _has(config.ingestion.methods, KeywordIngestion)
+    assert _has(config.retrieval.methods, EntityRetrieval)
     assert config.retrieval.reranker is reranker
 
 
@@ -79,9 +79,9 @@ def test_hybrid_preset_without_optional_stores() -> None:
         vector_store=MagicMock(),
         embeddings=MagicMock(model="m"),
     )
-    assert _has(config.ingestion.methods, VectorIngestion)
-    assert not _has(config.ingestion.methods, DocumentIngestion)
-    assert not _has(config.retrieval.methods, GraphRetrieval)
+    assert _has(config.ingestion.methods, SemanticIngestion)
+    assert not _has(config.ingestion.methods, KeywordIngestion)
+    assert not _has(config.retrieval.methods, EntityRetrieval)
 
 
 def test_presets_return_usable_config_for_engine_construction() -> None:

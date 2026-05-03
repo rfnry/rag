@@ -9,10 +9,10 @@ from rfnry_knowledge.observability.context import current_obs
 from rfnry_knowledge.stores.document.base import BaseDocumentStore
 from rfnry_knowledge.telemetry.context import current_ingest_row
 
-logger = get_logger("ingestion.methods.document")
+logger = get_logger("ingestion.methods.keyword")
 
 
-class DocumentIngestion:
+class KeywordIngestion:
     """Store full document text in the document store."""
 
     required: bool = True
@@ -20,12 +20,12 @@ class DocumentIngestion:
     def __init__(self, store: BaseDocumentStore) -> None:
         self._store = store
 
-    def clone_for_store(self, store: BaseDocumentStore) -> DocumentIngestion:
-        return DocumentIngestion(store=store)
+    def clone_for_store(self, store: BaseDocumentStore) -> KeywordIngestion:
+        return KeywordIngestion(store=store)
 
     @property
     def name(self) -> str:
-        return "document"
+        return "keyword"
 
     async def ingest(
         self,

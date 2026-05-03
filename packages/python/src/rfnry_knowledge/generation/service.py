@@ -38,9 +38,7 @@ class GenerationService:
 
         self._relevance_gate: RelevanceGate | None = None
         if relevance_gate_enabled and relevance_gate_client and self._score_gate:
-            self._relevance_gate = RelevanceGate(
-                provider_client=relevance_gate_client, fallback_gate=self._score_gate
-            )
+            self._relevance_gate = RelevanceGate(provider_client=relevance_gate_client, fallback_gate=self._score_gate)
 
     @staticmethod
     def _format_history(history: list[tuple[str, str]] | None) -> str:

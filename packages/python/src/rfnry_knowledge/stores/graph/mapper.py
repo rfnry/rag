@@ -1,6 +1,6 @@
 """Map structured analysis output (PageAnalysis, DocumentSynthesis) to graph entities and relations.
 
-Vocabulary is consumer-supplied via ``GraphIngestionConfig``; the mapper carries
+Vocabulary is consumer-supplied via ``EntityIngestionConfig``; the mapper carries
 no built-in domain assumptions. The ``unclassified_relation_default`` setting
 determines whether a cross-reference with no matching keyword becomes a
 generic ``MENTIONS`` edge (default) or is dropped (``None``).
@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 
 from rfnry_knowledge.common.logging import get_logger
-from rfnry_knowledge.config.graph import GraphIngestionConfig
+from rfnry_knowledge.config.entity import EntityIngestionConfig
 from rfnry_knowledge.ingestion.analyze.models import DocumentSynthesis, PageAnalysis
 from rfnry_knowledge.stores.graph.models import GraphEntity, GraphRelation
 
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 def _infer_entity_type(
     category: str,
     name: str,
-    config: GraphIngestionConfig,
+    config: EntityIngestionConfig,
 ) -> str:
     """Infer an entity type. Consumer patterns first, then category, then 'entity'."""
     for pattern_str, type_name in config.entity_type_patterns:
@@ -34,7 +34,7 @@ def _infer_entity_type(
 
 def _classify_relationship(
     relationship: str,
-    config: GraphIngestionConfig,
+    config: EntityIngestionConfig,
 ) -> str | None:
     """Classify a cross-reference relationship via the consumer's keyword map.
 
@@ -53,7 +53,7 @@ def _classify_relationship(
 def page_entities_to_graph(
     page: PageAnalysis,
     source_id: str,
-    config: GraphIngestionConfig,
+    config: EntityIngestionConfig,
 ) -> list[GraphEntity]:
     """Convert PageAnalysis.entities to GraphEntity list using config-driven type inference."""
     return [
@@ -77,7 +77,7 @@ def cross_refs_to_graph_relations(
     synthesis: DocumentSynthesis,
     page_analyses: list[PageAnalysis],
     knowledge_id: str | None,
-    config: GraphIngestionConfig,
+    config: EntityIngestionConfig,
 ) -> list[GraphRelation]:
     """Convert DocumentSynthesis.cross_references to GraphRelation list."""
     entity_lookup: dict[str, str] = {}

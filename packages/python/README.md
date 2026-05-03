@@ -17,27 +17,32 @@ The library is SDK-only. There is no CLI; the host application owns all transpor
 
 A minimal vector + document retrieval pipeline. Note that `Embeddings` and `ProviderClient` LLM construction is the consumer's concern — the snippet below assumes a sibling `my_providers` module that returns objects matching `BaseEmbeddings` and `ProviderClient`:
 
+The engine is organized around three peer retrieval pillars — **Semantic**, **Keyword**, **Entity** — that run in parallel inside `QueryMode.RETRIEVAL` and merge via reciprocal rank fusion. `QueryMode.DIRECT` skips retrieval entirely and loads the full corpus into a prompt-cached prefix; `QueryMode.AUTO` picks per query based on a corpus-token threshold.
+
 ```python
 import asyncio
 
 from pydantic import SecretStr
 
 from rfnry_knowledge import (
-    DocumentIngestion,
-    DocumentRetrieval,
+    EntityIngestion,
+    EntityRetrieval,
     GenerationConfig,
     IngestionConfig,
+    KeywordIngestion,
+    KeywordRetrieval,
     KnowledgeEngine,
     KnowledgeEngineConfig,
+    Neo4jGraphStore,
     PostgresDocumentStore,
     ProviderClient,
     QdrantVectorStore,
     QueryMode,
     RetrievalConfig,
     RoutingConfig,
+    SemanticIngestion,
+    SemanticRetrieval,
     SQLAlchemyMetadataStore,
-    VectorIngestion,
-    VectorRetrieval,
 )
 
 # Consumer-supplied; library defines BaseEmbeddings as a Protocol only.
@@ -58,20 +63,26 @@ async def main() -> None:
 
     vector_store = QdrantVectorStore(url="http://localhost:6333", collection="docs")
     document_store = PostgresDocumentStore(url="postgresql+asyncpg://…")
+    graph_store = Neo4jGraphStore(uri="bolt://localhost:7687", username="neo4j", password="…")
     metadata_store = SQLAlchemyMetadataStore(url="postgresql+asyncpg://…")
 
     config = KnowledgeEngineConfig(
         metadata_store=metadata_store,
         ingestion=IngestionConfig(
             methods=[
-                VectorIngestion(store=vector_store, embeddings=embeddings),
-                DocumentIngestion(store=document_store),
+                SemanticIngestion(store=vector_store, embeddings=embeddings),
+                KeywordIngestion(store=document_store),
+                EntityIngestion(store=graph_store, provider_client=generation_client),
             ],
         ),
         retrieval=RetrievalConfig(
             methods=[
-                VectorRetrieval(store=vector_store, embeddings=embeddings, bm25_enabled=True),
-                DocumentRetrieval(store=document_store),
+                # Semantic pillar — dense + optional sparse hybrid
+                SemanticRetrieval(store=vector_store, embeddings=embeddings),
+                # Keyword pillar — pick a backend per call site (BM25 or Postgres FTS)
+                KeywordRetrieval(backend="postgres_fts", document_store=document_store),
+                # Entity pillar — entity lookup + N-hop traversal over the graph store
+                EntityRetrieval(store=graph_store),
             ],
             top_k=8,
         ),
@@ -112,15 +123,15 @@ The library defines four Protocols and one `ProviderClient` dataclass. The consu
 
 ### Retrieval
 
-**Modular method composition.** Vector (dense + BM25 fused internally), document (Postgres FTS + substring), and graph (entity lookup + N-hop traversal). All paths are pluggable via `BaseRetrievalMethod` and run concurrently per query, merging through reciprocal rank fusion with per-method weights. No mandatory backend; configure only the paths you need. Per-method error isolation means one failing path does not break the others.
+**Three peer pillars composed in parallel.** `SemanticRetrieval` (dense + optional sparse hybrid), `KeywordRetrieval` (lexical match — `backend="bm25"` runs in-memory over the vector store, `backend="postgres_fts"` against the document store), and `EntityRetrieval` (entity lookup + N-hop traversal over the graph store). All three implement `BaseRetrievalMethod` and run concurrently per query, merging through reciprocal rank fusion with per-method weights. No mandatory pillar; configure only the paths you need. Per-method error isolation means one failing path does not break the others.
 
-**Auto routing between indexed retrieval and full-context generation.** Each query is dispatched through one of three modes: `INDEXED` (the standard retrieval pipeline), `FULL_CONTEXT` (load the entire corpus into a prompt-cached prefix and let the model answer directly), or `AUTO` (a corpus-token threshold dispatches between them per query). When `ProviderClient.context_size` is declared, engine init refuses configurations where the threshold plus reserve would overflow the model's window — the cap is a safety bound, not a routing target.
+**Auto routing between retrieval and full-context generation.** Each query is dispatched through one of three modes: `RETRIEVAL` (run the three pillars in parallel and fuse), `DIRECT` (load the entire corpus into a prompt-cached prefix and let the model answer directly), or `AUTO` (a corpus-token threshold dispatches between them per query). When `ProviderClient.context_size` is declared, engine init refuses configurations where the threshold plus reserve would overflow the model's window — the cap is a safety bound, not a routing target.
 
 **Cross-encoder reranking.** Optional reranking against the original query, via any `BaseReranking`-conforming object the consumer supplies. Sits cleanly between fusion and generation; opt-in per config.
 
 ### Ingestion
 
-**Pluggable ingestion methods.** Vector, document, and graph ingestion all implement `BaseIngestionMethod`. Required vs optional methods are part of the contract: required-method failures abort the ingest; optional methods log and continue. Each method is self-contained and dispatches generically through `IngestionService`.
+**Pillar-mirrored ingestion methods.** `SemanticIngestion` (writes embeddings to the vector store), `KeywordIngestion` (writes raw content to the document store, backing the Postgres-FTS keyword backend), and `EntityIngestion` (writes entities + relations to the graph store). All implement `BaseIngestionMethod`. Required vs optional methods are part of the contract: required-method failures abort the ingest; optional methods log and continue. The BM25 keyword backend reads vector-store payloads directly at query time and needs no separate ingestion.
 
 **Drawing-aware ingestion for diagram-first documents.** Schematics, P&ID, wiring, and mechanical drawings break in chunk-and-pray pipelines — page 2 loses its connection to page 5. The drawing pipeline takes a different path: a vision call (BAML `AnalyzeDrawingPage`, routed via the consumer's `ProviderClient`) extracts structure once per page (components, labels, off-page connector tags) and emits every cross-page reference into the graph store as an edge candidate. Cross-sheet reasoning happens at query time, *over the assembled graph*, by the model itself. DXF files parse natively through `ezdxf` with no LLM calls. Symbol vocabularies (IEC 60617 + ISA 5.1 ship as defaults) are consumer-overridable. Per-page vision failures soft-skip the page and record a note rather than aborting the whole ingest.
 
@@ -135,7 +146,7 @@ The library defines four Protocols and one `ProviderClient` dataclass. The consu
 
 **Lost-in-the-middle mitigation.** Generation context can be assembled in score-descending order (default), primacy-recency, or sandwich. The non-default orderings put high-confidence chunks where U-shaped attention actually uses them.
 
-**Long-context direct generation.** When the corpus fits the model's window, `FULL_CONTEXT` mode loads the full corpus into a stable prompt prefix optimized for prompt-cache hits. Pairs cleanly with `AUTO` routing for transparent retrieval-or-direct dispatch.
+**Long-context direct generation.** When the corpus fits the model's window, `QueryMode.DIRECT` loads the full corpus into a stable prompt prefix optimized for prompt-cache hits. Pairs cleanly with `AUTO` routing for transparent retrieval-or-direct dispatch.
 
 ### Observability
 

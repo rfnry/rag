@@ -16,9 +16,9 @@ from rfnry_knowledge.config.retrieval import RetrievalConfig
 from rfnry_knowledge.exceptions import ConfigurationError
 from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
 from rfnry_knowledge.ingestion.methods.drawing import DrawingIngestion
-from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.ingestion.methods.semantic import SemanticIngestion
 from rfnry_knowledge.knowledge.engine import KnowledgeEngine
-from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 
 
 def test_drawing_extensions_allowlist_is_dxf_only() -> None:
@@ -89,7 +89,7 @@ def _engine_config(
         metadata_store=metadata_store,
         ingestion=IngestionConfig(methods=ingestion_methods),
         retrieval=RetrievalConfig(
-            methods=[VectorRetrieval(store=vector_store, embeddings=embeddings)],
+            methods=[SemanticRetrieval(store=vector_store, embeddings=embeddings)],
         ),
     )
 
@@ -111,7 +111,7 @@ async def _make_engine_with_drawing_stub(stub: _StubDrawingService) -> Knowledge
         vector_store=vector_store,
         embeddings=embeddings,
         ingestion_methods=[
-            VectorIngestion(store=vector_store, embeddings=embeddings),
+            SemanticIngestion(store=vector_store, embeddings=embeddings),
             drawing,
         ],
     )
@@ -129,7 +129,7 @@ async def _make_engine_without_drawing() -> KnowledgeEngine:
         metadata_store=metadata_store,
         vector_store=vector_store,
         embeddings=embeddings,
-        ingestion_methods=[VectorIngestion(store=vector_store, embeddings=embeddings)],
+        ingestion_methods=[SemanticIngestion(store=vector_store, embeddings=embeddings)],
     )
     engine = KnowledgeEngine(cfg)
     await engine.initialize()

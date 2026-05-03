@@ -9,7 +9,7 @@ from baml_py import ClientRegistry
 from baml_py import errors as baml_errors
 
 from rfnry_knowledge.common.logging import get_logger
-from rfnry_knowledge.config.graph import GraphIngestionConfig
+from rfnry_knowledge.config.entity import EntityIngestionConfig
 from rfnry_knowledge.exceptions import ConfigurationError, IngestionError
 from rfnry_knowledge.ingestion.analyze.models import (
     CrossReference,
@@ -59,7 +59,7 @@ class AnalyzedIngestionService:
         ingestion_methods: list | None = None,
         analyze_text_skip_threshold_chars: int = 300,
         analyze_concurrency: int = 5,
-        graph_config: GraphIngestionConfig | None = None,
+        graph_config: EntityIngestionConfig | None = None,
     ) -> None:
         self._embeddings = embeddings
         self._vector_store = vector_store
@@ -74,7 +74,7 @@ class AnalyzedIngestionService:
         self._ingestion_methods = ingestion_methods or []
         self._analyze_text_skip_threshold_chars = analyze_text_skip_threshold_chars
         self._analyze_concurrency = analyze_concurrency
-        self._graph_config = graph_config if graph_config is not None else GraphIngestionConfig()
+        self._graph_config = graph_config if graph_config is not None else EntityIngestionConfig()
 
     async def analyze(
         self,

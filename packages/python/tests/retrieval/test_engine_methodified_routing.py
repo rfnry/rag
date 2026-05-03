@@ -14,9 +14,9 @@ from rfnry_knowledge.config.ingestion import IngestionConfig
 from rfnry_knowledge.config.retrieval import RetrievalConfig
 from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
 from rfnry_knowledge.ingestion.methods.drawing import DrawingIngestion
-from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.ingestion.methods.semantic import SemanticIngestion
 from rfnry_knowledge.knowledge.engine import KnowledgeEngine
-from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 
 
 def _make_metadata_store() -> MagicMock:
@@ -55,7 +55,7 @@ def _engine_config(
         metadata_store=metadata_store,
         ingestion=IngestionConfig(methods=ingestion_methods),
         retrieval=RetrievalConfig(
-            methods=[VectorRetrieval(store=vector_store, embeddings=embeddings)],
+            methods=[SemanticRetrieval(store=vector_store, embeddings=embeddings)],
         ),
     )
 
@@ -78,7 +78,7 @@ async def test_engine_picks_up_analyzed_method_from_methods_list() -> None:
         vector_store=vector_store,
         embeddings=embeddings,
         ingestion_methods=[
-            VectorIngestion(store=vector_store, embeddings=embeddings),
+            SemanticIngestion(store=vector_store, embeddings=embeddings),
             analyzed,
         ],
     )
@@ -110,7 +110,7 @@ async def test_engine_picks_up_drawing_method_from_methods_list() -> None:
         vector_store=vector_store,
         embeddings=embeddings,
         ingestion_methods=[
-            VectorIngestion(store=vector_store, embeddings=embeddings),
+            SemanticIngestion(store=vector_store, embeddings=embeddings),
             drawing,
         ],
     )

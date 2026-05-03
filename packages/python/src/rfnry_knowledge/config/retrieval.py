@@ -14,9 +14,11 @@ if TYPE_CHECKING:
 class RetrievalConfig:
     """Cross-method retrieval config.
 
-    Per-method knobs (BM25 settings, parent-expansion, weights, top_k overrides)
-    live on the individual ``VectorRetrieval`` / ``DocumentRetrieval`` /
-    ``GraphRetrieval`` instances passed in ``methods``.
+    The three pillars (Semantic, Keyword, Entity) run in parallel inside
+    ``QueryMode.RETRIEVAL`` and merge via reciprocal rank fusion. Per-method
+    knobs (BM25 settings, parent expansion, weights, top_k overrides, the
+    Keyword backend selector) live on the individual ``SemanticRetrieval`` /
+    ``KeywordRetrieval`` / ``EntityRetrieval`` instances passed in ``methods``.
     """
 
     methods: list[BaseRetrievalMethod] = field(default_factory=list)
@@ -24,7 +26,6 @@ class RetrievalConfig:
     reranker: BaseReranking | None = None
     source_type_weights: dict[str, float] | None = None
     history_window: int = 3
-    cross_reference_enrichment: bool = True
 
     def __post_init__(self) -> None:
         if self.top_k < 1:

@@ -9,11 +9,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from rfnry_knowledge.config import IngestionConfig, KnowledgeEngineConfig, RetrievalConfig
-from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
-from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
+from rfnry_knowledge.ingestion.methods.entity import EntityIngestion
+from rfnry_knowledge.ingestion.methods.keyword import KeywordIngestion
 from rfnry_knowledge.knowledge.engine import KnowledgeEngine
-from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval
-from rfnry_knowledge.retrieval.methods.graph import GraphRetrieval
+from rfnry_knowledge.retrieval.methods.entity import EntityRetrieval
+from rfnry_knowledge.retrieval.methods.keyword import KeywordRetrieval
 
 
 @pytest.mark.asyncio
@@ -34,10 +34,13 @@ async def test_initialize_rolls_back_already_opened_stores_on_failure():
     cfg = KnowledgeEngineConfig(
         metadata_store=metadata_store,
         ingestion=IngestionConfig(
-            methods=[DocumentIngestion(store=document_store), GraphIngestion(store=graph_store)],
+            methods=[KeywordIngestion(store=document_store), EntityIngestion(store=graph_store)],
         ),
         retrieval=RetrievalConfig(
-            methods=[DocumentRetrieval(store=document_store), GraphRetrieval(store=graph_store)],
+            methods=[
+                KeywordRetrieval(backend="postgres_fts", document_store=document_store),
+                EntityRetrieval(store=graph_store),
+            ],
         ),
     )
     engine = KnowledgeEngine(cfg)
@@ -58,8 +61,8 @@ async def test_initialize_does_not_call_shutdown_on_success():
     document_store.shutdown = AsyncMock()
 
     cfg = KnowledgeEngineConfig(
-        ingestion=IngestionConfig(methods=[DocumentIngestion(store=document_store)]),
-        retrieval=RetrievalConfig(methods=[DocumentRetrieval(store=document_store)]),
+        ingestion=IngestionConfig(methods=[KeywordIngestion(store=document_store)]),
+        retrieval=RetrievalConfig(methods=[KeywordRetrieval(backend="postgres_fts", document_store=document_store)]),
     )
     engine = KnowledgeEngine(cfg)
     await engine.initialize()

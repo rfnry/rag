@@ -43,22 +43,22 @@ def test_base_ingestion_method_exported() -> None:
 def test_top_level_exports_method_classes() -> None:
     from rfnry_knowledge import (
         AnalyzedIngestion,
-        DocumentIngestion,
         DrawingIngestion,
-        GraphIngestion,
-        VectorIngestion,
+        EntityIngestion,
+        KeywordIngestion,
+        SemanticIngestion,
     )
 
     assert AnalyzedIngestion.__name__ == "AnalyzedIngestion"
-    assert DocumentIngestion.__name__ == "DocumentIngestion"
+    assert KeywordIngestion.__name__ == "KeywordIngestion"
     assert DrawingIngestion.__name__ == "DrawingIngestion"
-    assert GraphIngestion.__name__ == "GraphIngestion"
-    assert VectorIngestion.__name__ == "VectorIngestion"
+    assert EntityIngestion.__name__ == "EntityIngestion"
+    assert SemanticIngestion.__name__ == "SemanticIngestion"
     for name in (
         "AnalyzedIngestion",
-        "DocumentIngestion",
+        "KeywordIngestion",
         "DrawingIngestion",
-        "GraphIngestion",
-        "VectorIngestion",
+        "EntityIngestion",
+        "SemanticIngestion",
     ):
         assert name in rfnry_knowledge.__all__

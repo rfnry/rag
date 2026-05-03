@@ -47,7 +47,7 @@ def _build_engine(
 ) -> KnowledgeEngine:
     config = MagicMock(spec=KnowledgeEngineConfig)
     config.retrieval = SimpleNamespace(history_window=3)
-    config.routing = routing or RoutingConfig(mode=QueryMode.INDEXED)
+    config.routing = routing or RoutingConfig(mode=QueryMode.RETRIEVAL)
     engine = KnowledgeEngine.__new__(KnowledgeEngine)
     engine._config = config
     engine._observability = Observability(sink=obs_sink)
@@ -240,17 +240,17 @@ async def test_explicit_indexed_mode_emits_routing_decision() -> None:
     engine = _build_engine(
         obs_sink=obs_sink,
         tel_sink=tel_sink,
-        routing=RoutingConfig(mode=QueryMode.INDEXED),
+        routing=RoutingConfig(mode=QueryMode.RETRIEVAL),
     )
 
     await engine.query("hello")
 
     decisions = [r for r in obs_sink.records if r.kind == "routing.decision"]
     assert len(decisions) == 1
-    assert decisions[0].context["mode"] == "indexed"
+    assert decisions[0].context["mode"] == "retrieval"
     assert decisions[0].context["reason"] == "explicit_mode"
     assert decisions[0].context["corpus_tokens"] is None
-    assert tel_sink.rows[0].routing_decision == "indexed"
+    assert tel_sink.rows[0].routing_decision == "retrieval"
 
 
 async def test_explicit_full_context_mode_emits_routing_decision() -> None:
@@ -259,7 +259,7 @@ async def test_explicit_full_context_mode_emits_routing_decision() -> None:
     engine = _build_engine(
         obs_sink=obs_sink,
         tel_sink=tel_sink,
-        routing=RoutingConfig(mode=QueryMode.FULL_CONTEXT),
+        routing=RoutingConfig(mode=QueryMode.DIRECT),
     )
     engine._knowledge_manager = AsyncMock()
     engine._knowledge_manager.get_corpus_tokens = AsyncMock(return_value=42)
@@ -270,9 +270,9 @@ async def test_explicit_full_context_mode_emits_routing_decision() -> None:
 
     decisions = [r for r in obs_sink.records if r.kind == "routing.decision"]
     assert len(decisions) == 1
-    assert decisions[0].context["mode"] == "full_context"
+    assert decisions[0].context["mode"] == "direct"
     assert decisions[0].context["reason"] == "explicit_mode"
-    assert tel_sink.rows[0].routing_decision == "full_context"
+    assert tel_sink.rows[0].routing_decision == "direct"
 
 
 async def test_auto_mode_emits_routing_decision_event_full_context() -> None:
@@ -292,13 +292,13 @@ async def test_auto_mode_emits_routing_decision_event_full_context() -> None:
 
     decisions = [r for r in obs_sink.records if r.kind == "routing.decision"]
     assert len(decisions) == 1
-    assert decisions[0].context["mode"] == "full_context"
+    assert decisions[0].context["mode"] == "direct"
     assert decisions[0].context["reason"] == "auto_dispatch"
     assert decisions[0].context["corpus_tokens"] == 500
     assert decisions[0].context["threshold"] == 10_000
     row = tel_sink.rows[0]
-    assert row.routing_decision == "full_context"
-    assert row.mode == "full_context"
+    assert row.routing_decision == "direct"
+    assert row.mode == "direct"
     assert row.corpus_tokens == 500
 
 
@@ -317,12 +317,12 @@ async def test_auto_mode_emits_routing_decision_event_indexed() -> None:
 
     decisions = [r for r in obs_sink.records if r.kind == "routing.decision"]
     assert len(decisions) == 1
-    assert decisions[0].context["mode"] == "indexed"
+    assert decisions[0].context["mode"] == "retrieval"
     assert decisions[0].context["reason"] == "auto_dispatch"
     assert decisions[0].context["corpus_tokens"] == 200_000
     row = tel_sink.rows[0]
-    assert row.routing_decision == "indexed"
-    assert row.mode == "indexed"
+    assert row.routing_decision == "retrieval"
+    assert row.mode == "retrieval"
     assert row.corpus_tokens == 200_000
 
 

@@ -32,7 +32,6 @@ def _make_server() -> KnowledgeEngine:
     server._initialized = True
     server._retrieval_service = AsyncMock()
     server._retrieval_service.retrieve = AsyncMock(return_value=([_chunk("c1"), _chunk("c2")], None))
-    server._structured_retrieval = None
     server._generation_service = AsyncMock()
     server._generation_service.generate = AsyncMock(return_value=_query_result())
     server._knowledge_manager = None
@@ -83,50 +82,6 @@ class TestServerQuery:
             await server.query("test")
 
 
-class TestServerQueryWithStructured:
-    async def test_query_merges_structured_results(self):
-        server = _make_server()
-        server._structured_retrieval = AsyncMock()
-        server._structured_retrieval.retrieve = AsyncMock(return_value=[_chunk("s1", 0.95)])
-
-        await server.query("test")
-
-        gen_call = server._generation_service.generate.call_args
-        chunks = gen_call.kwargs["chunks"]
-        chunk_ids = {c.chunk_id for c in chunks}
-        assert "c1" in chunk_ids
-        assert "s1" in chunk_ids
-
-    async def test_merge_deduplicates_by_chunk_id(self):
-        server = _make_server()
-        server._structured_retrieval = AsyncMock()
-        server._structured_retrieval.retrieve = AsyncMock(return_value=[_chunk("c1", 0.5)])
-
-        await server.query("test")
-
-        gen_call = server._generation_service.generate.call_args
-        chunks = gen_call.kwargs["chunks"]
-        ids = [c.chunk_id for c in chunks]
-        assert ids.count("c1") == 1
-
-    async def test_merge_gives_rank1_structured_competitive_position(self):
-        """With RRF, rank-1 results from both lists should end up in the top of
-        the merged output — regardless of raw-score scale difference."""
-        server = _make_server()
-        server._structured_retrieval = AsyncMock()
-        server._structured_retrieval.retrieve = AsyncMock(return_value=[_chunk("high", 0.99)])
-
-        await server.query("test")
-
-        gen_call = server._generation_service.generate.call_args
-        chunks = gen_call.kwargs["chunks"]
-        # Unstructured returned [c1, c2]; structured returned [high].
-        # Under RRF, c1 and high are tied rank-1, both should lead over c2.
-        top_two_ids = {chunks[0].chunk_id, chunks[1].chunk_id}
-        assert "high" in top_two_ids
-        assert "c1" in top_two_ids
-
-
 class TestServerRetrieve:
     async def test_retrieve_returns_chunks_no_generation(self):
         server = _make_server()
@@ -135,15 +90,6 @@ class TestServerRetrieve:
 
         assert len(chunks) == 2
         assert chunks[0].chunk_id == "c1"
-
-    async def test_retrieve_merges_structured(self):
-        server = _make_server()
-        server._structured_retrieval = AsyncMock()
-        server._structured_retrieval.retrieve = AsyncMock(return_value=[_chunk("extra", 0.95)])
-
-        chunks, _ = await server.retrieve("test")
-        ids = {c.chunk_id for c in chunks}
-        assert "extra" in ids
 
 
 class TestServerQueryStream:
@@ -220,23 +166,3 @@ class TestBuildRetrievalQuery:
         assert "q3" in result
         assert "q4" in result
         assert "q0" not in result
-
-
-class TestMergeRetrievalResults:
-    """Smoke tests for `_merge_retrieval_results` contract. The scoring
-    semantics (RRF) are exercised in test_fusion.py::TestMergeRetrievalResults."""
-
-    def test_dedup_by_chunk_id(self):
-        merged = KnowledgeEngine._merge_retrieval_results(
-            [_chunk("a", 0.9)],
-            [_chunk("a", 0.5)],
-        )
-        assert len(merged) == 1
-
-    def test_returns_all_unique_chunks(self):
-        merged = KnowledgeEngine._merge_retrieval_results(
-            [_chunk("a", 0.04)],
-            [_chunk("b", 0.9)],
-        )
-        ids = {c.chunk_id for c in merged}
-        assert ids == {"a", "b"}

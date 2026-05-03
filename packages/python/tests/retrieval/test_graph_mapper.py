@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from rfnry_knowledge.config.graph import GraphIngestionConfig
+from rfnry_knowledge.config.entity import EntityIngestionConfig
 from rfnry_knowledge.ingestion.analyze.models import (
     CrossReference,
     DiscoveredEntity,
@@ -14,7 +14,7 @@ from rfnry_knowledge.stores.graph.mapper import (
     page_entities_to_graph,
 )
 
-_ELECTRICAL_CONFIG = GraphIngestionConfig(
+_ELECTRICAL_CONFIG = EntityIngestionConfig(
     entity_type_patterns=[
         (r"\bmotor\b", "motor"),
         (r"\bbreaker\b|\bCB[-\s]", "breaker"),
@@ -65,7 +65,7 @@ def test_page_entities_to_graph_default_config_uses_category() -> None:
             DiscoveredEntity(name="Contract-001", category="Contract", context=""),
         ],
     )
-    result = page_entities_to_graph(page, source_id="src-1", config=GraphIngestionConfig())
+    result = page_entities_to_graph(page, source_id="src-1", config=EntityIngestionConfig())
     assert result[0].entity_type == "legalparty"
     assert result[1].entity_type == "contract"
 
@@ -76,13 +76,13 @@ def test_page_entities_to_graph_empty_category_falls_back_to_entity() -> None:
         description="",
         entities=[DiscoveredEntity(name="X", category="", context="")],
     )
-    result = page_entities_to_graph(page, source_id="s", config=GraphIngestionConfig())
+    result = page_entities_to_graph(page, source_id="s", config=EntityIngestionConfig())
     assert result[0].entity_type == "entity"
 
 
 def test_page_entities_empty() -> None:
     page = PageAnalysis(page_number=1, description="", entities=[])
-    assert page_entities_to_graph(page, source_id="s", config=GraphIngestionConfig()) == []
+    assert page_entities_to_graph(page, source_id="s", config=EntityIngestionConfig()) == []
 
 
 # ---- cross_refs_to_graph_relations ----
@@ -125,7 +125,7 @@ def test_cross_refs_classifies_via_keyword_map() -> None:
 
 def test_cross_refs_unclassifiable_uses_default_mentions_when_set() -> None:
     """New Phase-D behavior: unknown relationship becomes MENTIONS edge."""
-    cfg = GraphIngestionConfig()  # default unclassified_relation_default="MENTIONS"
+    cfg = EntityIngestionConfig()  # default unclassified_relation_default="MENTIONS"
     synthesis = DocumentSynthesis(
         cross_references=[
             CrossReference(
@@ -148,7 +148,7 @@ def test_cross_refs_unclassifiable_uses_default_mentions_when_set() -> None:
 
 def test_cross_refs_unclassifiable_dropped_when_default_is_none() -> None:
     """Opt-in strict mode: consumer sets unclassified_relation_default=None."""
-    cfg = GraphIngestionConfig(unclassified_relation_default=None)
+    cfg = EntityIngestionConfig(unclassified_relation_default=None)
     synthesis = DocumentSynthesis(
         cross_references=[
             CrossReference(

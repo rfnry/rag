@@ -1,4 +1,4 @@
-"""rfnry-knowledge — Provider-agnostic retrieval-augmented generation engine."""
+"""rfnry-knowledge — Provider-agnostic retrieval engine."""
 
 from importlib.metadata import version
 
@@ -9,10 +9,11 @@ from rfnry_knowledge.baml.version_check import check_baml as _check_baml
 _check_baml()
 
 from rfnry_knowledge.config import DEFAULT_SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
+from rfnry_knowledge.config import ContextualChunkConfig as ContextualChunkConfig
 from rfnry_knowledge.config import DocumentExpansionConfig as DocumentExpansionConfig
 from rfnry_knowledge.config import DrawingIngestionConfig as DrawingIngestionConfig
+from rfnry_knowledge.config import EntityIngestionConfig as EntityIngestionConfig
 from rfnry_knowledge.config import GenerationConfig as GenerationConfig
-from rfnry_knowledge.config import GraphIngestionConfig as GraphIngestionConfig
 from rfnry_knowledge.config import IngestionConfig as IngestionConfig
 from rfnry_knowledge.config import KnowledgeEngineConfig as KnowledgeEngineConfig
 from rfnry_knowledge.config import QueryMode as QueryMode
@@ -37,10 +38,10 @@ from rfnry_knowledge.ingestion.base import BaseIngestionMethod as BaseIngestionM
 from rfnry_knowledge.ingestion.chunk.chunker import SemanticChunker as SemanticChunker
 from rfnry_knowledge.ingestion.chunk.service import IngestionService as IngestionService
 from rfnry_knowledge.ingestion.methods import AnalyzedIngestion as AnalyzedIngestion
-from rfnry_knowledge.ingestion.methods import DocumentIngestion as DocumentIngestion
 from rfnry_knowledge.ingestion.methods import DrawingIngestion as DrawingIngestion
-from rfnry_knowledge.ingestion.methods import GraphIngestion as GraphIngestion
-from rfnry_knowledge.ingestion.methods import VectorIngestion as VectorIngestion
+from rfnry_knowledge.ingestion.methods import EntityIngestion as EntityIngestion
+from rfnry_knowledge.ingestion.methods import KeywordIngestion as KeywordIngestion
+from rfnry_knowledge.ingestion.methods import SemanticIngestion as SemanticIngestion
 from rfnry_knowledge.knowledge.engine import KnowledgeEngine as KnowledgeEngine
 from rfnry_knowledge.models import ContentMatch as ContentMatch
 from rfnry_knowledge.models import RetrievedChunk as RetrievedChunk
@@ -67,10 +68,9 @@ from rfnry_knowledge.providers import TokenCounter as TokenCounter
 from rfnry_knowledge.providers import TokenUsage as TokenUsage
 from rfnry_knowledge.providers import build_registry as build_registry
 from rfnry_knowledge.retrieval.base import BaseRetrievalMethod as BaseRetrievalMethod
-from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval as DocumentRetrieval
-from rfnry_knowledge.retrieval.methods.enrich import StructuredRetrieval as StructuredRetrieval
-from rfnry_knowledge.retrieval.methods.graph import GraphRetrieval as GraphRetrieval
-from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval as VectorRetrieval
+from rfnry_knowledge.retrieval.methods.entity import EntityRetrieval as EntityRetrieval
+from rfnry_knowledge.retrieval.methods.keyword import KeywordRetrieval as KeywordRetrieval
+from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval as SemanticRetrieval
 from rfnry_knowledge.retrieval.search.service import RetrievalService as RetrievalService
 from rfnry_knowledge.stores.document.filesystem import FilesystemDocumentStore as FilesystemDocumentStore
 from rfnry_knowledge.stores.document.postgres import PostgresDocumentStore as PostgresDocumentStore
@@ -96,32 +96,33 @@ __all__ = [
     "BenchmarkReport",
     "ConfigurationError",
     "ContentMatch",
+    "ContextualChunkConfig",
     "DocumentExpansionConfig",
-    "DocumentIngestion",
-    "DocumentRetrieval",
     "DrawingIngestion",
     "DrawingIngestionConfig",
     "DuplicateSourceError",
     "EmbeddingError",
     "EmbeddingResult",
     "EmptyDocumentError",
+    "EntityIngestion",
+    "EntityIngestionConfig",
+    "EntityRetrieval",
     "ExactMatch",
     "F1Score",
     "FilesystemDocumentStore",
     "GenerationConfig",
     "GenerationError",
     "GraphEntity",
-    "GraphIngestion",
-    "GraphIngestionConfig",
     "GraphPath",
     "GraphRelation",
     "GraphResult",
-    "GraphRetrieval",
     "IngestionConfig",
     "IngestionError",
     "IngestionInterruptedError",
     "IngestionService",
     "InputError",
+    "KeywordIngestion",
+    "KeywordRetrieval",
     "KnowledgeEngine",
     "KnowledgeEngineConfig",
     "KnowledgeEngineError",
@@ -145,15 +146,14 @@ __all__ = [
     "RoutingConfig",
     "SQLAlchemyMetadataStore",
     "SemanticChunker",
+    "SemanticIngestion",
+    "SemanticRetrieval",
     "Source",
     "SourceNotFoundError",
     "SparseVector",
     "StoreError",
     "StreamEvent",
-    "StructuredRetrieval",
     "TokenCounter",
     "TokenUsage",
-    "VectorIngestion",
-    "VectorRetrieval",
     "build_registry",
 ]

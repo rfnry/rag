@@ -10,13 +10,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from rfnry_knowledge.config import IngestionConfig, KnowledgeEngineConfig, RetrievalConfig
-from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
-from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
-from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.ingestion.methods.entity import EntityIngestion
+from rfnry_knowledge.ingestion.methods.keyword import KeywordIngestion
+from rfnry_knowledge.ingestion.methods.semantic import SemanticIngestion
 from rfnry_knowledge.knowledge.engine import KnowledgeEngine
-from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval
-from rfnry_knowledge.retrieval.methods.graph import GraphRetrieval
-from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.retrieval.methods.entity import EntityRetrieval
+from rfnry_knowledge.retrieval.methods.keyword import KeywordRetrieval
+from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 
 
 def _make_vector_store(collections: list[str]) -> MagicMock:
@@ -46,9 +46,14 @@ def _make_embeddings() -> MagicMock:
 def _vector_only_config(vector_store, embeddings) -> KnowledgeEngineConfig:
     return KnowledgeEngineConfig(
         ingestion=IngestionConfig(
-            methods=[VectorIngestion(store=vector_store, embeddings=embeddings)],
+            methods=[SemanticIngestion(store=vector_store, embeddings=embeddings)],
         ),
-        retrieval=RetrievalConfig(methods=[VectorRetrieval(store=vector_store, embeddings=embeddings)]),
+        retrieval=RetrievalConfig(
+            methods=[
+                SemanticRetrieval(store=vector_store, embeddings=embeddings),
+                KeywordRetrieval(backend="bm25", vector_store=vector_store),
+            ]
+        ),
     )
 
 
@@ -116,9 +121,9 @@ async def test_cache_invalidation_fans_out_to_all_scoped_collections():
 
     invalidated: list[tuple[int, str | None]] = []
 
-    for idx, (retrieval_service, _) in enumerate(engine._retrieval_by_collection.values()):
+    for idx, retrieval_service in enumerate(engine._retrieval_by_collection.values()):
         for method in retrieval_service.methods:
-            if method.name == "vector":
+            if method.name == "keyword":
 
                 async def _capture(knowledge_id, i=idx):
                     invalidated.append((i, knowledge_id))
@@ -153,11 +158,11 @@ async def _build_multi_collection_engine() -> KnowledgeEngine:
             metadata_store=metadata_store,
             ingestion=IngestionConfig(
                 methods=[
-                    VectorIngestion(store=vector_store, embeddings=embeddings),
+                    SemanticIngestion(store=vector_store, embeddings=embeddings),
                     AnalyzedIngestion(store=vector_store, embeddings=embeddings, vision=MagicMock()),
                 ],
             ),
-            retrieval=RetrievalConfig(methods=[VectorRetrieval(store=vector_store, embeddings=embeddings)]),
+            retrieval=RetrievalConfig(methods=[SemanticRetrieval(store=vector_store, embeddings=embeddings)]),
         )
     )
     await engine.initialize()
@@ -204,7 +209,7 @@ async def _build_engine_with_all_methods(collections: list[str]) -> KnowledgeEng
     lm_client = MagicMock()
 
     _patches = [
-        patch("rfnry_knowledge.ingestion.methods.graph.build_registry", return_value=MagicMock()),
+        patch("rfnry_knowledge.ingestion.methods.entity.build_registry", return_value=MagicMock()),
         patch("rfnry_knowledge.ingestion.analyze.service.build_registry", return_value=MagicMock()),
         patch("rfnry_knowledge.knowledge.engine.build_registry", return_value=MagicMock()),
     ]
@@ -216,16 +221,16 @@ async def _build_engine_with_all_methods(collections: list[str]) -> KnowledgeEng
             metadata_store=metadata_store,
             ingestion=IngestionConfig(
                 methods=[
-                    VectorIngestion(store=vector_store, embeddings=embeddings),
-                    DocumentIngestion(store=document_store),
-                    GraphIngestion(store=graph_store, provider_client=lm_client),
+                    SemanticIngestion(store=vector_store, embeddings=embeddings),
+                    KeywordIngestion(store=document_store),
+                    EntityIngestion(store=graph_store, provider_client=lm_client),
                 ],
             ),
             retrieval=RetrievalConfig(
                 methods=[
-                    VectorRetrieval(store=vector_store, embeddings=embeddings),
-                    DocumentRetrieval(store=document_store),
-                    GraphRetrieval(store=graph_store),
+                    SemanticRetrieval(store=vector_store, embeddings=embeddings),
+                    KeywordRetrieval(backend="postgres_fts", document_store=document_store),
+                    EntityRetrieval(store=graph_store),
                 ],
             ),
         )
@@ -239,11 +244,11 @@ async def _build_engine_with_all_methods(collections: list[str]) -> KnowledgeEng
 
 
 async def test_scoped_ingestion_pipeline_includes_graph(tmp_path) -> None:
-    """Non-default collection must get GraphIngestion when configured."""
+    """Non-default collection must get EntityIngestion when configured."""
     engine = await _build_engine_with_all_methods(collections=["primary", "secondary"])
     secondary_svc = engine._ingestion_by_collection["secondary"]
     method_types = {type(m).__name__ for m in secondary_svc._ingestion_methods}
-    assert "VectorIngestion" in method_types
-    assert "DocumentIngestion" in method_types
-    assert "GraphIngestion" in method_types
+    assert "SemanticIngestion" in method_types
+    assert "KeywordIngestion" in method_types
+    assert "EntityIngestion" in method_types
     await engine.shutdown()

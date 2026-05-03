@@ -26,10 +26,10 @@ from rfnry_knowledge.ingestion.embeddings.sparse.base import BaseSparseEmbedding
 from rfnry_knowledge.ingestion.hashing import file_hash as compute_file_hash
 from rfnry_knowledge.ingestion.methods import (
     AnalyzedIngestion,
-    DocumentIngestion,
     DrawingIngestion,
-    GraphIngestion,
-    VectorIngestion,
+    EntityIngestion,
+    KeywordIngestion,
+    SemanticIngestion,
 )
 from rfnry_knowledge.ingestion.vision.base import BaseVision
 from rfnry_knowledge.knowledge.manager import KnowledgeManager
@@ -47,10 +47,9 @@ from rfnry_knowledge.observability.metrics import LLMJudgment
 from rfnry_knowledge.observability.trace import RetrievalTrace
 from rfnry_knowledge.providers import build_registry
 from rfnry_knowledge.retrieval.base import BaseRetrievalMethod
-from rfnry_knowledge.retrieval.enrich.service import StructuredRetrievalService
-from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval
-from rfnry_knowledge.retrieval.methods.graph import GraphRetrieval
-from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
+from rfnry_knowledge.retrieval.methods.entity import EntityRetrieval
+from rfnry_knowledge.retrieval.methods.keyword import KeywordRetrieval
+from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
 from rfnry_knowledge.retrieval.namespace import MethodNamespace
 from rfnry_knowledge.retrieval.search.reranking.base import BaseReranking
 from rfnry_knowledge.retrieval.search.service import RetrievalService
@@ -123,7 +122,7 @@ class KnowledgeEngine:
             metadata_store=metadata_store,
             ingestion=IngestionConfig(
                 methods=[
-                    VectorIngestion(
+                    SemanticIngestion(
                         store=vector_store,
                         embeddings=embeddings,
                         embedding_model_name=name,
@@ -133,7 +132,7 @@ class KnowledgeEngine:
             ),
             retrieval=RetrievalConfig(
                 methods=[
-                    VectorRetrieval(store=vector_store, embeddings=embeddings, sparse_embeddings=sparse_embeddings)
+                    SemanticRetrieval(store=vector_store, embeddings=embeddings, sparse_embeddings=sparse_embeddings)
                 ],
                 top_k=top_k,
                 reranker=reranker,
@@ -152,9 +151,9 @@ class KnowledgeEngine:
         """Preset: full-text / substring search only. No embeddings needed."""
         return KnowledgeEngineConfig(
             metadata_store=metadata_store,
-            ingestion=IngestionConfig(methods=[DocumentIngestion(store=document_store)]),
+            ingestion=IngestionConfig(methods=[KeywordIngestion(store=document_store)]),
             retrieval=RetrievalConfig(
-                methods=[DocumentRetrieval(store=document_store, weight=0.8)],
+                methods=[KeywordRetrieval(backend="postgres_fts", document_store=document_store, weight=0.8)],
                 top_k=top_k,
                 reranker=reranker,
             ),
@@ -176,7 +175,7 @@ class KnowledgeEngine:
         """Preset: multi-path retrieval with optional document/graph/sparse paths + rerank."""
         name = _derive_embedding_model_name(embeddings)
         ing_methods: list[Any] = [
-            VectorIngestion(
+            SemanticIngestion(
                 store=vector_store,
                 embeddings=embeddings,
                 embedding_model_name=name,
@@ -184,13 +183,13 @@ class KnowledgeEngine:
             )
         ]
         ret_methods: list[Any] = [
-            VectorRetrieval(store=vector_store, embeddings=embeddings, sparse_embeddings=sparse_embeddings)
+            SemanticRetrieval(store=vector_store, embeddings=embeddings, sparse_embeddings=sparse_embeddings)
         ]
         if document_store is not None:
-            ing_methods.append(DocumentIngestion(store=document_store))
-            ret_methods.append(DocumentRetrieval(store=document_store, weight=0.8))
+            ing_methods.append(KeywordIngestion(store=document_store))
+            ret_methods.append(KeywordRetrieval(backend="postgres_fts", document_store=document_store, weight=0.8))
         if graph_store is not None:
-            ret_methods.append(GraphRetrieval(store=graph_store, weight=0.7))
+            ret_methods.append(EntityRetrieval(store=graph_store, weight=0.7))
 
         return KnowledgeEngineConfig(
             metadata_store=metadata_store,
@@ -211,14 +210,13 @@ class KnowledgeEngine:
         self._analyzed_method: AnalyzedIngestion | None = None
         self._drawing_method: DrawingIngestion | None = None
         self._retrieval_service: RetrievalService | None = None
-        self._structured_retrieval: StructuredRetrievalService | None = None
         self._generation_service: GenerationService | None = None
         self._knowledge_manager: KnowledgeManager | None = None
 
         self._retrieval_namespace: MethodNamespace[BaseRetrievalMethod] | None = None
         self._ingestion_namespace: MethodNamespace[BaseIngestionMethod] | None = None
 
-        self._retrieval_by_collection: dict[str, tuple[RetrievalService, StructuredRetrievalService | None]] = {}
+        self._retrieval_by_collection: dict[str, RetrievalService] = {}
         self._ingestion_by_collection: dict[str, IngestionService] = {}
 
         self._chunker: SemanticChunker | None = None
@@ -239,11 +237,13 @@ class KnowledgeEngine:
             store = getattr(m, "_store", None)
             if store is None:
                 continue
-            if isinstance(m, VectorIngestion | VectorRetrieval) and self._vector_store is None:
+            if isinstance(m, SemanticIngestion | SemanticRetrieval) and self._vector_store is None:
                 self._vector_store = store
-            elif isinstance(m, DocumentIngestion | DocumentRetrieval) and self._document_store is None:
+            elif (
+                isinstance(m, KeywordIngestion) or (isinstance(m, KeywordRetrieval) and m.backend == "postgres_fts")
+            ) and self._document_store is None:
                 self._document_store = store
-            elif isinstance(m, GraphIngestion | GraphRetrieval) and self._graph_store is None:
+            elif isinstance(m, EntityIngestion | EntityRetrieval) and self._graph_store is None:
                 self._graph_store = store
 
     @property
@@ -282,7 +282,7 @@ class KnowledgeEngine:
         if not cfg.retrieval.methods:
             raise ConfigurationError(
                 "RetrievalConfig.methods must not be empty — configure at least one "
-                "retrieval method (VectorRetrieval, DocumentRetrieval, or GraphRetrieval)."
+                "retrieval method (SemanticRetrieval, KeywordRetrieval, or EntityRetrieval)."
             )
         self._validate_full_context_fits_provider_window()
 
@@ -366,7 +366,7 @@ class KnowledgeEngine:
         ]
 
         # Vector store init: walk the methods list for an instance carrying an
-        # ``_embeddings`` reference (VectorIngestion / AnalyzedIngestion /
+        # ``_embeddings`` reference (SemanticIngestion / AnalyzedIngestion /
         # DrawingIngestion all expose it) and ask it for the embedding
         # dimension to pre-create the store collection.
         embeddings_for_dim: BaseEmbeddings | None = next(
@@ -438,10 +438,10 @@ class KnowledgeEngine:
         )
 
         if analyzed_method is not None and metadata_store is not None:
-            document_delegates = [m for m in standard_methods if isinstance(m, DocumentIngestion)]
+            document_delegates = [m for m in standard_methods if isinstance(m, KeywordIngestion)]
             if not document_delegates:
                 logger.warning(
-                    "AnalyzedIngestion configured but no DocumentIngestion in methods — "
+                    "AnalyzedIngestion configured but no KeywordIngestion in methods — "
                     "phase 3 will skip document storage"
                 )
             analyzed_method.bind(
@@ -471,16 +471,6 @@ class KnowledgeEngine:
             source_type_weights=retrieval.source_type_weights,
         )
 
-        # Structured retrieval. Reuse whichever embeddings instance the
-        # methods list already carries.
-        if self._vector_store is not None and embeddings_for_dim is not None:
-            self._structured_retrieval = StructuredRetrievalService(
-                vector_store=self._vector_store,
-                embeddings=embeddings_for_dim,
-                top_k=retrieval.top_k,
-                enrich_cross_references=retrieval.cross_reference_enrichment,
-            )
-
         # Collection-scoped pipelines. Populate both maps symmetrically for every
         # collection — including the first (which reuses the default services) —
         # so retrieval/ingestion against a named collection never silently falls
@@ -498,10 +488,7 @@ class KnowledgeEngine:
                 # collections get fresh scoped pipelines. Removing this branch requires
                 # updating test_default_collection_uses_unscoped_default_services.
                 if coll_name == store_collections[0]:
-                    self._retrieval_by_collection[coll_name] = (
-                        self._retrieval_service,
-                        self._structured_retrieval,
-                    )
+                    self._retrieval_by_collection[coll_name] = self._retrieval_service
                     assert self._ingestion_service is not None
                     self._ingestion_by_collection[coll_name] = self._ingestion_service
                     continue
@@ -582,7 +569,6 @@ class KnowledgeEngine:
         self._analyzed_method = None
         self._drawing_method = None
         self._retrieval_service = None
-        self._structured_retrieval = None
         self._generation_service = None
         self._knowledge_manager = None
         self._retrieval_namespace = None
@@ -961,7 +947,7 @@ class KnowledgeEngine:
         row = QueryTelemetryRow(
             query_id=str(uuid.uuid4()),
             knowledge_id=knowledge_id,
-            mode="indexed" if mode == QueryMode.INDEXED else "full_context",
+            mode="retrieval" if mode == QueryMode.RETRIEVAL else "direct",
             routing_decision=mode.name.lower(),
             outcome="success",
         )
@@ -976,12 +962,12 @@ class KnowledgeEngine:
             query_id=row.query_id,
         )
         try:
-            if mode == QueryMode.INDEXED:
+            if mode == QueryMode.RETRIEVAL:
                 await obs.emit(
                     "routing.decision",
-                    "explicit indexed mode",
+                    "explicit retrieval mode",
                     context={
-                        "mode": "indexed",
+                        "mode": "retrieval",
                         "corpus_tokens": None,
                         "threshold": None,
                         "reason": "explicit_mode",
@@ -990,12 +976,12 @@ class KnowledgeEngine:
                 result = await self._query_via_retrieval(
                     text, knowledge_id, history, min_score, collection, system_prompt, trace
                 )
-            elif mode == QueryMode.FULL_CONTEXT:
+            elif mode == QueryMode.DIRECT:
                 await obs.emit(
                     "routing.decision",
-                    "explicit full_context mode",
+                    "explicit direct mode",
                     context={
-                        "mode": "full_context",
+                        "mode": "direct",
                         "corpus_tokens": None,
                         "threshold": None,
                         "reason": "explicit_mode",
@@ -1082,7 +1068,7 @@ class KnowledgeEngine:
         )
         if trace_obj is not None:
             trace_obj.timings["grounding"] = time.perf_counter() - grounding_start
-            trace_obj.routing_decision = "indexed"
+            trace_obj.routing_decision = "retrieval"
             trace_obj.confidence = result.confidence
             if result.clarification is not None:
                 trace_obj.grounding_decision = "clarification"
@@ -1121,7 +1107,7 @@ class KnowledgeEngine:
             trace_obj = RetrievalTrace(
                 query=text,
                 knowledge_id=knowledge_id,
-                routing_decision="full_context",
+                routing_decision="direct",
             )
             trace_obj.timings["direct_context_load"] = load_elapsed
 
@@ -1151,7 +1137,7 @@ class KnowledgeEngine:
         assert self._knowledge_manager is not None
         tokens = await self._knowledge_manager.get_corpus_tokens(knowledge_id)
         threshold = self._config.routing.full_context_threshold
-        decision = "full_context" if tokens <= threshold else "indexed"
+        decision = "direct" if tokens <= threshold else "retrieval"
 
         if row is not None:
             row.routing_decision = decision
@@ -1169,7 +1155,7 @@ class KnowledgeEngine:
             },
         )
 
-        if decision == "full_context":
+        if decision == "direct":
             logger.info("auto routing: tokens=%d threshold=%d → DIRECT", tokens, threshold)
             return await self._query_via_direct_context(text, knowledge_id, history, system_prompt, trace)
 
@@ -1192,7 +1178,7 @@ class KnowledgeEngine:
             raise ConfigurationError("query_stream() requires generation.provider_client to be configured")
 
         mode = self._config.routing.mode
-        if mode != QueryMode.INDEXED:
+        if mode != QueryMode.RETRIEVAL:
             raise ConfigurationError(
                 f"query_stream() does not support mode={mode.name}; "
                 "use query() or set RoutingConfig(mode=RETRIEVAL). "
@@ -1253,7 +1239,7 @@ class KnowledgeEngine:
 
     def _embeddings_from_methods(self) -> BaseEmbeddings | None:
         """Walk the configured ingestion methods and return the first
-        embeddings instance found (VectorIngestion / AnalyzedIngestion /
+        embeddings instance found (SemanticIngestion / AnalyzedIngestion /
         DrawingIngestion all expose ``_embeddings``)."""
         return next(
             (m._embeddings for m in self._config.ingestion.methods if hasattr(m, "_embeddings")),
@@ -1386,8 +1372,8 @@ class KnowledgeEngine:
         context = " ".join(context_parts)
         return f"{text}\n\nConversation context: {context}"
 
-    async def _invalidate_vector_caches(self, knowledge_id: str | None) -> None:
-        """Invalidate BM25 cache on every scoped collection's VectorRetrieval, not
+    async def _invalidate_keyword_caches(self, knowledge_id: str | None) -> None:
+        """Invalidate BM25 cache on every scoped collection's SemanticRetrieval, not
         just the default one. Scoped collections carry their own method instances
         with their own caches — iterate them all so stale BM25 results are not
         returned after a cross-collection ingest/remove."""
@@ -1397,57 +1383,46 @@ class KnowledgeEngine:
             # set prevents double-invalidation of shared method instances across
             # collections. Concurrent invalidations on the same method instance
             # would require locking the BM25 cache — serial is simpler and safe.
-            for retrieval_service, _ in self._retrieval_by_collection.values():
+            for retrieval_service in self._retrieval_by_collection.values():
                 for method in retrieval_service.methods:
-                    if method.name != "vector" or id(method) in seen:
+                    if method.name != "keyword" or id(method) in seen:
                         continue
                     seen.add(id(method))
                     if hasattr(method, "invalidate_cache"):
                         await method.invalidate_cache(knowledge_id)
             return
         # No multi-collection wiring — fall back to the default namespace.
-        if self._retrieval_namespace and "vector" in self._retrieval_namespace:
-            vector = self._retrieval_namespace.vector
-            if hasattr(vector, "invalidate_cache"):
-                await vector.invalidate_cache(knowledge_id)
+        if self._retrieval_namespace and "keyword" in self._retrieval_namespace:
+            keyword = self._retrieval_namespace.keyword
+            if hasattr(keyword, "invalidate_cache"):
+                await keyword.invalidate_cache(knowledge_id)
 
     async def _on_ingestion_complete(self, knowledge_id: str | None) -> None:
-        """Callback after ingestion — invalidates BM25 cache for the knowledge_id."""
-        await self._invalidate_vector_caches(knowledge_id)
+        """Callback after ingestion — invalidates the keyword (BM25) cache for the knowledge_id."""
+        await self._invalidate_keyword_caches(knowledge_id)
 
     async def _on_source_removed(self, knowledge_id: str | None) -> None:
         """Callback after source removal — invalidates BM25 cache for the knowledge_id."""
-        await self._invalidate_vector_caches(knowledge_id)
+        await self._invalidate_keyword_caches(knowledge_id)
 
     def _build_retrieval_pipeline(
         self,
         vector_store: BaseVectorStore,
         retrieval: RetrievalConfig,
-    ) -> tuple[RetrievalService, StructuredRetrievalService | None]:
+    ) -> RetrievalService:
         methods: list = []
-        embeddings: BaseEmbeddings | None = None
         for m in retrieval.methods:
-            if isinstance(m, VectorRetrieval):
+            if isinstance(m, SemanticRetrieval) or isinstance(m, KeywordRetrieval) and m.backend == "bm25":
                 methods.append(m.clone_for_store(vector_store))
-                embeddings = m._embeddings
             else:
                 methods.append(m)
 
-        unstructured = RetrievalService(
+        return RetrievalService(
             retrieval_methods=methods,
             reranking=retrieval.reranker,
             top_k=retrieval.top_k,
             source_type_weights=retrieval.source_type_weights,
         )
-        structured: StructuredRetrievalService | None = None
-        if embeddings is not None:
-            structured = StructuredRetrievalService(
-                vector_store=vector_store,
-                embeddings=embeddings,
-                top_k=retrieval.top_k,
-                enrich_cross_references=retrieval.cross_reference_enrichment,
-            )
-        return unstructured, structured
 
     def _build_ingestion_service(self, vector_store: BaseVectorStore) -> IngestionService:
         assert self._chunker is not None
@@ -1455,7 +1430,7 @@ class KnowledgeEngine:
         methods: list = []
         vision_parser: BaseVision | None = None
         for m in cfg.ingestion.methods:
-            if isinstance(m, VectorIngestion):
+            if isinstance(m, SemanticIngestion):
                 methods.append(m.clone_for_store(vector_store))
             else:
                 methods.append(m)
@@ -1487,44 +1462,23 @@ class KnowledgeEngine:
         trace: bool = False,
         top_k: int | None = None,
     ) -> tuple[list[RetrievedChunk], RetrievalTrace | None]:
-        """Shared retrieval: unstructured + structured merge + score filter.
+        """Shared retrieval over the three pillars + score filter.
 
-        When `trace=True`, returns the unstructured-pipeline trace alongside
-        the merged chunks. The trace's `final_results` reflect the
-        post-min-score-filter view returned to the caller.
+        When ``trace=True``, returns the trace alongside the chunks. The
+        trace's ``final_results`` reflect the post-min-score-filter view.
 
-        `top_k` overrides the configured `RetrievalConfig.top_k` for this
-        call only; passed through to `RetrievalService.retrieve`. The
-        confidence-expansion loop uses this to retry with `top_k * 2`
-        without mutating the service-level default.
+        ``top_k`` overrides ``RetrievalConfig.top_k`` for this call only.
         """
-        unstructured, structured = self._get_retrieval(collection)
+        retrieval_service = self._get_retrieval(collection)
         retrieval_query = self._build_retrieval_query(text, history)
 
         extra_kwargs: dict[str, Any] = {}
         if top_k is not None:
             extra_kwargs["top_k"] = top_k
 
-        trace_obj: RetrievalTrace | None = None
-        if structured:
-            results = await asyncio.gather(
-                unstructured.retrieve(query=retrieval_query, knowledge_id=knowledge_id, trace=trace, **extra_kwargs),
-                structured.retrieve(query=retrieval_query, knowledge_id=knowledge_id),
-                return_exceptions=True,
-            )
-            if isinstance(results[0], BaseException):
-                logger.warning("unstructured retrieval failed: %s", results[0])
-                unstructured_chunks: list[RetrievedChunk] = []
-            else:
-                unstructured_chunks, trace_obj = results[0]
-            structured_chunks = results[1] if not isinstance(results[1], BaseException) else []
-            if isinstance(results[1], BaseException):
-                logger.warning("structured retrieval failed: %s", results[1])
-            chunks = self._merge_retrieval_results(unstructured_chunks, structured_chunks)  # type: ignore[arg-type]
-        else:
-            chunks, trace_obj = await unstructured.retrieve(
-                query=retrieval_query, knowledge_id=knowledge_id, trace=trace, **extra_kwargs
-            )
+        chunks, trace_obj = await retrieval_service.retrieve(
+            query=retrieval_query, knowledge_id=knowledge_id, trace=trace, **extra_kwargs
+        )
 
         if min_score is not None:
             chunks = [c for c in chunks if c.score >= min_score]
@@ -1534,16 +1488,16 @@ class KnowledgeEngine:
 
         return chunks, trace_obj
 
-    def _get_retrieval(self, collection: str | None) -> tuple[RetrievalService, StructuredRetrievalService | None]:
+    def _get_retrieval(self, collection: str | None) -> RetrievalService:
         """Return retrieval pipeline for *collection* (default if None).
 
-        Raises ValueError when *collection* is specified but unknown — previously
-        this silently fell back to the default pipeline, which could mix data
-        across collections without any warning.
+        Raises ``ValueError`` when *collection* is specified but unknown —
+        previously this silently fell back to the default pipeline, which
+        could mix data across collections without any warning.
         """
         if collection is None:
             assert self._retrieval_service is not None
-            return self._retrieval_service, self._structured_retrieval
+            return self._retrieval_service
         if collection in self._retrieval_by_collection:
             return self._retrieval_by_collection[collection]
         raise ValueError(f"unknown collection {collection!r}; known: {sorted(self._retrieval_by_collection.keys())}")
@@ -1580,23 +1534,3 @@ class KnowledgeEngine:
         if self._generation_service:
             flows.append("generation")
         return flows
-
-    @staticmethod
-    def _merge_retrieval_results(
-        unstructured: list[RetrievedChunk],
-        structured: list[RetrievedChunk],
-    ) -> list[RetrievedChunk]:
-        """Merge unstructured and structured results via reciprocal rank fusion.
-
-        Raw-score sort is unsafe here because unstructured chunks carry RRF scores
-        (~0.01-0.05) and structured chunks carry cosine scores (0-1). Sorting by
-        the raw value always places structured results first regardless of
-        relevance. RRF is scale-free and uses rank position instead of raw score.
-        """
-        if not structured:
-            return unstructured
-        if not unstructured:
-            return structured
-        from rfnry_knowledge.retrieval.search.fusion import reciprocal_rank_fusion
-
-        return reciprocal_rank_fusion([unstructured, structured])

@@ -31,15 +31,11 @@ class ProviderClient:
         if not self.model:
             raise ConfigurationError("ProviderClient.model must be a non-empty string")
         if self.strategy not in ("primary_only", "fallback"):
-            raise ConfigurationError(
-                f"strategy must be 'primary_only' or 'fallback', got {self.strategy!r}"
-            )
+            raise ConfigurationError(f"strategy must be 'primary_only' or 'fallback', got {self.strategy!r}")
         if self.strategy == "fallback" and self.fallback is None:
             raise ConfigurationError("strategy='fallback' requires a fallback ProviderClient")
         if not (0 <= self.max_retries <= _MAX_RETRIES_LIMIT):
-            raise ConfigurationError(
-                f"max_retries must be 0..{_MAX_RETRIES_LIMIT}, got {self.max_retries}"
-            )
+            raise ConfigurationError(f"max_retries must be 0..{_MAX_RETRIES_LIMIT}, got {self.max_retries}")
         if self.timeout_seconds <= 0:
             raise ConfigurationError(f"timeout_seconds must be positive, got {self.timeout_seconds}")
         if not (0.0 <= self.temperature <= 2.0):

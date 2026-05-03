@@ -53,9 +53,7 @@ async def contextualize_chunks_with_llm(
                 max_tokens=config.max_context_tokens,
             )
         except Exception as exc:
-            raise IngestionError(
-                f"chunk contextualization failed for chunk_index={chunk.chunk_index}: {exc}"
-            ) from exc
+            raise IngestionError(f"chunk contextualization failed for chunk_index={chunk.chunk_index}: {exc}") from exc
         chunk.situating_context = blob
         chunk.contextualized = _fold(chunk)
         increment_ingest_field("contextual_chunk_calls")

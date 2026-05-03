@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from rfnry_knowledge.models import RetrievedChunk
-from rfnry_knowledge.retrieval.methods.graph import GraphRetrieval
+from rfnry_knowledge.retrieval.methods.entity import EntityRetrieval
 from rfnry_knowledge.retrieval.search.service import RetrievalService
 from rfnry_knowledge.stores.graph.models import GraphEntity, GraphPath, GraphResult
 
@@ -31,7 +31,7 @@ def _make_graph_results():
 
 def _make_graph_method(graph_results):
     """Build a mock graph retrieval method that returns pre-converted chunks."""
-    chunks = GraphRetrieval._convert(graph_results)
+    chunks = EntityRetrieval._convert(graph_results)
     return SimpleNamespace(name="graph", weight=1.0, top_k=None, search=AsyncMock(return_value=chunks))
 
 
@@ -55,23 +55,23 @@ def _make_service(graph_method=None, document_method=None):
 async def test_search_converts_graph_results():
     store = AsyncMock()
     store.query_graph = AsyncMock(return_value=_make_graph_results())
-    method = GraphRetrieval(store=store, weight=0.7)
-    assert method.name == "graph"
+    method = EntityRetrieval(store=store, weight=0.7)
+    assert method.name == "entity"
     assert method.weight == 0.7
     results = await method.search(query="Motor M1", top_k=5, knowledge_id="kb-1")
     assert len(results) == 1
-    assert results[0].chunk_id == "graph:Motor M1:motor"
+    assert results[0].chunk_id == "entity:Motor M1:motor"
     assert results[0].score == 0.95
     assert "480V 3-phase" in results[0].content
     assert "POWERED_BY" in results[0].content
-    assert results[0].source_metadata["retrieval_type"] == "graph"
+    assert results[0].source_metadata["retrieval_type"] == "entity"
     store.query_graph.assert_called_once_with(query="Motor M1", knowledge_id="kb-1", max_hops=2, top_k=5)
 
 
 async def test_search_empty():
     store = AsyncMock()
     store.query_graph = AsyncMock(return_value=[])
-    method = GraphRetrieval(store=store)
+    method = EntityRetrieval(store=store)
     results = await method.search(query="nothing", top_k=5)
     assert results == []
 
@@ -79,7 +79,7 @@ async def test_search_empty():
 async def test_error_returns_empty():
     store = AsyncMock()
     store.query_graph = AsyncMock(side_effect=RuntimeError("neo4j down"))
-    method = GraphRetrieval(store=store)
+    method = EntityRetrieval(store=store)
     results = await method.search(query="test", top_k=5)
     assert results == []
 
@@ -93,10 +93,10 @@ async def test_graph_results_to_chunks_no_value():
             relevance_score=0.5,
         )
     ]
-    chunks = GraphRetrieval._convert(results)
+    chunks = EntityRetrieval._convert(results)
     assert len(chunks) == 1
     assert "Specifications:" not in chunks[0].content
-    assert chunks[0].chunk_id == "graph:Pump P-1:pump"
+    assert chunks[0].chunk_id == "entity:Pump P-1:pump"
 
 
 async def test_retrieve_with_graph_store():
@@ -106,7 +106,7 @@ async def test_retrieve_with_graph_store():
     results, _ = await service.retrieve(query="what connects to Motor M1?", knowledge_id="kb-1")
     mock_graph.search.assert_called_once()
     assert len(results) >= 2
-    graph_chunks = [r for r in results if r.chunk_id.startswith("graph:")]
+    graph_chunks = [r for r in results if r.chunk_id.startswith("entity:")]
     assert len(graph_chunks) == 1
 
 

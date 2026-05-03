@@ -12,7 +12,7 @@ class QueryTelemetryRow(BaseModel):
     knowledge_id: str | None = None
     query_id: str
 
-    mode: Literal["indexed", "full_context"]
+    mode: Literal["retrieval", "direct"]
     routing_decision: str
     corpus_tokens: int = 0
 

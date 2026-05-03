@@ -1,13 +1,13 @@
 from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
-from rfnry_knowledge.ingestion.methods.document import DocumentIngestion
 from rfnry_knowledge.ingestion.methods.drawing import DrawingIngestion
-from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
-from rfnry_knowledge.ingestion.methods.vector import VectorIngestion
+from rfnry_knowledge.ingestion.methods.entity import EntityIngestion
+from rfnry_knowledge.ingestion.methods.keyword import KeywordIngestion
+from rfnry_knowledge.ingestion.methods.semantic import SemanticIngestion
 
 __all__ = [
     "AnalyzedIngestion",
-    "DocumentIngestion",
     "DrawingIngestion",
-    "GraphIngestion",
-    "VectorIngestion",
+    "EntityIngestion",
+    "KeywordIngestion",
+    "SemanticIngestion",
 ]

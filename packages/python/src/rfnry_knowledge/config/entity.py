@@ -1,4 +1,4 @@
-"""GraphIngestionConfig — consumer-overridable vocabularies for graph mapping.
+"""EntityIngestionConfig — consumer-overridable vocabularies for graph mapping.
 
 The analyze-path graph mapper (`stores/graph/mapper.py`) used to hardcode
 electrical/mechanical regex patterns and a 4-entry relationship-keyword map,
@@ -22,7 +22,7 @@ from rfnry_knowledge.exceptions import ConfigurationError
 
 
 @dataclass
-class GraphIngestionConfig:
+class EntityIngestionConfig:
     entity_type_patterns: list[tuple[str, str]] = field(default_factory=list)
     """List of (regex_string, entity_type) pairs. First match wins. When empty
     or no pattern matches, the entity's ``category`` field (lowercased) is used,
@@ -46,7 +46,7 @@ class GraphIngestionConfig:
                 re.compile(pattern)
             except re.error as exc:
                 raise ConfigurationError(
-                    f"GraphIngestionConfig.entity_type_patterns: invalid regex {pattern!r}: {exc}"
+                    f"EntityIngestionConfig.entity_type_patterns: invalid regex {pattern!r}: {exc}"
                 ) from exc
 
         from rfnry_knowledge.stores.graph.neo4j import ALLOWED_RELATION_TYPES
@@ -54,7 +54,7 @@ class GraphIngestionConfig:
         for keyword, rel in self.relationship_keyword_map.items():
             if rel not in ALLOWED_RELATION_TYPES:
                 raise ConfigurationError(
-                    f"GraphIngestionConfig.relationship_keyword_map: "
+                    f"EntityIngestionConfig.relationship_keyword_map: "
                     f"keyword={keyword!r} -> {rel!r} not in ALLOWED_RELATION_TYPES="
                     f"{sorted(ALLOWED_RELATION_TYPES)}"
                 )
@@ -63,7 +63,7 @@ class GraphIngestionConfig:
             and self.unclassified_relation_default not in ALLOWED_RELATION_TYPES
         ):
             raise ConfigurationError(
-                f"GraphIngestionConfig.unclassified_relation_default="
+                f"EntityIngestionConfig.unclassified_relation_default="
                 f"{self.unclassified_relation_default!r} not in ALLOWED_RELATION_TYPES="
                 f"{sorted(ALLOWED_RELATION_TYPES)}"
             )

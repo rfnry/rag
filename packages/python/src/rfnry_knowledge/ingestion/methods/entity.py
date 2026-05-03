@@ -4,7 +4,7 @@ import time
 from typing import Any
 
 from rfnry_knowledge.common.logging import get_logger
-from rfnry_knowledge.config.graph import GraphIngestionConfig
+from rfnry_knowledge.config.entity import EntityIngestionConfig
 from rfnry_knowledge.ingestion.analyze.models import DiscoveredEntity, PageAnalysis
 from rfnry_knowledge.ingestion.models import ChunkedContent, ParsedPage
 from rfnry_knowledge.ingestion.notes import record_skip
@@ -15,7 +15,7 @@ from rfnry_knowledge.stores.graph.mapper import page_entities_to_graph
 from rfnry_knowledge.telemetry.context import current_ingest_row
 from rfnry_knowledge.telemetry.usage import instrument_baml_call
 
-logger = get_logger("ingestion.methods.graph")
+logger = get_logger("ingestion.methods.entity")
 
 # Lazy import — avoid circular dependency and heavy BAML import at module level
 b: Any = None
@@ -30,7 +30,7 @@ def _get_baml_client() -> Any:
     return b
 
 
-class GraphIngestion:
+class EntityIngestion:
     """Extract entities from text via LLM and store in graph store.
 
     Uses the ``ExtractEntitiesFromText`` BAML function to extract entities,
@@ -44,15 +44,15 @@ class GraphIngestion:
         self,
         store: BaseGraphStore,
         provider_client: ProviderClient | None = None,
-        graph_config: GraphIngestionConfig | None = None,
+        graph_config: EntityIngestionConfig | None = None,
     ) -> None:
         self._store = store
         self._provider_client = provider_client
         self._registry = build_registry(provider_client) if provider_client else None
-        self._graph_config = graph_config if graph_config is not None else GraphIngestionConfig()
+        self._graph_config = graph_config if graph_config is not None else EntityIngestionConfig()
 
-    def clone_for_store(self, store: BaseGraphStore) -> GraphIngestion:
-        return GraphIngestion(
+    def clone_for_store(self, store: BaseGraphStore) -> EntityIngestion:
+        return EntityIngestion(
             store=store,
             provider_client=self._provider_client,
             graph_config=self._graph_config,
@@ -60,7 +60,7 @@ class GraphIngestion:
 
     @property
     def name(self) -> str:
-        return "graph"
+        return "entity"
 
     async def ingest(
         self,

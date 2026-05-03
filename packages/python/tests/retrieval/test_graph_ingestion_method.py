@@ -1,6 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
+from rfnry_knowledge.ingestion.methods.entity import EntityIngestion
 
 
 async def test_ingest_extracts_entities_and_stores():
@@ -19,13 +19,13 @@ async def test_ingest_extracts_entities_and_stores():
     mock_result.annotations = []
     mock_result.page_type = "text"
     with (
-        patch("rfnry_knowledge.ingestion.methods.graph.b") as mock_b,
-        patch("rfnry_knowledge.ingestion.methods.graph.build_registry") as mock_registry,
+        patch("rfnry_knowledge.ingestion.methods.entity.b") as mock_b,
+        patch("rfnry_knowledge.ingestion.methods.entity.build_registry") as mock_registry,
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(return_value=mock_result)
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, provider_client=lm_client)
-        assert method.name == "graph"
+        method = EntityIngestion(store=store, provider_client=lm_client)
+        assert method.name == "entity"
         await method.ingest(
             source_id="src-1",
             knowledge_id="kb-1",
@@ -56,12 +56,12 @@ async def test_ingest_skips_when_no_entities():
     mock_result.annotations = []
     mock_result.page_type = "text"
     with (
-        patch("rfnry_knowledge.ingestion.methods.graph.b") as mock_b,
-        patch("rfnry_knowledge.ingestion.methods.graph.build_registry") as mock_registry,
+        patch("rfnry_knowledge.ingestion.methods.entity.b") as mock_b,
+        patch("rfnry_knowledge.ingestion.methods.entity.build_registry") as mock_registry,
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(return_value=mock_result)
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, provider_client=lm_client)
+        method = EntityIngestion(store=store, provider_client=lm_client)
         await method.ingest(
             source_id="src-1",
             knowledge_id=None,
@@ -80,12 +80,12 @@ async def test_ingest_error_does_not_raise():
     store = AsyncMock()
     lm_client = MagicMock()
     with (
-        patch("rfnry_knowledge.ingestion.methods.graph.b") as mock_b,
-        patch("rfnry_knowledge.ingestion.methods.graph.build_registry") as mock_registry,
+        patch("rfnry_knowledge.ingestion.methods.entity.b") as mock_b,
+        patch("rfnry_knowledge.ingestion.methods.entity.build_registry") as mock_registry,
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(side_effect=RuntimeError("LLM down"))
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, provider_client=lm_client)
+        method = EntityIngestion(store=store, provider_client=lm_client)
         await method.ingest(
             source_id="src-1",
             knowledge_id=None,
@@ -101,7 +101,7 @@ async def test_ingest_error_does_not_raise():
 
 async def test_ingest_skips_without_lm_client():
     store = AsyncMock()
-    method = GraphIngestion(store=store, provider_client=None)
+    method = EntityIngestion(store=store, provider_client=None)
     await method.ingest(
         source_id="src-1",
         knowledge_id=None,
@@ -119,8 +119,8 @@ async def test_ingest_skips_without_lm_client():
 async def test_delete():
     store = AsyncMock()
     store.delete_by_source = AsyncMock()
-    with patch("rfnry_knowledge.ingestion.methods.graph.build_registry") as mock_registry:
+    with patch("rfnry_knowledge.ingestion.methods.entity.build_registry") as mock_registry:
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, provider_client=MagicMock())
+        method = EntityIngestion(store=store, provider_client=MagicMock())
     await method.delete("src-1")
     store.delete_by_source.assert_called_once_with("src-1")

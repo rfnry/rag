@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from rfnry_knowledge.config.graph import GraphIngestionConfig
+from rfnry_knowledge.config.entity import EntityIngestionConfig
 from rfnry_knowledge.exceptions import ConfigurationError
 from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 from rfnry_knowledge.ingestion.embeddings.base import BaseEmbeddings
@@ -33,7 +33,7 @@ class AnalyzedIngestion:
         dpi: int = 300,
         analyze_text_skip_threshold_chars: int = 300,
         analyze_concurrency: int = 5,
-        graph_config: GraphIngestionConfig | None = None,
+        graph_config: EntityIngestionConfig | None = None,
         source_type_weights: dict[str, float] | None = None,
         on_ingestion_complete: Callable[[str | None], Awaitable[None]] | None = None,
         delegate_methods: list[Any] | None = None,

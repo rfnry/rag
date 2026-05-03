@@ -1,14 +1,14 @@
-"""GraphIngestionConfig: bounds, defaults, consumer overrides, allowlist validation."""
+"""EntityIngestionConfig: bounds, defaults, consumer overrides, allowlist validation."""
 
 import pytest
 
-from rfnry_knowledge.config.graph import GraphIngestionConfig
+from rfnry_knowledge.config.entity import EntityIngestionConfig
 from rfnry_knowledge.exceptions import ConfigurationError
 
 
 def test_default_config_has_empty_vocabularies() -> None:
     """Agnostic by default — no electrical/mechanical assumption."""
-    cfg = GraphIngestionConfig()
+    cfg = EntityIngestionConfig()
     assert cfg.entity_type_patterns == []
     assert cfg.relationship_keyword_map == {}
     # Fallback is MENTIONS so edges aren't silently dropped on vocab miss
@@ -16,7 +16,7 @@ def test_default_config_has_empty_vocabularies() -> None:
 
 
 def test_consumer_can_supply_entity_type_patterns() -> None:
-    cfg = GraphIngestionConfig(
+    cfg = EntityIngestionConfig(
         entity_type_patterns=[
             (r"\bmotor\b", "motor"),
             (r"\bvalve\b", "valve"),
@@ -26,7 +26,7 @@ def test_consumer_can_supply_entity_type_patterns() -> None:
 
 
 def test_consumer_can_supply_relationship_keyword_map() -> None:
-    cfg = GraphIngestionConfig(
+    cfg = EntityIngestionConfig(
         relationship_keyword_map={"feed": "POWERED_BY", "control": "CONTROLLED_BY"},
     )
     assert cfg.relationship_keyword_map == {"feed": "POWERED_BY", "control": "CONTROLLED_BY"}
@@ -35,20 +35,20 @@ def test_consumer_can_supply_relationship_keyword_map() -> None:
 def test_relationship_keyword_map_values_must_be_in_allowlist() -> None:
     """Consumer cannot smuggle an arbitrary relation_type string into the graph."""
     with pytest.raises(ConfigurationError, match="(?i)not in.*ALLOWED_RELATION_TYPES"):
-        GraphIngestionConfig(relationship_keyword_map={"bogus": "NOT_A_REAL_REL"})
+        EntityIngestionConfig(relationship_keyword_map={"bogus": "NOT_A_REAL_REL"})
 
 
 def test_unclassified_relation_default_must_be_in_allowlist_or_none() -> None:
     with pytest.raises(ConfigurationError, match="(?i)not in.*ALLOWED_RELATION_TYPES"):
-        GraphIngestionConfig(unclassified_relation_default="NOT_A_REAL_REL")
+        EntityIngestionConfig(unclassified_relation_default="NOT_A_REAL_REL")
     # None is explicitly allowed — it means "drop on miss"
-    cfg = GraphIngestionConfig(unclassified_relation_default=None)
+    cfg = EntityIngestionConfig(unclassified_relation_default=None)
     assert cfg.unclassified_relation_default is None
 
 
 def test_entity_type_patterns_must_be_compilable_regex() -> None:
     with pytest.raises(ConfigurationError, match="(?i)invalid regex"):
-        GraphIngestionConfig(entity_type_patterns=[(r"[invalid(regex", "type")])
+        EntityIngestionConfig(entity_type_patterns=[(r"[invalid(regex", "type")])
 
 
 def test_graph_config_carried_by_analyzed_method_in_ingestion_config() -> None:
@@ -60,7 +60,7 @@ def test_graph_config_carried_by_analyzed_method_in_ingestion_config() -> None:
     method = AnalyzedIngestion(
         store=MagicMock(),
         embeddings=MagicMock(),
-        graph_config=GraphIngestionConfig(
+        graph_config=EntityIngestionConfig(
             entity_type_patterns=[(r"\bmotor\b", "motor")],
         ),
     )
@@ -92,4 +92,4 @@ def test_registered_in_config_bounds_contract() -> None:
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    assert GraphIngestionConfig in mod._CONFIGS_TO_AUDIT
+    assert EntityIngestionConfig in mod._CONFIGS_TO_AUDIT
