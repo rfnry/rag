@@ -19,7 +19,7 @@ from rfnry_knowledge.ingestion.drawing.defaults import (
     DEFAULT_RELATION_VOCABULARY,
     DEFAULT_SYMBOL_LIBRARY,
 )
-from rfnry_knowledge.providers import LLMClient
+from rfnry_knowledge.providers import ProviderClient
 
 
 @dataclass
@@ -41,7 +41,7 @@ class DrawingIngestionConfig:
     """
 
     enabled: bool = False
-    lm_client: LLMClient | None = None
+    provider_client: ProviderClient | None = None
     dpi: int = 400
     page_image_format: Literal["png", "jpeg"] = "png"
     default_domain: Literal["auto", "electrical", "p_and_id", "mechanical", "mixed"] = "auto"

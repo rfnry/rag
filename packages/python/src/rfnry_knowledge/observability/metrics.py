@@ -6,7 +6,7 @@ from rfnry_knowledge.baml.baml_client.async_client import b
 from rfnry_knowledge.common.logging import get_logger
 from rfnry_knowledge.observability.models import MetricResult
 from rfnry_knowledge.observability.normalize import normalize_answer
-from rfnry_knowledge.providers import LLMClient, build_registry
+from rfnry_knowledge.providers import ProviderClient, build_registry
 from rfnry_knowledge.telemetry.usage import instrument_baml_call
 
 logger = get_logger("evaluation")
@@ -84,11 +84,11 @@ class LLMJudgment:
 
     name: str = "llm_judge"
 
-    def __init__(self, lm_client: LLMClient) -> None:
-        self._lm_client = lm_client
+    def __init__(self, provider_client: ProviderClient) -> None:
+        self._provider_client = provider_client
 
     async def score(self, prediction: str, references: list[str], query: str = "") -> float:
-        registry = build_registry(self._lm_client)
+        registry = build_registry(self._provider_client)
         best_score = 0.0
 
         # SERIAL: best_score is updated after each reference so a failure on one

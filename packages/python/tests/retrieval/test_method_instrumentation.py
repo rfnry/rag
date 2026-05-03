@@ -138,31 +138,36 @@ async def test_document_ingestion_emits_method_success() -> None:
 async def test_ingest_row_counts_contextual_chunk_calls() -> None:
     from unittest.mock import patch
 
+    from pydantic import SecretStr
+
     from rfnry_knowledge.config import ContextualChunkConfig
     from rfnry_knowledge.ingestion.chunk.contextualize import contextualize_chunks_with_llm
     from rfnry_knowledge.ingestion.models import ChunkedContent
-    from rfnry_knowledge.providers import AnthropicModelProvider, LLMClient
+    from rfnry_knowledge.providers import ProviderClient
+
+    class _Counter:
+        name = "test"
+        model = "test"
+
+        def count(self, text: str) -> int:
+            return len(text.split())
 
     obs_token = _set_obs(Observability(sink=RecordingSink()))
     row = _ingest_row()
     row_token = _set_row(row)
 
-    async def fake_create(**_kwargs):
-        return SimpleNamespace(content=[SimpleNamespace(text="ctx")])
-
     chunks = [ChunkedContent(content=f"passage_{i}", chunk_index=i, contextualized=f"passage_{i}") for i in range(3)]
     cfg = ContextualChunkConfig(
         enabled=True,
-        lm_client=LLMClient(provider=AnthropicModelProvider(api_key="k", model="m")),
+        provider_client=ProviderClient(name="anthropic", model="m", api_key=SecretStr("k")),
+        token_counter=_Counter(),
     )
 
     try:
-        with (
-            patch("anthropic.AsyncAnthropic") as mock_cls,
-            patch("anthropic.types.TextBlock", new=SimpleNamespace),
+        with patch(
+            "rfnry_knowledge.ingestion.chunk.contextualize.instrument_baml_call",
+            new=AsyncMock(return_value="ctx"),
         ):
-            fake_client = SimpleNamespace(messages=SimpleNamespace(create=AsyncMock(side_effect=fake_create)))
-            mock_cls.return_value = fake_client
             await contextualize_chunks_with_llm(chunks, document_text="doc", config=cfg)
         assert row.contextual_chunk_calls == 3
         assert row.contextual_chunk_skipped is False
@@ -173,25 +178,39 @@ async def test_ingest_row_counts_contextual_chunk_calls() -> None:
 
 @pytest.mark.asyncio
 async def test_ingest_row_marks_contextual_chunk_skipped_on_oversized() -> None:
-    from unittest.mock import patch
+
+    from pydantic import SecretStr
 
     from rfnry_knowledge.config import ContextualChunkConfig, IngestionConfig
     from rfnry_knowledge.ingestion.chunk.chunker import SemanticChunker
     from rfnry_knowledge.ingestion.chunk.service import IngestionService
-    from rfnry_knowledge.providers import AnthropicModelProvider, LLMClient
+    from rfnry_knowledge.providers import ProviderClient
 
+    class _Counter:
+        name = "test"
+        model = "test"
+
+        def count(self, text: str) -> int:
+            return len(text.split())
+
+    counter = _Counter()
     obs_token = _set_obs(Observability(sink=RecordingSink()))
     row = _ingest_row()
     row_token = _set_row(row)
 
-    cfg_ingest = IngestionConfig()
-    chunker = SemanticChunker(chunk_size=cfg_ingest.chunk_size, chunk_overlap=cfg_ingest.chunk_overlap)
+    cfg_ingest = IngestionConfig(token_counter=counter)
+    chunker = SemanticChunker(
+        chunk_size=cfg_ingest.chunk_size,
+        chunk_overlap=cfg_ingest.chunk_overlap,
+        token_counter=counter,
+    )
 
     contextual_cfg = ContextualChunkConfig(
         enabled=True,
-        lm_client=LLMClient(
-            provider=AnthropicModelProvider(api_key="k", model="m", context_size=32_000),
+        provider_client=ProviderClient(
+            name="anthropic", model="m", api_key=SecretStr("k"), context_size=32_000
         ),
+        token_counter=counter,
         max_context_tokens=100,
     )
 
@@ -200,13 +219,13 @@ async def test_ingest_row_marks_contextual_chunk_skipped_on_oversized() -> None:
         ingestion_methods=[],
         contextual_chunk=contextual_cfg,
         chunk_context_headers=False,
+        token_counter=counter,
     )
 
     huge_doc = "word " * 20_000
 
     try:
-        with patch("anthropic.AsyncAnthropic"):
-            await svc.ingest_text(huge_doc, knowledge_id="k")
+        await svc.ingest_text(huge_doc, knowledge_id="k")
         assert row.contextual_chunk_skipped is True
         assert row.contextual_chunk_calls == 0
     finally:
@@ -226,13 +245,15 @@ async def test_ingest_row_counts_document_expansion_calls_and_failures() -> None
     row = _ingest_row()
     row_token = _set_row(row)
 
-    from rfnry_knowledge.providers import AnthropicModelProvider, LLMClient
+    from pydantic import SecretStr
+
+    from rfnry_knowledge.providers import ProviderClient
 
     fake_registry = object()
     cfg = DocumentExpansionConfig(
         enabled=True,
         num_queries=3,
-        lm_client=LLMClient(provider=AnthropicModelProvider(api_key="k", model="m")),
+        provider_client=ProviderClient(name="anthropic", model="m", api_key=SecretStr("k")),
     )
 
     chunks = [ChunkedContent(content=f"p{i}", chunk_index=i) for i in range(4)]

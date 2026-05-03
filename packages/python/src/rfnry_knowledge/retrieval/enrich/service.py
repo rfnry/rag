@@ -4,6 +4,7 @@ from typing import Any
 
 from rfnry_knowledge.common.logging import get_logger
 from rfnry_knowledge.ingestion.embeddings.base import BaseEmbeddings
+from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
 from rfnry_knowledge.models import RetrievedChunk
 from rfnry_knowledge.retrieval.enrich.enrichment import enrich_with_cross_references
 from rfnry_knowledge.retrieval.enrich.field_search import results_to_chunks
@@ -36,7 +37,7 @@ class StructuredRetrievalService:
 
         top_k = top_k or self._top_k
 
-        vectors = await self._embeddings.embed([query])
+        vectors = await embed_batched(self._embeddings, [query])
         semantic_filters: dict[str, Any] = {}
         if knowledge_id:
             semantic_filters["knowledge_id"] = knowledge_id

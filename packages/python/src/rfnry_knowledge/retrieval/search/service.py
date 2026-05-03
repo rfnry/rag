@@ -7,9 +7,11 @@ from typing import Any
 from rfnry_knowledge.common.logging import get_logger, query_logging_enabled
 from rfnry_knowledge.models import RetrievedChunk
 from rfnry_knowledge.observability.trace import RetrievalTrace
+from rfnry_knowledge.providers.usage import usage_to_int_dict
 from rfnry_knowledge.retrieval.base import BaseRetrievalMethod
 from rfnry_knowledge.retrieval.search.fusion import reciprocal_rank_fusion
 from rfnry_knowledge.retrieval.search.reranking.base import BaseReranking
+from rfnry_knowledge.telemetry.context import add_llm_usage
 
 logger = get_logger("retrieval.search.service")
 
@@ -103,7 +105,17 @@ class RetrievalService:
         if self._reranking:
             reranking_start = time.perf_counter() if trace_obj is not None else 0.0
             if fused:
-                fused = await self._reranking.rerank(query, fused, top_k=top_k)
+                rerank_outcome = await self._reranking.rerank(query, fused, top_k=top_k)
+                if isinstance(rerank_outcome, list):
+                    fused = rerank_outcome
+                else:
+                    fused = rerank_outcome.chunks
+                    if rerank_outcome.usage:
+                        add_llm_usage(
+                            getattr(self._reranking, "name", ""),
+                            getattr(self._reranking, "model", ""),
+                            usage_to_int_dict(rerank_outcome.usage),
+                        )
                 logger.info("top %d selected after reranking", len(fused))
             if trace_obj is not None:
                 # Reranker is configured: trace records the post-reranking

@@ -12,7 +12,7 @@ def test_drawing_method_exposes_protocol_attrs():
         store=MagicMock(),
         embeddings=MagicMock(name="emb"),
         vision=MagicMock(),
-        lm_client=MagicMock(),
+        provider_client=MagicMock(),
         embedding_model_name="openai:text-embedding-3-large",
     )
     assert method.name == "drawing"
@@ -52,7 +52,7 @@ def test_drawing_method_clone_for_store_round_trips_full_state():
         store=MagicMock(),
         embeddings=sentinels["embeddings"],
         vision=sentinels["vision"],
-        lm_client=sentinels["lm_client"],
+        provider_client=sentinels["lm_client"],
         graph_store=sentinels["graph_store"],
         metadata_store=sentinels["metadata_store"],
         embedding_model_name="x:y",
@@ -65,7 +65,7 @@ def test_drawing_method_clone_for_store_round_trips_full_state():
     assert cloned._config is method._config
     assert cloned._embeddings is sentinels["embeddings"]
     assert cloned._vision is sentinels["vision"]
-    assert cloned._lm_client is sentinels["lm_client"]
+    assert cloned._provider_client is sentinels["lm_client"]
     assert cloned._graph_store is sentinels["graph_store"]
     assert cloned._metadata_store is sentinels["metadata_store"]
     assert cloned._embedding_model_name == "x:y"

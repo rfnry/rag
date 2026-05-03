@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import SecretStr
 
 from rfnry_knowledge.config import GenerationConfig, KnowledgeEngineConfig, RetrievalConfig, RoutingConfig
 from rfnry_knowledge.exceptions import ConfigurationError
@@ -8,7 +9,7 @@ from rfnry_knowledge.knowledge.engine import (
     _FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS,
     KnowledgeEngine,
 )
-from rfnry_knowledge.providers import AnthropicModelProvider, LLMClient
+from rfnry_knowledge.providers import ProviderClient
 
 
 def _make_engine_for_validation(
@@ -16,11 +17,20 @@ def _make_engine_for_validation(
     context_size: int | None,
     full_context_threshold: int,
     max_tokens: int = 4096,
-    has_lm_client: bool = True,
+    has_provider_client: bool = True,
 ) -> KnowledgeEngine:
-    provider = AnthropicModelProvider(api_key="k", model="claude-test", context_size=context_size)
-    lm_client: LLMClient | None = LLMClient(provider=provider, max_tokens=max_tokens) if has_lm_client else None
-    generation = GenerationConfig(lm_client=lm_client, grounding_enabled=False)
+    provider_client: ProviderClient | None = (
+        ProviderClient(
+            name="anthropic",
+            model="claude-test",
+            api_key=SecretStr("k"),
+            context_size=context_size,
+            max_tokens=max_tokens,
+        )
+        if has_provider_client
+        else None
+    )
+    generation = GenerationConfig(provider_client=provider_client, grounding_enabled=False)
 
     class _StubRetrievalMethod:
         weight = 1.0
@@ -34,15 +44,15 @@ def _make_engine_for_validation(
 
 def test_provider_context_size_must_be_positive_when_set() -> None:
     with pytest.raises(ConfigurationError, match="context_size"):
-        AnthropicModelProvider(api_key="k", model="m", context_size=0)
+        ProviderClient(name="anthropic", model="m", api_key=SecretStr("k"), context_size=0)
     with pytest.raises(ConfigurationError, match="context_size"):
-        AnthropicModelProvider(api_key="k", model="m", context_size=-1)
+        ProviderClient(name="anthropic", model="m", api_key=SecretStr("k"), context_size=-1)
 
 
 def test_provider_context_size_none_and_positive_accepted() -> None:
-    AnthropicModelProvider(api_key="k", model="m")
-    AnthropicModelProvider(api_key="k", model="m", context_size=200_000)
-    AnthropicModelProvider(api_key="k", model="m", context_size=1)
+    ProviderClient(name="anthropic", model="m", api_key=SecretStr("k"))
+    ProviderClient(name="anthropic", model="m", api_key=SecretStr("k"), context_size=200_000)
+    ProviderClient(name="anthropic", model="m", api_key=SecretStr("k"), context_size=1)
 
 
 def test_validate_skipped_when_context_size_unset() -> None:
@@ -53,11 +63,11 @@ def test_validate_skipped_when_context_size_unset() -> None:
     engine._validate_full_context_fits_provider_window()
 
 
-def test_validate_skipped_when_lm_client_unset() -> None:
+def test_validate_skipped_when_provider_client_unset() -> None:
     engine = _make_engine_for_validation(
         context_size=None,
         full_context_threshold=1_500_000,
-        has_lm_client=False,
+        has_provider_client=False,
     )
     engine._validate_full_context_fits_provider_window()
 
@@ -88,7 +98,7 @@ def test_validate_error_names_provider() -> None:
         context_size=64_000,
         full_context_threshold=150_000,
     )
-    with pytest.raises(ConfigurationError, match="anthropic:claude-test"):
+    with pytest.raises(ConfigurationError, match="anthropic"):
         engine._validate_full_context_fits_provider_window()
 
 

@@ -24,7 +24,7 @@ def test_graph_store_with_lm_client_still_valid() -> None:
     with patch("rfnry_knowledge.ingestion.methods.graph.build_registry", return_value=MagicMock()):
         config = KnowledgeEngineConfig(
             ingestion=IngestionConfig(
-                methods=[GraphIngestion(store=graph_store, lm_client=MagicMock())],
+                methods=[GraphIngestion(store=graph_store, provider_client=MagicMock())],
             ),
             retrieval=RetrievalConfig(methods=[GraphRetrieval(store=graph_store)]),
         )

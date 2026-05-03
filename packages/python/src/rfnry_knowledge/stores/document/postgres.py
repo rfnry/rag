@@ -127,7 +127,8 @@ class PostgresDocumentStore:
 
                 await conn.execute(
                     text(
-                        "CREATE INDEX IF NOT EXISTS idx_knowledge_source_content_tsv ON knowledge_source_content USING GIN (tsv)"
+                        "CREATE INDEX IF NOT EXISTS idx_knowledge_source_content_tsv "
+                        "ON knowledge_source_content USING GIN (tsv)"
                     )
                 )
 

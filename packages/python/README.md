@@ -1,6 +1,6 @@
 # rfnry-knowledge
 
-A modular retrieval toolkit for Python. Compose vector, document, and graph retrieval methods into one pipeline, fuse their results, and route between indexed retrieval and full-context generation based on corpus size — automatically. Built around a single principle: as language models grow stronger and contexts grow longer, the toolkit gets out of their way instead of working around them.
+A modular, **provider-agnostic** retrieval engine for Python. Compose vector, document, and graph retrieval methods into one pipeline, fuse their results, and route between indexed retrieval and full-context generation based on corpus size — automatically. The engine ships zero provider implementations: the host application brings any LLM, embedder, or reranker that conforms to the library's Protocols and plugs it in. Built around a single principle: as language models grow stronger and contexts grow longer, the toolkit gets out of their way instead of working around them.
 
 > **v0.1.0** — early foundation. Breaking changes are possible in any 0.x release. Pin exact versions in production until 1.0.
 
@@ -11,29 +11,28 @@ Install with [uv](https://docs.astral.sh/uv/):
 ```bash
 uv add rfnry-knowledge                  # core SDK
 uv add "rfnry-knowledge[graph]"         # + Neo4j graph support
-uv add "rfnry-knowledge[cli]"           # + command-line interface
 ```
 
-A minimal vector + document retrieval pipeline:
+The library is SDK-only. There is no CLI; the host application owns all transport (HTTP, CLI, queue worker, etc.).
+
+A minimal vector + document retrieval pipeline. Note that `Embeddings` and `ProviderClient` LLM construction is the consumer's concern — the snippet below assumes a sibling `my_providers` module that returns objects matching `BaseEmbeddings` and `ProviderClient`:
 
 ```python
 import asyncio
-import os
+
+from pydantic import SecretStr
 
 from rfnry_knowledge import (
-    AnthropicModelProvider,
     DocumentIngestion,
     DocumentRetrieval,
-    Embeddings,
     GenerationConfig,
-    LLMClient,
     IngestionConfig,
-    OpenAIModelProvider,
-    PostgresDocumentStore,
-    QdrantVectorStore,
-    QueryMode,
     KnowledgeEngine,
     KnowledgeEngineConfig,
+    PostgresDocumentStore,
+    ProviderClient,
+    QdrantVectorStore,
+    QueryMode,
     RetrievalConfig,
     RoutingConfig,
     SQLAlchemyMetadataStore,
@@ -41,21 +40,25 @@ from rfnry_knowledge import (
     VectorRetrieval,
 )
 
+# Consumer-supplied; library defines BaseEmbeddings as a Protocol only.
+from my_providers import build_embeddings
+
 
 async def main() -> None:
-    embeddings = Embeddings(OpenAIModelProvider(
-        api_key=os.environ["OPENAI_API_KEY"],
-        model="text-embedding-3-small",
-    ))
-    generation = LLMClient(provider=AnthropicModelProvider(
-        api_key=os.environ["ANTHROPIC_API_KEY"],
+    embeddings = build_embeddings()  # any BaseEmbeddings-conforming object
+
+    generation_client = ProviderClient(
+        name="anthropic",                       # BAML-recognized provider key
         model="claude-sonnet-4-5",
+        api_key=SecretStr("sk-ant-…"),
+        max_tokens=4096,
+        temperature=0.0,
         context_size=200_000,
-    ))
+    )
 
     vector_store = QdrantVectorStore(url="http://localhost:6333", collection="docs")
-    document_store = PostgresDocumentStore(url=os.environ["POSTGRES_URL"])
-    metadata_store = SQLAlchemyMetadataStore(url=os.environ["POSTGRES_URL"])
+    document_store = PostgresDocumentStore(url="postgresql+asyncpg://…")
+    metadata_store = SQLAlchemyMetadataStore(url="postgresql+asyncpg://…")
 
     config = KnowledgeEngineConfig(
         metadata_store=metadata_store,
@@ -64,7 +67,6 @@ async def main() -> None:
                 VectorIngestion(store=vector_store, embeddings=embeddings),
                 DocumentIngestion(store=document_store),
             ],
-            embeddings=embeddings,
         ),
         retrieval=RetrievalConfig(
             methods=[
@@ -73,7 +75,7 @@ async def main() -> None:
             ],
             top_k=8,
         ),
-        generation=GenerationConfig(lm_client=generation, grounding_enabled=True),
+        generation=GenerationConfig(provider_client=generation_client, grounding_enabled=True),
         routing=RoutingConfig(mode=QueryMode.AUTO, full_context_threshold=150_000),
     )
 
@@ -86,9 +88,23 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-CLI mirrors the SDK surface (`rfnry-knowledge ingest …` / `rfnry-knowledge query …` / `rfnry-knowledge benchmark …` / `rfnry-knowledge knowledge inspect …`).
-
 A complete factory-operations example with vector + document + graph + drawing ingestion lives at [`yard/examples/rfnry-knowledge/operation-assistant/`](../../yard/examples/rfnry-knowledge/operation-assistant/).
+
+---
+
+## Provider contract
+
+The library defines four Protocols and one `ProviderClient` dataclass. The consumer implements/instantiates each.
+
+| Surface | Contract | Consumer responsibility |
+|---|---|---|
+| LLM generation, structured outputs (BAML), grounding gate, vision (BAML-routed) | `ProviderClient(name, model, api_key, options, max_retries, max_tokens, temperature, timeout_seconds, context_size, fallback, strategy)` | Pick a BAML-recognized `name` (`"anthropic"` / `"openai"` / `"google"` / etc.) and pass credentials. The engine never imports vendor SDKs directly. |
+| Embeddings | `BaseEmbeddings` Protocol — `name`, `model`, `embed(texts) -> EmbeddingResult`, `embedding_dimension()` | Wrap any embedding API or local model. Return `EmbeddingResult(vectors, usage=TokenUsage(...))`; the engine accumulates `usage` into telemetry rows. |
+| Sparse embeddings | `BaseSparseEmbeddings` Protocol — `embed_sparse`, `embed_sparse_query` | Wrap any sparse embedder (FastEmbed, Splade, etc.). |
+| Reranking | `BaseReranking` Protocol — `rerank(query, results, top_k) -> RerankResult` | Wrap any cross-encoder rerank API. |
+| Token counting | `TokenCounter` Protocol — `count(text) -> int` | Wrap tiktoken or any tokenizer. Without one, token-mode chunking falls back to whitespace word count. |
+
+`TokenUsage` is a TypedDict with four keys: `input`, `output`, `cache_creation`, `cache_read`. Missing keys default to zero. The same shape mirrors the `rfnry` agent SDK so a single admin UI consumes telemetry from both.
 
 ---
 
@@ -98,20 +114,20 @@ A complete factory-operations example with vector + document + graph + drawing i
 
 **Modular method composition.** Vector (dense + BM25 fused internally), document (Postgres FTS + substring), and graph (entity lookup + N-hop traversal). All paths are pluggable via `BaseRetrievalMethod` and run concurrently per query, merging through reciprocal rank fusion with per-method weights. No mandatory backend; configure only the paths you need. Per-method error isolation means one failing path does not break the others.
 
-**Auto routing between indexed retrieval and full-context generation.** Each query is dispatched through one of three modes: `INDEXED` (the standard retrieval pipeline), `FULL_CONTEXT` (load the entire corpus into a prompt-cached prefix and let the model answer directly), or `AUTO` (a corpus-token threshold dispatches between them per query). When a generation provider's `context_size` is declared, engine init refuses configurations where the threshold plus reserve would overflow the model's window — the cap is a safety bound, not a routing target.
+**Auto routing between indexed retrieval and full-context generation.** Each query is dispatched through one of three modes: `INDEXED` (the standard retrieval pipeline), `FULL_CONTEXT` (load the entire corpus into a prompt-cached prefix and let the model answer directly), or `AUTO` (a corpus-token threshold dispatches between them per query). When `ProviderClient.context_size` is declared, engine init refuses configurations where the threshold plus reserve would overflow the model's window — the cap is a safety bound, not a routing target.
 
-**Cross-encoder reranking.** Optional reranking against the original query (Cohere, Voyage). Sits cleanly between fusion and generation; opt-in per config.
+**Cross-encoder reranking.** Optional reranking against the original query, via any `BaseReranking`-conforming object the consumer supplies. Sits cleanly between fusion and generation; opt-in per config.
 
 ### Ingestion
 
 **Pluggable ingestion methods.** Vector, document, and graph ingestion all implement `BaseIngestionMethod`. Required vs optional methods are part of the contract: required-method failures abort the ingest; optional methods log and continue. Each method is self-contained and dispatches generically through `IngestionService`.
 
-**Drawing-aware ingestion for diagram-first documents.** Schematics, P&ID, wiring, and mechanical drawings break in chunk-and-pray pipelines — page 2 loses its connection to page 5. The drawing pipeline takes a different path: a vision LLM extracts structure once per page (components, labels, off-page connector tags) and emits every cross-page reference into the graph store as an edge candidate. Cross-sheet reasoning happens at query time, *over the assembled graph*, by the model itself. DXF files parse natively through `ezdxf` with no LLM calls. Symbol vocabularies (IEC 60617 + ISA 5.1 ship as defaults) are consumer-overridable. Per-page vision failures soft-skip the page and record a note rather than aborting the whole ingest.
+**Drawing-aware ingestion for diagram-first documents.** Schematics, P&ID, wiring, and mechanical drawings break in chunk-and-pray pipelines — page 2 loses its connection to page 5. The drawing pipeline takes a different path: a vision call (BAML `AnalyzeDrawingPage`, routed via the consumer's `ProviderClient`) extracts structure once per page (components, labels, off-page connector tags) and emits every cross-page reference into the graph store as an edge candidate. Cross-sheet reasoning happens at query time, *over the assembled graph*, by the model itself. DXF files parse natively through `ezdxf` with no LLM calls. Symbol vocabularies (IEC 60617 + ISA 5.1 ship as defaults) are consumer-overridable. Per-page vision failures soft-skip the page and record a note rather than aborting the whole ingest.
 
 **Index-time enrichment.** Three orthogonal opt-ins:
 - `chunk_context_headers` — templated `Document: X | Type: Y | Page: N | Section: …` prepended to chunk text.
-- `DocumentExpansionConfig` — LLM generates synthetic queries each chunk could answer (docT5query-style); flows into both BM25 and embeddings.
-- `ContextualChunkConfig` — Anthropic's Contextual Retrieval recipe; LLM generates a 50–100 token blob situating each chunk within its source document, prepended before embedding/BM25.
+- `DocumentExpansionConfig` — LLM generates synthetic queries each chunk could answer (docT5query-style); flows into both BM25 and embeddings. Routes through BAML.
+- `ContextualChunkConfig` — Anthropic's Contextual Retrieval recipe; LLM generates a 50–100 token blob situating each chunk within its source document, prepended before embedding/BM25. Routes through BAML.
 
 ### Generation
 
@@ -123,21 +139,21 @@ A complete factory-operations example with vector + document + graph + drawing i
 
 ### Observability
 
-**Per-source health view.** `Source.fully_ingested` plus `Source.ingestion_notes: list[str]` (entries formatted `<step>:<level>:<reason>`) record any non-fatal degradation that happened during ingest — a contextualization skip on an oversized document, a vision page failure, a graph-extraction partial. `KnowledgeManager.health(source_id)` fuses these with `SourceStats` (retrieval hits, grounded vs ungrounded answer counts) and the `stale` flag (embedding-model migration). The CLI surfaces it as `rfnry-knowledge knowledge inspect <source_id>`.
+**Per-source health view.** `Source.fully_ingested` plus `Source.ingestion_notes: list[str]` (entries formatted `<step>:<level>:<reason>`) record any non-fatal degradation that happened during ingest — a contextualization skip on an oversized document, a vision page failure, a graph-extraction partial. `KnowledgeManager.health(source_id)` fuses these with `SourceStats` (retrieval hits, grounded vs ungrounded answer counts) and the `stale` flag (embedding-model migration).
 
 **Per-query trace.** Pass `trace=True` to receive a `RetrievalTrace` capturing rewritten queries, per-method results (keyed by method name, including empty-result methods), fusion output, reranking, grounding decision, routing decision, and per-stage timings. Default `trace=False` is byte-for-byte unchanged.
 
-**Benchmark harness.** Structured test cases run through `KnowledgeEngine.benchmark()` or the CLI. Aggregates exact match, F1, retrieval recall and precision (when expected source IDs are provided), and optional LLM-judge scores. Per-case traces are part of the report so individual failures are debuggable.
+**Benchmark harness.** Structured test cases run through `KnowledgeEngine.benchmark()`. Aggregates exact match, F1, retrieval recall and precision (when expected source IDs are provided), and optional LLM-judge scores. Per-case traces are part of the report so individual failures are debuggable.
 
-**Structured event stream.** `Observability` on `KnowledgeEngineConfig` is always-on. Every entry point, every LLM call, and every retrieval / ingestion method emit a typed `ObservabilityRecord` (Pydantic, JSON-serializable) through the configured `Sink`. Default `JsonlStderrSink` writes one JSON line per record; swap to `JsonlFileSink`, `MultiSink`, or a custom `Sink` (an OTel adapter is ~25 lines) without touching pipeline code. `kind` discriminates events: `query.start`, `provider.call`, `retrieval.method.success`, etc. Pass `Observability(sink=NullSink())` to silence.
+**Structured event stream.** `Observability` on `KnowledgeEngineConfig` is always-on. Every entry point, every LLM call, and every retrieval / ingestion method emit a typed `ObservabilityRecord` (Pydantic, JSON-serializable) through the configured `Sink`. Default `JsonlStderrSink` writes one JSON line per record; swap to `JsonlFileSink`, `MultiSink`, or a custom `Sink` without touching pipeline code. `kind` discriminates events: `query.start`, `provider.call`, `retrieval.method.success`, etc. Pass `Observability(sink=NullSink())` to silence.
 
-**Row-per-transaction telemetry.** `Telemetry` writes one `QueryTelemetryRow` per query and one `IngestTelemetryRow` per ingest. Rows carry `outcome`, `duration_ms`, per-method timings, raw token counts (input / output / cache_creation / cache_read), and routing/grounding decisions. Default sink is stderr; use `SqlAlchemyTelemetrySink(metadata_store)` to persist into `knowledge_query_telemetry` / `knowledge_ingest_telemetry` tables for admin-UI consumption. Cost is the consumer's stack — the library emits raw token counts only.
+**Row-per-transaction telemetry.** `Telemetry` writes one `QueryTelemetryRow` per query and one `IngestTelemetryRow` per ingest. Rows carry `outcome`, `duration_ms`, per-method timings, raw token counts (input / output / cache_creation / cache_read), and routing/grounding decisions. Default sink is stderr; use `SqlAlchemyTelemetrySink(metadata_store)` to persist into `knowledge_query_telemetry` / `knowledge_ingest_telemetry` tables for admin-UI consumption. Token usage is fed by the consumer's `EmbeddingResult` / `RerankResult.usage` and by BAML's response usage metadata; the library emits raw counts only and never computes cost.
 
-### Providers
+### Provider integration
 
-**Provider-agnostic facades.** `Embeddings`, `Vision`, `Reranking`, and `LLMClient` dispatch to the correct backend at runtime — Anthropic, OpenAI, Google, Voyage, Cohere — based on the typed `ModelProvider` passed in (e.g. `AnthropicModelProvider`, `OpenAIModelProvider`). The retrieval pipeline looks identical regardless of which model is wired in; swapping providers is a configuration change, not a code change.
+**No vendor coupling.** The library imports zero vendor SDKs. There is no `anthropic`, `openai`, `google-genai`, `voyageai`, `cohere`, `tiktoken`, or `fastembed` dependency. The `BaseEmbeddings` / `BaseSparseEmbeddings` / `BaseReranking` / `TokenCounter` Protocols + `ProviderClient` dataclass form the entire provider surface; the host application brings the runtime.
 
-**Native SDK + BAML hybrid.** Plain text generation and streaming go through native provider SDKs in `providers/text_generation.py` (per-backend dispatch with prompt-cache-aware blocks for Anthropic). Structured-output calls — vision page analysis, entity extraction, document synthesis, the answer-quality judge — go through BAML for schema-typed parsing, retry policies, and primary-plus-fallback provider routing.
+**BAML-routed structured outputs.** Vision page analysis, entity extraction, document synthesis, situating-context generation, the answer-quality judge, and free-text generation all go through BAML. The `ProviderClient` populates a per-call BAML `ClientRegistry` (via `build_registry(client)`); BAML handles primary/fallback routing, retry policies, and provider-specific transport. Adding a provider means adding a `ProviderClient(name="<baml-provider>", …)` — no library change.
 
 **Prompt-injection-resistant fencing.** Every user-controlled prompt parameter is wrapped with explicit start/end markers and a "treat as untrusted" directive. A contract test scans every BAML source file and fails CI if any function ships a user-input parameter unfenced. A second contract test scans for banned domain vocabulary and fails CI if any leak into prompts.
 

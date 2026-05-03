@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 from rfnry_knowledge.exceptions import ConfigurationError
-from rfnry_knowledge.providers import LLMClient
+from rfnry_knowledge.providers import ProviderClient
+from rfnry_knowledge.providers.protocols import TokenCounter
 
 if TYPE_CHECKING:
     from rfnry_knowledge.ingestion.base import BaseIngestionMethod, PhasedIngestionMethod
@@ -20,12 +21,12 @@ class DocumentExpansionConfig:
     BEIR shows this beats vanilla BM25 on 11/18 datasets while preserving
     BM25's generalization.
 
-    Defaults are disabled and ``lm_client`` is None — consumers must opt in.
+    Defaults are disabled and ``provider_client`` is None — consumers must opt in.
     """
 
     enabled: bool = False
     num_queries: int = 5
-    lm_client: LLMClient | None = None
+    provider_client: ProviderClient | None = None
     concurrency: int = 5
 
     def __post_init__(self) -> None:
@@ -33,9 +34,9 @@ class DocumentExpansionConfig:
             raise ConfigurationError(f"DocumentExpansionConfig.num_queries={self.num_queries} out of range [1, 20]")
         if not (1 <= self.concurrency <= 100):
             raise ConfigurationError(f"DocumentExpansionConfig.concurrency={self.concurrency} out of range [1, 100]")
-        if self.enabled and self.lm_client is None:
+        if self.enabled and self.provider_client is None:
             raise ConfigurationError(
-                "DocumentExpansionConfig.enabled=True requires lm_client — provide a LLMClient "
+                "DocumentExpansionConfig.enabled=True requires provider_client — provide a ProviderClient "
                 "(no opinionated default model; consumer chooses)."
             )
 
@@ -44,18 +45,16 @@ class DocumentExpansionConfig:
 class ContextualChunkConfig:
     """Opt-in LLM-generated situating context per chunk at index time.
 
-    Anthropic's "Contextual Retrieval" recipe: each chunk gets a 50–100
-    token blob explaining its role in the source document, prepended
-    before embedding/BM25. Reduces retrieval failures 35–67% vs
-    structural-header-only chunking on Anthropic's reported corpora.
+    Each chunk gets a 50–100 token blob explaining its role in the source
+    document, prepended before embedding/BM25.
 
-    Defaults are disabled and ``lm_client`` is None — consumers must opt
-    in. Native SDK dispatch (no BAML); ``lm_client`` carries credentials,
-    retries, timeout, temperature.
+    Defaults are disabled and ``provider_client`` is None — consumers must opt
+    in. Routes through BAML's SituateChunk function.
     """
 
     enabled: bool = False
-    lm_client: LLMClient | None = None
+    provider_client: ProviderClient | None = None
+    token_counter: TokenCounter | None = None
     concurrency: int = 5
     max_context_tokens: int = 100
 
@@ -66,10 +65,15 @@ class ContextualChunkConfig:
             raise ConfigurationError(
                 f"ContextualChunkConfig.max_context_tokens={self.max_context_tokens} out of range [10, 500]"
             )
-        if self.enabled and self.lm_client is None:
+        if self.enabled and self.provider_client is None:
             raise ConfigurationError(
-                "ContextualChunkConfig.enabled=True requires lm_client — provide a LLMClient "
+                "ContextualChunkConfig.enabled=True requires provider_client — provide a ProviderClient "
                 "(no opinionated default model; consumer chooses)."
+            )
+        if self.enabled and self.token_counter is None:
+            raise ConfigurationError(
+                "ContextualChunkConfig.enabled=True requires token_counter — supply a TokenCounter "
+                "implementation (rfnry-knowledge ships none)."
             )
 
 
@@ -84,6 +88,7 @@ class IngestionConfig:
     chunk_context_headers: bool = True
     document_expansion: DocumentExpansionConfig = field(default_factory=lambda: DocumentExpansionConfig())
     contextual_chunk: ContextualChunkConfig = field(default_factory=lambda: ContextualChunkConfig())
+    token_counter: TokenCounter | None = None
 
     def __post_init__(self) -> None:
         if self.chunk_size_unit not in ("chars", "tokens"):
@@ -112,3 +117,6 @@ class IngestionConfig:
                     f"parent_chunk_overlap ({self.parent_chunk_overlap}) must be less than "
                     f"parent_chunk_size ({self.parent_chunk_size})"
                 )
+        # Note: chunk_size_unit='tokens' + token_counter is None is checked at chunker
+        # construction time (SemanticChunker.__init__), not here, so configs that never
+        # reach the chunker (e.g., test fixtures, drawing-only pipelines) don't trip it.

@@ -1,14 +1,18 @@
-from typing import Literal
+from collections.abc import Callable
+from typing import Any, Literal
 from uuid import uuid4
 
+from rfnry_knowledge.common.logging import get_logger
 from rfnry_knowledge.ingestion.chunk.splitter import RecursiveTextSplitter
 from rfnry_knowledge.ingestion.chunk.structure import (
     build_heading_spans,
     find_atomic_regions,
     section_path_at,
 )
-from rfnry_knowledge.ingestion.chunk.token_counter import count_tokens
 from rfnry_knowledge.ingestion.models import ChunkedContent, ParsedPage
+from rfnry_knowledge.providers.protocols import TokenCounter
+
+logger = get_logger("ingestion.chunk.chunker")
 
 ChunkSizeUnit = Literal["chars", "tokens"]
 
@@ -21,11 +25,35 @@ class SemanticChunker:
         parent_chunk_size: int = 0,
         parent_chunk_overlap: int = 150,
         chunk_size_unit: ChunkSizeUnit = "tokens",
+        token_counter: TokenCounter | None = None,
     ) -> None:
         if chunk_size_unit not in ("chars", "tokens"):
             raise ValueError(f"chunk_size_unit must be 'chars' or 'tokens', got {chunk_size_unit!r}")
         self.chunk_size_unit = chunk_size_unit
-        length_function = count_tokens if chunk_size_unit == "tokens" else len
+        if chunk_size_unit == "tokens":
+            if token_counter is None:
+                # No vendor tokenizer ships with the lib. Fall back to whitespace word
+                # count (provider-agnostic). Consumers wanting accurate token sizing
+                # plug in a TokenCounter via IngestionConfig.token_counter.
+                logger.warning(
+                    "chunk_size_unit='tokens' but no token_counter supplied — "
+                    "falling back to whitespace word count. "
+                    "Pass IngestionConfig.token_counter for accurate token sizing."
+                )
+
+                def _len_words(text: Any) -> int:
+                    return len(text.split())
+
+                length_function: Callable[[Any], int] = _len_words
+            else:
+                counter = token_counter
+
+                def _len_tokens(text: Any) -> int:
+                    return counter.count(text)
+
+                length_function = _len_tokens
+        else:
+            length_function = len
 
         self._child_splitter = RecursiveTextSplitter(
             chunk_size=chunk_size,

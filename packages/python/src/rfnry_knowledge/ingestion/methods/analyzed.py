@@ -10,7 +10,7 @@ from rfnry_knowledge.ingestion.analyze.service import AnalyzedIngestionService
 from rfnry_knowledge.ingestion.embeddings.base import BaseEmbeddings
 from rfnry_knowledge.ingestion.vision.base import BaseVision
 from rfnry_knowledge.models import Source
-from rfnry_knowledge.providers import LLMClient
+from rfnry_knowledge.providers import ProviderClient
 from rfnry_knowledge.stores.graph.base import BaseGraphStore
 from rfnry_knowledge.stores.metadata.base import BaseMetadataStore
 from rfnry_knowledge.stores.vector.base import BaseVectorStore
@@ -26,7 +26,7 @@ class AnalyzedIngestion:
         store: BaseVectorStore,
         embeddings: BaseEmbeddings,
         vision: BaseVision | None = None,
-        lm_client: LLMClient | None = None,
+        provider_client: ProviderClient | None = None,
         graph_store: BaseGraphStore | None = None,
         metadata_store: BaseMetadataStore | None = None,
         embedding_model_name: str = "",
@@ -54,7 +54,7 @@ class AnalyzedIngestion:
             embedding_model_name = getattr(embeddings, "name", "") or ""
         self._embeddings = embeddings
         self._vision = vision
-        self._lm_client = lm_client
+        self._provider_client = provider_client
         self._graph_store = graph_store
         self._metadata_store = metadata_store
         self._embedding_model_name = embedding_model_name
@@ -79,7 +79,7 @@ class AnalyzedIngestion:
             store=store,
             embeddings=self._embeddings,
             vision=self._vision,
-            lm_client=self._lm_client,
+            provider_client=self._provider_client,
             graph_store=self._graph_store,
             metadata_store=self._metadata_store,
             embedding_model_name=self._embedding_model_name,
@@ -117,7 +117,7 @@ class AnalyzedIngestion:
             dpi=self._dpi,
             source_type_weights=self._source_type_weights,
             on_ingestion_complete=self._on_ingestion_complete,
-            lm_client=self._lm_client,
+            provider_client=self._provider_client,
             graph_store=self._graph_store,
             ingestion_methods=self._delegate_methods,
             analyze_text_skip_threshold_chars=self._analyze_text_skip_threshold_chars,

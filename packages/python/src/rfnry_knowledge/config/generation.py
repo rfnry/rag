@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from rfnry_knowledge.exceptions import ConfigurationError
 from rfnry_knowledge.generation.formatting import ChunkOrdering
-from rfnry_knowledge.providers import LLMClient
+from rfnry_knowledge.providers import ProviderClient
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are a helpful assistant. Use only the provided context to answer questions. "
@@ -15,12 +15,12 @@ DEFAULT_SYSTEM_PROMPT = (
 
 @dataclass
 class GenerationConfig:
-    lm_client: LLMClient | None = None
+    provider_client: ProviderClient | None = None
     system_prompt: str = DEFAULT_SYSTEM_PROMPT
     grounding_enabled: bool = False
     grounding_threshold: float = 0.5
     relevance_gate_enabled: bool = False
-    relevance_gate_model: LLMClient | None = None
+    relevance_gate_model: ProviderClient | None = None
     guiding_enabled: bool = False
     chunk_ordering: ChunkOrdering = ChunkOrdering.SCORE_DESCENDING
 
@@ -35,5 +35,5 @@ class GenerationConfig:
             raise ConfigurationError("guiding_enabled requires relevance_gate_enabled")
         if self.grounding_enabled and self.grounding_threshold == 0.0:
             raise ConfigurationError("grounding_enabled=True with grounding_threshold=0.0 is a no-op")
-        if self.grounding_enabled and self.lm_client is None:
-            raise ConfigurationError("grounding_enabled requires lm_client")
+        if self.grounding_enabled and self.provider_client is None:
+            raise ConfigurationError("grounding_enabled requires provider_client")

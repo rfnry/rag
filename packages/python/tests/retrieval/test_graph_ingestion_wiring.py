@@ -25,7 +25,7 @@ def test_graph_ingestion_method_stores_graph_config() -> None:
     from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
 
     cfg = GraphIngestionConfig()
-    svc = GraphIngestion(store=SimpleNamespace(), lm_client=None, graph_config=cfg)
+    svc = GraphIngestion(store=SimpleNamespace(), provider_client=None, graph_config=cfg)
     assert svc._graph_config is cfg
 
 
@@ -48,7 +48,7 @@ def test_analyzed_service_defaults_graph_config_to_agnostic_empty() -> None:
 def test_graph_ingestion_method_defaults_to_agnostic_empty() -> None:
     from rfnry_knowledge.ingestion.methods.graph import GraphIngestion
 
-    svc = GraphIngestion(store=SimpleNamespace(), lm_client=None)
+    svc = GraphIngestion(store=SimpleNamespace(), provider_client=None)
     assert isinstance(svc._graph_config, GraphIngestionConfig)
     assert svc._graph_config.entity_type_patterns == []
     assert svc._graph_config.unclassified_relation_default == "MENTIONS"

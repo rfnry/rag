@@ -6,8 +6,12 @@ from rfnry_knowledge.generation.formatting import ChunkOrdering, chunks_to_conte
 from rfnry_knowledge.generation.grounding import DEFAULT_ESCALATION, RelevanceGate, ScoreGate
 from rfnry_knowledge.generation.models import Clarification, QueryResult, SourceReference, StreamEvent
 from rfnry_knowledge.models import RetrievedChunk
-from rfnry_knowledge.providers import LLMClient
-from rfnry_knowledge.providers.text_generation import assemble_user_message
+from rfnry_knowledge.providers import ProviderClient
+from rfnry_knowledge.providers.text_generation import (
+    assemble_user_message,
+    generate_text,
+    stream_text,
+)
 
 logger = get_logger("generation")
 
@@ -15,16 +19,16 @@ logger = get_logger("generation")
 class GenerationService:
     def __init__(
         self,
-        lm_client: LLMClient,
+        provider_client: ProviderClient,
         system_prompt: str,
         grounding_enabled: bool = False,
         grounding_threshold: float = 0.5,
         relevance_gate_enabled: bool = False,
         guiding_enabled: bool = False,
-        relevance_gate_lm_client: LLMClient | None = None,
+        relevance_gate_client: ProviderClient | None = None,
         chunk_ordering: ChunkOrdering = ChunkOrdering.SCORE_DESCENDING,
     ) -> None:
-        self._lm_client = lm_client
+        self._provider_client = provider_client
         self._system_prompt = system_prompt
         self._guiding_enabled = guiding_enabled
         self._chunk_ordering = chunk_ordering
@@ -33,12 +37,13 @@ class GenerationService:
         self._score_gate = ScoreGate(threshold=grounding_threshold) if grounding_enabled else None
 
         self._relevance_gate: RelevanceGate | None = None
-        if relevance_gate_enabled and relevance_gate_lm_client and self._score_gate:
-            self._relevance_gate = RelevanceGate(lm_client=relevance_gate_lm_client, fallback_gate=self._score_gate)
+        if relevance_gate_enabled and relevance_gate_client and self._score_gate:
+            self._relevance_gate = RelevanceGate(
+                provider_client=relevance_gate_client, fallback_gate=self._score_gate
+            )
 
     @staticmethod
     def _format_history(history: list[tuple[str, str]] | None) -> str:
-        """Format conversation history as alternating role messages."""
         if not history:
             return ""
         parts = []
@@ -48,7 +53,6 @@ class GenerationService:
         return "\n".join(parts)
 
     def _run_grounding_gates(self, chunks: list[RetrievedChunk]) -> tuple[bool, str | None]:
-        """Run score gate (sync). Returns (passed, escalation_message)."""
         if self._score_gate and not self._relevance_gate:
             passed, message = self._score_gate.check(chunks)
             if not passed:
@@ -58,7 +62,6 @@ class GenerationService:
     async def _run_relevance_gate(
         self, query: str, chunks: list[RetrievedChunk]
     ) -> tuple[bool, str | None, list[RetrievedChunk], float, QueryResult | None]:
-        """Run relevance gate (async). Returns (passed, message, relevant_chunks, confidence, early_result)."""
         relevant_chunks = chunks
         confidence = 0.0
         if self._relevance_gate:
@@ -110,7 +113,6 @@ class GenerationService:
         history: list[tuple[str, str]] | None = None,
         system_prompt: str | None = None,
     ) -> QueryResult:
-        """Run grounding gates then generate a response via the native LLM call."""
         if not query or not query.strip():
             raise GenerationError("Query must not be empty")
 
@@ -131,7 +133,8 @@ class GenerationService:
 
         logger.info("LLM generation: %d context chunks", len(relevant_chunks))
         try:
-            answer = await self._lm_client.generate_text(
+            answer = await generate_text(
+                self._provider_client,
                 system_prompt=active_system_prompt,
                 history=formatted_history,
                 user=assemble_user_message(query=query, context=context),
@@ -156,13 +159,6 @@ class GenerationService:
         history: list[tuple[str, str]] | None = None,
         system_prompt: str | None = None,
     ) -> QueryResult:
-        """Generate from a full corpus string (DIRECT mode).
-
-        Skips grounding and clarification gates by design: with the entire
-        corpus in the prompt, the chunk-level relevance signal those gates
-        depend on no longer applies. Returns `sources=[]` because DIRECT
-        does not assemble chunk-level source attribution.
-        """
         if not query or not query.strip():
             raise GenerationError("Query must not be empty")
 
@@ -171,7 +167,8 @@ class GenerationService:
 
         logger.info("LLM generation (direct corpus): %d chars", len(corpus))
         try:
-            answer = await self._lm_client.generate_text(
+            answer = await generate_text(
+                self._provider_client,
                 system_prompt=active_system_prompt,
                 history=formatted_history,
                 user=assemble_user_message(query=query, context=corpus),
@@ -194,7 +191,6 @@ class GenerationService:
         history: list[tuple[str, str]] | None = None,
         system_prompt: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
-        """Run grounding gates then stream a response via the native LLM call."""
         if not query or not query.strip():
             raise GenerationError("Query must not be empty")
 
@@ -223,18 +219,15 @@ class GenerationService:
 
         logger.info("LLM streaming: %d context chunks", len(relevant_chunks))
         try:
-            stream = self._lm_client.generate_text_stream(
+            async for delta in stream_text(
+                self._provider_client,
                 system_prompt=active_system_prompt,
                 history=formatted_history,
                 user=assemble_user_message(query=query, context=context),
-            )
-            async for delta in stream:
+            ):
                 if delta:
                     yield StreamEvent(type="chunk", content=delta)
         except Exception as exc:
-            # Emit a terminal event before raising so consumers iterating the
-            # async generator always see a structured error marker, not just
-            # an unexpected exception out of the for-loop.
             yield StreamEvent(type="done", content=f"generation error: {exc}", grounded=False)
             raise GenerationError(f"LLM streaming failed: {exc}") from exc
 

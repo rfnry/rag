@@ -67,7 +67,9 @@ class DrawingIngestionService:
         self._embedding_model_name = embedding_model_name
         self._graph_store = graph_store
         self._ingestion_methods = ingestion_methods or []
-        self._registry: ClientRegistry | None = build_registry(config.lm_client) if config.lm_client else None
+        self._registry: ClientRegistry | None = (
+            build_registry(config.provider_client) if config.provider_client else None
+        )
 
     async def render(
         self,
@@ -159,7 +161,7 @@ class DrawingIngestionService:
 
         if source_format == "pdf":
             if self._registry is None:
-                raise IngestionError("DrawingIngestionConfig.lm_client is required for PDF extract phase")
+                raise IngestionError("DrawingIngestionConfig.provider_client is required for PDF extract phase")
             analyses = await extract_pdf_analyses(
                 page_rows,
                 self._config,

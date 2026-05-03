@@ -218,7 +218,7 @@ async def _build_engine_with_all_methods(collections: list[str]) -> KnowledgeEng
                 methods=[
                     VectorIngestion(store=vector_store, embeddings=embeddings),
                     DocumentIngestion(store=document_store),
-                    GraphIngestion(store=graph_store, lm_client=lm_client),
+                    GraphIngestion(store=graph_store, provider_client=lm_client),
                 ],
             ),
             retrieval=RetrievalConfig(

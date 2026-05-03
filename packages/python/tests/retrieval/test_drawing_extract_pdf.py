@@ -8,11 +8,12 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import SecretStr
 
 from rfnry_knowledge.config.drawing import DrawingIngestionConfig
 from rfnry_knowledge.exceptions import IngestionError
 from rfnry_knowledge.ingestion.drawing.service import DrawingIngestionService
-from rfnry_knowledge.providers import LLMClient, OpenAIModelProvider
+from rfnry_knowledge.providers import ProviderClient
 
 
 class _InMemoryMetadataStore:
@@ -51,9 +52,9 @@ class _InMemoryMetadataStore:
 
 
 def _make_config_with_lm() -> DrawingIngestionConfig:
-    # Minimal lm_client so DrawingIngestionService initializes a BAML ClientRegistry.
-    lm = LLMClient(provider=OpenAIModelProvider(api_key="sk-test", model="gpt-4o"))
-    return DrawingIngestionConfig(enabled=True, lm_client=lm)
+    # Minimal provider_client so DrawingIngestionService initializes a BAML ClientRegistry.
+    client = ProviderClient(name="openai", model="gpt-4o", api_key=SecretStr("sk-test"))
+    return DrawingIngestionConfig(enabled=True, provider_client=client)
 
 
 def _make_service(metadata, config=None) -> DrawingIngestionService:
@@ -194,8 +195,8 @@ async def test_extract_respects_analyze_concurrency() -> None:
     doc.save(pdf)
     doc.close()
 
-    lm = LLMClient(provider=OpenAIModelProvider(api_key="sk-test", model="gpt-4o"))
-    cfg = DrawingIngestionConfig(enabled=True, lm_client=lm, analyze_concurrency=2)
+    client = ProviderClient(name="openai", model="gpt-4o", api_key=SecretStr("sk-test"))
+    cfg = DrawingIngestionConfig(enabled=True, provider_client=client, analyze_concurrency=2)
     metadata = _InMemoryMetadataStore()
     svc = _make_service(metadata, config=cfg)
     src = await svc.render(str(pdf), knowledge_id="k1")

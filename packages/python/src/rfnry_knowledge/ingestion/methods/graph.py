@@ -9,7 +9,7 @@ from rfnry_knowledge.ingestion.analyze.models import DiscoveredEntity, PageAnaly
 from rfnry_knowledge.ingestion.models import ChunkedContent, ParsedPage
 from rfnry_knowledge.ingestion.notes import record_skip
 from rfnry_knowledge.observability.context import current_obs
-from rfnry_knowledge.providers import LLMClient, build_registry
+from rfnry_knowledge.providers import ProviderClient, build_registry
 from rfnry_knowledge.stores.graph.base import BaseGraphStore
 from rfnry_knowledge.stores.graph.mapper import page_entities_to_graph
 from rfnry_knowledge.telemetry.context import current_ingest_row
@@ -43,16 +43,20 @@ class GraphIngestion:
     def __init__(
         self,
         store: BaseGraphStore,
-        lm_client: LLMClient | None = None,
+        provider_client: ProviderClient | None = None,
         graph_config: GraphIngestionConfig | None = None,
     ) -> None:
         self._store = store
-        self._lm_client = lm_client
-        self._registry = build_registry(lm_client) if lm_client else None
+        self._provider_client = provider_client
+        self._registry = build_registry(provider_client) if provider_client else None
         self._graph_config = graph_config if graph_config is not None else GraphIngestionConfig()
 
     def clone_for_store(self, store: BaseGraphStore) -> GraphIngestion:
-        return GraphIngestion(store=store, lm_client=self._lm_client, graph_config=self._graph_config)
+        return GraphIngestion(
+            store=store,
+            provider_client=self._provider_client,
+            graph_config=self._graph_config,
+        )
 
     @property
     def name(self) -> str:
@@ -74,7 +78,7 @@ class GraphIngestion:
         notes: list[str] | None = None,
     ) -> None:
         if not self._registry:
-            logger.warning("graph ingestion skipped — no lm_client provided")
+            logger.warning("graph ingestion skipped — no provider_client provided")
             return
 
         start = time.perf_counter()

@@ -1,13 +1,14 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import SecretStr
 
 from rfnry_knowledge.exceptions import GenerationError
 from rfnry_knowledge.generation.grounding import DEFAULT_ESCALATION
 from rfnry_knowledge.generation.models import RelevanceResult
 from rfnry_knowledge.generation.service import GenerationService
 from rfnry_knowledge.models import RetrievedChunk
-from rfnry_knowledge.providers import LLMClient, OpenAIModelProvider
+from rfnry_knowledge.providers import ProviderClient
 
 
 def _chunk(chunk_id: str = "c1", score: float = 0.9) -> RetrievedChunk:
@@ -21,8 +22,8 @@ def _chunk(chunk_id: str = "c1", score: float = 0.9) -> RetrievedChunk:
     )
 
 
-def _lm_client() -> LLMClient:
-    return LLMClient(provider=OpenAIModelProvider(api_key="k", model="gpt-4o-mini"))
+def _provider_client() -> ProviderClient:
+    return ProviderClient(name="openai", model="gpt-4o-mini", api_key=SecretStr("k"))
 
 
 def _make_service(
@@ -31,42 +32,34 @@ def _make_service(
     relevance_gate_enabled: bool = False,
     guiding_enabled: bool = False,
 ) -> GenerationService:
-    lm_client = _lm_client()
-    relevance_lm = lm_client if relevance_gate_enabled else None
+    client = _provider_client()
+    relevance_client = client if relevance_gate_enabled else None
 
     return GenerationService(
-        lm_client=lm_client,
+        provider_client=client,
         system_prompt="You are helpful.",
         grounding_enabled=grounding_enabled,
         grounding_threshold=grounding_threshold,
         relevance_gate_enabled=relevance_gate_enabled,
         guiding_enabled=guiding_enabled,
-        relevance_gate_lm_client=relevance_lm,
+        relevance_gate_client=relevance_client,
     )
 
 
 def _patch_generate(answer="The MERV 13 filter is rated for fine particles."):
-    return patch.object(LLMClient, "generate_text", new_callable=AsyncMock, return_value=answer)
-
-
-class _FakeStream:
-    def __init__(self, deltas: list[str]) -> None:
-        self._deltas = deltas
-
-    def __aiter__(self):
-        return self._iter()
-
-    async def _iter(self):
-        for delta in self._deltas:
-            yield delta
-
-
-def _patch_stream():
-    return patch.object(
-        LLMClient,
-        "generate_text_stream",
-        return_value=_FakeStream(["The ", "answer ", "is ", "42."]),
+    return patch(
+        "rfnry_knowledge.generation.service.generate_text",
+        new_callable=AsyncMock,
+        return_value=answer,
     )
+
+
+def _patch_stream(deltas=("The ", "answer ", "is ", "42.")):
+    async def _aiter(*args, **kwargs):
+        for d in deltas:
+            yield d
+
+    return patch("rfnry_knowledge.generation.service.stream_text", side_effect=_aiter)
 
 
 class TestGenerationServiceGenerate:

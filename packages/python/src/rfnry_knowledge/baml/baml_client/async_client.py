@@ -157,6 +157,21 @@ class BamlAsyncClient:
                 "passage": passage,"num_queries": num_queries,
             })
             return typing.cast(types.SyntheticQueries, __result__.cast_to(types, types, stream_types, False, __runtime__))
+    async def GenerateText(self, system: str,history: str,user: str,
+        baml_options: BamlCallOptions = {},
+    ) -> str:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            # Use streaming internally when on_tick is provided
+            __stream__ = self.stream.GenerateText(system=system,history=history,user=user,
+                baml_options=baml_options)
+            return await __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="GenerateText", args={
+                "system": system,"history": history,"user": user,
+            })
+            return typing.cast(str, __result__.cast_to(types, types, stream_types, False, __runtime__))
     async def JudgeAnswerQuality(self, query: str,prediction: str,reference: str,
         baml_options: BamlCallOptions = {},
     ) -> types.AnswerQualityJudgment:
@@ -172,6 +187,21 @@ class BamlAsyncClient:
                 "query": query,"prediction": prediction,"reference": reference,
             })
             return typing.cast(types.AnswerQualityJudgment, __result__.cast_to(types, types, stream_types, False, __runtime__))
+    async def SituateChunk(self, document: str,chunk: str,max_tokens: int,
+        baml_options: BamlCallOptions = {},
+    ) -> str:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            # Use streaming internally when on_tick is provided
+            __stream__ = self.stream.SituateChunk(document=document,chunk=chunk,max_tokens=max_tokens,
+                baml_options=baml_options)
+            return await __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="SituateChunk", args={
+                "document": document,"chunk": chunk,"max_tokens": max_tokens,
+            })
+            return typing.cast(str, __result__.cast_to(types, types, stream_types, False, __runtime__))
     async def SynthesizeDocument(self, page_analyses: str,
         baml_options: BamlCallOptions = {},
     ) -> types.DocumentSynthesis:
@@ -256,6 +286,18 @@ class BamlStreamClient:
           lambda x: typing.cast(types.SyntheticQueries, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
+    def GenerateText(self, system: str,history: str,user: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlStream[str, str]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="GenerateText", args={
+            "system": system,"history": history,"user": user,
+        })
+        return baml_py.BamlStream[str, str](
+          __result__,
+          lambda x: typing.cast(str, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(str, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
     def JudgeAnswerQuality(self, query: str,prediction: str,reference: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlStream[stream_types.AnswerQualityJudgment, types.AnswerQualityJudgment]:
@@ -266,6 +308,18 @@ class BamlStreamClient:
           __result__,
           lambda x: typing.cast(stream_types.AnswerQualityJudgment, x.cast_to(types, types, stream_types, True, __runtime__)),
           lambda x: typing.cast(types.AnswerQualityJudgment, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
+    def SituateChunk(self, document: str,chunk: str,max_tokens: int,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlStream[str, str]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="SituateChunk", args={
+            "document": document,"chunk": chunk,"max_tokens": max_tokens,
+        })
+        return baml_py.BamlStream[str, str](
+          __result__,
+          lambda x: typing.cast(str, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(str, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
     def SynthesizeDocument(self, page_analyses: str,
@@ -323,11 +377,25 @@ class BamlHttpRequestClient:
             "passage": passage,"num_queries": num_queries,
         }, mode="request")
         return __result__
+    async def GenerateText(self, system: str,history: str,user: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="GenerateText", args={
+            "system": system,"history": history,"user": user,
+        }, mode="request")
+        return __result__
     async def JudgeAnswerQuality(self, query: str,prediction: str,reference: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="JudgeAnswerQuality", args={
             "query": query,"prediction": prediction,"reference": reference,
+        }, mode="request")
+        return __result__
+    async def SituateChunk(self, document: str,chunk: str,max_tokens: int,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="SituateChunk", args={
+            "document": document,"chunk": chunk,"max_tokens": max_tokens,
         }, mode="request")
         return __result__
     async def SynthesizeDocument(self, page_analyses: str,
@@ -380,11 +448,25 @@ class BamlHttpStreamRequestClient:
             "passage": passage,"num_queries": num_queries,
         }, mode="stream")
         return __result__
+    async def GenerateText(self, system: str,history: str,user: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="GenerateText", args={
+            "system": system,"history": history,"user": user,
+        }, mode="stream")
+        return __result__
     async def JudgeAnswerQuality(self, query: str,prediction: str,reference: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="JudgeAnswerQuality", args={
             "query": query,"prediction": prediction,"reference": reference,
+        }, mode="stream")
+        return __result__
+    async def SituateChunk(self, document: str,chunk: str,max_tokens: int,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="SituateChunk", args={
+            "document": document,"chunk": chunk,"max_tokens": max_tokens,
         }, mode="stream")
         return __result__
     async def SynthesizeDocument(self, page_analyses: str,

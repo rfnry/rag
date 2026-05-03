@@ -53,11 +53,23 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="GenerateSyntheticQueries", llm_response=llm_response, mode="request")
         return typing.cast(types.SyntheticQueries, __result__)
 
+    def GenerateText(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> str:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="GenerateText", llm_response=llm_response, mode="request")
+        return typing.cast(str, __result__)
+
     def JudgeAnswerQuality(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> types.AnswerQualityJudgment:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="JudgeAnswerQuality", llm_response=llm_response, mode="request")
         return typing.cast(types.AnswerQualityJudgment, __result__)
+
+    def SituateChunk(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> str:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="SituateChunk", llm_response=llm_response, mode="request")
+        return typing.cast(str, __result__)
 
     def SynthesizeDocument(
         self, llm_response: str, baml_options: BamlCallOptions = {},
@@ -103,11 +115,23 @@ class LlmStreamParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="GenerateSyntheticQueries", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.SyntheticQueries, __result__)
 
+    def GenerateText(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> str:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="GenerateText", llm_response=llm_response, mode="stream")
+        return typing.cast(str, __result__)
+
     def JudgeAnswerQuality(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> stream_types.AnswerQualityJudgment:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="JudgeAnswerQuality", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.AnswerQualityJudgment, __result__)
+
+    def SituateChunk(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> str:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="SituateChunk", llm_response=llm_response, mode="stream")
+        return typing.cast(str, __result__)
 
     def SynthesizeDocument(
         self, llm_response: str, baml_options: BamlCallOptions = {},

@@ -10,6 +10,14 @@ def _mock_method(name: str, required: bool = True) -> SimpleNamespace:
     return SimpleNamespace(name=name, required=required, ingest=AsyncMock(), delete=AsyncMock())
 
 
+class _Counter:
+    name = "test"
+    model = "test"
+
+    def count(self, text: str) -> int:
+        return len(text.split())
+
+
 def _make_service(methods=None, metadata_store=None):
     chunker = MagicMock()
     chunker.chunk = MagicMock(
@@ -31,6 +39,7 @@ def _make_service(methods=None, metadata_store=None):
         chunker=chunker,
         ingestion_methods=methods or [],
         metadata_store=metadata_store,
+        token_counter=_Counter(),
     )
 
 

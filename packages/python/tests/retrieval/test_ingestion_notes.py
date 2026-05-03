@@ -46,7 +46,7 @@ async def test_graph_ingestion_soft_fail_writes_note() -> None:
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(side_effect=RuntimeError("LLM down"))
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, lm_client=lm_client)
+        method = GraphIngestion(store=store, provider_client=lm_client)
         await method.ingest(
             source_id="src-1",
             knowledge_id=None,
@@ -73,7 +73,7 @@ async def test_graph_ingestion_no_note_when_notes_is_none() -> None:
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(side_effect=RuntimeError("LLM down"))
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, lm_client=lm_client)
+        method = GraphIngestion(store=store, provider_client=lm_client)
         await method.ingest(
             source_id="src-1",
             knowledge_id=None,
@@ -109,7 +109,7 @@ async def test_graph_clean_run_no_note() -> None:
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(return_value=mock_result)
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, lm_client=lm_client)
+        method = GraphIngestion(store=store, provider_client=lm_client)
         await method.ingest(
             source_id="src-1",
             knowledge_id=None,

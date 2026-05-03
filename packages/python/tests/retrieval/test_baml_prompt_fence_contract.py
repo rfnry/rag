@@ -39,6 +39,9 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     "ExtractEntitiesFromText": ["text"],
     "GenerateSyntheticQueries": ["passage", "num_queries"],
     "AnalyzeDrawingPage": ["symbol_library", "off_page_patterns"],
+    # ---- retrieval / generation (provider-decoupled BAML wrappers) ----
+    "GenerateText": ["system", "history", "user"],
+    "SituateChunk": ["document", "chunk"],
 }
 
 

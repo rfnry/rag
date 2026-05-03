@@ -5,8 +5,8 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from rfnry_knowledge.common.logging import get_logger
-from rfnry_knowledge.ingestion.chunk.token_counter import count_tokens
 from rfnry_knowledge.models import Chunk, HealthSummary, RetrievalHealth, Source, SourceStats
+from rfnry_knowledge.providers.protocols import TokenCounter
 from rfnry_knowledge.stores.document.base import BaseDocumentStore
 from rfnry_knowledge.stores.graph.base import BaseGraphStore
 from rfnry_knowledge.stores.metadata.base import BaseMetadataStore
@@ -23,12 +23,14 @@ class KnowledgeManager:
         on_source_removed: Callable[[str | None], Awaitable[None]] | None = None,
         document_store: BaseDocumentStore | None = None,
         graph_store: BaseGraphStore | None = None,
+        token_counter: TokenCounter | None = None,
     ) -> None:
         self._vector_store = vector_store
         self._metadata_store = metadata_store
         self._on_source_removed = on_source_removed
         self._document_store = document_store
         self._graph_store = graph_store
+        self._token_counter = token_counter
 
     async def list(self, knowledge_id: str | None = None) -> builtins.list[Source]:
         """List all sources, optionally filtered by knowledge_id."""
@@ -164,7 +166,11 @@ class KnowledgeManager:
             text = ""
             if self._document_store is not None:
                 text = await self._document_store.get(source.source_id) or ""
-            token_count = count_tokens(text) if text else 0
+            token_count = (
+                self._token_counter.count(text)
+                if text and self._token_counter is not None
+                else 0
+            )
             # Only writeback when we actually computed something. Writing a
             # zero would poison the cache forever — `cached is not None` above
             # would short-circuit subsequent calls even after a document store

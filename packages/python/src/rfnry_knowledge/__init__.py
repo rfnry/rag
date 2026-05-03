@@ -1,4 +1,4 @@
-"""rfnry-knowledge — Retrieval-Augmented Generation SDK."""
+"""rfnry-knowledge — Provider-agnostic retrieval-augmented generation engine."""
 
 from importlib.metadata import version
 
@@ -36,9 +36,6 @@ from rfnry_knowledge.generation.models import StreamEvent as StreamEvent
 from rfnry_knowledge.ingestion.base import BaseIngestionMethod as BaseIngestionMethod
 from rfnry_knowledge.ingestion.chunk.chunker import SemanticChunker as SemanticChunker
 from rfnry_knowledge.ingestion.chunk.service import IngestionService as IngestionService
-from rfnry_knowledge.ingestion.embeddings.sparse.fastembed import (
-    FastEmbedSparseEmbeddings as FastEmbedSparseEmbeddings,
-)
 from rfnry_knowledge.ingestion.methods import AnalyzedIngestion as AnalyzedIngestion
 from rfnry_knowledge.ingestion.methods import DocumentIngestion as DocumentIngestion
 from rfnry_knowledge.ingestion.methods import DrawingIngestion as DrawingIngestion
@@ -60,15 +57,15 @@ from rfnry_knowledge.observability.models import MetricResult as MetricResult
 from rfnry_knowledge.observability.retrieval_metrics import RetrievalPrecision as RetrievalPrecision
 from rfnry_knowledge.observability.retrieval_metrics import RetrievalRecall as RetrievalRecall
 from rfnry_knowledge.observability.trace import RetrievalTrace as RetrievalTrace
-from rfnry_knowledge.providers import AnthropicModelProvider as AnthropicModelProvider
-from rfnry_knowledge.providers import CohereModelProvider as CohereModelProvider
-from rfnry_knowledge.providers import Embeddings as Embeddings
-from rfnry_knowledge.providers import GoogleModelProvider as GoogleModelProvider
-from rfnry_knowledge.providers import LLMClient as LLMClient
-from rfnry_knowledge.providers import OpenAIModelProvider as OpenAIModelProvider
-from rfnry_knowledge.providers import Reranking as Reranking
-from rfnry_knowledge.providers import Vision as Vision
-from rfnry_knowledge.providers import VoyageModelProvider as VoyageModelProvider
+from rfnry_knowledge.providers import BaseEmbeddings as BaseEmbeddings
+from rfnry_knowledge.providers import BaseReranking as BaseReranking
+from rfnry_knowledge.providers import BaseSparseEmbeddings as BaseSparseEmbeddings
+from rfnry_knowledge.providers import EmbeddingResult as EmbeddingResult
+from rfnry_knowledge.providers import ProviderClient as ProviderClient
+from rfnry_knowledge.providers import RerankResult as RerankResult
+from rfnry_knowledge.providers import TokenCounter as TokenCounter
+from rfnry_knowledge.providers import TokenUsage as TokenUsage
+from rfnry_knowledge.providers import build_registry as build_registry
 from rfnry_knowledge.retrieval.base import BaseRetrievalMethod as BaseRetrievalMethod
 from rfnry_knowledge.retrieval.methods.document import DocumentRetrieval as DocumentRetrieval
 from rfnry_knowledge.retrieval.methods.enrich import StructuredRetrieval as StructuredRetrieval
@@ -88,14 +85,15 @@ from rfnry_knowledge.stores.vector.qdrant import QdrantVectorStore as QdrantVect
 __all__ = [
     "DEFAULT_SYSTEM_PROMPT",
     "AnalyzedIngestion",
-    "AnthropicModelProvider",
+    "BaseEmbeddings",
     "BaseIngestionMethod",
+    "BaseReranking",
     "BaseRetrievalMethod",
+    "BaseSparseEmbeddings",
     "BenchmarkCase",
     "BenchmarkCaseResult",
     "BenchmarkConfig",
     "BenchmarkReport",
-    "CohereModelProvider",
     "ConfigurationError",
     "ContentMatch",
     "DocumentExpansionConfig",
@@ -105,16 +103,13 @@ __all__ = [
     "DrawingIngestionConfig",
     "DuplicateSourceError",
     "EmbeddingError",
-    "Embeddings",
+    "EmbeddingResult",
     "EmptyDocumentError",
     "ExactMatch",
     "F1Score",
-    "FastEmbedSparseEmbeddings",
     "FilesystemDocumentStore",
     "GenerationConfig",
     "GenerationError",
-    "LLMClient",
-    "GoogleModelProvider",
     "GraphEntity",
     "GraphIngestion",
     "GraphIngestionConfig",
@@ -127,19 +122,19 @@ __all__ = [
     "IngestionInterruptedError",
     "IngestionService",
     "InputError",
-    "LLMJudgment",
-    "MetricResult",
-    "Neo4jGraphStore",
-    "OpenAIModelProvider",
-    "ParseError",
-    "PostgresDocumentStore",
-    "QdrantVectorStore",
-    "QueryMode",
-    "QueryResult",
     "KnowledgeEngine",
     "KnowledgeEngineConfig",
     "KnowledgeEngineError",
-    "Reranking",
+    "LLMJudgment",
+    "MetricResult",
+    "Neo4jGraphStore",
+    "ParseError",
+    "PostgresDocumentStore",
+    "ProviderClient",
+    "QdrantVectorStore",
+    "QueryMode",
+    "QueryResult",
+    "RerankResult",
     "RetrievalConfig",
     "RetrievalError",
     "RetrievalPrecision",
@@ -156,8 +151,9 @@ __all__ = [
     "StoreError",
     "StreamEvent",
     "StructuredRetrieval",
+    "TokenCounter",
+    "TokenUsage",
     "VectorIngestion",
     "VectorRetrieval",
-    "Vision",
-    "VoyageModelProvider",
+    "build_registry",
 ]

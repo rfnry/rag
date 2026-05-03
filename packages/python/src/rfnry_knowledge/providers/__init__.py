@@ -1,26 +1,21 @@
-from typing import TYPE_CHECKING
-
-from rfnry_knowledge.providers.client import LLMClient as LLMClient
 from rfnry_knowledge.providers.protocols import BaseEmbeddings as BaseEmbeddings
-from rfnry_knowledge.providers.provider import AnthropicModelProvider as AnthropicModelProvider
-from rfnry_knowledge.providers.provider import CohereModelProvider as CohereModelProvider
-from rfnry_knowledge.providers.provider import GoogleModelProvider as GoogleModelProvider
-from rfnry_knowledge.providers.provider import ModelProvider as ModelProvider
-from rfnry_knowledge.providers.provider import OpenAIModelProvider as OpenAIModelProvider
-from rfnry_knowledge.providers.provider import VoyageModelProvider as VoyageModelProvider
+from rfnry_knowledge.providers.protocols import BaseReranking as BaseReranking
+from rfnry_knowledge.providers.protocols import BaseSparseEmbeddings as BaseSparseEmbeddings
+from rfnry_knowledge.providers.protocols import EmbeddingResult as EmbeddingResult
+from rfnry_knowledge.providers.protocols import RerankResult as RerankResult
+from rfnry_knowledge.providers.protocols import TokenCounter as TokenCounter
+from rfnry_knowledge.providers.provider import ProviderClient as ProviderClient
 from rfnry_knowledge.providers.registry import build_registry as build_registry
+from rfnry_knowledge.providers.usage import TokenUsage as TokenUsage
 
-if TYPE_CHECKING:
-    from rfnry_knowledge.providers.facades import Embeddings as Embeddings
-    from rfnry_knowledge.providers.facades import Reranking as Reranking
-    from rfnry_knowledge.providers.facades import Vision as Vision
-
-_FACADE_NAMES = {"Embeddings", "Reranking", "Vision"}
-
-
-def __getattr__(name: str) -> object:
-    if name in _FACADE_NAMES:
-        from rfnry_knowledge.providers import facades
-
-        return getattr(facades, name)
-    raise AttributeError(f"module 'rfnry_knowledge.providers' has no attribute {name!r}")
+__all__ = [
+    "BaseEmbeddings",
+    "BaseReranking",
+    "BaseSparseEmbeddings",
+    "EmbeddingResult",
+    "ProviderClient",
+    "RerankResult",
+    "TokenCounter",
+    "TokenUsage",
+    "build_registry",
+]

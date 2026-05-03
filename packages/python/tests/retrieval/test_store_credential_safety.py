@@ -51,7 +51,9 @@ def test_neo4j_graph_store_rejects_empty_password():
 
 
 def test_provider_repr_does_not_leak_api_key():
-    from rfnry_knowledge.providers import OpenAIModelProvider
+    from pydantic import SecretStr
 
-    provider = OpenAIModelProvider(api_key="sk-TOPSECRET", model="m")
-    assert "TOPSECRET" not in repr(provider)
+    from rfnry_knowledge.providers import ProviderClient
+
+    client = ProviderClient(name="openai", model="m", api_key=SecretStr("sk-TOPSECRET"))
+    assert "TOPSECRET" not in repr(client)

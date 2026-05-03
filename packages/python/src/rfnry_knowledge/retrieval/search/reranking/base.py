@@ -1,7 +1,4 @@
-from typing import Protocol
+from rfnry_knowledge.providers.protocols import BaseReranking as BaseReranking
+from rfnry_knowledge.providers.protocols import RerankResult as RerankResult
 
-from rfnry_knowledge.models import RetrievedChunk
-
-
-class BaseReranking(Protocol):
-    async def rerank(self, query: str, results: list[RetrievedChunk], top_k: int = 5) -> list[RetrievedChunk]: ...
+__all__ = ["BaseReranking", "RerankResult"]

@@ -26,9 +26,9 @@ from rfnry_knowledge.ingestion.models import ChunkedContent
 # ---------------------------------------------------------------------------
 
 
-def test_document_expansion_config_requires_lm_client_when_enabled() -> None:
-    with pytest.raises(ConfigurationError, match="lm_client"):
-        DocumentExpansionConfig(enabled=True, lm_client=None)
+def test_document_expansion_config_requires_provider_client_when_enabled() -> None:
+    with pytest.raises(ConfigurationError, match="provider_client"):
+        DocumentExpansionConfig(enabled=True, provider_client=None)
 
 
 def test_document_expansion_config_bounds_num_queries() -> None:
@@ -108,7 +108,7 @@ async def test_expand_chunks_calls_llm_per_chunk_with_concurrency_bound() -> Non
     cfg = DocumentExpansionConfig(
         enabled=True,
         num_queries=1,
-        lm_client=MagicMock(),
+        provider_client=MagicMock(),
         concurrency=3,
     )
     chunks = [_make_chunk(i) for i in range(10)]
@@ -127,7 +127,7 @@ async def test_expand_chunks_attaches_queries_to_chunk_dataclass() -> None:
     cfg = DocumentExpansionConfig(
         enabled=True,
         num_queries=3,
-        lm_client=MagicMock(),
+        provider_client=MagicMock(),
         concurrency=1,
     )
     chunks = [_make_chunk(0)]
@@ -146,7 +146,7 @@ async def test_expand_chunks_lm_failure_soft_skips_with_note() -> None:
     cfg = DocumentExpansionConfig(
         enabled=True,
         num_queries=2,
-        lm_client=MagicMock(),
+        provider_client=MagicMock(),
         concurrency=1,
     )
     chunks = [_make_chunk(7)]
@@ -166,7 +166,7 @@ async def test_expansion_one_chunk_fails_others_succeed() -> None:
     cfg = DocumentExpansionConfig(
         enabled=True,
         num_queries=1,
-        lm_client=MagicMock(),
+        provider_client=MagicMock(),
         concurrency=1,
     )
     chunks = [_make_chunk(i) for i in range(5)]
@@ -195,7 +195,7 @@ async def test_expansion_majority_failure_writes_summary() -> None:
     cfg = DocumentExpansionConfig(
         enabled=True,
         num_queries=1,
-        lm_client=MagicMock(),
+        provider_client=MagicMock(),
         concurrency=1,
     )
     chunks = [_make_chunk(i) for i in range(10)]
@@ -222,7 +222,7 @@ async def test_expansion_clean_no_notes() -> None:
     cfg = DocumentExpansionConfig(
         enabled=True,
         num_queries=1,
-        lm_client=MagicMock(),
+        provider_client=MagicMock(),
         concurrency=1,
     )
     chunks = [_make_chunk(i) for i in range(3)]

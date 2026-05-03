@@ -126,14 +126,18 @@ async def test_document_store_logs_effective_pool_knobs(caplog) -> None:
     assert "pool" in msg.lower()
 
 
-def test_build_registry_logs_lm_policy(caplog) -> None:
+def test_build_registry_logs_provider_policy(caplog) -> None:
     import logging
 
-    from rfnry_knowledge.providers import LLMClient, OpenAIModelProvider, build_registry
+    from pydantic import SecretStr
+
+    from rfnry_knowledge.providers import ProviderClient, build_registry
 
     caplog.set_level(logging.INFO, logger="rfnry_knowledge.providers.registry")
-    client = LLMClient(
-        provider=OpenAIModelProvider(api_key="sk-test", model="gpt-4o"),
+    client = ProviderClient(
+        name="openai",
+        model="gpt-4o",
+        api_key=SecretStr("sk-test"),
         max_retries=2,
         timeout_seconds=30,
     )

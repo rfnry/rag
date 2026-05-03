@@ -8,9 +8,19 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 from rfnry_knowledge.ingestion.chunk.service import IngestionService
-from rfnry_knowledge.ingestion.chunk.token_counter import count_tokens
 from rfnry_knowledge.knowledge.manager import KnowledgeManager
 from rfnry_knowledge.models import Source, VectorResult
+
+
+class _Counter:
+    name = "test"
+    model = "test"
+
+    def count(self, text: str) -> int:
+        return len(text.split())
+
+
+count_tokens = _Counter().count
 
 
 def _mock_method(name: str, required: bool = True) -> SimpleNamespace:
@@ -53,6 +63,7 @@ async def test_ingest_file_populates_estimated_tokens(tmp_path) -> None:
         ingestion_methods=[_mock_method("vector")],
         embedding_model_name="test:model",
         metadata_store=metadata_store,
+        token_counter=_Counter(),
     )
 
     file_path = tmp_path / "doc_a.txt"
@@ -80,6 +91,7 @@ async def test_ingest_text_populates_estimated_tokens() -> None:
         ingestion_methods=[],
         embedding_model_name="test:model",
         metadata_store=metadata_store,
+        token_counter=_Counter(),
     )
 
     content = "hello world from chunk_0"
@@ -119,6 +131,7 @@ async def test_get_corpus_tokens_lazy_computes_for_legacy_sources() -> None:
     km = KnowledgeManager(
         metadata_store=metadata_store,  # type: ignore[arg-type]
         document_store=document_store,  # type: ignore[arg-type]
+        token_counter=_Counter(),
     )
 
     total = await km.get_corpus_tokens(knowledge_id="kb-1")

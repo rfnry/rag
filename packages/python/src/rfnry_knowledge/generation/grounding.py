@@ -4,7 +4,7 @@ from rfnry_knowledge.baml.baml_client.async_client import b
 from rfnry_knowledge.common.logging import get_logger
 from rfnry_knowledge.generation.models import RelevanceResult
 from rfnry_knowledge.models import RetrievedChunk
-from rfnry_knowledge.providers import LLMClient, build_registry
+from rfnry_knowledge.providers import ProviderClient, build_registry
 from rfnry_knowledge.telemetry.usage import instrument_baml_call
 
 logger = get_logger("generation/grounding")
@@ -38,8 +38,8 @@ class RelevanceGate:
     Falls back to ScoreGate on failure.
     """
 
-    def __init__(self, lm_client: LLMClient, fallback_gate: ScoreGate) -> None:
-        self._registry = build_registry(lm_client)
+    def __init__(self, provider_client: ProviderClient, fallback_gate: ScoreGate) -> None:
+        self._registry = build_registry(provider_client)
         self._fallback = fallback_gate
 
     async def check(

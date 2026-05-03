@@ -12,6 +12,7 @@ from rank_bm25 import BM25Okapi
 from rfnry_knowledge.common.logging import get_logger
 from rfnry_knowledge.exceptions import ConfigurationError
 from rfnry_knowledge.ingestion.embeddings.base import BaseEmbeddings
+from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
 from rfnry_knowledge.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
 from rfnry_knowledge.models import RetrievedChunk, VectorResult
 from rfnry_knowledge.observability.context import current_obs
@@ -186,7 +187,7 @@ class VectorRetrieval:
     ) -> list[RetrievedChunk]:
         if self._sparse:
             dense_outcome, sparse_outcome = await asyncio.gather(
-                self._embeddings.embed([query]),
+                embed_batched(self._embeddings, [query]),
                 self._sparse.embed_sparse_query(query),
                 return_exceptions=True,
             )
@@ -214,7 +215,7 @@ class VectorRetrieval:
                 results = await self._store.search(vector=query_vector, top_k=top_k, filters=filters)
                 logger.info("%d candidates from dense fallback (sparse failed)", len(results))
         else:
-            vectors = await self._embeddings.embed([query])
+            vectors = await embed_batched(self._embeddings, [query])
             if not vectors:
                 logger.warning("embedding returned no vectors for query")
                 return []

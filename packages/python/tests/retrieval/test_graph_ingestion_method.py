@@ -24,7 +24,7 @@ async def test_ingest_extracts_entities_and_stores():
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(return_value=mock_result)
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, lm_client=lm_client)
+        method = GraphIngestion(store=store, provider_client=lm_client)
         assert method.name == "graph"
         await method.ingest(
             source_id="src-1",
@@ -61,7 +61,7 @@ async def test_ingest_skips_when_no_entities():
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(return_value=mock_result)
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, lm_client=lm_client)
+        method = GraphIngestion(store=store, provider_client=lm_client)
         await method.ingest(
             source_id="src-1",
             knowledge_id=None,
@@ -85,7 +85,7 @@ async def test_ingest_error_does_not_raise():
     ):
         mock_b.ExtractEntitiesFromText = AsyncMock(side_effect=RuntimeError("LLM down"))
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, lm_client=lm_client)
+        method = GraphIngestion(store=store, provider_client=lm_client)
         await method.ingest(
             source_id="src-1",
             knowledge_id=None,
@@ -101,7 +101,7 @@ async def test_ingest_error_does_not_raise():
 
 async def test_ingest_skips_without_lm_client():
     store = AsyncMock()
-    method = GraphIngestion(store=store, lm_client=None)
+    method = GraphIngestion(store=store, provider_client=None)
     await method.ingest(
         source_id="src-1",
         knowledge_id=None,
@@ -121,6 +121,6 @@ async def test_delete():
     store.delete_by_source = AsyncMock()
     with patch("rfnry_knowledge.ingestion.methods.graph.build_registry") as mock_registry:
         mock_registry.return_value = MagicMock()
-        method = GraphIngestion(store=store, lm_client=MagicMock())
+        method = GraphIngestion(store=store, provider_client=MagicMock())
     await method.delete("src-1")
     store.delete_by_source.assert_called_once_with("src-1")

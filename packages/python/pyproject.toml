@@ -1,7 +1,7 @@
 [project]
 name = "rfnry-knowledge"
 version = "0.1.0"
-description = "rfnry/knowledge - retrieval-augmented generation"
+description = "rfnry/knowledge - retrieval-augmented generation engine (provider-agnostic)"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12"
@@ -10,9 +10,6 @@ authors = [
 ]
 
 dependencies = [
-    "openai>=2.32.0",
-    "anthropic>=0.96.0",
-    "google-genai>=1.0.0",
     "qdrant-client>=1.17.1",
     "sqlalchemy[asyncio]>=2.0.49",
     "asyncpg>=0.31.0",
@@ -21,12 +18,8 @@ dependencies = [
     "rank-bm25>=0.2.2,<1.0",
     "pydantic>=2.12.5",
     "scikit-learn>=1.8.0",
-    "voyageai>=0.3.7,<1.0",
-    "cohere>=6.1.0",
     "baml-py==0.221.0",
     "lxml>=6.1.0,<7.0",
-    "fastembed>=0.8.0,<1.0",
-    "tiktoken>=0.5,<1.0",
     "ezdxf>=1.3,<2.0",
     "matplotlib>=3.8,<4.0",
 ]
@@ -46,12 +39,6 @@ dev = [
 graph = [
     "neo4j>=6.1.0,<7.0",
 ]
-cli = [
-    "click>=8.3.2",
-]
-
-[project.scripts]
-rfnry-knowledge = "rfnry_knowledge.cli:main"
 
 [tool.mypy]
 python_version = "3.12"
@@ -69,11 +56,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF022"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/rfnry_knowledge/__init__.py" = ["E402", "F401", "F403", "F811"]
-"src/rfnry_knowledge/cli.py" = ["F401"]
 "src/rfnry_knowledge/retrieval/__init__.py" = ["E402"]
-"src/rfnry_knowledge/retrieval/cli/__init__.py" = ["F401"]
-"src/rfnry_knowledge/reasoning/__init__.py" = ["E402"]
-"src/rfnry_knowledge/reasoning/cli/__init__.py" = ["F401"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

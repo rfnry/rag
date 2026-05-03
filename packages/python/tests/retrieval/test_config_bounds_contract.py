@@ -27,7 +27,7 @@ from rfnry_knowledge.config.graph import GraphIngestionConfig
 from rfnry_knowledge.ingestion.chunk.batch import BatchConfig
 from rfnry_knowledge.ingestion.methods.analyzed import AnalyzedIngestion
 from rfnry_knowledge.observability.benchmark import BenchmarkConfig
-from rfnry_knowledge.providers import LLMClient
+from rfnry_knowledge.providers import ProviderClient
 from rfnry_knowledge.retrieval.methods.vector import VectorRetrieval
 
 _CONFIGS_TO_AUDIT: list[type] = [
@@ -36,7 +36,7 @@ _CONFIGS_TO_AUDIT: list[type] = [
     GenerationConfig,
     DrawingIngestionConfig,
     GraphIngestionConfig,
-    LLMClient,
+    ProviderClient,
     BatchConfig,
     ContextualChunkConfig,
     DocumentExpansionConfig,

@@ -21,6 +21,7 @@ from rfnry_knowledge.ingestion.chunk.chunker import SemanticChunker
 from rfnry_knowledge.ingestion.chunk.service import IngestionService
 from rfnry_knowledge.ingestion.drawing.service import DrawingIngestionService
 from rfnry_knowledge.ingestion.embeddings.base import BaseEmbeddings
+from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
 from rfnry_knowledge.ingestion.embeddings.sparse.base import BaseSparseEmbeddings
 from rfnry_knowledge.ingestion.hashing import file_hash as compute_file_hash
 from rfnry_knowledge.ingestion.methods import (
@@ -73,7 +74,7 @@ _MAX_METADATA_VALUE_CHARS = 8_000
 # validating that ``RoutingConfig.full_context_threshold`` fits in FULL_CONTEXT
 # mode. Covers system prompt (~2k) + chat history (~6k) + the public query cap
 # (~8k tokens for 32k chars). Output tokens are added separately from
-# ``LLMClient.max_tokens``.
+# ``ProviderClient.max_tokens``.
 _FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS = 16_000
 
 
@@ -290,15 +291,15 @@ class KnowledgeEngine:
         FULL_CONTEXT path cannot overflow the model's window.
 
         Reserve = ``_FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS`` (system prompt +
-        history + question cap) + ``lm_client.max_tokens`` (output budget).
+        history + question cap) + ``provider_client.max_tokens`` (output budget).
         Skipped when generation has no client or the provider omits
         ``context_size``.
         """
         cfg = self._config
-        client = cfg.generation.lm_client
+        client = cfg.generation.provider_client
         if client is None:
             return
-        window = client.provider.context_size
+        window = client.context_size
         if window is None:
             return
         threshold = cfg.routing.full_context_threshold
@@ -308,7 +309,7 @@ class KnowledgeEngine:
             raise ConfigurationError(
                 f"RoutingConfig.full_context_threshold={threshold} + reserve={total_reserve} "
                 f"({_FULL_CONTEXT_NON_OUTPUT_RESERVE_TOKENS} non-output + {output_reserve} max_tokens output) "
-                f"exceeds {client.provider.name}.context_size={window}. "
+                f"exceeds {client.name}.context_size={window}. "
                 f"Lower full_context_threshold or raise context_size."
             )
 
@@ -384,6 +385,7 @@ class KnowledgeEngine:
             parent_chunk_size=ingestion.parent_chunk_size,
             parent_chunk_overlap=ingestion.parent_chunk_overlap,
             chunk_size_unit=ingestion.chunk_size_unit,
+            token_counter=ingestion.token_counter,
         )
 
         # Build namespaces (public API)
@@ -402,8 +404,8 @@ class KnowledgeEngine:
         # Build expansion registry once (shared across all collection-scoped services)
         # Registry construction is cheap but should not be repeated per-ingest.
         self._expansion_registry = (
-            build_registry(ingestion.document_expansion.lm_client)
-            if ingestion.document_expansion.enabled and ingestion.document_expansion.lm_client
+            build_registry(ingestion.document_expansion.provider_client)
+            if ingestion.document_expansion.enabled and ingestion.document_expansion.provider_client
             else None
         )
 
@@ -432,6 +434,7 @@ class KnowledgeEngine:
             document_expansion=ingestion.document_expansion,
             expansion_registry=self._expansion_registry,
             contextual_chunk=ingestion.contextual_chunk,
+            token_counter=ingestion.token_counter,
         )
 
         if analyzed_method is not None and metadata_store is not None:
@@ -510,16 +513,16 @@ class KnowledgeEngine:
                 logger.info("pipelines built for collection '%s'", coll_name)
 
         # Generation
-        if gen.lm_client:
-            relevance_gate_lm_client = gen.relevance_gate_model if gen.relevance_gate_enabled else None
+        if gen.provider_client:
+            relevance_gate_client = gen.relevance_gate_model if gen.relevance_gate_enabled else None
             self._generation_service = GenerationService(
-                lm_client=gen.lm_client,
+                provider_client=gen.provider_client,
                 system_prompt=gen.system_prompt,
                 grounding_enabled=gen.grounding_enabled,
                 grounding_threshold=gen.grounding_threshold,
                 relevance_gate_enabled=gen.relevance_gate_enabled,
                 guiding_enabled=gen.guiding_enabled,
-                relevance_gate_lm_client=relevance_gate_lm_client,
+                relevance_gate_client=relevance_gate_client,
                 chunk_ordering=gen.chunk_ordering,
             )
             logger.info("generation: enabled")
@@ -952,7 +955,7 @@ class KnowledgeEngine:
         self._check_initialized()
         _validate_query_text(text)
         if not self._generation_service:
-            raise ConfigurationError("query() requires generation.lm_client to be configured")
+            raise ConfigurationError("query() requires generation.provider_client to be configured")
 
         mode = self._config.routing.mode
         row = QueryTelemetryRow(
@@ -1186,7 +1189,7 @@ class KnowledgeEngine:
         self._check_initialized()
         _validate_query_text(text)
         if not self._generation_service:
-            raise ConfigurationError("query_stream() requires generation.lm_client to be configured")
+            raise ConfigurationError("query_stream() requires generation.provider_client to be configured")
 
         mode = self._config.routing.mode
         if mode != QueryMode.INDEXED:
@@ -1241,7 +1244,7 @@ class KnowledgeEngine:
         """
         self._check_initialized()
         if not self._generation_service:
-            raise ConfigurationError("benchmark() requires generation.lm_client to be configured")
+            raise ConfigurationError("benchmark() requires generation.provider_client to be configured")
 
         async def _run_one(query_text: str, *, trace: bool) -> QueryResult:
             return await self.query(query_text, knowledge_id=knowledge_id, trace=trace)
@@ -1265,7 +1268,7 @@ class KnowledgeEngine:
             raise ConfigurationError("embed() requires an ingestion method that carries embeddings")
         for text in texts:
             _validate_query_text(text)
-        return await embeddings.embed(texts)
+        return await embed_batched(embeddings, texts)
 
     async def embed_single(self, text: str) -> list[float]:
         """Generate an embedding for a single text."""
@@ -1274,7 +1277,7 @@ class KnowledgeEngine:
         if embeddings is None:
             raise ConfigurationError("embed_single() requires an ingestion method that carries embeddings")
         _validate_query_text(text)
-        vectors = await embeddings.embed([text])
+        vectors = await embed_batched(embeddings, [text])
         return vectors[0]
 
     async def _load_full_corpus(self, knowledge_id: str | None) -> str:
@@ -1471,6 +1474,7 @@ class KnowledgeEngine:
             document_expansion=cfg.ingestion.document_expansion,
             expansion_registry=self._expansion_registry,
             contextual_chunk=cfg.ingestion.contextual_chunk,
+            token_counter=cfg.ingestion.token_counter,
         )
 
     async def _retrieve_chunks(

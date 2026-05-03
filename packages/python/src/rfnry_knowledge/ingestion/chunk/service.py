@@ -21,7 +21,6 @@ from rfnry_knowledge.ingestion.chunk.contextualize import contextualize_chunks_w
 from rfnry_knowledge.ingestion.chunk.expand import expand_chunks
 from rfnry_knowledge.ingestion.chunk.parsers.pdf import PDFParser
 from rfnry_knowledge.ingestion.chunk.parsers.text import TextParser
-from rfnry_knowledge.ingestion.chunk.token_counter import count_tokens
 from rfnry_knowledge.ingestion.hashing import file_hash
 from rfnry_knowledge.ingestion.models import ParsedPage
 from rfnry_knowledge.ingestion.notes import record_skip
@@ -29,6 +28,7 @@ from rfnry_knowledge.ingestion.page_range import parse_page_range
 from rfnry_knowledge.ingestion.vision.base import BaseVision
 from rfnry_knowledge.ingestion.vision.constants import IMAGE_EXTENSIONS
 from rfnry_knowledge.models import Source
+from rfnry_knowledge.providers.protocols import TokenCounter
 from rfnry_knowledge.stores.metadata.base import BaseMetadataStore
 from rfnry_knowledge.telemetry.context import set_ingest_field
 
@@ -66,6 +66,7 @@ class IngestionService:
         document_expansion: DocumentExpansionConfig | None = None,
         expansion_registry: ClientRegistry | None = None,
         contextual_chunk: ContextualChunkConfig | None = None,
+        token_counter: TokenCounter | None = None,
     ) -> None:
         self._chunker = chunker
         self._ingestion_methods = ingestion_methods
@@ -78,6 +79,7 @@ class IngestionService:
         self._document_expansion = document_expansion
         self._expansion_registry = expansion_registry
         self._contextual_chunk = contextual_chunk
+        self._token_counter = token_counter
 
     def _resolve_weight(self, source_type: str | None) -> float:
         if self._source_type_weights is None:
@@ -277,7 +279,11 @@ class IngestionService:
         # routing layer can sum corpus size without re-reading content. Sum of
         # per-page counts (not count_tokens(full_text)) so the page-marker
         # decoration we added above doesn't inflate the number.
-        metadata["estimated_tokens"] = sum(count_tokens(p.content) for p in pages)
+        metadata["estimated_tokens"] = (
+            sum(self._token_counter.count(p.content) for p in pages)
+            if self._token_counter is not None
+            else 0
+        )
 
         await self._dispatch_methods(
             source_id=source_id,
@@ -369,7 +375,9 @@ class IngestionService:
         source_id = str(uuid4())
         title = metadata.get("name", "text-input")
 
-        metadata["estimated_tokens"] = count_tokens(content)
+        metadata["estimated_tokens"] = (
+            self._token_counter.count(content) if self._token_counter is not None else 0
+        )
 
         await self._dispatch_methods(
             source_id=source_id,
