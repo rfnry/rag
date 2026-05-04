@@ -7,10 +7,12 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 
 from rfnry_knowledge.common.logging import get_logger
 from rfnry_knowledge.config.memory import MemoryEngineConfig
+from rfnry_knowledge.exceptions import MemoryNotFoundError
 from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
 from rfnry_knowledge.memory.models import (
     ExtractedMemory,
@@ -29,7 +31,9 @@ from rfnry_knowledge.retrieval.search.service import RetrievalService
 from rfnry_knowledge.stores.graph.models import GraphEntity
 from rfnry_knowledge.telemetry import (
     MemoryAddTelemetryRow,
+    MemoryDeleteTelemetryRow,
     MemorySearchTelemetryRow,
+    MemoryUpdateTelemetryRow,
     Telemetry,
 )
 from rfnry_knowledge.telemetry.usage import instrument_baml_call
@@ -248,6 +252,172 @@ class MemoryEngine:
                 logger.exception("telemetry write failed for memory search memory_id=%s", memory_id)
             _reset_obs(obs_token)
 
+    async def _fetch_row(self, memory_row_id: str, memory_id: str) -> MemoryRow:
+        results, _ = await self._cfg.vector_store.scroll(
+            filters={"memory_id": memory_id, "memory_row_id": memory_row_id},
+            limit=1,
+        )
+        if not results:
+            raise MemoryNotFoundError(
+                f"memory_row_id={memory_row_id} not found under memory_id={memory_id}",
+                memory_row_id=memory_row_id,
+            )
+        return self._payload_to_row(results[0].payload)
+
+    async def update(self, memory_row_id: str, new_text: str, *, memory_id: str) -> MemoryRow:
+        self._check_initialized()
+        if not new_text or not new_text.strip():
+            raise ValueError("new_text must not be blank")
+        cfg = self._cfg
+        tel_row = MemoryUpdateTelemetryRow(
+            memory_id=memory_id, memory_row_id=memory_row_id, outcome="success",
+        )
+        start = time.perf_counter()
+        obs_token = _set_obs(self._obs)
+        try:
+            before = await self._fetch_row(memory_row_id, memory_id)
+            tel_row.text_before = before.text
+
+            now = datetime.now(UTC)
+            after = replace(
+                before,
+                text=new_text,
+                text_hash=_hash(new_text),
+                updated_at=now,
+            )
+            tel_row.text_after = new_text
+
+            vectors = await embed_batched(cfg.ingestion.embeddings, [new_text])
+            if not vectors:
+                raise RuntimeError("embeddings returned no vectors for update")
+            await cfg.vector_store.upsert([
+                VectorPoint(
+                    point_id=after.memory_row_id,
+                    vector=vectors[0],
+                    payload=self._row_to_payload(after),
+                ),
+            ])
+
+            if cfg.ingestion.keyword_backend == "postgres_fts" and cfg.document_store is not None:
+                await cfg.document_store.store_content(
+                    source_id=after.memory_row_id,
+                    knowledge_id=after.memory_id,
+                    source_type=None,
+                    title="",
+                    content=after.text,
+                )
+
+            if cfg.ingestion.entity_extraction is not None and cfg.graph_store is not None:
+                # Drop prior entity references for this row, then re-extract & re-add.
+                # Simpler than computing an entity diff and matches add() topology.
+                await cfg.graph_store.delete_by_source(after.memory_row_id)
+                registry = build_registry(cfg.provider)
+                from rfnry_knowledge.baml.baml_client.async_client import b as baml_b
+
+                async def _call(collector: Any) -> Any:
+                    return await baml_b.ExtractEntitiesFromText(
+                        after.text,
+                        baml_options={"client_registry": registry, "collector": collector},
+                    )
+
+                try:
+                    result = await instrument_baml_call(
+                        operation="memory_update_entities", call=_call,
+                    )
+                except Exception as exc:
+                    logger.warning("memory update entity re-extraction failed: %s", exc)
+                    result = SimpleNamespace(entities=[])
+                if result.entities:
+                    graph_entities = [
+                        GraphEntity(
+                            name=e.name,
+                            entity_type=e.category or "entity",
+                            category=e.category or "",
+                            value=e.value,
+                            properties={"memory_row_ids": [after.memory_row_id]},
+                        )
+                        for e in result.entities
+                    ]
+                    await cfg.graph_store.add_entities(
+                        source_id=after.memory_row_id,
+                        knowledge_id=after.memory_id,
+                        entities=graph_entities,
+                    )
+
+            await self._obs.emit(
+                "memory.update.success", "memory update ok",
+                context={
+                    "memory_id": memory_id,
+                    "memory_row_id": memory_row_id,
+                    "before": {"text": before.text},
+                    "after": {"text": after.text},
+                },
+            )
+            return after
+        except MemoryNotFoundError as exc:
+            tel_row.outcome = "error"
+            tel_row.error_type = type(exc).__name__
+            tel_row.error_message = str(exc)
+            raise
+        except BaseException as exc:
+            tel_row.outcome = "error"
+            tel_row.error_type = type(exc).__name__
+            tel_row.error_message = str(exc)
+            raise
+        finally:
+            tel_row.duration_ms = int((time.perf_counter() - start) * 1000)
+            try:
+                await self._tel.write(tel_row)
+            except Exception:
+                logger.exception("telemetry write failed for memory update memory_row_id=%s", memory_row_id)
+            _reset_obs(obs_token)
+
+    async def delete(self, memory_row_id: str, *, memory_id: str) -> None:
+        self._check_initialized()
+        cfg = self._cfg
+        tel_row = MemoryDeleteTelemetryRow(
+            memory_id=memory_id, memory_row_id=memory_row_id, outcome="success",
+        )
+        start = time.perf_counter()
+        obs_token = _set_obs(self._obs)
+        try:
+            before = await self._fetch_row(memory_row_id, memory_id)
+            tel_row.text_before = before.text
+
+            await cfg.vector_store.delete({"memory_row_id": memory_row_id})
+
+            if cfg.ingestion.keyword_backend == "postgres_fts" and cfg.document_store is not None:
+                await cfg.document_store.delete_content(memory_row_id)
+
+            if cfg.graph_store is not None:
+                await cfg.graph_store.delete_by_source(memory_row_id)
+
+            await self._obs.emit(
+                "memory.delete.success", "memory delete ok",
+                context={
+                    "memory_id": memory_id,
+                    "memory_row_id": memory_row_id,
+                    "before": {"text": before.text},
+                },
+            )
+        except MemoryNotFoundError as exc:
+            tel_row.outcome = "error"
+            tel_row.error_type = type(exc).__name__
+            tel_row.error_message = str(exc)
+            raise
+        except BaseException as exc:
+            tel_row.outcome = "error"
+            tel_row.error_type = type(exc).__name__
+            tel_row.error_message = str(exc)
+            raise
+        finally:
+            tel_row.duration_ms = int((time.perf_counter() - start) * 1000)
+            try:
+                await self._tel.write(tel_row)
+            except Exception:
+                logger.exception("telemetry write failed for memory delete memory_row_id=%s", memory_row_id)
+            _reset_obs(obs_token)
+
     @staticmethod
     def _with_default_occurred_at(interaction: Interaction) -> Interaction:
         if interaction.occurred_at is not None:
@@ -446,6 +616,7 @@ class MemoryEngine:
             "attributed_to": r.attributed_to,
             "linked_memory_row_ids": list(r.linked_memory_row_ids),
             "created_at": r.created_at.isoformat(),
+            "updated_at": r.updated_at.isoformat(),
         }
         for k, v in r.interaction_metadata.items():
             payload.setdefault(k, v)
@@ -453,8 +624,10 @@ class MemoryEngine:
 
     @staticmethod
     def _payload_to_row(payload: Mapping[str, Any]) -> MemoryRow:
-        created = payload.get("created_at")
-        ts = datetime.fromisoformat(created) if isinstance(created, str) else datetime.now(UTC)
+        created_str = payload.get("created_at")
+        updated_str = payload.get("updated_at")
+        created = datetime.fromisoformat(created_str) if isinstance(created_str, str) else datetime.now(UTC)
+        updated = datetime.fromisoformat(updated_str) if isinstance(updated_str, str) else created
         return MemoryRow(
             memory_row_id=str(payload.get("memory_row_id", "")),
             memory_id=str(payload.get("memory_id", "")),
@@ -462,13 +635,14 @@ class MemoryEngine:
             text_hash=str(payload.get("text_hash", "")),
             attributed_to=payload.get("attributed_to"),
             linked_memory_row_ids=tuple(payload.get("linked_memory_row_ids") or ()),
-            created_at=ts,
-            updated_at=ts,
+            created_at=created,
+            updated_at=updated,
             interaction_metadata={
                 k: v for k, v in payload.items()
                 if k not in {
                     "memory_row_id", "memory_id", "knowledge_id", "text", "content",
-                    "text_hash", "attributed_to", "linked_memory_row_ids", "created_at",
+                    "text_hash", "attributed_to", "linked_memory_row_ids",
+                    "created_at", "updated_at",
                 }
             },
         )
