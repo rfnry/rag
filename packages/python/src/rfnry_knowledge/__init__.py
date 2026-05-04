@@ -19,6 +19,9 @@ from rfnry_knowledge.config import KnowledgeEngineConfig as KnowledgeEngineConfi
 from rfnry_knowledge.config import QueryMode as QueryMode
 from rfnry_knowledge.config import RetrievalConfig as RetrievalConfig
 from rfnry_knowledge.config import RoutingConfig as RoutingConfig
+from rfnry_knowledge.config.memory import MemoryEngineConfig as MemoryEngineConfig
+from rfnry_knowledge.config.memory import MemoryIngestionConfig as MemoryIngestionConfig
+from rfnry_knowledge.config.memory import MemoryRetrievalConfig as MemoryRetrievalConfig
 from rfnry_knowledge.exceptions import ConfigurationError as ConfigurationError
 from rfnry_knowledge.exceptions import DuplicateSourceError as DuplicateSourceError
 from rfnry_knowledge.exceptions import EmbeddingError as EmbeddingError
@@ -28,6 +31,9 @@ from rfnry_knowledge.exceptions import IngestionError as IngestionError
 from rfnry_knowledge.exceptions import IngestionInterruptedError as IngestionInterruptedError
 from rfnry_knowledge.exceptions import InputError as InputError
 from rfnry_knowledge.exceptions import KnowledgeEngineError as KnowledgeEngineError
+from rfnry_knowledge.exceptions import MemoryEngineError as MemoryEngineError
+from rfnry_knowledge.exceptions import MemoryExtractionError as MemoryExtractionError
+from rfnry_knowledge.exceptions import MemoryNotFoundError as MemoryNotFoundError
 from rfnry_knowledge.exceptions import ParseError as ParseError
 from rfnry_knowledge.exceptions import RetrievalError as RetrievalError
 from rfnry_knowledge.exceptions import SourceNotFoundError as SourceNotFoundError
@@ -43,6 +49,14 @@ from rfnry_knowledge.ingestion.methods import KeywordIngestion as KeywordIngesti
 from rfnry_knowledge.ingestion.methods import SemanticIngestion as SemanticIngestion
 from rfnry_knowledge.ingestion.methods import StructuredIngestion as StructuredIngestion
 from rfnry_knowledge.knowledge.engine import KnowledgeEngine as KnowledgeEngine
+from rfnry_knowledge.memory import BaseExtractor as BaseExtractor
+from rfnry_knowledge.memory import DefaultMemoryExtractor as DefaultMemoryExtractor
+from rfnry_knowledge.memory import ExtractedMemory as ExtractedMemory
+from rfnry_knowledge.memory import Interaction as Interaction
+from rfnry_knowledge.memory import InteractionTurn as InteractionTurn
+from rfnry_knowledge.memory import MemoryEngine as MemoryEngine
+from rfnry_knowledge.memory import MemoryRow as MemoryRow
+from rfnry_knowledge.memory import MemorySearchResult as MemorySearchResult
 from rfnry_knowledge.models import ContentMatch as ContentMatch
 from rfnry_knowledge.models import RetrievedChunk as RetrievedChunk
 from rfnry_knowledge.models import Source as Source
@@ -85,6 +99,7 @@ from rfnry_knowledge.stores.vector.qdrant import QdrantVectorStore as QdrantVect
 __all__ = [
     "DEFAULT_SYSTEM_PROMPT",
     "BaseEmbeddings",
+    "BaseExtractor",
     "BaseIngestionMethod",
     "BaseReranking",
     "BaseRetrievalMethod",
@@ -96,6 +111,7 @@ __all__ = [
     "ConfigurationError",
     "ContentMatch",
     "ContextualChunkConfig",
+    "DefaultMemoryExtractor",
     "DocumentExpansionConfig",
     "DrawingIngestion",
     "DrawingIngestionConfig",
@@ -107,6 +123,7 @@ __all__ = [
     "EntityIngestionConfig",
     "EntityRetrieval",
     "ExactMatch",
+    "ExtractedMemory",
     "F1Score",
     "FilesystemDocumentStore",
     "GenerationConfig",
@@ -120,12 +137,23 @@ __all__ = [
     "IngestionInterruptedError",
     "IngestionService",
     "InputError",
+    "Interaction",
+    "InteractionTurn",
     "KeywordIngestion",
     "KeywordRetrieval",
     "KnowledgeEngine",
     "KnowledgeEngineConfig",
     "KnowledgeEngineError",
     "LLMJudgment",
+    "MemoryEngine",
+    "MemoryEngineConfig",
+    "MemoryEngineError",
+    "MemoryExtractionError",
+    "MemoryIngestionConfig",
+    "MemoryNotFoundError",
+    "MemoryRetrievalConfig",
+    "MemoryRow",
+    "MemorySearchResult",
     "MetricResult",
     "Neo4jGraphStore",
     "ParseError",
