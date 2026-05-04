@@ -41,7 +41,7 @@ def all_succeeded(checks: typing.Dict[CheckName, Check]) -> bool:
 # #########################################################################
 
 # #########################################################################
-# Generated classes (14)
+# Generated classes (16)
 # #########################################################################
 
 class AnswerQualityJudgment(BaseModel):
@@ -91,6 +91,14 @@ class DrawingPageAnalysis(BaseModel):
     title_block: typing.Optional[typing.Dict[str, str]] = None
     notes: typing.List[str]
     page_type: str = Field(description='drawing | title_page | bom | text | mixed')
+
+class ExtractedMemoryFact(BaseModel):
+    text: str = Field(description='Atomic factual statement that should be remembered. Self-contained, single fact, present tense unless an explicit time anchors it.')
+    attributed_to: typing.Optional[str] = Field(default=None, description='Role label of the source turn that produced this fact, copied verbatim from the [role] prefix. Null if no role label is visible.')
+    linked_memory_row_ids: typing.List[str] = Field(description='IDs of provided existing memories that this new fact closely relates to. Empty if no relation.')
+
+class ExtractedMemoryList(BaseModel):
+    memories: typing.List["ExtractedMemoryFact"] = Field(description='Atomic facts extracted from the interaction. Empty if nothing factual is worth remembering.')
 
 class OffPageConnector(BaseModel):
     tag: str = Field(description='\'/A2\', \'OPC-1\', \'to sheet 3 zone B2\'')

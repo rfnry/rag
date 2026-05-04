@@ -20,7 +20,7 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(type_builder.TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["AnswerQualityJudgment","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","OffPageConnector","PageAnalysis","Port","RelevanceJudgment","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries",]
+          ["AnswerQualityJudgment","DetectedComponent","DetectedConnection","DiscoveredEntity","DiscoveredTable","DocumentSynthesis","DrawingPageAnalysis","ExtractedMemoryFact","ExtractedMemoryList","OffPageConnector","PageAnalysis","Port","RelevanceJudgment","SynthesisCrossReference","SynthesisPageCluster","SyntheticQueries",]
         ), enums=set(
           []
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
@@ -31,7 +31,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
     # #########################################################################
-    # Generated classes 14
+    # Generated classes 16
     # #########################################################################
 
     @property
@@ -61,6 +61,14 @@ class TypeBuilder(type_builder.TypeBuilder):
     @property
     def DrawingPageAnalysis(self) -> "DrawingPageAnalysisViewer":
         return DrawingPageAnalysisViewer(self)
+
+    @property
+    def ExtractedMemoryFact(self) -> "ExtractedMemoryFactViewer":
+        return ExtractedMemoryFactViewer(self)
+
+    @property
+    def ExtractedMemoryList(self) -> "ExtractedMemoryListViewer":
+        return ExtractedMemoryListViewer(self)
 
     @property
     def OffPageConnector(self) -> "OffPageConnectorViewer":
@@ -98,7 +106,7 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
 # #########################################################################
-# Generated classes 14
+# Generated classes 16
 # #########################################################################
 
 class AnswerQualityJudgmentAst:
@@ -478,6 +486,92 @@ class DrawingPageAnalysisProperties:
     @property
     def page_type(self) -> type_builder.ClassPropertyViewer:
         return type_builder.ClassPropertyViewer(self.__bldr.property("page_type"))
+    
+    
+
+
+class ExtractedMemoryFactAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("ExtractedMemoryFact")
+        self._properties: typing.Set[str] = set([  "text",  "attributed_to",  "linked_memory_row_ids",  ])
+        self._props = ExtractedMemoryFactProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "ExtractedMemoryFactProperties":
+        return self._props
+
+
+class ExtractedMemoryFactViewer(ExtractedMemoryFactAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class ExtractedMemoryFactProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def text(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("text"))
+    
+    @property
+    def attributed_to(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("attributed_to"))
+    
+    @property
+    def linked_memory_row_ids(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("linked_memory_row_ids"))
+    
+    
+
+
+class ExtractedMemoryListAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("ExtractedMemoryList")
+        self._properties: typing.Set[str] = set([  "memories",  ])
+        self._props = ExtractedMemoryListProperties(self._bldr, self._properties)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "ExtractedMemoryListProperties":
+        return self._props
+
+
+class ExtractedMemoryListViewer(ExtractedMemoryListAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, type_builder.ClassPropertyViewer]]:
+        return [(name, type_builder.ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+    
+
+
+class ExtractedMemoryListProperties:
+    def __init__(self, bldr: baml_py.ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def memories(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("memories"))
     
     
 

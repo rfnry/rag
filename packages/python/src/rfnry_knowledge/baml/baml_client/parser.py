@@ -47,6 +47,12 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="ExtractEntitiesFromText", llm_response=llm_response, mode="request")
         return typing.cast(types.PageAnalysis, __result__)
 
+    def ExtractMemories(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> types.ExtractedMemoryList:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="ExtractMemories", llm_response=llm_response, mode="request")
+        return typing.cast(types.ExtractedMemoryList, __result__)
+
     def GenerateSyntheticQueries(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> types.SyntheticQueries:
@@ -108,6 +114,12 @@ class LlmStreamParser:
     ) -> stream_types.PageAnalysis:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="ExtractEntitiesFromText", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.PageAnalysis, __result__)
+
+    def ExtractMemories(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> stream_types.ExtractedMemoryList:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="ExtractMemories", llm_response=llm_response, mode="stream")
+        return typing.cast(stream_types.ExtractedMemoryList, __result__)
 
     def GenerateSyntheticQueries(
         self, llm_response: str, baml_options: BamlCallOptions = {},

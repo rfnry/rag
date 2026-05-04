@@ -37,6 +37,12 @@ type_map = {
     "types.DrawingPageAnalysis": types.DrawingPageAnalysis,
     "stream_types.DrawingPageAnalysis": stream_types.DrawingPageAnalysis,
 
+    "types.ExtractedMemoryFact": types.ExtractedMemoryFact,
+    "stream_types.ExtractedMemoryFact": stream_types.ExtractedMemoryFact,
+
+    "types.ExtractedMemoryList": types.ExtractedMemoryList,
+    "stream_types.ExtractedMemoryList": stream_types.ExtractedMemoryList,
+
     "types.OffPageConnector": types.OffPageConnector,
     "stream_types.OffPageConnector": stream_types.OffPageConnector,
 

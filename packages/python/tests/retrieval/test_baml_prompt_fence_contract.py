@@ -42,6 +42,8 @@ USER_CONTROLLED_PARAMS: dict[str, list[str]] = {
     # ---- retrieval / generation (provider-decoupled BAML wrappers) ----
     "GenerateText": ["system", "history", "user"],
     "SituateChunk": ["document", "chunk"],
+    # ---- memory ----
+    "ExtractMemories": ["interaction", "occurred_at", "existing_memories"],
 }
 
 
