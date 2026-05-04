@@ -315,15 +315,35 @@ To be honest: mem0 has invested in a few things we deliberately don't.
 
 ### Can both achieve a similar result?
 
-Yes — for the **memory algorithm itself**: extract atomic facts, dedup, store
-across vector + lexical + entity, recall with fusion, mutate in place. The
-algorithms are equivalent because both took the same shape from the
-literature.
+**On the memory feature itself: yes, similarly efficient.** The algorithmic
+core is the same on both sides — atomic LLM extraction with prior-memories
+context, hash dedup, semantic recall with embeddings, lexical / BM25 layer,
+RRF fusion, optional rerank, in-place update, cascading delete. Both took
+this shape from the same literature. On a typical conversational-recall
+workload, with the same embeddings + LLM + tunables, recall quality tracks
+within noise.
 
-The **product surface** diverges by design. mem0 is shipping a managed
-platform; we are shipping an engine. A consumer who wants the managed-platform
-ergonomics can wrap us; a consumer who wants the engine flexibility cannot
-unwrap mem0 without forking it.
+**One structural divergence in our favour, on a specific workload:** mem0
+removed the real graph store in v3 and replaced it with a flat vector
+"entity_store" plus a similarity-boost trick. We kept a real `BaseGraphStore`
+(Neo4j default) with N-hop traversal scoped to `memory_id`. On workloads
+where memories describe typed, traversable relationships ("alex's mom lives
+in Lisbon → who lives in Lisbon?"), our graph pillar reaches answers theirs
+cannot reconstruct from boosts alone. On flat factual recall ("what city did
+alex move to?"), the two are equivalent.
+
+**One structural divergence in their favour, on adapter coverage:** they
+ship 24 vector-store adapters and a filter operator DSL. We ship Qdrant
+plus a flat filter dict. The algorithm is equivalent — but on Pinecone /
+Milvus / Weaviate you write ~150 lines of `BaseVectorStore` impl before our
+engine runs.
+
+**The product surface diverges entirely by design.** mem0 is shipping a
+managed platform — REST API, OpenAI-compatible proxy, vendor-adapter matrix,
+posthog telemetry, decay/TTL policy, multiple memory-type enums, FastAPI
+server packaging. We ship none of that. A consumer who wants the
+managed-platform ergonomics can wrap us; a consumer who wants the engine
+flexibility cannot unwrap mem0 without forking it.
 
 We are happy with that trade. The engine survives model improvements;
 adapter matrices and managed-platform ergonomics decay with every new
