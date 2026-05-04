@@ -26,7 +26,11 @@ if TYPE_CHECKING:
 class MemoryIngestionConfig:
     extractor: BaseExtractor
     embeddings: BaseEmbeddings
+    vector_store: BaseVectorStore
     sparse_embeddings: BaseSparseEmbeddings | None = None
+    document_store: BaseDocumentStore | None = None
+    graph_store: BaseGraphStore | None = None
+    entity_provider: ProviderClient | None = None
     entity_extraction: EntityIngestionConfig | None = None
     semantic_required: bool = True
     keyword_required: bool = False
@@ -45,6 +49,19 @@ class MemoryIngestionConfig:
             raise ConfigurationError("bm25_max_chunks must be >= 1")
         if self.keyword_backend not in ("bm25", "postgres_fts"):
             raise ConfigurationError(f"unknown keyword_backend {self.keyword_backend!r}")
+        if self.keyword_backend == "postgres_fts" and self.document_store is None:
+            raise ConfigurationError(
+                "MemoryIngestionConfig.document_store is required when keyword_backend='postgres_fts'"
+            )
+        if self.entity_extraction is not None:
+            if self.graph_store is None:
+                raise ConfigurationError(
+                    "MemoryIngestionConfig.graph_store is required when entity_extraction is set"
+                )
+            if self.entity_provider is None:
+                raise ConfigurationError(
+                    "MemoryIngestionConfig.entity_provider is required when entity_extraction is set"
+                )
 
 
 @dataclass(frozen=True)
@@ -76,20 +93,6 @@ class MemoryRetrievalConfig:
 class MemoryEngineConfig:
     ingestion: MemoryIngestionConfig
     retrieval: MemoryRetrievalConfig
-    vector_store: BaseVectorStore
-    provider: ProviderClient
-    document_store: BaseDocumentStore | None = None
-    graph_store: BaseGraphStore | None = None
     metadata_store: BaseMetadataStore | None = None
     observability: Observability = field(default_factory=Observability)
     telemetry: Telemetry = field(default_factory=Telemetry)
-
-    def __post_init__(self) -> None:
-        if self.ingestion.keyword_backend == "postgres_fts" and self.document_store is None:
-            raise ConfigurationError(
-                "MemoryEngineConfig.document_store is required when keyword_backend='postgres_fts'"
-            )
-        if self.ingestion.entity_extraction is not None and self.graph_store is None:
-            raise ConfigurationError(
-                "MemoryEngineConfig.graph_store is required when entity_extraction is set"
-            )

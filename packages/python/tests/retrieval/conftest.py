@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace as _SimpleNamespace
 from typing import Any, cast
 from typing import Any as _Any
 from unittest.mock import AsyncMock, MagicMock
@@ -165,10 +164,10 @@ def memory_cfg_factory(fake_memory_vector_store, fake_memory_embeddings):
         extractor = extractor or _StubMemoryExtractor()
         return MemoryEngineConfig(
             ingestion=MemoryIngestionConfig(
-                extractor=extractor, embeddings=fake_memory_embeddings,
+                extractor=extractor,
+                embeddings=fake_memory_embeddings,
+                vector_store=vector_store or fake_memory_vector_store,
             ),
             retrieval=MemoryRetrievalConfig(),
-            vector_store=vector_store or fake_memory_vector_store,
-            provider=_SimpleNamespace(name="x", model="y"),
         )
     return _make

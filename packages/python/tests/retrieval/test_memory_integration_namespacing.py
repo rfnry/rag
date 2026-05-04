@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import os
-from types import SimpleNamespace
 
 import pytest
 
@@ -57,11 +56,11 @@ async def test_knowledge_and_memory_namespaces_are_disjoint() -> None:
 
     cfg = MemoryEngineConfig(
         ingestion=MemoryIngestionConfig(
-            extractor=_StubExtractor(), embeddings=_FakeEmbeddings(),
+            extractor=_StubExtractor(),
+            embeddings=_FakeEmbeddings(),
+            vector_store=memory_qdrant,
         ),
         retrieval=MemoryRetrievalConfig(),
-        vector_store=memory_qdrant,
-        provider=SimpleNamespace(name="x", model="y"),
     )
 
     try:

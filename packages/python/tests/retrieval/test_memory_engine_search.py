@@ -18,7 +18,7 @@ async def test_search_validates_inputs(memory_cfg_factory) -> None:
 
 async def test_search_filters_by_memory_id(memory_cfg_factory) -> None:
     cfg = memory_cfg_factory()
-    cfg.vector_store._search_results = [
+    cfg.ingestion.vector_store._search_results = [
         SimpleNamespace(
             point_id="r1", score=0.9,
             payload={"memory_row_id": "r1", "memory_id": "u-7",
@@ -35,7 +35,7 @@ async def test_search_filters_by_memory_id(memory_cfg_factory) -> None:
 
 async def test_search_returns_empty_on_no_results(memory_cfg_factory) -> None:
     cfg = memory_cfg_factory()
-    cfg.vector_store._search_results = []
+    cfg.ingestion.vector_store._search_results = []
     async with MemoryEngine(cfg) as engine:
         results = await engine.search("nope", memory_id="u-7")
     assert results == ()

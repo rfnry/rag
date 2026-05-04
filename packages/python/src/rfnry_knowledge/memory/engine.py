@@ -56,15 +56,16 @@ class MemoryEngine:
 
     async def initialize(self) -> None:
         cfg = self._cfg
+        ing = cfg.ingestion
         self._stores_opened = True
         if cfg.metadata_store is not None:
             await cfg.metadata_store.initialize()
-        if cfg.document_store is not None:
-            await cfg.document_store.initialize()
-        if cfg.graph_store is not None:
-            await cfg.graph_store.initialize()
-        vector_size = await cfg.ingestion.embeddings.embedding_dimension()
-        await cfg.vector_store.initialize(vector_size)
+        if ing.document_store is not None:
+            await ing.document_store.initialize()
+        if ing.graph_store is not None:
+            await ing.graph_store.initialize()
+        vector_size = await ing.embeddings.embedding_dimension()
+        await ing.vector_store.initialize(vector_size)
         self._initialized = True
 
     async def shutdown(self) -> None:
@@ -72,7 +73,8 @@ class MemoryEngine:
             return
         self._stores_opened = False
         cfg = self._cfg
-        for store in (cfg.vector_store, cfg.graph_store, cfg.document_store, cfg.metadata_store):
+        ing = cfg.ingestion
+        for store in (ing.vector_store, ing.graph_store, ing.document_store, cfg.metadata_store):
             if store is None:
                 continue
             try:
@@ -173,6 +175,7 @@ class MemoryEngine:
             raise NotImplementedError("custom filters not yet supported in MemoryEngine.search")
 
         cfg = self._cfg
+        ing = cfg.ingestion
         ret_cfg = cfg.retrieval
         tel_row = MemorySearchTelemetryRow(memory_id=memory_id, outcome="success")
         obs_token = _set_obs(self._obs)
@@ -183,28 +186,28 @@ class MemoryEngine:
             methods: list[Any] = []
             if ret_cfg.semantic_weight > 0:
                 methods.append(SemanticRetrieval(
-                    store=cfg.vector_store,
-                    embeddings=cfg.ingestion.embeddings,
-                    sparse_embeddings=cfg.ingestion.sparse_embeddings,
+                    store=ing.vector_store,
+                    embeddings=ing.embeddings,
+                    sparse_embeddings=ing.sparse_embeddings,
                     weight=ret_cfg.semantic_weight,
                 ))
             if ret_cfg.keyword_weight > 0:
                 kw_kwargs: dict[str, Any] = {
-                    "backend": cfg.ingestion.keyword_backend,
+                    "backend": ing.keyword_backend,
                     "weight": ret_cfg.keyword_weight,
                 }
-                if cfg.ingestion.keyword_backend == "bm25":
-                    kw_kwargs["vector_store"] = cfg.vector_store
-                    kw_kwargs["bm25_max_chunks"] = cfg.ingestion.bm25_max_chunks
+                if ing.keyword_backend == "bm25":
+                    kw_kwargs["vector_store"] = ing.vector_store
+                    kw_kwargs["bm25_max_chunks"] = ing.bm25_max_chunks
                 else:
-                    kw_kwargs["document_store"] = cfg.document_store
+                    kw_kwargs["document_store"] = ing.document_store
                 methods.append(KeywordRetrieval(**kw_kwargs))
-            if ret_cfg.entity_weight > 0 and cfg.graph_store is not None:
+            if ret_cfg.entity_weight > 0 and ing.graph_store is not None:
                 # EntityRetrieval hardcodes max_hops at search time today;
                 # MemoryRetrievalConfig.entity_hops is plumbed but inert until
                 # EntityRetrieval gains a max_hops constructor arg.
                 methods.append(EntityRetrieval(
-                    store=cfg.graph_store,
+                    store=ing.graph_store,
                     weight=ret_cfg.entity_weight,
                 ))
             service = RetrievalService(
@@ -256,7 +259,7 @@ class MemoryEngine:
             _reset_obs(obs_token)
 
     async def _fetch_row(self, memory_row_id: str, memory_id: str) -> MemoryRow:
-        results, _ = await self._cfg.vector_store.scroll(
+        results, _ = await self._cfg.ingestion.vector_store.scroll(
             filters={"memory_id": memory_id, "memory_row_id": memory_row_id},
             limit=1,
         )
@@ -272,6 +275,7 @@ class MemoryEngine:
         if not new_text or not new_text.strip():
             raise InputError("new_text must not be blank")
         cfg = self._cfg
+        ing = cfg.ingestion
         tel_row = MemoryUpdateTelemetryRow(
             memory_id=memory_id, memory_row_id=memory_row_id, outcome="success",
         )
@@ -291,10 +295,10 @@ class MemoryEngine:
             )
             tel_row.text_after = new_text
 
-            vectors = await embed_batched(cfg.ingestion.embeddings, [new_text])
+            vectors = await embed_batched(ing.embeddings, [new_text])
             if not vectors:
                 raise IngestionError("embeddings returned no vectors for update")
-            await cfg.vector_store.upsert([
+            await ing.vector_store.upsert([
                 VectorPoint(
                     point_id=after.memory_row_id,
                     vector=vectors[0],
@@ -302,8 +306,8 @@ class MemoryEngine:
                 ),
             ])
 
-            if cfg.ingestion.keyword_backend == "postgres_fts" and cfg.document_store is not None:
-                await cfg.document_store.store_content(
+            if ing.keyword_backend == "postgres_fts" and ing.document_store is not None:
+                await ing.document_store.store_content(
                     source_id=after.memory_row_id,
                     knowledge_id=after.memory_id,
                     source_type=None,
@@ -311,11 +315,11 @@ class MemoryEngine:
                     content=after.text,
                 )
 
-            if cfg.ingestion.entity_extraction is not None and cfg.graph_store is not None:
+            if ing.entity_extraction is not None and ing.graph_store is not None and ing.entity_provider is not None:
                 # Drop prior entity references for this row, then re-extract & re-add.
                 # Simpler than computing an entity diff and matches add() topology.
-                await cfg.graph_store.delete_by_source(after.memory_row_id)
-                registry = build_registry(cfg.provider)
+                await ing.graph_store.delete_by_source(after.memory_row_id)
+                registry = build_registry(ing.entity_provider)
                 from rfnry_knowledge.baml.baml_client.async_client import b as baml_b
 
                 async def _call(collector: Any) -> Any:
@@ -342,7 +346,7 @@ class MemoryEngine:
                         )
                         for e in result.entities
                     ]
-                    await cfg.graph_store.add_entities(
+                    await ing.graph_store.add_entities(
                         source_id=after.memory_row_id,
                         knowledge_id=after.memory_id,
                         entities=graph_entities,
@@ -374,7 +378,7 @@ class MemoryEngine:
 
     async def delete(self, memory_row_id: str, *, memory_id: str) -> None:
         self._check_initialized()
-        cfg = self._cfg
+        ing = self._cfg.ingestion
         tel_row = MemoryDeleteTelemetryRow(
             memory_id=memory_id, memory_row_id=memory_row_id, outcome="success",
         )
@@ -384,13 +388,13 @@ class MemoryEngine:
             before = await self._fetch_row(memory_row_id, memory_id)
             tel_row.text_before = before.text
 
-            await cfg.vector_store.delete({"memory_row_id": memory_row_id})
+            await ing.vector_store.delete({"memory_row_id": memory_row_id})
 
-            if cfg.ingestion.keyword_backend == "postgres_fts" and cfg.document_store is not None:
-                await cfg.document_store.delete_content(memory_row_id)
+            if ing.keyword_backend == "postgres_fts" and ing.document_store is not None:
+                await ing.document_store.delete_content(memory_row_id)
 
-            if cfg.graph_store is not None:
-                await cfg.graph_store.delete_by_source(memory_row_id)
+            if ing.graph_store is not None:
+                await ing.graph_store.delete_by_source(memory_row_id)
 
             await self._obs.emit(
                 "memory.delete.success", "memory delete ok",
@@ -430,7 +434,7 @@ class MemoryEngine:
         vectors = await embed_batched(ing.embeddings, [probe])
         if not vectors:
             return ()
-        results = await self._cfg.vector_store.search(
+        results = await ing.vector_store.search(
             vector=vectors[0], top_k=ing.dedup_context_top_k,
             filters={"memory_id": memory_id},
         )
@@ -457,7 +461,7 @@ class MemoryEngine:
         # Full-namespace scan per add(). Acceptable for v1: typical memory_id
         # stays small per consumer. If this regresses, replace with a
         # vector-store payload-indexed text_hash lookup.
-        store = self._cfg.vector_store
+        store = self._cfg.ingestion.vector_store
         offset: str | None = None
         out: set[str] = set()
         while True:
@@ -521,17 +525,17 @@ class MemoryEngine:
                     )
                     for row, vec in zip(rows, vectors, strict=True)
                 ]
-                await self._cfg.vector_store.upsert(points)
+                await ing.vector_store.upsert(points)
             finally:
                 tel_row.semantic_duration_ms = int((time.perf_counter() - t0) * 1000)
 
         async def _entity() -> None:
-            if ing.entity_extraction is None or self._cfg.graph_store is None:
+            if ing.entity_extraction is None or ing.graph_store is None or ing.entity_provider is None:
                 return
             t0 = time.perf_counter()
             try:
                 from rfnry_knowledge.baml.baml_client.async_client import b as baml_b
-                registry = build_registry(self._cfg.provider)
+                registry = build_registry(ing.entity_provider)
                 for r in rows:
                     def _make_entity_call(text: str):  # noqa: ANN202
                         async def _call(collector: Any) -> Any:
@@ -561,7 +565,7 @@ class MemoryEngine:
                         )
                         for e in result.entities
                     ]
-                    await self._cfg.graph_store.add_entities(
+                    await ing.graph_store.add_entities(
                         source_id=r.memory_row_id,
                         knowledge_id=r.memory_id,
                         entities=graph_entities,
@@ -570,12 +574,12 @@ class MemoryEngine:
                 tel_row.entity_duration_ms = int((time.perf_counter() - t0) * 1000)
 
         async def _keyword() -> None:
-            if ing.keyword_backend != "postgres_fts" or self._cfg.document_store is None:
+            if ing.keyword_backend != "postgres_fts" or ing.document_store is None:
                 return
             t0 = time.perf_counter()
             try:
                 for r in rows:
-                    await self._cfg.document_store.store_content(
+                    await ing.document_store.store_content(
                         source_id=r.memory_row_id,
                         knowledge_id=r.memory_id,
                         source_type=None,
