@@ -16,14 +16,20 @@ from rfnry_knowledge.memory.models import (
     ExtractedMemory,
     Interaction,
     MemoryRow,
+    MemorySearchResult,
 )
 from rfnry_knowledge.models import VectorPoint
 from rfnry_knowledge.observability import Observability
 from rfnry_knowledge.observability.context import _reset_obs, _set_obs
 from rfnry_knowledge.providers import build_registry
+from rfnry_knowledge.retrieval.methods.entity import EntityRetrieval
+from rfnry_knowledge.retrieval.methods.keyword import KeywordRetrieval
+from rfnry_knowledge.retrieval.methods.semantic import SemanticRetrieval
+from rfnry_knowledge.retrieval.search.service import RetrievalService
 from rfnry_knowledge.stores.graph.models import GraphEntity
 from rfnry_knowledge.telemetry import (
     MemoryAddTelemetryRow,
+    MemorySearchTelemetryRow,
     Telemetry,
 )
 from rfnry_knowledge.telemetry.usage import instrument_baml_call
@@ -142,6 +148,104 @@ class MemoryEngine:
                 await self._tel.write(tel_row)
             except Exception:
                 logger.exception("telemetry write failed for memory add memory_id=%s", memory_id)
+            _reset_obs(obs_token)
+
+    async def search(
+        self,
+        query: str,
+        memory_id: str,
+        top_k: int = 10,
+        filters: dict[str, Any] | None = None,
+    ) -> tuple[MemorySearchResult, ...]:
+        self._check_initialized()
+        if not query or not query.strip():
+            raise ValueError("query must not be blank")
+        if not memory_id or not memory_id.strip():
+            raise ValueError("memory_id must not be blank")
+        if filters:
+            raise NotImplementedError("custom filters not yet supported in MemoryEngine.search")
+
+        cfg = self._cfg
+        ret_cfg = cfg.retrieval
+        tel_row = MemorySearchTelemetryRow(memory_id=memory_id, outcome="success")
+        obs_token = _set_obs(self._obs)
+        start = time.perf_counter()
+        await self._obs.emit("memory.search.start", "memory search started",
+                             context={"memory_id": memory_id})
+        try:
+            methods: list[Any] = []
+            if ret_cfg.semantic_weight > 0:
+                methods.append(SemanticRetrieval(
+                    store=cfg.vector_store,
+                    embeddings=cfg.ingestion.embeddings,
+                    sparse_embeddings=cfg.ingestion.sparse_embeddings,
+                    weight=ret_cfg.semantic_weight,
+                ))
+            if ret_cfg.keyword_weight > 0:
+                kw_kwargs: dict[str, Any] = {
+                    "backend": cfg.ingestion.keyword_backend,
+                    "weight": ret_cfg.keyword_weight,
+                }
+                if cfg.ingestion.keyword_backend == "bm25":
+                    kw_kwargs["vector_store"] = cfg.vector_store
+                    kw_kwargs["bm25_max_chunks"] = cfg.ingestion.bm25_max_chunks
+                else:
+                    kw_kwargs["document_store"] = cfg.document_store
+                methods.append(KeywordRetrieval(**kw_kwargs))
+            if ret_cfg.entity_weight > 0 and cfg.graph_store is not None:
+                # EntityRetrieval hardcodes max_hops at search time today;
+                # MemoryRetrievalConfig.entity_hops is plumbed but inert until
+                # EntityRetrieval gains a max_hops constructor arg.
+                methods.append(EntityRetrieval(
+                    store=cfg.graph_store,
+                    weight=ret_cfg.entity_weight,
+                ))
+            service = RetrievalService(
+                retrieval_methods=methods,
+                reranking=ret_cfg.rerank,
+                top_k=top_k,
+            )
+            # knowledge_id=memory_id reuses the existing service's filter contract
+            # by aliasing: memory rows are stored with knowledge_id == memory_id.
+            chunks, trace = await service.retrieve(
+                query=query, knowledge_id=memory_id, top_k=top_k, trace=True,
+            )
+            per_method = trace.per_method_results if trace else {}
+            results: list[MemorySearchResult] = []
+            for chunk in chunks:
+                scores = {name: 0.0 for name in per_method}
+                for name, items in per_method.items():
+                    for item in items:
+                        if item.chunk_id == chunk.chunk_id:
+                            scores[name] = item.score
+                            break
+                row = self._payload_to_row({
+                    "memory_row_id": chunk.chunk_id,
+                    "memory_id": memory_id,
+                    "text": chunk.content,
+                    "content": chunk.content,
+                    **(chunk.source_metadata or {}),
+                })
+                results.append(MemorySearchResult(row=row, score=chunk.score, pillar_scores=scores))
+            tel_row.result_count = len(results)
+            tel_row.top_score = results[0].score if results else None
+            tel_row.methods_used = list(per_method.keys()) if per_method else []
+            await self._obs.emit("memory.search.success", "memory search ok",
+                                 context={"memory_id": memory_id, "result_count": len(results)})
+            return tuple(results)
+        except BaseException as exc:
+            tel_row.outcome = "error"
+            tel_row.error_type = type(exc).__name__
+            tel_row.error_message = str(exc)
+            await self._obs.emit("memory.search.error", "memory search failed", level="error",
+                                 context={"memory_id": memory_id}, error=exc)
+            raise
+        finally:
+            tel_row.duration_ms = int((time.perf_counter() - start) * 1000)
+            try:
+                await self._tel.write(tel_row)
+            except Exception:
+                logger.exception("telemetry write failed for memory search memory_id=%s", memory_id)
             _reset_obs(obs_token)
 
     @staticmethod
