@@ -4,10 +4,7 @@ import contextlib
 
 from pydantic import BaseModel
 
-from rfnry_knowledge.telemetry.record import IngestTelemetryRow, QueryTelemetryRow
-from rfnry_knowledge.telemetry.sink import NullTelemetrySink, TelemetrySink
-
-TelemetryRow = QueryTelemetryRow | IngestTelemetryRow
+from rfnry_knowledge.telemetry.sink import NullTelemetrySink, TelemetryRow, TelemetrySink
 
 
 class Telemetry(BaseModel):

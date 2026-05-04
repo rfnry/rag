@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace as _SimpleNamespace
 from typing import Any, cast
+from typing import Any as _Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -92,3 +94,81 @@ def make_engine() -> Any:
         return engine
 
     return _factory
+
+
+class _FakeMemoryVectorStore:
+    def __init__(self) -> None:
+        self.points: list[_Any] = []
+        self.deleted: list[dict] = []
+        self._scroll_results: list[_Any] = []
+        self._search_results: list[_Any] = []
+
+    async def initialize(self, vector_size: int) -> None: ...
+    async def upsert(self, points): self.points.extend(points)
+    async def delete(self, filters):
+        self.deleted.append(filters)
+        return 1
+    async def search(self, vector, top_k=10, filters=None): return list(self._search_results)
+    async def hybrid_search(self, *a, **k): return []
+    async def retrieve(self, point_ids): return []
+    async def scroll(self, filters=None, limit=100, offset=None):
+        return list(self._scroll_results), None
+    async def count(self, filters=None): return len(self.points)
+    async def set_payload(self, *a, **k): ...
+    async def shutdown(self): ...
+
+
+class _FakeMemoryEmbeddings:
+    model = "fake"
+    name = "fake:fake"
+    async def embed(self, texts):
+        from rfnry_knowledge.providers import EmbeddingResult
+        return EmbeddingResult(vectors=[[0.1] * 8 for _ in texts], usage=None)
+    async def embedding_dimension(self): return 8
+
+
+class _StubMemoryExtractor:
+    def __init__(self, items=()) -> None:
+        self.items = list(items)
+        self.calls: list[_Any] = []
+    async def extract(self, interaction, existing_memories=()):
+        self.calls.append((interaction, existing_memories))
+        return tuple(self.items)
+
+
+@pytest.fixture
+def fake_memory_vector_store():
+    return _FakeMemoryVectorStore()
+
+
+@pytest.fixture
+def fake_memory_embeddings():
+    return _FakeMemoryEmbeddings()
+
+
+@pytest.fixture
+def stub_memory_extractor_factory():
+    def _make(items=()):
+        return _StubMemoryExtractor(items)
+    return _make
+
+
+@pytest.fixture
+def memory_cfg_factory(fake_memory_vector_store, fake_memory_embeddings):
+    from rfnry_knowledge.config.memory import (
+        MemoryEngineConfig,
+        MemoryIngestionConfig,
+        MemoryRetrievalConfig,
+    )
+
+    def _make(extractor=None, vector_store=None):
+        extractor = extractor or _StubMemoryExtractor()
+        return MemoryEngineConfig(
+            ingestion=MemoryIngestionConfig(
+                extractor=extractor, embeddings=fake_memory_embeddings,
+            ),
+            retrieval=MemoryRetrievalConfig(),
+            vector_store=vector_store or fake_memory_vector_store,
+            provider=_SimpleNamespace(name="x", model="y"),
+        )
+    return _make
