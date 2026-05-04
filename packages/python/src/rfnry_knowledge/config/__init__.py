@@ -7,6 +7,9 @@ from rfnry_knowledge.config.generation import GenerationConfig as GenerationConf
 from rfnry_knowledge.config.ingestion import ContextualChunkConfig as ContextualChunkConfig
 from rfnry_knowledge.config.ingestion import DocumentExpansionConfig as DocumentExpansionConfig
 from rfnry_knowledge.config.ingestion import IngestionConfig as IngestionConfig
+from rfnry_knowledge.config.memory import MemoryEngineConfig as MemoryEngineConfig
+from rfnry_knowledge.config.memory import MemoryIngestionConfig as MemoryIngestionConfig
+from rfnry_knowledge.config.memory import MemoryRetrievalConfig as MemoryRetrievalConfig
 from rfnry_knowledge.config.retrieval import RetrievalConfig as RetrievalConfig
 from rfnry_knowledge.config.routing import QueryMode as QueryMode
 from rfnry_knowledge.config.routing import RoutingConfig as RoutingConfig
