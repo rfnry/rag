@@ -28,7 +28,14 @@ from sqlalchemy.schema import ColumnDefault
 from rfnry_knowledge.common.logging import get_logger
 from rfnry_knowledge.exceptions import ConfigurationError, DuplicateSourceError, SourceNotFoundError
 from rfnry_knowledge.models import Source, SourceStats
-from rfnry_knowledge.telemetry.record import IngestTelemetryRow, QueryTelemetryRow
+from rfnry_knowledge.telemetry.record import (
+    IngestTelemetryRow,
+    MemoryAddTelemetryRow,
+    MemoryDeleteTelemetryRow,
+    MemorySearchTelemetryRow,
+    MemoryUpdateTelemetryRow,
+    QueryTelemetryRow,
+)
 
 logger = get_logger(__name__)
 
@@ -171,6 +178,82 @@ class _IngestTelemetryRow(_Base):
     persist_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     outcome: Mapped[str] = mapped_column(String(32), nullable=False)
     notes_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    error_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class _MemoryAddTelemetryRow(_Base):
+    __tablename__ = "knowledge_memory_add_telemetry"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    memory_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    dropped_dedup_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    dropped_invalid_link_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    extraction_duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    semantic_duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    keyword_duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    entity_duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_input: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_output: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_cache_creation: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_cache_read: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    llm_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class _MemorySearchTelemetryRow(_Base):
+    __tablename__ = "knowledge_memory_search_telemetry"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    memory_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    result_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    top_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    methods_used_json: Mapped[str] = mapped_column(JSON, nullable=False, default="[]")
+    method_durations_ms_json: Mapped[str] = mapped_column(JSON, nullable=False, default="{}")
+    method_errors: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class _MemoryUpdateTelemetryRow(_Base):
+    __tablename__ = "knowledge_memory_update_telemetry"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    memory_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    memory_row_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    text_before: Mapped[str | None] = mapped_column(Text, nullable=True)
+    text_after: Mapped[str | None] = mapped_column(Text, nullable=True)
+    entities_added: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    entities_removed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class _MemoryDeleteTelemetryRow(_Base):
+    __tablename__ = "knowledge_memory_delete_telemetry"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    memory_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    memory_row_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    text_before: Mapped[str | None] = mapped_column(Text, nullable=True)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
     error_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -703,6 +786,86 @@ class SQLAlchemyMetadataStore:
             persist_ms=row.persist_ms,
             outcome=row.outcome,
             notes_count=row.notes_count,
+            error_type=row.error_type,
+            error_message=row.error_message,
+        )
+        async with self._session_factory() as session:
+            session.add(orm_row)
+            await session.commit()
+
+    async def insert_memory_add_telemetry(self, row: MemoryAddTelemetryRow) -> None:
+        orm_row = _MemoryAddTelemetryRow(
+            schema_version=row.schema_version,
+            at=row.at,
+            memory_id=row.memory_id,
+            row_count=row.row_count,
+            dropped_dedup_count=row.dropped_dedup_count,
+            dropped_invalid_link_count=row.dropped_invalid_link_count,
+            extraction_duration_ms=row.extraction_duration_ms,
+            semantic_duration_ms=row.semantic_duration_ms,
+            keyword_duration_ms=row.keyword_duration_ms,
+            entity_duration_ms=row.entity_duration_ms,
+            total_duration_ms=row.total_duration_ms,
+            tokens_input=row.tokens_input,
+            tokens_output=row.tokens_output,
+            tokens_cache_creation=row.tokens_cache_creation,
+            tokens_cache_read=row.tokens_cache_read,
+            llm_calls=row.llm_calls,
+            outcome=row.outcome,
+            error_type=row.error_type,
+            error_message=row.error_message,
+        )
+        async with self._session_factory() as session:
+            session.add(orm_row)
+            await session.commit()
+
+    async def insert_memory_search_telemetry(self, row: MemorySearchTelemetryRow) -> None:
+        orm_row = _MemorySearchTelemetryRow(
+            schema_version=row.schema_version,
+            at=row.at,
+            memory_id=row.memory_id,
+            result_count=row.result_count,
+            top_score=row.top_score,
+            methods_used_json=json.dumps(row.methods_used),
+            method_durations_ms_json=json.dumps(row.method_durations_ms),
+            method_errors=row.method_errors,
+            duration_ms=row.duration_ms,
+            outcome=row.outcome,
+            error_type=row.error_type,
+            error_message=row.error_message,
+        )
+        async with self._session_factory() as session:
+            session.add(orm_row)
+            await session.commit()
+
+    async def insert_memory_update_telemetry(self, row: MemoryUpdateTelemetryRow) -> None:
+        orm_row = _MemoryUpdateTelemetryRow(
+            schema_version=row.schema_version,
+            at=row.at,
+            memory_id=row.memory_id,
+            memory_row_id=row.memory_row_id,
+            text_before=row.text_before,
+            text_after=row.text_after,
+            entities_added=row.entities_added,
+            entities_removed=row.entities_removed,
+            duration_ms=row.duration_ms,
+            outcome=row.outcome,
+            error_type=row.error_type,
+            error_message=row.error_message,
+        )
+        async with self._session_factory() as session:
+            session.add(orm_row)
+            await session.commit()
+
+    async def insert_memory_delete_telemetry(self, row: MemoryDeleteTelemetryRow) -> None:
+        orm_row = _MemoryDeleteTelemetryRow(
+            schema_version=row.schema_version,
+            at=row.at,
+            memory_id=row.memory_id,
+            memory_row_id=row.memory_row_id,
+            text_before=row.text_before,
+            duration_ms=row.duration_ms,
+            outcome=row.outcome,
             error_type=row.error_type,
             error_message=row.error_message,
         )

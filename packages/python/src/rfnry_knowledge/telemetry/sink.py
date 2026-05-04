@@ -8,9 +8,23 @@ from typing import Any, Protocol, TextIO, runtime_checkable
 
 from pydantic import BaseModel, PrivateAttr
 
-from rfnry_knowledge.telemetry.record import IngestTelemetryRow, QueryTelemetryRow
+from rfnry_knowledge.telemetry.record import (
+    IngestTelemetryRow,
+    MemoryAddTelemetryRow,
+    MemoryDeleteTelemetryRow,
+    MemorySearchTelemetryRow,
+    MemoryUpdateTelemetryRow,
+    QueryTelemetryRow,
+)
 
-TelemetryRow = QueryTelemetryRow | IngestTelemetryRow
+TelemetryRow = (
+    QueryTelemetryRow
+    | IngestTelemetryRow
+    | MemoryAddTelemetryRow
+    | MemorySearchTelemetryRow
+    | MemoryUpdateTelemetryRow
+    | MemoryDeleteTelemetryRow
+)
 
 
 @runtime_checkable
@@ -68,8 +82,16 @@ class SqlAlchemyTelemetrySink(BaseModel):
     async def write(self, row: TelemetryRow) -> None:
         if isinstance(row, QueryTelemetryRow):
             await self.metadata_store.insert_query_telemetry(row)
-        else:
+        elif isinstance(row, IngestTelemetryRow):
             await self.metadata_store.insert_ingest_telemetry(row)
+        elif isinstance(row, MemoryAddTelemetryRow):
+            await self.metadata_store.insert_memory_add_telemetry(row)
+        elif isinstance(row, MemorySearchTelemetryRow):
+            await self.metadata_store.insert_memory_search_telemetry(row)
+        elif isinstance(row, MemoryUpdateTelemetryRow):
+            await self.metadata_store.insert_memory_update_telemetry(row)
+        elif isinstance(row, MemoryDeleteTelemetryRow):
+            await self.metadata_store.insert_memory_delete_telemetry(row)
 
 
 def _write_line(target: TextIO, line: str) -> None:

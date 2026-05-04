@@ -79,3 +79,77 @@ class IngestTelemetryRow(BaseModel):
     notes_count: int = 0
     error_type: str | None = None
     error_message: str | None = None
+
+
+class MemoryAddTelemetryRow(BaseModel):
+    schema_version: int = 1
+    at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    memory_id: str
+
+    row_count: int = 0
+    dropped_dedup_count: int = 0
+    dropped_invalid_link_count: int = 0
+
+    extraction_duration_ms: int = 0
+    semantic_duration_ms: int = 0
+    keyword_duration_ms: int = 0
+    entity_duration_ms: int = 0
+    total_duration_ms: int = 0
+
+    tokens_input: int = 0
+    tokens_output: int = 0
+    tokens_cache_creation: int = 0
+    tokens_cache_read: int = 0
+    llm_calls: int = 0
+
+    outcome: Literal["success", "partial", "empty", "error"]
+    error_type: str | None = None
+    error_message: str | None = None
+
+
+class MemorySearchTelemetryRow(BaseModel):
+    schema_version: int = 1
+    at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    memory_id: str
+
+    result_count: int = 0
+    top_score: float | None = None
+    methods_used: list[str] = Field(default_factory=list)
+    method_durations_ms: dict[str, int] = Field(default_factory=dict)
+    method_errors: int = 0
+
+    duration_ms: int = 0
+    outcome: Literal["success", "error"]
+    error_type: str | None = None
+    error_message: str | None = None
+
+
+class MemoryUpdateTelemetryRow(BaseModel):
+    schema_version: int = 1
+    at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    memory_id: str
+    memory_row_id: str
+
+    text_before: str | None = None
+    text_after: str | None = None
+    entities_added: int = 0
+    entities_removed: int = 0
+    duration_ms: int = 0
+
+    outcome: Literal["success", "partial", "error"]
+    error_type: str | None = None
+    error_message: str | None = None
+
+
+class MemoryDeleteTelemetryRow(BaseModel):
+    schema_version: int = 1
+    at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    memory_id: str
+    memory_row_id: str
+
+    text_before: str | None = None
+    duration_ms: int = 0
+
+    outcome: Literal["success", "partial", "error"]
+    error_type: str | None = None
+    error_message: str | None = None
