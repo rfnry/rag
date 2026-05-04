@@ -12,6 +12,11 @@ from rfnry_knowledge.exceptions.ingestion import (
     ParseError,
 )
 from rfnry_knowledge.exceptions.input import InputError
+from rfnry_knowledge.exceptions.memory import (
+    MemoryEngineError,
+    MemoryExtractionError,
+    MemoryNotFoundError,
+)
 from rfnry_knowledge.exceptions.retrieval import RetrievalError
 from rfnry_knowledge.exceptions.store import DuplicateSourceError, SourceNotFoundError, StoreError
 
@@ -26,6 +31,9 @@ __all__ = [
     "IngestionInterruptedError",
     "InputError",
     "KnowledgeEngineError",
+    "MemoryEngineError",
+    "MemoryExtractionError",
+    "MemoryNotFoundError",
     "ParseError",
     "RetrievalError",
     "SourceNotFoundError",
