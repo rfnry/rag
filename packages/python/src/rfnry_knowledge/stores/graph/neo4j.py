@@ -22,84 +22,10 @@ ALLOWED_RELATION_TYPES = frozenset(
     }
 )
 
-_INDEX_QUERIES = [
-    "CREATE CONSTRAINT entity_id_unique IF NOT EXISTS FOR (e:Entity) REQUIRE e.entity_id IS UNIQUE",
-    "CREATE CONSTRAINT document_source_id_unique IF NOT EXISTS FOR (d:Document) REQUIRE d.source_id IS UNIQUE",
-    "CREATE CONSTRAINT page_id_unique IF NOT EXISTS FOR (p:Page) REQUIRE p.page_id IS UNIQUE",
-    "CREATE INDEX entity_name IF NOT EXISTS FOR (e:Entity) ON (e.name)",
-    "CREATE INDEX entity_type IF NOT EXISTS FOR (e:Entity) ON (e.entity_type)",
-    "CREATE INDEX entity_knowledge IF NOT EXISTS FOR (e:Entity) ON (e.knowledge_id)",
-]
-
-_FULLTEXT_INDEX_QUERY = "CREATE FULLTEXT INDEX entity_search IF NOT EXISTS FOR (e:Entity) ON EACH [e.name, e.value]"
-
-_ENTITY_MERGE_QUERY = """
-MERGE (e:Entity {entity_id: $entity_id})
-ON CREATE SET
-    e.name = $name,
-    e.entity_type = $entity_type,
-    e.category = $category,
-    e.value = $value,
-    e.knowledge_id = $knowledge_id,
-    e.source_ids = [$source_id],
-    e.properties = $properties
-ON MATCH SET
-    e.value = COALESCE($value, e.value),
-    e.properties = $properties,
-    e.source_ids = CASE
-        WHEN NOT $source_id IN e.source_ids
-        THEN e.source_ids + $source_id
-        ELSE e.source_ids
-    END
-"""
-
-_SEED_QUERY = """
-CALL db.index.fulltext.queryNodes('entity_search', $query_text)
-YIELD node, score
-WHERE ($knowledge_id IS NULL OR node.knowledge_id = $knowledge_id)
-RETURN node, score
-ORDER BY score DESC
-LIMIT $seed_limit
-"""
-
-_SEED_QUERY_WITH_TYPES = """
-CALL db.index.fulltext.queryNodes('entity_search', $query_text)
-YIELD node, score
-WHERE ($knowledge_id IS NULL OR node.knowledge_id = $knowledge_id)
-  AND node.entity_type IN $entity_types
-RETURN node, score
-ORDER BY score DESC
-LIMIT $seed_limit
-"""
-
-_TRAVERSE_QUERY = """
-MATCH (seed:Entity {entity_id: $seed_id})
-OPTIONAL MATCH path = (seed)-[r:CONNECTS_TO|POWERED_BY|CONTROLLED_BY|FEEDS|FLOWS_TO*1..{max_hops}]-(connected:Entity)
-WHERE connected.knowledge_id = seed.knowledge_id OR connected.knowledge_id IS NULL
-RETURN seed,
-       connected,
-       [rel IN relationships(path) | type(rel)] AS rel_types,
-       [n IN nodes(path) | n.name] AS node_names,
-       length(path) AS hops
-ORDER BY hops ASC
-"""
-
 _DELETE_RELATIONS_QUERY = """
 MATCH ()-[r]->()
 WHERE r.source_id = $source_id
 DELETE r
-"""
-
-_DELETE_SOURCE_FROM_ENTITIES_QUERY = """
-MATCH (e:Entity)
-WHERE $source_id IN e.source_ids
-SET e.source_ids = [sid IN e.source_ids WHERE sid <> $source_id]
-"""
-
-_DELETE_ORPHANED_ENTITIES_QUERY = """
-MATCH (e:Entity)
-WHERE size(e.source_ids) = 0
-DETACH DELETE e
 """
 
 _DELETE_PAGES_QUERY = """
@@ -219,6 +145,7 @@ class Neo4jGraphStore:
     max_connection_pool_size: int = 10
     connection_acquisition_timeout: float = 5.0
     connection_timeout: float = 5.0
+    node_label_prefix: str = ""
 
     _driver: Any = field(default=None, init=False, repr=False)
 
@@ -239,6 +166,117 @@ class Neo4jGraphStore:
                 f"connection_acquisition_timeout must be > 0, got {self.connection_acquisition_timeout}"
             )
 
+        self._entity_label = f"{self.node_label_prefix}Entity" if self.node_label_prefix else "Entity"
+        prefix_lower = self.node_label_prefix.lower() + "_" if self.node_label_prefix else ""
+        self._fulltext_index_name = f"{prefix_lower}entity_search"
+        self._index_queries = self._build_index_queries()
+        self._fulltext_index_query = self._build_fulltext_index_query()
+        self._entity_merge_query = self._build_entity_merge_query()
+        self._seed_query = self._build_seed_query()
+        self._seed_query_with_types = self._build_seed_query_with_types()
+        self._traverse_query = self._build_traverse_query()
+        self._delete_source_from_entities_query = self._build_delete_source_from_entities_query()
+        self._delete_orphaned_entities_query = self._build_delete_orphaned_entities_query()
+
+    @property
+    def entity_label(self) -> str:
+        return self._entity_label
+
+    @property
+    def fulltext_index_name(self) -> str:
+        return self._fulltext_index_name
+
+    def _build_index_queries(self) -> list[str]:
+        prefix = self.node_label_prefix.lower()
+        c_id = f"{prefix}_entity_id_unique" if prefix else "entity_id_unique"
+        i_name = f"{prefix}_entity_name" if prefix else "entity_name"
+        i_type = f"{prefix}_entity_type" if prefix else "entity_type"
+        i_kid = f"{prefix}_entity_knowledge" if prefix else "entity_knowledge"
+        return [
+            f"CREATE CONSTRAINT {c_id} IF NOT EXISTS FOR (e:{self._entity_label}) REQUIRE e.entity_id IS UNIQUE",
+            "CREATE CONSTRAINT document_source_id_unique IF NOT EXISTS FOR (d:Document) REQUIRE d.source_id IS UNIQUE",
+            "CREATE CONSTRAINT page_id_unique IF NOT EXISTS FOR (p:Page) REQUIRE p.page_id IS UNIQUE",
+            f"CREATE INDEX {i_name} IF NOT EXISTS FOR (e:{self._entity_label}) ON (e.name)",
+            f"CREATE INDEX {i_type} IF NOT EXISTS FOR (e:{self._entity_label}) ON (e.entity_type)",
+            f"CREATE INDEX {i_kid} IF NOT EXISTS FOR (e:{self._entity_label}) ON (e.knowledge_id)",
+        ]
+
+    def _build_fulltext_index_query(self) -> str:
+        return (
+            f"CREATE FULLTEXT INDEX {self._fulltext_index_name} IF NOT EXISTS "
+            f"FOR (e:{self._entity_label}) ON EACH [e.name, e.value]"
+        )
+
+    def _build_entity_merge_query(self) -> str:
+        return f"""
+MERGE (e:{self._entity_label} {{entity_id: $entity_id}})
+ON CREATE SET
+    e.name = $name,
+    e.entity_type = $entity_type,
+    e.category = $category,
+    e.value = $value,
+    e.knowledge_id = $knowledge_id,
+    e.source_ids = [$source_id],
+    e.properties = $properties
+ON MATCH SET
+    e.value = COALESCE($value, e.value),
+    e.properties = $properties,
+    e.source_ids = CASE
+        WHEN NOT $source_id IN e.source_ids
+        THEN e.source_ids + $source_id
+        ELSE e.source_ids
+    END
+"""
+
+    def _build_seed_query(self) -> str:
+        return f"""
+CALL db.index.fulltext.queryNodes('{self._fulltext_index_name}', $query_text)
+YIELD node, score
+WHERE ($knowledge_id IS NULL OR node.knowledge_id = $knowledge_id)
+RETURN node, score
+ORDER BY score DESC
+LIMIT $seed_limit
+"""
+
+    def _build_seed_query_with_types(self) -> str:
+        return f"""
+CALL db.index.fulltext.queryNodes('{self._fulltext_index_name}', $query_text)
+YIELD node, score
+WHERE ($knowledge_id IS NULL OR node.knowledge_id = $knowledge_id)
+  AND node.entity_type IN $entity_types
+RETURN node, score
+ORDER BY score DESC
+LIMIT $seed_limit
+"""
+
+    def _build_traverse_query(self) -> str:
+        return f"""
+MATCH (seed:{self._entity_label} {{entity_id: $seed_id}})
+OPTIONAL MATCH path =
+    (seed)-[r:CONNECTS_TO|POWERED_BY|CONTROLLED_BY|FEEDS|FLOWS_TO*1..{{max_hops}}]-(connected:{self._entity_label})
+WHERE connected.knowledge_id = seed.knowledge_id OR connected.knowledge_id IS NULL
+RETURN seed,
+       connected,
+       [rel IN relationships(path) | type(rel)] AS rel_types,
+       [n IN nodes(path) | n.name] AS node_names,
+       length(path) AS hops
+ORDER BY hops ASC
+"""
+
+    def _build_delete_source_from_entities_query(self) -> str:
+        return f"""
+MATCH (e:{self._entity_label})
+WHERE $source_id IN e.source_ids
+SET e.source_ids = [sid IN e.source_ids WHERE sid <> $source_id]
+"""
+
+    def _build_delete_orphaned_entities_query(self) -> str:
+        return f"""
+MATCH (e:{self._entity_label})
+WHERE size(e.source_ids) = 0
+DETACH DELETE e
+"""
+
     async def initialize(self) -> None:
         """Create the driver, verify connectivity, and ensure indexes exist."""
         if AsyncGraphDatabase is None:
@@ -257,9 +295,9 @@ class Neo4jGraphStore:
             # SERIAL: Neo4j async sessions are not concurrency-safe — only one
             # outstanding async call per session is allowed. DDL queries are also
             # cheap one-time setup; the serialisation cost here is negligible.
-            for query in _INDEX_QUERIES:
+            for query in self._index_queries:
                 await session.run(query)
-            await session.run(_FULLTEXT_INDEX_QUERY)
+            await session.run(self._fulltext_index_query)
 
         logger.info(
             "neo4j graph store initialized: uri=%s database=%s query_timeout=%.1fs "
@@ -289,7 +327,7 @@ class Neo4jGraphStore:
             for entity in entities:
                 entity_id = _compute_entity_id(entity.name, entity.entity_type, knowledge_id)
                 await session.run(
-                    _ENTITY_MERGE_QUERY,
+                    self._entity_merge_query,
                     entity_id=entity_id,
                     name=entity.name,
                     entity_type=entity.entity_type,
@@ -325,8 +363,8 @@ class Neo4jGraphStore:
                 # Any change that loosens ALLOWED_RELATION_TYPES or bypasses validation is
                 # a Cypher-injection vulnerability — see test_graph_cypher_safety.py.
                 query = (
-                    f"MATCH (a:Entity {{entity_id: $from_id}})\n"
-                    f"MATCH (b:Entity {{entity_id: $to_id}})\n"
+                    f"MATCH (a:{self._entity_label} {{entity_id: $from_id}})\n"
+                    f"MATCH (b:{self._entity_label} {{entity_id: $to_id}})\n"
                     f"MERGE (a)-[r:{rel_type} {{source_id: $source_id}}]->(b)\n"
                     f"SET r.context = $context, r.confidence = $confidence"
                 )
@@ -394,8 +432,8 @@ class Neo4jGraphStore:
             await session.begin_transaction() as tx,
         ):
             await tx.run(_DELETE_RELATIONS_QUERY, source_id=source_id)
-            await tx.run(_DELETE_SOURCE_FROM_ENTITIES_QUERY, source_id=source_id)
-            await tx.run(_DELETE_ORPHANED_ENTITIES_QUERY)
+            await tx.run(self._delete_source_from_entities_query, source_id=source_id)
+            await tx.run(self._delete_orphaned_entities_query)
             await tx.run(_DELETE_PAGES_QUERY, source_id=source_id)
             await tx.run(_DELETE_DOCUMENT_QUERY, source_id=source_id)
 
@@ -420,7 +458,7 @@ class Neo4jGraphStore:
         """Full-text search for seed entities."""
         if entity_types:
             result = await session.run(
-                _SEED_QUERY_WITH_TYPES,
+                self._seed_query_with_types,
                 query_text=_escape_lucene_query(query),
                 knowledge_id=knowledge_id,
                 entity_types=entity_types,
@@ -429,7 +467,7 @@ class Neo4jGraphStore:
             )
         else:
             result = await session.run(
-                _SEED_QUERY,
+                self._seed_query,
                 query_text=_escape_lucene_query(query),
                 knowledge_id=knowledge_id,
                 seed_limit=limit,
@@ -454,7 +492,7 @@ class Neo4jGraphStore:
     ) -> tuple[list[GraphEntity], list[GraphPath]]:
         """Walk N hops from a seed entity, return connected entities and paths."""
         hops = min(max(1, max_hops), 5)
-        query = _TRAVERSE_QUERY.replace("{max_hops}", str(hops))
+        query = self._traverse_query.replace("{max_hops}", str(hops))
 
         result = await session.run(query, seed_id=seed_id, timeout=timeout)
 
