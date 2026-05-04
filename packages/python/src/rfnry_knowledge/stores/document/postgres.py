@@ -18,18 +18,20 @@ def _escape_like(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-class _Base(DeclarativeBase):
-    pass
+def _make_row_cls(table_name: str) -> type:
+    class _Base(DeclarativeBase):
+        pass
 
+    class _Row(_Base):
+        __tablename__ = table_name
 
-class _SourceContentRow(_Base):
-    __tablename__ = "knowledge_source_content"
+        source_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+        knowledge_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+        source_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+        title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+        content: Mapped[str] = mapped_column(Text, nullable=False)
 
-    source_id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    knowledge_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    source_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
+    return _Row
 
 
 class PostgresDocumentStore:
@@ -39,6 +41,7 @@ class PostgresDocumentStore:
         self,
         url: str,
         *,
+        table_name: str = "knowledge_source_content",
         pool_size: int | None = None,
         max_overflow: int | None = None,
         pool_recycle: int = 1800,
@@ -49,6 +52,8 @@ class PostgresDocumentStore:
         headline_min_words: int = 80,
         headline_max_fragments: int = 3,
     ) -> None:
+        self._table_name = table_name
+        self._row_cls = _make_row_cls(table_name)
         if headline_max_words < 1:
             raise ConfigurationError("headline_max_words must be >= 1")
         if headline_min_words < 1:
@@ -89,6 +94,10 @@ class PostgresDocumentStore:
         self._session_factory = async_sessionmaker(self._engine, class_=AsyncSession, expire_on_commit=False)
         self._is_postgres = parsed.drivername.startswith("postgresql")
 
+    @property
+    def table_name(self) -> str:
+        return self._table_name
+
     async def initialize(self) -> None:
         driver = self._engine.dialect.name
         if driver == "sqlite":
@@ -110,7 +119,7 @@ class PostgresDocumentStore:
                 timeout,
             )
         async with self._engine.begin() as conn:
-            await conn.run_sync(_Base.metadata.create_all)
+            await conn.run_sync(self._row_cls.metadata.create_all)
 
             if self._is_postgres:
                 await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
@@ -118,7 +127,7 @@ class PostgresDocumentStore:
                 await conn.execute(
                     text(
                         "DO $$ BEGIN "
-                        "ALTER TABLE knowledge_source_content "
+                        f"ALTER TABLE {self._table_name} "
                         "ADD COLUMN tsv tsvector GENERATED ALWAYS AS "
                         "(to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, ''))) STORED; "
                         "EXCEPTION WHEN duplicate_column THEN NULL; END $$;"
@@ -127,15 +136,15 @@ class PostgresDocumentStore:
 
                 await conn.execute(
                     text(
-                        "CREATE INDEX IF NOT EXISTS idx_knowledge_source_content_tsv "
-                        "ON knowledge_source_content USING GIN (tsv)"
+                        f"CREATE INDEX IF NOT EXISTS idx_{self._table_name}_tsv "
+                        f"ON {self._table_name} USING GIN (tsv)"
                     )
                 )
 
                 await conn.execute(
                     text(
-                        "CREATE INDEX IF NOT EXISTS idx_knowledge_source_content_trgm "
-                        "ON knowledge_source_content USING GIN (content gin_trgm_ops)"
+                        f"CREATE INDEX IF NOT EXISTS idx_{self._table_name}_trgm "
+                        f"ON {self._table_name} USING GIN (content gin_trgm_ops)"
                     )
                 )
 
@@ -149,7 +158,7 @@ class PostgresDocumentStore:
         title: str,
         content: str,
     ) -> None:
-        row = _SourceContentRow(
+        row = self._row_cls(
             source_id=source_id,
             knowledge_id=knowledge_id,
             source_type=source_type,
@@ -177,14 +186,14 @@ class PostgresDocumentStore:
         """Return the stored full text for ``source_id``, or None if absent."""
         async with self._session_factory() as session:
             result = await session.execute(
-                select(_SourceContentRow.content).where(_SourceContentRow.source_id == source_id)
+                select(self._row_cls.content).where(self._row_cls.source_id == source_id)
             )
             row = result.scalar_one_or_none()
             return row
 
     async def delete_content(self, source_id: str) -> None:
         async with self._session_factory() as session:
-            await session.execute(delete(_SourceContentRow).where(_SourceContentRow.source_id == source_id))
+            await session.execute(delete(self._row_cls).where(self._row_cls.source_id == source_id))
             await session.commit()
 
     async def shutdown(self) -> None:
@@ -211,22 +220,22 @@ class PostgresDocumentStore:
         )
         headline_col = func.ts_headline(
             literal("english"),
-            _SourceContentRow.content,
+            self._row_cls.content,
             tsq,
             literal(headline_opts),
         ).label("headline")
 
         stmt = select(
-            _SourceContentRow.source_id,
-            _SourceContentRow.title,
-            _SourceContentRow.source_type,
+            self._row_cls.source_id,
+            self._row_cls.title,
+            self._row_cls.source_type,
             rank_col,
             headline_col,
         ).where(tsv_col.op("@@")(tsq))
         if knowledge_id is not None:
-            stmt = stmt.where(_SourceContentRow.knowledge_id == knowledge_id)
+            stmt = stmt.where(self._row_cls.knowledge_id == knowledge_id)
         if source_type is not None:
-            stmt = stmt.where(_SourceContentRow.source_type == source_type)
+            stmt = stmt.where(self._row_cls.source_type == source_type)
         stmt = stmt.order_by(rank_col.desc()).limit(top_k)
 
         async with self._session_factory() as session:
@@ -244,15 +253,15 @@ class PostgresDocumentStore:
             if len(seen) < top_k:
                 remaining = top_k - len(seen)
                 ilike_stmt = select(
-                    _SourceContentRow.source_id,
-                    _SourceContentRow.title,
-                    _SourceContentRow.content,
-                    _SourceContentRow.source_type,
-                ).where(_SourceContentRow.content.ilike(f"%{_escape_like(query)}%"))
+                    self._row_cls.source_id,
+                    self._row_cls.title,
+                    self._row_cls.content,
+                    self._row_cls.source_type,
+                ).where(self._row_cls.content.ilike(f"%{_escape_like(query)}%"))
                 if knowledge_id is not None:
-                    ilike_stmt = ilike_stmt.where(_SourceContentRow.knowledge_id == knowledge_id)
+                    ilike_stmt = ilike_stmt.where(self._row_cls.knowledge_id == knowledge_id)
                 if source_type is not None:
-                    ilike_stmt = ilike_stmt.where(_SourceContentRow.source_type == source_type)
+                    ilike_stmt = ilike_stmt.where(self._row_cls.source_type == source_type)
                 ilike_stmt = ilike_stmt.limit(remaining + len(seen))
 
                 result = await session.execute(ilike_stmt)
@@ -279,11 +288,11 @@ class PostgresDocumentStore:
         source_type: str | None,
         top_k: int,
     ) -> list[ContentMatch]:
-        stmt = select(_SourceContentRow).where(_SourceContentRow.content.ilike(f"%{_escape_like(query)}%"))
+        stmt = select(self._row_cls).where(self._row_cls.content.ilike(f"%{_escape_like(query)}%"))
         if knowledge_id is not None:
-            stmt = stmt.where(_SourceContentRow.knowledge_id == knowledge_id)
+            stmt = stmt.where(self._row_cls.knowledge_id == knowledge_id)
         if source_type is not None:
-            stmt = stmt.where(_SourceContentRow.source_type == source_type)
+            stmt = stmt.where(self._row_cls.source_type == source_type)
         stmt = stmt.limit(top_k)
 
         async with self._session_factory() as session:
