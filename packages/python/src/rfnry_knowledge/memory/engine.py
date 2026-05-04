@@ -12,7 +12,7 @@ from typing import Any
 
 from rfnry_knowledge.common.logging import get_logger
 from rfnry_knowledge.config.memory import MemoryEngineConfig
-from rfnry_knowledge.exceptions import MemoryNotFoundError
+from rfnry_knowledge.exceptions import ConfigurationError, IngestionError, InputError, MemoryNotFoundError
 from rfnry_knowledge.ingestion.embeddings.batching import embed_batched
 from rfnry_knowledge.memory.models import (
     ExtractedMemory,
@@ -36,6 +36,7 @@ from rfnry_knowledge.telemetry import (
     MemoryUpdateTelemetryRow,
     Telemetry,
 )
+from rfnry_knowledge.telemetry.context import _reset_row, _set_row
 from rfnry_knowledge.telemetry.usage import instrument_baml_call
 
 logger = get_logger("memory.engine")
@@ -89,19 +90,20 @@ class MemoryEngine:
 
     def _check_initialized(self) -> None:
         if not self._initialized:
-            raise RuntimeError("MemoryEngine not initialized — use async with or call initialize()")
+            raise ConfigurationError("MemoryEngine not initialized — use async with or call initialize()")
 
     async def add(self, interaction: Interaction, memory_id: str) -> tuple[MemoryRow, ...]:
         self._check_initialized()
         if not interaction.turns:
-            raise ValueError("interaction.turns must not be empty")
+            raise InputError("interaction.turns must not be empty")
         if not memory_id or not memory_id.strip():
-            raise ValueError("memory_id must not be blank")
+            raise InputError("memory_id must not be blank")
 
         cfg = self._cfg
         ing = cfg.ingestion
         tel_row = MemoryAddTelemetryRow(memory_id=memory_id, outcome="success")
         obs_token = _set_obs(self._obs)
+        row_token = _set_row(tel_row)
         start = time.perf_counter()
         await self._obs.emit(
             "memory.add.start", "memory add started",
@@ -125,7 +127,7 @@ class MemoryEngine:
             extracted = await self._drop_hash_dupes(extracted, memory_id, tel_row)
             if not extracted:
                 tel_row.outcome = "empty"
-                await self._obs.emit("memory.add.empty", "extractor produced no memories",
+                await self._obs.emit("memory.add.empty", "all extracted memories were duplicates",
                                      context={"memory_id": memory_id})
                 return ()
 
@@ -152,6 +154,7 @@ class MemoryEngine:
                 await self._tel.write(tel_row)
             except Exception:
                 logger.exception("telemetry write failed for memory add memory_id=%s", memory_id)
+            _reset_row(row_token)
             _reset_obs(obs_token)
 
     async def search(
@@ -163,9 +166,9 @@ class MemoryEngine:
     ) -> tuple[MemorySearchResult, ...]:
         self._check_initialized()
         if not query or not query.strip():
-            raise ValueError("query must not be blank")
+            raise InputError("query must not be blank")
         if not memory_id or not memory_id.strip():
-            raise ValueError("memory_id must not be blank")
+            raise InputError("memory_id must not be blank")
         if filters:
             raise NotImplementedError("custom filters not yet supported in MemoryEngine.search")
 
@@ -267,13 +270,14 @@ class MemoryEngine:
     async def update(self, memory_row_id: str, new_text: str, *, memory_id: str) -> MemoryRow:
         self._check_initialized()
         if not new_text or not new_text.strip():
-            raise ValueError("new_text must not be blank")
+            raise InputError("new_text must not be blank")
         cfg = self._cfg
         tel_row = MemoryUpdateTelemetryRow(
             memory_id=memory_id, memory_row_id=memory_row_id, outcome="success",
         )
         start = time.perf_counter()
         obs_token = _set_obs(self._obs)
+        row_token = _set_row(tel_row)
         try:
             before = await self._fetch_row(memory_row_id, memory_id)
             tel_row.text_before = before.text
@@ -289,7 +293,7 @@ class MemoryEngine:
 
             vectors = await embed_batched(cfg.ingestion.embeddings, [new_text])
             if not vectors:
-                raise RuntimeError("embeddings returned no vectors for update")
+                raise IngestionError("embeddings returned no vectors for update")
             await cfg.vector_store.upsert([
                 VectorPoint(
                     point_id=after.memory_row_id,
@@ -354,11 +358,6 @@ class MemoryEngine:
                 },
             )
             return after
-        except MemoryNotFoundError as exc:
-            tel_row.outcome = "error"
-            tel_row.error_type = type(exc).__name__
-            tel_row.error_message = str(exc)
-            raise
         except BaseException as exc:
             tel_row.outcome = "error"
             tel_row.error_type = type(exc).__name__
@@ -370,6 +369,7 @@ class MemoryEngine:
                 await self._tel.write(tel_row)
             except Exception:
                 logger.exception("telemetry write failed for memory update memory_row_id=%s", memory_row_id)
+            _reset_row(row_token)
             _reset_obs(obs_token)
 
     async def delete(self, memory_row_id: str, *, memory_id: str) -> None:
@@ -400,11 +400,6 @@ class MemoryEngine:
                     "before": {"text": before.text},
                 },
             )
-        except MemoryNotFoundError as exc:
-            tel_row.outcome = "error"
-            tel_row.error_type = type(exc).__name__
-            tel_row.error_message = str(exc)
-            raise
         except BaseException as exc:
             tel_row.outcome = "error"
             tel_row.error_type = type(exc).__name__

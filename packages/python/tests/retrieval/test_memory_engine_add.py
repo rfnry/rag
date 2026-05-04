@@ -156,3 +156,35 @@ async def test_add_drops_invented_link_ids_and_increments_counter(
         )
     assert len(rows) == 1
     assert rows[0].linked_memory_row_ids == ()
+
+
+async def test_add_records_llm_usage_into_telemetry_row(
+    memory_cfg_factory,
+) -> None:
+    """LLM usage from BAML calls inside add() must populate MemoryAddTelemetryRow.tokens_*."""
+    from unittest.mock import AsyncMock
+
+    from rfnry_knowledge.telemetry import Telemetry
+    from rfnry_knowledge.telemetry.context import add_llm_usage
+
+    captured: list = []
+    sink = SimpleNamespace(write=AsyncMock(side_effect=lambda row: captured.append(row)))
+
+    # Stub extractor so it adds usage into the active context row.
+    class _UsageStubExtractor:
+        async def extract(self, interaction, existing_memories=()):
+            add_llm_usage("fake", "fake-model", {"input": 100, "output": 50})
+            return ()
+
+    cfg = memory_cfg_factory(extractor=_UsageStubExtractor())
+    cfg.telemetry = Telemetry(sink=sink)
+
+    async with MemoryEngine(cfg) as engine:
+        await engine.add(
+            Interaction(turns=(InteractionTurn("u", "x"),)), memory_id="u",
+        )
+
+    assert len(captured) == 1
+    assert captured[0].tokens_input == 100
+    assert captured[0].tokens_output == 50
+    assert captured[0].llm_calls >= 1

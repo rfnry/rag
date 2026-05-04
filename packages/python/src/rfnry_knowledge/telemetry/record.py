@@ -136,6 +136,12 @@ class MemoryUpdateTelemetryRow(BaseModel):
     entities_removed: int = 0
     duration_ms: int = 0
 
+    tokens_input: int = 0
+    tokens_output: int = 0
+    tokens_cache_creation: int = 0
+    tokens_cache_read: int = 0
+    llm_calls: int = 0
+
     outcome: Literal["success", "partial", "error"]
     error_type: str | None = None
     error_message: str | None = None

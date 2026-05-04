@@ -238,6 +238,11 @@ class _MemoryUpdateTelemetryRow(_Base):
     entities_added: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     entities_removed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_input: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_output: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_cache_creation: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    tokens_cache_read: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    llm_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     outcome: Mapped[str] = mapped_column(String(32), nullable=False)
     error_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -849,6 +854,11 @@ class SQLAlchemyMetadataStore:
             entities_added=row.entities_added,
             entities_removed=row.entities_removed,
             duration_ms=row.duration_ms,
+            tokens_input=row.tokens_input,
+            tokens_output=row.tokens_output,
+            tokens_cache_creation=row.tokens_cache_creation,
+            tokens_cache_read=row.tokens_cache_read,
+            llm_calls=row.llm_calls,
             outcome=row.outcome,
             error_type=row.error_type,
             error_message=row.error_message,

@@ -3,11 +3,21 @@ from __future__ import annotations
 from contextvars import ContextVar, Token
 from typing import Any
 
-from rfnry_knowledge.telemetry.record import IngestTelemetryRow, QueryTelemetryRow
+from pydantic import BaseModel
+
+from rfnry_knowledge.telemetry.record import (
+    IngestTelemetryRow,
+    MemoryAddTelemetryRow,
+    MemoryUpdateTelemetryRow,
+    QueryTelemetryRow,
+)
 
 TelemetryRow = QueryTelemetryRow | IngestTelemetryRow
 
-_row_var: ContextVar[TelemetryRow | None] = ContextVar("rfnry_knowledge_telemetry_row", default=None)
+# Rows that carry LLM token-usage fields (llm_calls, tokens_*).
+LLMUsageRow = QueryTelemetryRow | IngestTelemetryRow | MemoryAddTelemetryRow | MemoryUpdateTelemetryRow
+
+_row_var: ContextVar[BaseModel | None] = ContextVar("rfnry_knowledge_telemetry_row", default=None)
 
 
 def current_query_row() -> QueryTelemetryRow | None:
@@ -25,20 +35,23 @@ def current_ingest_row() -> IngestTelemetryRow | None:
 
 
 def current_row() -> TelemetryRow | None:
-    return _row_var.get()
+    row = _row_var.get()
+    if isinstance(row, (QueryTelemetryRow, IngestTelemetryRow)):
+        return row
+    return None
 
 
-def _set_row(row: TelemetryRow) -> Token[TelemetryRow | None]:
+def _set_row(row: BaseModel) -> Token[BaseModel | None]:
     return _row_var.set(row)
 
 
-def _reset_row(token: Token[TelemetryRow | None]) -> None:
+def _reset_row(token: Token[BaseModel | None]) -> None:
     _row_var.reset(token)
 
 
 def add_llm_usage(provider: str, model: str, usage: dict[str, int]) -> None:
     row = _row_var.get()
-    if row is None:
+    if not isinstance(row, (QueryTelemetryRow, IngestTelemetryRow, MemoryAddTelemetryRow, MemoryUpdateTelemetryRow)):
         return
     row.llm_calls += 1
     if isinstance(row, QueryTelemetryRow):
