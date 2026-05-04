@@ -1,6 +1,8 @@
-from typing import Any
+from __future__ import annotations
 
-from sqlalchemy import ColumnElement, String, Text, column, delete, func, literal, select, text
+from typing import TYPE_CHECKING, Any, cast
+
+from sqlalchemy import ColumnElement, Select, String, Text, column, delete, func, literal, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -12,13 +14,26 @@ from rfnry_knowledge.stores.document.excerpt import extract_window
 
 logger = get_logger(__name__)
 
+if TYPE_CHECKING:
+
+    class _SourceContentRowProto:
+        __tablename__: str
+        source_id: Any
+        knowledge_id: Any
+        source_type: Any
+        title: Any
+        content: Any
+        metadata: Any
+
+        def __init__(self, **kwargs: Any) -> None: ...
+
 
 def _escape_like(text: str) -> str:
     """Escape LIKE/ILIKE special characters so they match literally."""
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def _make_row_cls(table_name: str) -> type:
+def _make_row_cls(table_name: str) -> type[_SourceContentRowProto]:
     class _Base(DeclarativeBase):
         pass
 
@@ -31,7 +46,7 @@ def _make_row_cls(table_name: str) -> type:
         title: Mapped[str | None] = mapped_column(String(500), nullable=True)
         content: Mapped[str] = mapped_column(Text, nullable=False)
 
-    return _Row
+    return cast("type[_SourceContentRowProto]", _Row)
 
 
 class PostgresDocumentStore:
@@ -53,7 +68,7 @@ class PostgresDocumentStore:
         headline_max_fragments: int = 3,
     ) -> None:
         self._table_name = table_name
-        self._row_cls = _make_row_cls(table_name)
+        self._row_cls: type[_SourceContentRowProto] = _make_row_cls(table_name)
         if headline_max_words < 1:
             raise ConfigurationError("headline_max_words must be >= 1")
         if headline_min_words < 1:
@@ -288,7 +303,7 @@ class PostgresDocumentStore:
         source_type: str | None,
         top_k: int,
     ) -> list[ContentMatch]:
-        stmt = select(self._row_cls).where(self._row_cls.content.ilike(f"%{_escape_like(query)}%"))
+        stmt: Select[Any] = select(self._row_cls).where(self._row_cls.content.ilike(f"%{_escape_like(query)}%"))
         if knowledge_id is not None:
             stmt = stmt.where(self._row_cls.knowledge_id == knowledge_id)
         if source_type is not None:

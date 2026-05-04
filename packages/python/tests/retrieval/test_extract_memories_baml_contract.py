@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import pytest
-
 BAML_DIR = (
     Path(__file__).resolve().parents[2]
     / "src" / "rfnry_knowledge" / "baml" / "baml_src" / "memory"
